@@ -1,12 +1,12 @@
 //! `SurfaceHandle`: what a component uses to change its own surface. Provided as a root
 //! context of every surface's `VirtualDom`; read it with [`use_surface`].
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 use calloop::ping::Ping;
+use tokio::sync::oneshot;
 
 use crate::blur::BlurSpec;
 use crate::id::{SurfaceId, SurfaceIds};
@@ -28,17 +28,26 @@ pub struct RequestQueue {
 impl RequestQueue {
     /// A queue that pings `wake` on every push.
     pub fn new(wake: Ping) -> RequestQueue {
-        todo!()
+        RequestQueue {
+            queue: Rc::default(),
+            wake,
+        }
     }
 
     /// Queue `request` and wake the loop.
     pub fn push(&self, request: Request) {
-        todo!()
+        self.queue.borrow_mut().push_back(request);
+        self.wake.ping();
     }
 
     /// Everything queued so far, oldest first.
     pub fn drain(&self) -> Vec<Request> {
-        todo!()
+        self.queue.borrow_mut().drain(..).collect()
+    }
+
+    /// The ping this queue wakes the loop with, shared by every waker and shell provider.
+    pub(crate) fn ping(&self) -> Ping {
+        self.wake.clone()
     }
 }
 
@@ -53,40 +62,42 @@ pub struct SurfaceHandle {
 impl SurfaceHandle {
     /// The handle for surface `id`. Built by the host when it creates the surface.
     pub(crate) fn new(id: SurfaceId, requests: RequestQueue, ids: SurfaceIds) -> SurfaceHandle {
-        todo!()
+        SurfaceHandle { id, requests, ids }
     }
 
     /// This surface's id.
     pub fn id(&self) -> SurfaceId {
-        todo!()
+        self.id
     }
 
+    /// Blur behind this surface (`SurfaceOp::SetBlur`).
     pub fn set_blur(&self, blur: BlurSpec) {
-        todo!()
+        self.apply(SurfaceOp::SetBlur(blur));
     }
 
+    /// Where this surface takes pointer input (`SurfaceOp::SetInputRegion`).
     pub fn set_input_region(&self, region: RegionSpec) {
-        todo!()
+        self.apply(SurfaceOp::SetInputRegion(region));
     }
 
     /// Layer surfaces only.
     pub fn set_keyboard(&self, mode: KeyboardMode) {
-        todo!()
+        self.apply(SurfaceOp::SetKeyboard(mode));
     }
 
     /// Layer surfaces only.
     pub fn set_exclusive_zone(&self, zone: ExclusiveZone) {
-        todo!()
+        self.apply(SurfaceOp::SetExclusiveZone(zone));
     }
 
     /// Layer surfaces only.
     pub fn set_size(&self, size: LayerSize) {
-        todo!()
+        self.apply(SurfaceOp::SetSize(size));
     }
 
     /// Any other op, as `HostCtx::apply` would apply it.
     pub fn apply(&self, op: SurfaceOp) {
-        todo!()
+        self.requests.push(Request::Apply { id: self.id, op });
     }
 
     /// Open a popup whose parent is this surface, rendering `root` as its own `VirtualDom`.
@@ -99,28 +110,46 @@ impl SurfaceHandle {
         placement: PopupPlacement,
         root: Root,
     ) -> SurfaceId {
-        todo!()
+        let id = self.ids.next();
+        self.requests.push(Request::OpenPopup {
+            parent: self.id,
+            id,
+            config,
+            placement,
+            root,
+        });
+        id
     }
 
     /// Close this surface (and, for a parent, its popups).
     pub fn close(&self) {
-        todo!()
+        self.requests.push(Request::Close(self.id));
     }
 
     /// Put `text` on the clipboard, owned by this surface's client.
     pub fn copy_text(&self, text: String) {
-        todo!()
+        self.requests.push(Request::CopyText {
+            from: self.id,
+            text,
+        });
     }
 
     /// An xdg-activation token for launching `app_id` with focus handed over; `None` when the
     /// compositor has no xdg-activation or refused.
     pub async fn activation_token(&self, app_id: Option<String>) -> Option<String> {
-        todo!()
+        let (reply, answer) = oneshot::channel();
+        self.requests.push(Request::ActivationToken {
+            from: self.id,
+            app_id,
+            reply,
+        });
+        // A dropped sender (the surface closed first) is the same answer as a refusal.
+        answer.await.ok().flatten()
     }
 }
 
 /// The handle of the surface this component renders in. Panics outside a host surface (a
 /// caller contract, like any missing Dioxus context).
 pub fn use_surface() -> SurfaceHandle {
-    todo!()
+    dioxus::prelude::use_context::<SurfaceHandle>()
 }

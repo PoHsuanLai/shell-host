@@ -1,7 +1,6 @@
 //! The Wayland-side state every handler runs on, and the one list of delegate macros in the
 //! crate. Handler trait impls live in `handlers/*`; this file only wires the protocol objects
 //! to them.
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -28,20 +27,30 @@ use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1:
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
+use std::time::Instant;
+
+use blitz_traits::events::MouseEventButtons;
+use keyboard_types::Modifiers;
+use smithay_client_toolkit::seat::pointer::cursor_shape::CursorShapeManager;
+use wayland_client::globals::GlobalList;
+
 use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
 use crate::cursor::Cursor;
 use crate::dom::fonts::SharedFonts;
+use crate::error::{HostError, Result};
 use crate::event::ShellEvent;
+use crate::frame::{FrameInput, TimerCmd};
 use crate::gpu::context::GpuContext;
 use crate::handle::RequestQueue;
 use crate::handlers::activation::ActivationRequest;
-use crate::handlers::background_effect::BackgroundEffect;
+use crate::handlers::background_effect::{BackgroundEffect, Support};
 use crate::handlers::fractional::Fractional;
 use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
-use crate::ime::Ime;
+use crate::ime::{Ime, ImeFocus, PendingIme};
+use crate::input::pointer::PointerPos;
 use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
@@ -61,12 +70,20 @@ pub struct HostState {
     pub(crate) layer_shell: Option<LayerShell>,
     pub(crate) seat: SeatState,
     pub(crate) input: SeatInput,
+    // Read by the input handlers (H2 input); unread on this branch until they merge.
+    #[allow(dead_code)]
     pub(crate) data_device: Option<DataDeviceManagerState>,
     pub(crate) activation: Option<ActivationState>,
     pub(crate) fractional: Option<Fractional>,
     pub(crate) background_effect: Option<BackgroundEffect>,
+    // Read by the input handlers (H2 input); unread on this branch until they merge.
+    #[allow(dead_code)]
     pub(crate) text_input: Option<TextInputManager>,
+    // Read by the input handlers (H2 input); unread on this branch until they merge.
+    #[allow(dead_code)]
     pub(crate) cursor: Cursor,
+    // Read by the input handlers (H2 input); unread on this branch until they merge.
+    #[allow(dead_code)]
     pub(crate) ime: Ime,
     pub(crate) clipboard: Clipboard,
     pub(crate) fonts: SharedFonts,
@@ -83,6 +100,107 @@ pub struct HostState {
     pub(crate) timers: Vec<TimerRequest>,
     pub(crate) qh: QueueHandle<HostState>,
     pub(crate) conn: Connection,
+}
+
+impl HostState {
+    /// Bind every global the host uses on `globals`. `wl_compositor`, `wl_shm` and
+    /// `xdg_wm_base` are required; everything else is optional and only loses its feature.
+    pub(crate) fn bind(
+        conn: Connection,
+        globals: &GlobalList,
+        qh: QueueHandle<HostState>,
+        requests: RequestQueue,
+    ) -> Result<HostState> {
+        let missing = |global| move |_| HostError::MissingGlobal { global };
+        let compositor = CompositorState::bind(globals, &qh).map_err(missing("wl_compositor"))?;
+        let shm = Shm::bind(globals, &qh).map_err(missing("wl_shm"))?;
+        let xdg_shell = XdgShell::bind(globals, &qh).map_err(missing("xdg_wm_base"))?;
+        Ok(HostState {
+            surfaces: BTreeMap::new(),
+            gpu: None,
+            registry: RegistryState::new(globals),
+            outputs: OutputState::new(globals, &qh),
+            compositor,
+            shm,
+            xdg_shell,
+            layer_shell: LayerShell::bind(globals, &qh).ok(),
+            seat: SeatState::new(globals, &qh),
+            input: SeatInput {
+                seat: None,
+                pointer: None,
+                keyboard: None,
+                pointer_focus: None,
+                position: PointerPos::OUTSIDE,
+                buttons: MouseEventButtons::None,
+                keyboard_focus: None,
+                focused_at: None,
+                modifiers: Modifiers::empty(),
+                last_serial: 0,
+            },
+            data_device: DataDeviceManagerState::bind(globals, &qh).ok(),
+            activation: ActivationState::bind(globals, &qh).ok(),
+            fractional: Fractional::bind(globals, &qh).ok(),
+            background_effect: BackgroundEffect::bind(globals, &qh).ok(),
+            text_input: TextInputManager::bind(globals, &qh).ok(),
+            cursor: Cursor {
+                manager: CursorShapeManager::bind(globals, &qh).ok(),
+                device: None,
+                current: None,
+            },
+            ime: Ime {
+                pending: PendingIme::default(),
+                focus: ImeFocus::Disabled,
+                serial: 0,
+            },
+            clipboard: Clipboard::default(),
+            fonts: SharedFonts::system(),
+            clock: HostClock::starting_at(Instant::now()),
+            ids: SurfaceIds::new(),
+            color_scheme: ColorScheme::Light,
+            requests,
+            woken: WokenSet::default(),
+            events: VecDeque::new(),
+            timers: Vec::new(),
+            qh,
+            conn,
+        })
+    }
+
+    /// Feed `input` to surface `id`'s frame machine and queue the timer change it asks for.
+    /// Unknown ids are ignored: the surface closed while the input was in flight.
+    pub(crate) fn frame_input(&mut self, id: SurfaceId, input: FrameInput) {
+        let Some(surface) = self.surfaces.get_mut(&id) else {
+            return;
+        };
+        let action = surface.step(input);
+        if action.timer != TimerCmd::Keep {
+            self.timers.push(TimerRequest::Watchdog {
+                id,
+                cmd: action.timer,
+            });
+        }
+    }
+
+    /// Whether the compositor can blur behind a surface at all.
+    pub(crate) fn blur_supported(&self) -> Support {
+        self.background_effect
+            .as_ref()
+            .map_or(Support::Unsupported, |effect| effect.capabilities().blur)
+    }
+
+    /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`
+    /// (FINDINGS F9). Delivering the repeated key is the keyboard handler's job, and the frozen
+    /// `SeatInput` has no field holding the key being repeated, so there is nothing here to
+    /// re-deliver yet; the timer itself is armed, re-armed every interval and stopped as asked.
+    pub(crate) fn key_repeat(&mut self) {}
+
+    /// The adapter label every stats line carries; empty on the CPU backend.
+    pub(crate) fn adapter_label(&self) -> String {
+        self.gpu
+            .as_ref()
+            .map(|gpu| gpu.adapter().label())
+            .unwrap_or_default()
+    }
 }
 
 impl Drop for HostState {

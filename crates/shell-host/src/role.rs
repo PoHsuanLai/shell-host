@@ -1,6 +1,6 @@
 //! What kind of surface a `HostSurface` is, with the sctk object that owns its `wl_surface`.
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
+use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use smithay_client_toolkit::shell::xdg::popup::Popup;
 use smithay_client_toolkit::shell::xdg::window::Window;
@@ -38,11 +38,18 @@ pub enum Role {
 impl Role {
     /// The `wl_surface` the role owns.
     pub fn wl_surface(&self) -> &WlSurface {
-        todo!()
+        match self {
+            Role::Layer { surface, .. } => surface.wl_surface(),
+            Role::Popup { popup, .. } => popup.wl_surface(),
+            Role::Toplevel { window, .. } => window.wl_surface(),
+        }
     }
 
     /// The parent, for a popup.
     pub fn parent(&self) -> Option<SurfaceId> {
-        todo!()
+        match self {
+            Role::Popup { parent, .. } => Some(*parent),
+            Role::Layer { .. } | Role::Toplevel { .. } => None,
+        }
     }
 }
