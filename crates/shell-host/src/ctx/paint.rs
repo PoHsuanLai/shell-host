@@ -34,7 +34,7 @@ use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::msg::Visibility;
 use crate::region::Rect;
-use crate::resolve::{Resolved, resolve};
+use crate::resolve::{Change, Resolved, resolve};
 use crate::scale::{Scale, Size, buffer_size};
 use crate::state::HostState;
 use crate::surface::{Configured, Geometry, HostSurface};
@@ -198,7 +198,6 @@ fn sync_geometry(state: &mut HostState, id: SurfaceId) {
         presenter.resize(state.gpu.as_ref(), buffer);
     }
     surface.geometry = Some(now);
-    surface.regions = Default::default();
     state.frame_input(id, FrameInput::Invalidate);
 }
 
@@ -290,27 +289,20 @@ fn send_regions(
         }
     };
     let wl = surface.role.wl_surface();
-    if let Resolved::Strips(rects) = input
-        && surface.regions.input.as_ref() != Some(&rects)
+    if surface.regions.input.update(&input) == Change::Changed
+        && let Resolved::Strips(rects) = &input
     {
-        let region = region_of(compositor, &rects);
+        let region = region_of(compositor, rects);
         wl.set_input_region(region.as_ref().map(Region::wl_region));
-        surface.regions.input = Some(rects);
     }
-    if let Resolved::Strips(rects) = blur
-        && surface.regions.blur.as_ref() != Some(&rects)
+    if surface.regions.blur.update(&blur) == Change::Changed
+        && let Resolved::Strips(rects) = &blur
+        && let Some(effect) = effect
     {
-        // Never create an effect object just to say "no blur" on a surface that had none.
-        let first_and_empty = surface.regions.blur.is_none() && rects.is_empty();
-        if let Some(effect) = effect
-            && !first_and_empty
-        {
-            let region = (!rects.is_empty())
-                .then(|| region_of(compositor, &rects))
-                .flatten();
-            effect.set_blur_region(qh, wl, region.as_ref().map(Region::wl_region));
-        }
-        surface.regions.blur = Some(rects);
+        let region = (!rects.is_empty())
+            .then(|| region_of(compositor, rects))
+            .flatten();
+        effect.set_blur_region(qh, wl, region.as_ref().map(Region::wl_region));
     }
 }
 

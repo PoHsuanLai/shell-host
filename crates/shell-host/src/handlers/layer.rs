@@ -1,20 +1,17 @@
 //! Layer-surface configure and close.
 
-use smithay_client_toolkit::compositor::Region;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::{
     LayerShellHandler, LayerSurface, LayerSurfaceConfigure,
 };
 use wayland_client::{Connection, QueueHandle};
 
-use crate::blur::BlurSpec;
 use crate::event::CloseReason;
 use crate::frame::FrameInput;
 use crate::handlers::{close_surface_and_popups, surface_id_by_wl};
 use crate::id::SurfaceId;
 use crate::layer::{Extent, LayerSize};
-use crate::region::{Px, Rect};
-use crate::resolve::{self, Resolved};
+use crate::region::Px;
 use crate::role::Role;
 use crate::scale::{self, Scale, Size};
 use crate::state::HostState;
@@ -31,7 +28,7 @@ impl LayerShellHandler for HostState {
     }
 
     /// Record the size (0 on an axis keeps the requested size, F13), mark configured, resize
-    /// the presenter, apply regions, invalidate.
+    /// the presenter, invalidate (the render that follows sends the regions).
     fn configure(
         &mut self,
         _conn: &Connection,
@@ -65,8 +62,8 @@ impl LayerShellHandler for HostState {
             presenter.resize(self.gpu.as_ref(), buffer);
         }
 
-        apply_regions(self, id);
-
+        // Regions are not sent here: the invalidate below renders, and the render resolves
+        // them after layout and sends whichever changed (`ctx::paint::send_regions`).
         if let Some(host_surface) = self.surfaces.get_mut(&id) {
             let action = host_surface.step(FrameInput::Invalidate);
             self.timers.push(TimerRequest::Watchdog {
@@ -114,66 +111,6 @@ pub fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
     Size {
         width: axis(requested.width, wire.0),
         height: axis(requested.height, wire.1),
-    }
-}
-
-/// Resolve surface `id`'s current input and blur regions against its laid-out document, and
-/// send them: the input region as a `wl_region` via `set_input_region` (`rounded_strips`), the
-/// blur region the same way through `BackgroundEffect::set_blur_region` — double-buffered, so
-/// it takes effect on the surface's next `wl_surface.commit`, which the caller always causes by
-/// invalidating the surface afterwards. A [`Resolved::Pending`] region (the element it follows
-/// is not laid out yet) leaves whatever region the surface already has.
-pub(crate) fn apply_regions(state: &mut HostState, id: SurfaceId) {
-    let Some(host_surface) = state.surfaces.get(&id) else {
-        return;
-    };
-    if !matches!(host_surface.role, Role::Layer { .. }) {
-        return;
-    }
-    let wl_surface = host_surface.role.wl_surface().clone();
-    let size = host_surface.logical;
-    let blur_spec = host_surface.blur.clone();
-    let document = &host_surface.document;
-
-    let input = resolve::resolve(&host_surface.input, size, |eid| document.element_rect(eid));
-    let blur = match &blur_spec {
-        BlurSpec::None => None,
-        BlurSpec::Region(spec) => Some(resolve::resolve(spec, size, |eid| {
-            document.element_rect(eid)
-        })),
-    };
-    // `host_surface` (and the `document` borrowed from it) are not used again below.
-
-    if let Resolved::Strips(strips) = &input
-        && let Ok(region) = Region::new(&state.compositor)
-    {
-        add_strips(&region, strips);
-        wl_surface.set_input_region(Some(region.wl_region()));
-    }
-
-    match blur {
-        None => {
-            if let Some(background_effect) = &mut state.background_effect {
-                background_effect.set_blur_region(&state.qh, &wl_surface, None);
-            }
-        }
-        Some(Resolved::Strips(strips)) => {
-            if let Some(background_effect) = &mut state.background_effect
-                && let Ok(region) = Region::new(&state.compositor)
-            {
-                add_strips(&region, &strips);
-                background_effect.set_blur_region(&state.qh, &wl_surface, Some(region.wl_region()));
-            }
-        }
-        // The blur-following element is not laid out yet: leave the compositor's current blur
-        // region alone.
-        Some(Resolved::Pending) => {}
-    }
-}
-
-fn add_strips(region: &Region, strips: &[Rect]) {
-    for strip in strips {
-        region.add(strip.x, strip.y, strip.width, strip.height);
     }
 }
 

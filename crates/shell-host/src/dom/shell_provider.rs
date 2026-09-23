@@ -9,6 +9,7 @@ use blitz_traits::shell::{ClipboardError, ShellProvider};
 use calloop::ping::Ping;
 use cursor_icon::CursorIcon;
 
+use crate::clipboard::SharedSelection;
 use crate::id::SurfaceId;
 use crate::region::{Px, Rect};
 
@@ -33,13 +34,15 @@ pub struct HostShellProvider {
     /// changed since the last take (mirrors `redraw`'s take/clear pattern).
     cursor_changed: AtomicBool,
     ime: Mutex<ImeRequest>,
-    /// The text this process last copied, served without a round trip through the compositor.
-    clipboard: Mutex<Option<String>>,
+    /// The selection's text as the seat last published it (`clipboard::SharedSelection`).
+    selection: SharedSelection,
+    /// Text the document copied, waiting for the flush to claim the selection with it.
+    copied: Mutex<Option<String>>,
 }
 
 impl HostShellProvider {
-    /// The provider for surface `id`, pinging `wake`.
-    pub fn new(id: SurfaceId, wake: Ping) -> HostShellProvider {
+    /// The provider for surface `id`, pinging `wake`, pasting from `selection`.
+    pub fn new(id: SurfaceId, wake: Ping, selection: SharedSelection) -> HostShellProvider {
         HostShellProvider {
             id,
             wake,
@@ -47,7 +50,8 @@ impl HostShellProvider {
             cursor: Mutex::new(None),
             cursor_changed: AtomicBool::new(false),
             ime: Mutex::new(ImeRequest::default()),
-            clipboard: Mutex::new(None),
+            selection,
+            copied: Mutex::new(None),
         }
     }
 
@@ -74,6 +78,14 @@ impl HostShellProvider {
         } else {
             CursorRequest::Unchanged
         }
+    }
+
+    /// Text the document copied since the last call, for the host to claim the selection with.
+    pub fn take_copied(&self) -> Option<String> {
+        self.copied
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
     }
 
     /// The IME state the document last asked for.
@@ -132,19 +144,15 @@ impl ShellProvider for HostShellProvider {
 
     /// The own-selection cache if this process owns the selection, else a pipe read from the
     /// selection offer with a 200 ms timeout.
+    /// The selection's text as last published; a paste never waits on another client.
     fn get_clipboard_text(&self) -> Result<String, ClipboardError> {
-        self.clipboard
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-            .ok_or(ClipboardError)
+        self.selection.text().ok_or(ClipboardError)
     }
 
+    /// Queue `text` for the flush, which claims the selection with it.
     fn set_clipboard_text(&self, text: String) -> Result<(), ClipboardError> {
-        *self
-            .clipboard
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = Some(text);
+        *self.copied.lock().unwrap_or_else(PoisonError::into_inner) = Some(text);
+        self.wake.ping();
         Ok(())
     }
 }

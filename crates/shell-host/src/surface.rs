@@ -12,7 +12,8 @@ use crate::frame::{FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
 use crate::msg::{SurfaceOp, Visibility};
-use crate::region::{Px, Rect, RegionSpec};
+use crate::region::{Px, RegionSpec};
+use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 
@@ -30,12 +31,25 @@ pub struct Geometry {
     pub scale: Scale,
 }
 
-/// The regions last sent to the compositor, so an unchanged region is not re-sent every frame.
-/// `None` means nothing has been sent since the surface (or its role) was created.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// The regions last sent to the compositor, so an unchanged region is not re-sent every frame
+/// (`resolve::Tracked`). The one path that sends regions is the per-frame
+/// `ctx::paint::send_regions`, after layout; configure handlers only invalidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppliedRegions {
-    pub input: Option<Vec<Rect>>,
-    pub blur: Option<Vec<Rect>>,
+    /// Starts unknown: the compositor's default input region is infinite, so the first
+    /// resolution is always sent.
+    pub input: Tracked,
+    /// Starts empty: a new `wl_surface` has no blur, so "no blur" sends nothing.
+    pub blur: Tracked,
+}
+
+impl Default for AppliedRegions {
+    fn default() -> AppliedRegions {
+        AppliedRegions {
+            input: Tracked::new(),
+            blur: Tracked::holding(Vec::new()),
+        }
+    }
 }
 
 /// A surface. Field order is drop order: the presenter (holding the wgpu surface) goes before
@@ -94,11 +108,9 @@ impl HostSurface {
         match (op, &mut self.role) {
             (SurfaceOp::SetBlur(blur), _) => {
                 self.blur = blur.clone();
-                self.regions.blur = None;
             }
             (SurfaceOp::SetInputRegion(input), _) => {
                 self.input = input.clone();
-                self.regions.input = None;
             }
             (SurfaceOp::SetVisibility(visibility), _) => self.visibility = *visibility,
             (SurfaceOp::Reposition(next), Role::Popup { placement, .. }) => *placement = *next,

@@ -14,7 +14,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use crate::blur::BlurSpec;
 use crate::debug::{StatsWindow, SurfaceName};
 use crate::dom::document::{DocumentEnv, SurfaceDocument};
-use crate::dom::net::DataUriNet;
+use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::error::{HostError, Result};
 use crate::frame::FrameState;
@@ -281,15 +281,19 @@ fn insert(
     (blur, input): (BlurSpec, RegionSpec),
     root: Root,
 ) {
-    let shell = Arc::new(HostShellProvider::new(id, state.requests.ping()));
+    let shell = Arc::new(HostShellProvider::new(
+        id,
+        state.requests.ping(),
+        state.clipboard.selection.clone(),
+    ));
     let handle = SurfaceHandle::new(id, state.requests.clone(), state.ids.clone());
     let env = DocumentEnv {
         shell: Arc::clone(&shell),
         fonts: state.fonts.for_document(),
-        net: Arc::new(DataUriNet),
+        net: Arc::new(LocalNet),
         viewport: super::paint::viewport(logical, Scale::ONE, state.color_scheme),
     };
-    let document = SurfaceDocument::build(root.context(handle), env);
+    let document = surface_document(root, handle, env);
     state.surfaces.insert(
         id,
         HostSurface {
@@ -315,6 +319,12 @@ fn insert(
     state.woken.mark(id);
 }
 
+/// Surface `root`'s document, with `handle` provided as a root context before the first build,
+/// so `use_surface()` works in every component of the surface from its first render.
+fn surface_document(root: Root, handle: SurfaceHandle, env: DocumentEnv) -> SurfaceDocument {
+    SurfaceDocument::build(root.context(handle), env)
+}
+
 /// The size a layer asks for; a `Fill` axis is 0 until the compositor configures it.
 fn requested_size(config: &LayerConfig) -> Size {
     let px = |extent| match extent {
@@ -330,4 +340,59 @@ fn requested_size(config: &LayerConfig) -> Size {
 fn wire_size(size: Size) -> (u32, u32) {
     let px = |v: Px| u32::try_from(v).unwrap_or(0);
     (px(size.width), px(size.height))
+}
+
+#[cfg(test)]
+mod tests {
+    use blitz_dom::Document as _;
+    use blitz_traits::shell::{ColorScheme, Viewport};
+    use dioxus::prelude::*;
+
+    use super::*;
+    use crate::clipboard::SharedSelection;
+    use crate::dom::fonts::SharedFonts;
+    use crate::handle::{RequestQueue, use_surface};
+    use crate::id::SurfaceIds;
+    use crate::msg::{Request, SurfaceOp};
+
+    fn app() -> Element {
+        let surface = use_surface();
+        use_hook(|| surface.set_blur(BlurSpec::None));
+        rsx! { div { "surface {surface.id().0}" } }
+    }
+
+    #[test]
+    fn a_spawned_root_reads_its_surface_handle() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let requests = RequestQueue::new(ping.clone());
+        let id = SurfaceId(42);
+        let handle = SurfaceHandle::new(id, requests.clone(), SurfaceIds::new());
+        let env = DocumentEnv {
+            shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
+            fonts: SharedFonts::system().for_document(),
+            net: Arc::new(LocalNet),
+            viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
+        };
+
+        let mut document = surface_document(Root::new(app), handle, env);
+
+        let mut text = String::new();
+        document.dioxus().inner().visit(|_, node| {
+            if node.is_text_node() {
+                text.push_str(&node.text_content());
+            }
+        });
+        assert!(text.contains("surface 42"), "rendered {text:?}");
+        let queued = requests.drain();
+        assert!(
+            matches!(
+                queued.as_slice(),
+                [Request::Apply {
+                    id: SurfaceId(42),
+                    op: SurfaceOp::SetBlur(BlurSpec::None)
+                }]
+            ),
+            "the handle queues into the host: {queued:?}"
+        );
+    }
 }

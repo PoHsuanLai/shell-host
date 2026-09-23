@@ -1,7 +1,7 @@
 //! Integration tests for the document modules (`dom/**`, `wake.rs`, `bridge.rs`, `root.rs`):
 //! building a `SurfaceDocument` from a `Root`, polling it, and its supporting pieces. Headless —
 //! no Wayland connection, no GPU surface — using a dummy `HostShellProvider` and the
-//! `data:`-only `NetProvider`.
+//! local (`data:` and `file:`) `NetProvider`.
 
 use std::sync::Arc;
 use std::task::Context;
@@ -14,9 +14,10 @@ use calloop::EventLoop;
 use dioxus::prelude::*;
 use tokio::sync::watch;
 
+use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
 use shell_host::dom::fonts::SharedFonts;
-use shell_host::dom::net::DataUriNet;
+use shell_host::dom::net::LocalNet;
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::root::Root;
@@ -25,13 +26,17 @@ use shell_host::wake::{WokenSet, surface_waker};
 
 /// A `DocumentEnv` with no Wayland connection behind it: the shell provider only records what
 /// it is asked, the font context discovers whatever fonts this machine has, and the net
-/// provider serves `data:` only.
+/// provider serves `data:` and `file:` only.
 fn test_env() -> DocumentEnv {
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(SurfaceId(1), ping)),
+        shell: Arc::new(HostShellProvider::new(
+            SurfaceId(1),
+            ping,
+            SharedSelection::default(),
+        )),
         fonts: SharedFonts::system().for_document(),
-        net: Arc::new(DataUriNet),
+        net: Arc::new(LocalNet),
         viewport: Viewport::new(200, 100, 1.0, ColorScheme::Light),
     }
 }
@@ -137,20 +142,23 @@ async fn poll_reports_a_change_and_the_waker_pings_when_a_watched_value_changes(
     assert!(all_text(&mut doc).contains('7'));
 }
 
+/// Hands the fetched bytes back to the test.
+struct CollectHandler(tokio::sync::oneshot::Sender<(String, Bytes)>);
+
+impl NetHandler for CollectHandler {
+    fn bytes(self: Box<Self>, resolved_url: String, bytes: Bytes) {
+        let _ = self.0.send((resolved_url, bytes));
+    }
+}
+
 #[tokio::test]
 async fn the_net_provider_serves_a_data_png() {
     // A 1x1 transparent PNG, base64-encoded (the smallest valid PNG payload).
     const PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
     let uri = format!("data:image/png;base64,{PNG_BASE64}");
 
-    let provider = DataUriNet;
+    let provider = LocalNet;
     let (tx, rx) = tokio::sync::oneshot::channel();
-    struct CollectHandler(tokio::sync::oneshot::Sender<(String, Bytes)>);
-    impl NetHandler for CollectHandler {
-        fn bytes(self: Box<Self>, resolved_url: String, bytes: Bytes) {
-            let _ = self.0.send((resolved_url, bytes));
-        }
-    }
 
     provider.fetch(
         0,
@@ -166,4 +174,43 @@ async fn the_net_provider_serves_a_data_png() {
         &signature[..8],
         &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
     );
+}
+
+#[tokio::test]
+async fn the_net_provider_serves_a_file_url() {
+    let path = std::env::temp_dir().join(format!("shell-host-localnet-{}.bin", std::process::id()));
+    let payload: &[u8] = b"\x89PNG wallpaper bytes";
+    std::fs::write(&path, payload).expect("write the fixture");
+    let url = blitz_traits::net::Url::from_file_path(&path).expect("absolute path");
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    LocalNet.fetch(0, Request::get(url.clone()), Box::new(CollectHandler(tx)));
+    let fetched = tokio::time::timeout(Duration::from_secs(5), rx).await;
+    std::fs::remove_file(&path).ok();
+
+    let (resolved_url, bytes) = fetched
+        .expect("in time")
+        .expect("the file: fetch completes");
+    assert_eq!(resolved_url, url.as_str());
+    assert_eq!(bytes.as_ref(), payload);
+}
+
+#[test]
+fn the_shell_provider_pastes_what_the_seat_published_and_queues_what_it_copies() {
+    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+    let seat = SharedSelection::default();
+    let provider = HostShellProvider::new(SurfaceId(1), ping, seat.clone());
+    use blitz_traits::shell::ShellProvider as _;
+
+    assert!(provider.get_clipboard_text().is_err(), "empty clipboard");
+    let generation = seat.begin();
+    seat.publish(generation, Some("from another client".into()));
+    assert_eq!(
+        provider.get_clipboard_text().ok().as_deref(),
+        Some("from another client")
+    );
+
+    assert!(provider.set_clipboard_text("typed here".into()).is_ok());
+    assert_eq!(provider.take_copied().as_deref(), Some("typed here"));
+    assert_eq!(provider.take_copied(), None, "taken once");
 }

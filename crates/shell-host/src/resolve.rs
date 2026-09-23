@@ -106,6 +106,13 @@ impl Tracked {
         Tracked::default()
     }
 
+    /// A tracker for a region the compositor is already known to hold, so resolving to the
+    /// same strips sends nothing: a fresh surface has no blur region, which is
+    /// `Tracked::holding(Vec::new())`, and resolving "no blur" on it creates no effect object.
+    pub fn holding(strips: Vec<Rect>) -> Tracked {
+        Tracked { last: Some(strips) }
+    }
+
     /// Record `resolved` and report whether the compositor needs a new region.
     pub fn update(&mut self, resolved: &Resolved) -> Change {
         let Resolved::Strips(strips) = resolved else {
@@ -286,5 +293,30 @@ mod tests {
     fn a_tracker_that_has_never_recorded_anything_treats_pending_as_no_change() {
         let mut t = Tracked::new();
         assert_eq!(t.update(&Resolved::Pending), Change::Same);
+    }
+
+    #[test]
+    fn a_tracker_holding_nothing_does_not_resend_nothing() {
+        let mut t = Tracked::holding(Vec::new());
+        assert_eq!(
+            t.update(&Resolved::Strips(vec![])),
+            Change::Same,
+            "still empty"
+        );
+        assert_eq!(
+            t.update(&Resolved::Strips(vec![PILL_RECT])),
+            Change::Changed
+        );
+        assert_eq!(
+            t.update(&Resolved::Strips(vec![])),
+            Change::Changed,
+            "cleared"
+        );
+        let mut fresh = Tracked::new();
+        assert_eq!(
+            fresh.update(&Resolved::Strips(vec![])),
+            Change::Changed,
+            "fresh sends"
+        );
     }
 }
