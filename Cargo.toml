@@ -73,6 +73,10 @@ toml = "1"
 dioxus-ssr = "0.7"
 # Named directly for image paints in custom widgets (blitz re-exports nothing).
 peniko = "0.6"
+# Proc-macro crates for ds-settings-derive.
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
 
 # Shell-only (COSMIC).
 cosmic-client-toolkit = { git = "https://github.com/pop-os/cosmic-protocols", rev = "c0cff4db14c37ed954983158e4055aa94c7741d9" }
