@@ -22,10 +22,7 @@ keyboard-types = { workspace = true }
 cursor-icon = { workspace = true }
 # Documents and rendering
 blitz-dom = { workspace = true }
-# The pinned block enables `custom-widget` on blitz-dom but not on blitz-paint; without it
-# `blitz_paint::paint_scene` never calls into a `Widget`'s `paint`/`can_create_surfaces` at
-# all (see crates/shell-host/src/headless.rs doc comment and the S3 report for detail).
-blitz-paint = { workspace = true, features = ["custom-widget"] }
+blitz-paint = { workspace = true }
 blitz-traits = { workspace = true }
 dioxus-native-dom = { workspace = true }
 dioxus = { workspace = true }
@@ -46,8 +43,13 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 
 [features]
+default = []
 # Milestone 0 spike: the throwaway `spike` module and its examples.
 spike = ["dep:serde_json"]
+# `render_png` and everything downstream of it: no window, no Wayland connection, no GPU
+# surface. Off by default because it is a CI/testing path, not something a running shell
+# needs linked in.
+headless = []
 
 [[example]]
 name = "spike_bar"
@@ -58,21 +60,8 @@ name = "probe_toplevel"
 required-features = ["spike"]
 
 [dev-dependencies]
-# Not in the pinned dependency block, and flagged as a finding in SPIKE.md / the S3 report:
-# constructing `anyrender::Paint::Resource`/`ImageBrush` for a custom `blitz_dom::Widget` (as
-# `examples/spike_widget.rs`, Milestone 0 spike item (d), must) needs `peniko` named directly —
-# confirmed by blitz's own `examples/wgpu_texture/Cargo.toml`, which lists it the same way.
-# Pinned to the exact version already resolved transitively through anyrender/blitz-paint, so
-# this changes nothing about what is actually built, only what this crate may name; a
-# dev-dependency because only the example needs it, not the `headless` library code.
-peniko = "=0.6.1"
-
-[features]
-default = []
-# `render_png` and everything downstream of it: no window, no Wayland connection, no GPU
-# surface. Off by default because it is a CI/testing path, not something a running shell
-# needs linked in.
-headless = []
+# Image paints for custom widgets in the examples (in the pinned block since S3).
+peniko = { workspace = true }
 
 [lints]
 workspace = true
