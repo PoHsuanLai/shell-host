@@ -52,7 +52,7 @@ pub use ctx::HostCtx;
 pub use debug::{FrameStats, Percentiles, SurfaceName};
 pub use error::{HostError, Recovery, Result};
 pub use event::{CloseReason, Focus, HostEvent};
-pub use geometry::{Margin, Point, element_id};
+pub use geometry::{Margin, Point};
 pub use handle::{SurfaceHandle, use_surface};
 pub use host::Host;
 pub use host_handle::HostHandle;

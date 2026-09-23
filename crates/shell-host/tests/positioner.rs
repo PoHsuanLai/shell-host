@@ -5,7 +5,7 @@ use shell_host::popup::{
     Adjust, Edge, Grab, PopupAnchor, PopupConfig, PopupSize, Toggle, positioner_params,
     to_wire_constraint_adjustment,
 };
-use shell_host::region::Rect;
+use shell_host::region::{ElementId, Rect};
 use shell_host::scale::Size;
 use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
 
@@ -155,4 +155,27 @@ fn fixed_size_ignores_a_configured_max() {
             height: 10_000
         }
     );
+}
+
+#[test]
+fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_rect() {
+    // `PopupConfig` is no longer `Copy` once its anchor can own an `ElementId`
+    // (FINDINGS.md F3); this proves the type still builds and positions correctly either way.
+    let config = PopupConfig {
+        anchor: PopupAnchor::Element(ElementId::new("dock-pill")),
+        size: PopupSize::Fixed,
+        edge: Edge::Top,
+        gravity: Edge::Top,
+        adjust: Adjust::SLIDE_AND_FLIP,
+        grab: Grab::Grabbed,
+    };
+    let size = Size {
+        width: 160,
+        height: 90,
+    };
+    let params = positioner_params(&config, BUTTON, size);
+    assert_eq!(params.anchor_rect, BUTTON);
+    assert_eq!(params.size, size);
+    assert_eq!(params.anchor, Edge::Top);
+    assert_eq!(params.gravity, Edge::Top);
 }

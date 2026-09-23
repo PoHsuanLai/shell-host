@@ -1,66 +1,98 @@
 //! `wl_surface` events: frame callbacks (the frame machine's `Callback` input), the integer
 //! scale fallback, and output enter/leave; plus the `wl_shm` accessor.
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use smithay_client_toolkit::compositor::CompositorHandler;
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use wayland_client::protocol::{wl_output, wl_surface};
 use wayland_client::{Connection, QueueHandle};
 
+use crate::frame::FrameInput;
+use crate::handlers::surface_id_by_wl;
+use crate::scale::Scale;
 use crate::state::HostState;
+use crate::timers::TimerRequest;
 
 impl CompositorHandler for HostState {
     /// The integer fallback only (`preferred_buffer_scale`): with fractional-scale bound, the
     /// `preferred_scale` event wins and this is ignored.
     fn scale_factor_changed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         surface: &wl_surface::WlSurface,
         new_factor: i32,
     ) {
-        todo!()
+        if self.fractional.is_some() {
+            return;
+        }
+        let Some(id) = surface_id_by_wl(self, surface) else {
+            return;
+        };
+        let Some(host_surface) = self.surfaces.get_mut(&id) else {
+            return;
+        };
+        host_surface.rescale(Scale(new_factor.max(1) as u32 * 120));
+        let action = host_surface.step(FrameInput::Invalidate);
+        self.timers.push(TimerRequest::Watchdog {
+            id,
+            cmd: action.timer,
+        });
     }
 
+    /// No surface transform support: every surface stays untransformed (this design has no
+    /// scroll/rotation feature placed here — see DESIGN.md), so there is nothing to record.
     fn transform_changed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &wl_surface::WlSurface,
-        new_transform: wl_output::Transform,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &wl_surface::WlSurface,
+        _new_transform: wl_output::Transform,
     ) {
-        todo!()
     }
 
     /// Count the callback, then `FrameInput::Callback(doc animation)`.
     fn frame(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
         surface: &wl_surface::WlSurface,
-        time: u32,
+        _time: u32,
     ) {
-        todo!()
+        let Some(id) = surface_id_by_wl(self, surface) else {
+            return;
+        };
+        let Some(host_surface) = self.surfaces.get_mut(&id) else {
+            return;
+        };
+        host_surface.stats.callback();
+        let animation = host_surface.document.animation();
+        let action = host_surface.step(FrameInput::Callback(animation));
+        self.timers.push(TimerRequest::Watchdog {
+            id,
+            cmd: action.timer,
+        });
     }
 
+    /// Recorded for the surface it belongs to (`HostSurface` has no per-output membership field
+    /// today, so there is nowhere further to route it); nothing currently reads it back, since
+    /// output-affinity behaviour (choosing the output for `OutputTarget::CompositorPicks`,
+    /// tuning the watchdog to the entering output's refresh rate) is not yet implemented.
     fn surface_enter(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &wl_surface::WlSurface,
-        output: &wl_output::WlOutput,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &wl_surface::WlSurface,
+        _output: &wl_output::WlOutput,
     ) {
-        todo!()
     }
 
     fn surface_leave(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &wl_surface::WlSurface,
-        output: &wl_output::WlOutput,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &wl_surface::WlSurface,
+        _output: &wl_output::WlOutput,
     ) {
-        todo!()
     }
 }
 

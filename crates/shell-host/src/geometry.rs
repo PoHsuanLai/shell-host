@@ -4,10 +4,7 @@
 //! Everything is integer logical px ([`Px`]); floats appear only at the Blitz boundary, as
 //! arguments, and never in a stored value.
 
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock, PoisonError};
-
-use crate::region::{ElementId, Px, Rect};
+use crate::region::{Px, Rect};
 
 /// A surface-local position in logical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -59,45 +56,6 @@ pub fn inflate(rect: Rect, by: Px) -> Rect {
         width: (rect.width + 2 * by).max(0),
         height: (rect.height + 2 * by).max(0),
     }
-}
-
-/// The [`ElementId`] for the DOM element whose `id` attribute is `name`.
-///
-/// S2 froze `ElementId` as a `u64`, but Blitz finds an element only by its `id` *string*
-/// (`get_element_by_id(&str)`), and its id map is private. Until that signature is revisited
-/// (FINDINGS.md F3), a region or popup names its element through this function, which hashes the
-/// name (FNV-1a, stable across runs) and remembers it so the host can get the string back with
-/// [`element_name`].
-pub fn element_id(name: &'static str) -> ElementId {
-    let id = ElementId(fnv1a(name.as_bytes()));
-    names()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(id.0, name);
-    id
-}
-
-/// The `id` attribute an [`ElementId`] from [`element_id`] was made from; `None` for an id that
-/// did not come from there.
-pub fn element_name(id: ElementId) -> Option<&'static str> {
-    names()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(&id.0)
-        .copied()
-}
-
-fn names() -> &'static Mutex<HashMap<u64, &'static str>> {
-    static NAMES: OnceLock<Mutex<HashMap<u64, &'static str>>> = OnceLock::new();
-    NAMES.get_or_init(Mutex::default)
-}
-
-fn fnv1a(bytes: &[u8]) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-    bytes
-        .iter()
-        .fold(OFFSET, |hash, &b| (hash ^ u64::from(b)).wrapping_mul(PRIME))
 }
 
 #[cfg(test)]
@@ -156,16 +114,5 @@ mod tests {
         for (before, by, want) in cases {
             assert_eq!(inflate(*before, *by), *want, "{before:?} by {by}");
         }
-    }
-
-    #[test]
-    fn element_ids_are_stable_and_reversible() {
-        // FNV-1a of "dock-hit", computed independently: the id must not depend on the run.
-        assert_eq!(element_id("dock-hit").0, fnv1a(b"dock-hit"));
-        assert_eq!(fnv1a(b""), 0xcbf2_9ce4_8422_2325);
-        assert_eq!(fnv1a(b"a"), 0xaf63_dc4c_8601_ec8c);
-        assert_ne!(element_id("dock-pill"), element_id("dock-hit"));
-        assert_eq!(element_name(element_id("dock-pill")), Some("dock-pill"));
-        assert_eq!(element_name(ElementId(7)), None);
     }
 }

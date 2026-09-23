@@ -1,11 +1,16 @@
-//! Turning a [`RegionSpec`] into the rectangles a `wl_region` is built from, after layout.
+//! Turning a [`RegionSpec`] or a [`PopupAnchor`] into concrete geometry, after layout.
 //!
 //! Pure: the caller looks up element rectangles in the laid-out document and passes a lookup
-//! function; building the `wl_region` from the result is the caller's effect. Used for the
-//! input region and, through [`BlurSpec`](crate::blur::BlurSpec), the blur region, recomputed on
-//! every frame whose element rectangle changed (design/10-BEHAVIOUR-dock.md §10.3.12).
+//! function; building the `wl_region` from the result, and committing it to the compositor, are
+//! the caller's effects (input regions via `rounded_strips`; blur regions the same way, through
+//! `BackgroundEffect::set_blur_region`, double-buffered with the next commit).
+//! [`Tracked`] is the other half of "the caller's effect": it remembers what was last sent, so a
+//! surface whose element rectangle has not moved does not recommit on every frame (design/10
+//! §10.3.12, "recomputed on every frame whose pill rect changed" — the converse also holds: a
+//! frame whose rect has *not* changed recomputes nothing).
 
 use crate::geometry::inflate;
+use crate::popup::PopupAnchor;
 use crate::region::{ElementId, Rect, RegionSpec, RoundedRect, rounded_strips};
 use crate::scale::Size;
 
@@ -35,13 +40,28 @@ pub fn resolve(
             id,
             radius,
             inflate: by,
-        } => match lookup(*id) {
+        } => match lookup(id.clone()) {
             Some(rect) => Resolved::Strips(rounded_strips(RoundedRect {
                 rect: inflate(rect, *by),
                 radius: *radius,
             })),
             None => Resolved::Pending,
         },
+    }
+}
+
+/// Resolve a popup's anchor rectangle: `PopupAnchor::Rect` uses `placement_rect` (the value
+/// carried alongside the config, FINDINGS.md F4) unchanged; `PopupAnchor::Element` looks the
+/// element up the same way [`resolve`] does, falling back to `placement_rect` while the element
+/// is not yet laid out (a popup has to anchor somewhere even on its very first configure).
+pub fn resolve_popup_anchor(
+    anchor: &PopupAnchor,
+    placement_rect: Rect,
+    lookup: impl Fn(ElementId) -> Option<Rect>,
+) -> Rect {
+    match anchor {
+        PopupAnchor::Rect => placement_rect,
+        PopupAnchor::Element(id) => lookup(id.clone()).unwrap_or(placement_rect),
     }
 }
 
@@ -59,6 +79,46 @@ fn whole(size: Size) -> Vec<Rect> {
     }
 }
 
+/// Whether a freshly resolved region differs from the one [`Tracked`] last recorded, and so
+/// needs to be sent to the compositor again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Change {
+    Same,
+    Changed,
+}
+
+/// Remembers the last resolved region for one region-following surface (an input region, or a
+/// blur region), so the caller only rebuilds and recommits a `wl_region` when the geometry
+/// actually moved.
+///
+/// [`Resolved::Pending`] never overwrites what was last recorded — [`Resolved`]'s own contract is
+/// "keep whatever region the surface has now" — so it always reports [`Change::Same`]: there is
+/// nothing new to send, whether or not anything was ever resolved before.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Tracked {
+    last: Option<Vec<Rect>>,
+}
+
+impl Tracked {
+    /// A tracker that has not recorded anything yet; its first real resolution always reports
+    /// [`Change::Changed`].
+    pub fn new() -> Tracked {
+        Tracked::default()
+    }
+
+    /// Record `resolved` and report whether the compositor needs a new region.
+    pub fn update(&mut self, resolved: &Resolved) -> Change {
+        let Resolved::Strips(strips) = resolved else {
+            return Change::Same;
+        };
+        if self.last.as_deref() == Some(strips.as_slice()) {
+            return Change::Same;
+        }
+        self.last = Some(strips.clone());
+        Change::Changed
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,7 +127,6 @@ mod tests {
         width: 200,
         height: 40,
     };
-    const PILL: ElementId = ElementId(1);
     const PILL_RECT: Rect = Rect {
         x: 20,
         y: 8,
@@ -75,8 +134,12 @@ mod tests {
         height: 24,
     };
 
+    fn pill() -> ElementId {
+        ElementId::new("dock-pill")
+    }
+
     fn lookup(id: ElementId) -> Option<Rect> {
-        (id == PILL).then_some(PILL_RECT)
+        (id == pill()).then_some(PILL_RECT)
     }
 
     #[test]
@@ -110,7 +173,7 @@ mod tests {
             (
                 "element, square, inflated",
                 RegionSpec::Element {
-                    id: PILL,
+                    id: pill(),
                     radius: 0,
                     inflate: 2,
                 },
@@ -124,7 +187,7 @@ mod tests {
             (
                 "missing element keeps the old region",
                 RegionSpec::Element {
-                    id: ElementId(99),
+                    id: ElementId::new("no-such-element"),
                     radius: 8,
                     inflate: 0,
                 },
@@ -139,7 +202,7 @@ mod tests {
     #[test]
     fn a_rounded_element_is_its_strips() {
         let spec = RegionSpec::Element {
-            id: PILL,
+            id: pill(),
             radius: 6,
             inflate: 0,
         };
@@ -160,5 +223,68 @@ mod tests {
             resolve(&RegionSpec::Whole, zero, lookup),
             Resolved::Strips(vec![])
         );
+    }
+
+    #[test]
+    fn popup_anchor_resolves_an_element_or_falls_back_to_the_placement_rect() {
+        let placement = Rect {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        let cases: &[(&str, PopupAnchor, Rect)] = &[
+            (
+                "explicit rect uses the placement rect",
+                PopupAnchor::Rect,
+                placement,
+            ),
+            (
+                "element uses its own rect",
+                PopupAnchor::Element(pill()),
+                PILL_RECT,
+            ),
+            (
+                "unresolved element falls back to the placement rect",
+                PopupAnchor::Element(ElementId::new("no-such-element")),
+                placement,
+            ),
+        ];
+        for (name, anchor, want) in cases {
+            assert_eq!(
+                resolve_popup_anchor(anchor, placement, lookup),
+                *want,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn tracked_change_detection() {
+        let a = Resolved::Strips(vec![PILL_RECT]);
+        let b = Resolved::Strips(vec![Rect { x: 21, ..PILL_RECT }]);
+        let mut t = Tracked::new();
+        assert_eq!(t.update(&a), Change::Changed, "first real resolution");
+        assert_eq!(t.update(&a), Change::Same, "same rect again");
+        assert_eq!(t.update(&b), Change::Changed, "rect moved");
+        assert_eq!(t.update(&b), Change::Same, "settled at the new rect");
+        assert_eq!(
+            t.update(&Resolved::Pending),
+            Change::Same,
+            "pending never forces a recommit"
+        );
+        // Pending did not overwrite what was last recorded: going back to `b` is still "same".
+        assert_eq!(
+            t.update(&b),
+            Change::Same,
+            "pending kept the last real rect"
+        );
+        assert_eq!(t.update(&a), Change::Changed, "b -> a is a real change");
+    }
+
+    #[test]
+    fn a_tracker_that_has_never_recorded_anything_treats_pending_as_no_change() {
+        let mut t = Tracked::new();
+        assert_eq!(t.update(&Resolved::Pending), Change::Same);
     }
 }
