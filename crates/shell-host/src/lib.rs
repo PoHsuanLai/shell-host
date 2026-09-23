@@ -27,3 +27,8 @@ use wayland_protocols as _;
 use wgpu as _;
 use wgpu_context as _;
 use xkbcommon as _;
+
+pub mod handlers;
+pub mod popup;
+pub mod region;
+pub mod scale;
