@@ -415,3 +415,118 @@ callback-counting check failed (a pixels black, b variance, c/g frames: the watc
 each surface at 100 → 400 ms backoff, 4 fires per sweep). The display was not woken on the
 user's behalf. Re-run `scripts/spike-accept.sh demo kwin a|b|c|f|g` with the screen on. Logs:
 `spike/out/demo/kwin/`.
+
+## Demos on nested cosmic-comp
+
+Branch `cosmic-demos`, 2026-09-24. Goal: run the H2 demo acceptance (a, b, c, f, g above) inside
+`scripts/dev/nested.sh`'s nested `cosmic-comp` (`COSMIC_BACKEND=winit`), the real compositor the
+shell runs on, plus the two cosmic-specific observations (frame callbacks under a fullscreen
+occluder, hover on an unmoved pointer) called out in the plan's COSMIC findings
+(cosmic-comp#2777, #2230). **Blocked before any item ran**: the host session was locked the
+whole session, and a nested `cosmic-comp` cannot render while its host is locked (below). Machine
+and package facts, the harness changes made while diagnosing this, and the evidence are recorded
+here so the run can be repeated once the host is unlocked, without re-doing the diagnosis.
+
+### Environment
+
+`cosmic-comp-1.8.0-1.fc44` (reports itself `cosmic-comp 1.0.0`, git `a55785993e8ef6aad38862`),
+`cosmic-randr-1.8.0-1.fc44`, `cosmic-settings-daemon-1.8.0-1.fc44`, `cosmic-term-1.8.0-1.fc44`,
+`grim-1.5.0-3.fc44`, `wayland-utils-1.3.0-3.fc44` (provides `wayland-info`) all present;
+`foot` was missing (`scripts/dev/install-cosmic.sh` reported it and printed the `dnf` command;
+not installed here since it never became load-bearing — `ghostty` and `cosmic-term` cover the
+occluder/hover steps). Host: KDE Plasma 6 / KWin 6.7.5 on `seat0`, primary GPU NVIDIA GeForce
+RTX 5070 Ti (proprietary 615.71.09), secondary AMD "Granite Ridge" iGPU present but unused by
+the host compositor. `demo_bar`, `demo_dock`, `probe_toplevel` built clean with
+`cargo build -p shell-host --features debug-inject --examples` (dev profile; the script's own
+`build()` does a `--release` build, also clean).
+
+### Blocker: the host session was locked, so nothing can be nested into it
+
+`scripts/dev/nested.sh start` (both the default NVIDIA path and the `SILL_NESTED_GPU=amd`
+Mesa-vendor fallback from its own Caveats section) got as far as creating the `wayland-1` socket
+and writing `.nested-env`, then hung: `cosmic-comp`'s log stopped after one
+`smithay::backend::egl::error: Erroneous EGL call didn't set EGLError` warning and one
+`[EGL] 0x300d (BAD_SURFACE) eglQuerySurface: EGL_BAD_SURFACE` error, all threads went idle
+(0 % CPU, `epoll`-sleeping), and `wayland-info` against the new socket blocked forever: it had
+connected (an open fd to the socket) and was parked in `poll_schedule_timeout`, meaning
+`cosmic-comp` accepted the client connection but never dispatched a registry event back to it.
+
+The cause: `loginctl show-session … -p LockedHint` read `LockedHint=yes` and
+`org.freedesktop.ScreenSaver.GetActive` returned `true` for the whole session (the machine had
+been idle overnight; `kscreen-doctor --dpms show` also read `off` at the start, matching the
+earlier "kwin (live session)" section above). `COSMIC_BACKEND=winit` opens the nested
+compositor's own output as an ordinary `xdg_toplevel` window on the *host* compositor
+(confirmed via `strings /usr/bin/cosmic-comp`: the winit backend is a vendored
+`winit-wayland`), so it needs the host to map and configure that window before it can render
+anything, including to its own nested clients.
+
+To rule out an NVIDIA/EGL-specific bug rather than the lock, a control test used a completely
+unrelated plain Wayland client with no cosmic-comp/smithay code in it at all: `timeout 8 env
+WAYLAND_DISPLAY=wayland-0 ghostty -e true` against the live host session, locked, with DPMS
+forced on (`kscreen-doctor --dpms on`) so a black screen could not be blamed either. It hung for
+the full 8 s and no window ever appeared (`spectacle` screenshot at the time shows the KWin lock
+screen, not a ghostty window). That confirms the host itself does not map *any* new client's
+toplevel while locked, independent of cosmic-comp, so nesting a real `cosmic-comp` here needs the
+session unlocked first — something this agent has no password to do and would not attempt to
+bypass. Evidence: `spike/out/cosmic/blocker-evidence.log` (the lock/DPMS checks and the full
+ghostty control-test transcript), `spike/out/cosmic/comp-nvidia-attempt{1,2}.log` (the
+`cosmic-comp` logs from the default and `SILL_NESTED_GPU=amd` attempts — identical failure; the
+AMD fallback does not help because the *host's* compositor, which the nested window is a client
+of, is NVIDIA-only, and this machine's cross-GPU dmabuf import is separately broken per S1
+above), `spike/out/cosmic/host-lockscreen-at-test-time.png` (the host screenshot showing the
+lock screen at test time, for the record — not one of the deliverable demo screenshots, which
+none of this run produced).
+
+**Not run**: `scripts/dev/globals.sh` (protocol table), items a/b/c/f/g on `cosmic`, the fullscreen-occluder frame-callback observation (#2777), the still-pointer hover observation
+(#2230), `spike/out/cosmic/overview.png`/`a.png`/`b.png`, and their copies to
+`/home/pohsuanlai/quire/tools/progress/shots/m0-cosmic/`. None of these can be produced without
+fabricating numbers, so they are left undone rather than guessed. **To resume**: unlock the
+`seat0` session (and leave DPMS on, or `scripts/dev/nested.sh` will hit the same wall), then run
+`scripts/dev/nested.sh start && scripts/dev/globals.sh` and `scripts/spike-accept.sh demo cosmic
+a|b|c|f|g` from this branch — the harness changes below should carry the rest through without
+further fixes, but were themselves never exercised against a live nested compositor and should
+be watched on the first real run.
+
+### Harness changes made while diagnosing this
+
+- `scripts/dev/nested.sh`: the `wayland-info` sanity check after startup had no timeout, so a
+  compositor that accepts the socket but never dispatches (exactly what happened here) hung the
+  whole script forever instead of failing. Wrapped it in `timeout 10`; on a timeout it now
+  prints the lock/DPMS diagnosis above (checks to run, what to fix) instead of a bare "exited
+  non-zero". Non-fatal either way — matches the previous behavior of leaving the compositor
+  running and `.nested-env` written even when `wayland-info` fails, so a caller can still
+  inspect it.
+- `scripts/spike-accept.sh`: added a `cosmic[@<scale>]` compositor mode alongside `kwin-virtual`
+  and `kwin`. It reuses an already-running nested compositor if `scripts/dev/.nested-env` names a
+  live pid, otherwise runs `scripts/dev/nested.sh start` itself and `scripts/dev/nested.sh stop`
+  at exit (`trap ... EXIT`) — never touching a compositor it did not start. `cosmic@1.5` best-
+  effort forces the nested output's scale: `cosmic-randr` 1.8.0 has no plain `scale` subcommand
+  (`cosmic-randr scale <output> <n>` from the task's own suggestion does not exist — checked via
+  `cosmic-randr scale --help`, which lists `enable`/`disable` as the nearest matches); the
+  closest equivalent is `cosmic-randr mode <output> <w> <h> --scale <n>`, so the script parses
+  `cosmic-randr list`'s output name and current `WxH` and calls that. If the parse or the call
+  fails, it logs why (`spike/out/demo/cosmic@<scale>/cosmic-randr-scale-<item>.log`) and
+  continues at the nested output's default scale rather than failing the item outright — this
+  path is unverified (never reached a live compositor) and should be checked on the first real
+  `cosmic@<scale>` run. On the Python side: `screenshot()` now shoots with `grim` instead of
+  `spectacle` when `SPIKE_COMP_KIND=cosmic` (matching `scripts/dev/shot.sh`); `blur_setting()`
+  reads the seeded `frosted` key from `scripts/dev/xdg-config` instead of KWin's `kreadconfig6`/
+  `gdbus` (cosmic-comp has no separate blur on/off gate for a layer-shell client — see
+  `scripts/dev/README.md`'s "Note on the frosted key" — so this is informational, same as
+  before); item f's KWin-only `kscreen-doctor -o` scale cross-check is replaced by
+  `cosmic-randr list` parsing for a `Scale:` line, made non-fatal (dropped from `checks` rather
+  than forced to fail) if that does not parse, since cosmic-randr's plain-text format was never
+  observed against a live output to confirm it. `cargo build`, `cargo test`, `cargo fmt --check`
+  were not affected; `bash -n` and `python3 -m ast` both pass on the edited script.
+- No `shell-host` source code was touched.
+
+### Cleanup
+
+No `cosmic-comp`, `ghostty`, or `wayland-info` process remained after each attempt (`pgrep -fa`
+checked after every failed start); stray `wayland-1`/`wayland-1.lock` files left by
+non-graceful kills were removed by hand once (`nested.sh stop` only removes the socket its own
+tracked pid held, not one abandoned after an external `SIGKILL`/`timeout`, which is a real gap
+but not fixed here since a graceful `stop` never leaves this behind — only the diagnosis process
+did). `kscreen-doctor --dpms` was restored to `off`, its state at the start of this session.
+`scripts/dev/.nested-env` does not exist on disk; only `wayland-0` (the host's own socket)
+remains in `$XDG_RUNTIME_DIR`.

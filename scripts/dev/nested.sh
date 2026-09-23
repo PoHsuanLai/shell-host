@@ -154,8 +154,23 @@ EOF
 
   if command -v wayland-info >/dev/null 2>&1; then
     echo "nested.sh: running wayland-info -> $GLOBALS_FILE"
-    if ! WAYLAND_DISPLAY="$new_socket" wayland-info >"$GLOBALS_FILE" 2>&1; then
-      echo "nested.sh: wayland-info exited non-zero; see $GLOBALS_FILE" >&2
+    # A compositor that accepted the socket but never completes a client's first
+    # roundtrip (e.g. its own winit-backend window never gets configured because the
+    # HOST compositor is not mapping new client windows right now, such as a locked
+    # session) would otherwise hang this script forever. Bound it and say so.
+    wi_rc=0
+    timeout 10 env WAYLAND_DISPLAY="$new_socket" wayland-info >"$GLOBALS_FILE" 2>&1 || wi_rc=$?
+    if [ "$wi_rc" -ne 0 ]; then
+      if [ "$wi_rc" -eq 124 ]; then
+        echo "nested.sh: wayland-info did not complete within 10s (compositor accepted the" >&2
+        echo "  socket but never answered a client). If the HOST session is locked or its" >&2
+        echo "  display is in DPMS off, the winit backend's own window on the host never gets" >&2
+        echo "  configured and cosmic-comp cannot render anything, including to other nested" >&2
+        echo "  clients. Check: loginctl show-session <id> -p LockedHint, kscreen-doctor --dpms" >&2
+        echo "  show. Unlock/wake the host session and re-run 'nested.sh stop' then 'start'." >&2
+      else
+        echo "nested.sh: wayland-info exited non-zero; see $GLOBALS_FILE" >&2
+      fi
     fi
   else
     echo "nested.sh: wayland-info not found, skipping globals dump." >&2
