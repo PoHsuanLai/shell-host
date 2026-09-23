@@ -375,3 +375,43 @@ No fallback was needed for any item.
   compares the maximized height with and without the bar (delta must be 32) rather than
   trusting `output_h - 32` alone.
 - c writes no png (nothing in its acceptance is visual). Nested cosmic-comp is a later day.
+
+## H2 demos: the S1 items on the real host
+
+Branch `h2-integration`, 2026-09-24. `scripts/spike-accept.sh demo <compositor> <item>` with the
+thresholds of S1 above, against `examples/demo_bar.rs` / `demo_dock.rs` (feature
+`debug-inject`) built on the real API, plus the plain-client `probe_toplevel`. The spike code
+(`src/spike/**`, `spike_bar`, the `spike` feature and the script's spike mode) was retired after
+these passed; the S1 section above is its history. Results: `spike/out/demo/<compositor>/`
+(gitignored).
+
+### kwin-virtual (nested KWin 6.7.5, 1920x1080@60, scale 1.5 unless noted): every item passes
+
+Adapter NVIDIA GeForce RTX 5070 Ti (Vulkan, NVIDIA 615.71.09), PreMultiplied + Mailbox.
+
+| Item | Result | Numbers | PNG |
+| --- | --- | --- | --- |
+| a bar | **pass** | maximized probe 720 without bar, 688 with (delta 32); (10,10) = rgb(255,0,128); checker patch at (10,40) min 0 / max 255; first frame 6.75 ms | `spike/out/demo/kwin-virtual/a.png` |
+| b blur | **pass** | luminance variance behind the bar 3306.25 (`DEMO_BLUR=0`) → 0.555 (`DEMO_BLUR=1`), drop 99.98 %; host line `blur: supported`; KWin blur effect loaded | `spike/out/demo/kwin-virtual/b.png`, `b_blur0.png` |
+| c dock, transform | **pass** | sweep 73 frames / 73 callbacks, work p50 0.89 / p95 2.67 / max 5.11 ms (budget 16.7), interval p50 16.7; idle 5 s: frames 0, commits 0, main-thread ctx switches 0; occluded (bottom layer under the probe): `stats` round trip ≤ 0.33 ms, renders after | (none; not visual) |
+| c dock, width | **pass** | 71 / 71, p50 1.04 / p95 3.80 / max 4.38; idle 0 / 0 / 0; occluded rtt ≤ 0.25 ms | |
+| c second run | pass (info) | 71 / 71, p95 1.05; idle 0 / 0 / 0. Still Mailbox: the demos have no present-mode knob (FINDINGS F27) | |
+| f fractional 1.5 | **pass** | preferred_scale 180, logical 1280x32 → buffer 1920x48; checker runs all exactly 3 px (mean 3.00); screen row equals capture row (max diff 0 on opaque px) | `spike/out/demo/kwin-virtual/f.png`, `f_capture.png` |
+| f at 1.7 | **pass** | preferred_scale 204, 1129x32 → 1919x54; runs 3 or 4 px, mean 3.42 (2 x 1.7 = 3.4); screen equals capture (max diff 0) | `spike/out/demo/kwin-virtual@1.7/f.png`, `f_capture.png` |
+| g two surfaces | **pass** | bar + dock in one process: `devices_created` 1 on both, same adapter; dock sweep → dock +36 frames, bar +0; VmRSS 171 140 KiB bar only, 172 784 KiB bar + dock (+1 644 KiB for the second surface) | |
+
+The numbers match S1's within noise (c p95 2-4 ms here vs 1.3 ms in the spike: the real host
+resolves, sends change-detected regions and records stats on every frame; still under 25 % of
+the budget).
+
+### kwin (live session): not measurable this run
+
+The session was unlocked, but the display was in DPMS off (`kscreen-doctor --dpms show`:
+off). KWin then renders nothing: no frame callbacks reach any client, and `spectacle` returns
+black frames. Protocol-level checks passed (a: maximized height 1271 → 1239, delta 32; b:
+blur bound and supported; f: preferred_scale 204 = kscreen's 1.7, buffer 3840x54 from 2259x32;
+g: one device, same adapter, +1 012 KiB for the second surface); every visual or
+callback-counting check failed (a pixels black, b variance, c/g frames: the watchdog carried
+each surface at 100 → 400 ms backoff, 4 fires per sweep). The display was not woken on the
+user's behalf. Re-run `scripts/spike-accept.sh demo kwin a|b|c|f|g` with the screen on. Logs:
+`spike/out/demo/kwin/`.

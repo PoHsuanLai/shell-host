@@ -1,30 +1,32 @@
 //! Pointer events reaching a real document: the move-before-down, leave and wheel rules from
 //! `input::pointer`, applied to a live Blitz document.
 //!
-//! `dom::document::SurfaceDocument` (the host's own wrapper) is a different wave's stub
-//! (`todo!()` in this worktree; H2 dom owns `dom/**`), so these tests build the document the
-//! same way `spike/doc.rs` does: a `dioxus_native_dom::DioxusDocument` fed directly with
-//! `blitz_dom`'s UA stylesheet and the events `input::pointer` produces. That exercises exactly
-//! the same event sequences `handlers/pointer.rs` feeds to a `SurfaceDocument`, since
-//! `SurfaceDocument::handle_event` is specified to forward to the same `Document::handle_ui_event`
-//! these tests call. The `data-first-mouse` opt-in check below (design/13 §13.3.8) mirrors what
-//! `SurfaceDocument::wants_first_mouse` will do once it exists, rather than calling it.
+//! The documents are the host's own `SurfaceDocument`s (UA stylesheet included), fed the event
+//! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them; the
+//! `data-first-mouse` opt-in (design/13 §13.3.8) is asked of `SurfaceDocument::wants_first_mouse`.
 
 use std::sync::Arc;
 
-use blitz_dom::{Document, DocumentConfig, NodeId};
+use blitz_dom::NodeId;
 use blitz_traits::events::{
     BlitzWheelDelta, BlitzWheelEvent, MouseEventButton, MouseEventButtons, Point, PointerCoords,
     UiEvent,
 };
 use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
-use dioxus_native_dom::DioxusDocument;
 use keyboard_types::Modifiers;
+use shell_host::clipboard::SharedSelection;
+use shell_host::dom::document::{DocumentEnv, FirstMouseOptIn, SurfaceDocument};
+use shell_host::dom::fonts::SharedFonts;
+use shell_host::dom::net::LocalNet;
+use shell_host::dom::shell_provider::HostShellProvider;
+use shell_host::id::SurfaceId;
 use shell_host::input::pointer::{self, PointerPos};
+use shell_host::root::Root;
 
-/// SPIKE.md S1 finding 2: a sized root is what lets hit-testing reach in-flow content at all.
-const UA_STYLESHEET: &str = "html,body{height:100%;background:transparent;margin:0}";
+/// The margin reset quire's `css/reset.css` brings; the host's UA sheet sizes the root
+/// (SPIKE.md S1 finding 2) but leaves margins to the design system.
+const RESET: &str = "html,body{margin:0}";
 
 const CSS: &str = "
 #dock{display:flex;gap:8px;padding:8px}
@@ -36,7 +38,7 @@ const CSS: &str = "
 
 fn app() -> Element {
     rsx! {
-        style { "{UA_STYLESHEET}{CSS}" }
+        style { "{RESET}{CSS}" }
         div { id: "dock",
             div { id: "icon0", class: "icon" }
             div { id: "icon1", class: "icon" }
@@ -49,33 +51,35 @@ fn app() -> Element {
     }
 }
 
-fn build() -> DioxusDocument {
-    let config = DocumentConfig {
-        viewport: Some(Viewport::new(400, 300, 1.0, ColorScheme::Light)),
-        shell_provider: Some(Arc::new(NoopShell) as _),
-        style_threading: blitz_dom::StyleThreading::Sequential,
-        ..Default::default()
+fn build() -> SurfaceDocument {
+    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+    let env = DocumentEnv {
+        shell: Arc::new(HostShellProvider::new(
+            SurfaceId(1),
+            ping,
+            SharedSelection::default(),
+        )),
+        fonts: SharedFonts::system().for_document(),
+        net: Arc::new(LocalNet),
+        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
     };
-    let mut doc = DioxusDocument::new(VirtualDom::new(app), config);
-    doc.initial_build();
-    doc.inner.borrow_mut().resolve(0.0);
+    let mut doc = SurfaceDocument::build(Root::new(app), env);
+    doc.resolve(0.0);
     doc
 }
 
-/// A `ShellProvider` that does nothing; these tests only care about the DOM's own state.
-struct NoopShell;
-impl blitz_traits::shell::ShellProvider for NoopShell {}
-
-fn node_id(doc: &DioxusDocument, selector: &str) -> NodeId {
-    doc.inner
+fn node_id(doc: &mut SurfaceDocument, selector: &str) -> NodeId {
+    doc.dioxus()
+        .inner
         .borrow()
         .query_selector(selector)
         .unwrap()
         .unwrap_or_else(|| panic!("no element matches {selector}"))
 }
 
-fn center(doc: &DioxusDocument, id: NodeId) -> PointerPos {
+fn center(doc: &mut SurfaceDocument, id: NodeId) -> PointerPos {
     let rect = doc
+        .dioxus()
         .inner
         .borrow()
         .get_client_bounding_rect(id)
@@ -86,9 +90,9 @@ fn center(doc: &DioxusDocument, id: NodeId) -> PointerPos {
     }
 }
 
-fn feed(doc: &mut DioxusDocument, events: impl IntoIterator<Item = UiEvent>) {
+fn feed(doc: &mut SurfaceDocument, events: impl IntoIterator<Item = UiEvent>) {
     for event in events {
-        doc.handle_ui_event(event);
+        doc.handle_event(event);
     }
 }
 
@@ -97,8 +101,8 @@ fn feed(doc: &mut DioxusDocument, events: impl IntoIterator<Item = UiEvent>) {
 #[test]
 fn hover_reaches_in_flow_content() {
     let mut doc = build();
-    let icon2 = node_id(&doc, "#icon2");
-    let pos = center(&doc, icon2);
+    let icon2 = node_id(&mut doc, "#icon2");
+    let pos = center(&mut doc, icon2);
 
     feed(
         &mut doc,
@@ -109,7 +113,7 @@ fn hover_reaches_in_flow_content() {
         )],
     );
 
-    assert_eq!(doc.inner.borrow().get_hover_node_id(), Some(icon2));
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), Some(icon2));
 }
 
 /// A press with no motion before it still clicks its target: `press_events`' synthesized move
@@ -117,8 +121,8 @@ fn hover_reaches_in_flow_content() {
 #[test]
 fn a_press_without_prior_motion_clicks_its_target() {
     let mut doc = build();
-    let icon1 = node_id(&doc, "#icon1");
-    let pos = center(&doc, icon1);
+    let icon1 = node_id(&mut doc, "#icon1");
+    let pos = center(&mut doc, icon1);
 
     // No PointerMove fed first: `press_events` supplies its own.
     let events = pointer::press_events(
@@ -129,8 +133,11 @@ fn a_press_without_prior_motion_clicks_its_target() {
     );
     feed(&mut doc, events);
 
-    assert_eq!(doc.inner.borrow().get_hover_node_id(), Some(icon1));
-    assert_eq!(doc.inner.borrow().get_mousedown_node_id(), Some(icon1));
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), Some(icon1));
+    assert_eq!(
+        doc.dioxus().inner.borrow().get_mousedown_node_id(),
+        Some(icon1)
+    );
 }
 
 /// Leaving clears `:hover`: the hovered element's hover state is gone after `clear_hover` and
@@ -138,8 +145,8 @@ fn a_press_without_prior_motion_clicks_its_target() {
 #[test]
 fn leaving_clears_hover() {
     let mut doc = build();
-    let icon0 = node_id(&doc, "#icon0");
-    let pos = center(&doc, icon0);
+    let icon0 = node_id(&mut doc, "#icon0");
+    let pos = center(&mut doc, icon0);
     feed(
         &mut doc,
         [pointer::move_event(
@@ -149,15 +156,15 @@ fn leaving_clears_hover() {
         )],
     );
     assert_eq!(
-        doc.inner.borrow().get_hover_node_id(),
+        doc.dioxus().inner.borrow().get_hover_node_id(),
         Some(icon0),
         "precondition: icon0 is hovered before leaving"
     );
 
-    doc.inner.borrow_mut().clear_hover();
+    doc.clear_hover();
     feed(&mut doc, [pointer::leave_event(Modifiers::empty())]);
 
-    assert_eq!(doc.inner.borrow().get_hover_node_id(), None);
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
 }
 
 /// One wheel notch (`Lines`) and a touchpad delta (`Pixels`) both scroll the hovered
@@ -166,8 +173,8 @@ fn leaving_clears_hover() {
 #[test]
 fn wheel_notches_scroll_by_lines_and_touchpads_by_pixels() {
     let mut doc = build();
-    let scroller = node_id(&doc, "#scroller");
-    let pos = center(&doc, scroller);
+    let scroller = node_id(&mut doc, "#scroller");
+    let pos = center(&mut doc, scroller);
     feed(
         &mut doc,
         [pointer::move_event(
@@ -177,12 +184,12 @@ fn wheel_notches_scroll_by_lines_and_touchpads_by_pixels() {
         )],
     );
 
-    let before = scroll_y(&doc, scroller);
+    let before = scroll_y(&mut doc, scroller);
 
     let one_notch_down = pointer::wheel_delta(default_axis(), axis_value120(120))
         .expect("one notch down produces a delta");
-    doc.handle_ui_event(UiEvent::Wheel(wheel_event(one_notch_down)));
-    let after_notch = scroll_y(&doc, scroller);
+    doc.handle_event(UiEvent::Wheel(wheel_event(one_notch_down)));
+    let after_notch = scroll_y(&mut doc, scroller);
     assert_eq!(
         after_notch - before,
         20.0,
@@ -191,8 +198,8 @@ fn wheel_notches_scroll_by_lines_and_touchpads_by_pixels() {
 
     let touchpad = pointer::wheel_delta(default_axis(), axis_absolute(15.0))
         .expect("a continuous delta produces pixels");
-    doc.handle_ui_event(UiEvent::Wheel(wheel_event(touchpad)));
-    let after_pixels = scroll_y(&doc, scroller);
+    doc.handle_event(UiEvent::Wheel(wheel_event(touchpad)));
+    let after_pixels = scroll_y(&mut doc, scroller);
     assert_eq!(
         after_pixels - after_notch,
         15.0,
@@ -202,8 +209,9 @@ fn wheel_notches_scroll_by_lines_and_touchpads_by_pixels() {
 
 /// `#scroller`'s own scroll offset (not the document/root scroll: `#scroller` is a nested
 /// `overflow:auto` box, so the wheel scrolls it, not the page).
-fn scroll_y(doc: &DioxusDocument, scroller: NodeId) -> f64 {
-    doc.inner
+fn scroll_y(doc: &mut SurfaceDocument, scroller: NodeId) -> f64 {
+    doc.dioxus()
+        .inner
         .borrow()
         .get_node(scroller)
         .expect("scroller node exists")
@@ -248,46 +256,23 @@ fn axis_absolute(absolute: f64) -> smithay_client_toolkit::seat::pointer::AxisSc
 
 /// A press on an inactive toplevel is swallowed unless the element it lands on (or an
 /// ancestor) carries `data-first-mouse` (design/13 §13.3.8). `input::pointer::first_mouse`
-/// (already table-tested in `src/input/pointer.rs`) decides *whether* a press is in the
-/// activating window; this checks the DOM-side half of the rule the handler applies the
-/// decision with — the opt-in attribute walk `SurfaceDocument::wants_first_mouse` will do.
+/// (table-tested in `src/input/pointer.rs`) decides *whether* a press is in the activating
+/// window; this checks the DOM-side half the pointer handler asks the document.
 #[test]
 fn the_activating_click_is_swallowed_unless_opted_in() {
-    let doc = build();
-    let drag = node_id(&doc, "#drag");
-    let icon0 = node_id(&doc, "#icon0");
+    let mut doc = build();
+    let drag = node_id(&mut doc, "#drag");
+    let icon0 = node_id(&mut doc, "#icon0");
+    let (drag, icon0) = (center(&mut doc, drag), center(&mut doc, icon0));
 
-    assert!(
-        has_first_mouse_opt_in(&doc, drag),
+    assert_eq!(
+        doc.wants_first_mouse(drag.x, drag.y),
+        FirstMouseOptIn::OptedIn,
         "the data-first-mouse element opts in"
     );
-    assert!(
-        !has_first_mouse_opt_in(&doc, icon0),
+    assert_eq!(
+        doc.wants_first_mouse(icon0.x, icon0.y),
+        FirstMouseOptIn::Default,
         "an ordinary element does not opt in"
     );
-}
-
-/// Walks `id` and its ancestors looking for `data-first-mouse`, the same walk
-/// `SurfaceDocument::wants_first_mouse` is specified to do.
-///
-/// `local_name!` (used elsewhere in `blitz_dom` for well-known HTML/ARIA names) only matches
-/// names baked into its generated atom table at build time, which a `data-*` attribute is not
-/// in, so this compares through `Attribute::name.local`'s `Deref<Target = str>` instead.
-fn has_first_mouse_opt_in(doc: &DioxusDocument, id: NodeId) -> bool {
-    let inner = doc.inner.borrow();
-    let mut current = Some(id);
-    while let Some(node_id) = current {
-        let Some(node) = inner.get_node(node_id) else {
-            break;
-        };
-        let opted_in = node
-            .data
-            .attrs()
-            .is_some_and(|attrs| attrs.iter().any(|a| &*a.name.local == "data-first-mouse"));
-        if opted_in {
-            return true;
-        }
-        current = node.parent;
-    }
-    false
 }

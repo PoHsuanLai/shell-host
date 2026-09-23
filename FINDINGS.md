@@ -184,3 +184,98 @@ an optional dependency for the spike).
 - `Presenter::present` and `ShmBuffers::new` carry no `wl_surface`; `ShmBuffers::for_surface`
   is the constructor the shm path needs. A `height:100%` chain did not size a plain div
   offscreen; the headless tests use fixed heights (dom agent to check the UA stylesheet).
+
+## H2 integration (branch `h2-integration`, 2026-09-24)
+
+Seams between the five H2 fills, found and fixed after the merge. Numbered after F18.
+
+### F19. `dom::document` still named the retired `geometry::element_name`
+
+protocols amended `ElementId` to own its name (F3's proposed fix, `ElementId::new(&str)` /
+`as_str`) and removed the interning table; dom still called `geometry::element_name`, so the
+merged tree did not compile. `SurfaceDocument::element_rect` now looks up `id.as_str()`
+directly. It was the only compile error on the merged tree; clippy was otherwise clean.
+
+### F20. Regions were sent twice; one change-detected path now
+
+protocols' `handlers/layer.rs::apply_regions` resolved and sent the input and blur regions on
+every layer configure, and core's `ctx/paint.rs::send_regions` sent them again on the frame
+that followed, tracked by core's own `AppliedRegions` (two `Option<Vec<Rect>>`) next to
+protocols' unused `resolve::Tracked`. The configure-time send is gone (the configure only
+invalidates, and the render resolves after layout, so an element-following region is never
+sent from a stale layout), and `AppliedRegions` is now two `resolve::Tracked`s. `Tracked`
+gained `holding(strips)`, "the compositor already has this": the blur tracker starts as
+`holding(vec![])`, which keeps core's rule of never creating an effect object just to say
+"no blur". Resizes and op records no longer reset the trackers; the strips comparison already
+catches every real change, and only a rebuilt role (hide/show, a new `wl_surface`) resets.
+
+### F21. `LocalNet` serves `file:` as well as `data:`
+
+`DataUriNet` answered only `data:`, but the shell's wallpaper is `background-image:
+url(file://…)`. It is now `dom::net::LocalNet`: `data:` decoded as before, `file:` read with
+`std::fs::read` on the host runtime's blocking pool (`spawn_blocking`, the host holds
+`rt.enter()`). Only absolute paths from a `file:` URL with an empty or `localhost` host are
+served (`LocalSource::of`, table-tested); anything else stays unanswered. A failed read is
+logged and unanswered. Blitz's resource handler calls `request_redraw` on completion, which
+pings the loop, so the image appears on the next frame without a host-side waker.
+
+### F22. Paste reads the selection ahead of time; the text can be a few ms stale
+
+`ShellProvider::get_clipboard_text` is synchronous and runs inside Blitz's event handling on
+the main thread, which is also the thread that would have to serve the pipe when the selection
+is ours, so a paste cannot block on a read. Now every `wl_data_device.selection` event runs
+`Clipboard::follow`: it sends `wl_data_offer.receive` for the best text MIME, flushes, and reads
+the pipe on a helper thread (200 ms timeout, plan "Clipboard"), publishing the text into a
+`clipboard::SharedSelection` (`Arc<Mutex<…>>`) that every surface's shell provider holds. Our
+own copies publish at once. **Timing limitation**: between a new selection and its read
+finishing (one pipe round trip to the owner, bounded at 200 ms; not measured here), a paste returns the previous
+text; a read of an older selection that finishes late is dropped by generation, so it can
+never overwrite a newer one. An offer with no text type, a failed read or a timeout publishes
+"no text". A timed-out reader thread is abandoned and ends when the owner closes its end.
+
+### F23. Blitz's own copy never reached the compositor
+
+The provider's `set_clipboard_text` only filled a per-surface cache, so a copy in a text input
+was visible to nothing else. It now queues the text and pings; the flush's `ApplyRequests`
+phase claims the selection with it (`ctx::ops::claim_copied`, the same `claim_selection` that
+`SurfaceHandle::copy_text` uses).
+
+### F24. `use_surface()` in a spawned root is tested
+
+`ctx/spawn.rs` did provide the `SurfaceHandle` through `Root::context` before
+`SurfaceDocument::build`; the build is now one named function (`surface_document`), and a
+headless test builds a root whose component reads `use_surface()`, renders its id and queues a
+`SetBlur`, asserting both the rendered text and the queued `Request::Apply` for that id.
+
+### F25. The acceptance script's sweep sent fractional coordinates
+
+The spike's command grammar took floats; the real `debug-inject` grammar takes whole logical
+pixels (`debug.rs`, and a test rejects `hover 1.5 2`), so every `hover` of the demo sweep was
+refused and item c and g saw zero frames. The script rounds the sweep (a 680 px sweep in 120
+steps loses nothing). The grammar stays integer: logical px are integers everywhere else.
+
+### F26. `ctx::paint::capture` was dead code without `debug-inject`
+
+`cargo clippy --workspace --all-targets -- -D warnings` (the ORCHESTRATION gate, default
+features) failed on it; it is `#[cfg(feature = "debug-inject")]` now, like its re-export.
+
+### F28. `tests/pointer.rs` now drives the host's `SurfaceDocument`
+
+input's tests were written while `dom/**` was `todo!()`, so they built a bare `DioxusDocument`
+with a copy of the UA sheet and re-implemented the `data-first-mouse` walk. They now build
+`SurfaceDocument`s (the host's UA sheet plus a margin reset standing in for quire's) and ask
+`SurfaceDocument::wants_first_mouse` at the element's centre; all five pass, which also shows
+the host's UA sheet alone is enough for hit-testing into in-flow content (S1 finding 2).
+
+### F27. Facts from the demo acceptance (SPIKE.md "H2 demos")
+
+- The demos have no present-mode knob (the host always prefers Mailbox), so item c's
+  informational "Fifo" run is a second Mailbox run; `SPIKE_PRESENT` was the spike's.
+- The live KDE session was unlocked but its display was in DPMS off. KWin then sends **no frame
+  callbacks at all** and screenshots are black, so every visual live check failed while every
+  protocol-level one passed. This was the cosmic-comp #2777 case on KWin: the watchdog carried
+  each surface (4 fires per sweep, intervals 100 → 400 ms backoff), `stats` stayed prompt, and
+  the dock settled after 1 to 2 watchdog frames into the 5 s idle. The display was not woken on
+  the user's behalf; `demo kwin <item>` should be re-run with the screen on.
+- `probe_toplevel` is kept as a self-contained sctk example (no `spike` feature): the host's
+  `ToplevelConfig` has no maximize, and the items need an ordinary other-client window.
