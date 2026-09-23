@@ -1,5 +1,8 @@
 //! Blitz documents on Wayland layer-shell, xdg popups and toplevels, sharing one GPU device.
 
+#[cfg(feature = "headless")]
+pub mod headless;
+
 use anyrender as _;
 use anyrender_vello_cpu as _;
 use anyrender_vello_hybrid as _;
