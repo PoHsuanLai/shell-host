@@ -39,7 +39,10 @@ image = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
-# Spike only (Milestone 0, throwaway).
+# Proposed for the pinned block (root Cargo.toml, FINDINGS.md F1): the shared image cache.
+rustc-hash = { workspace = true }
+vello_common = { workspace = true }
+# The spike (throwaway) and the debug-inject JSON stats lines.
 serde_json = { workspace = true, optional = true }
 
 [features]
@@ -50,6 +53,9 @@ spike = ["dep:serde_json"]
 # surface. Off by default because it is a CI/testing path, not something a running shell
 # needs linked in.
 headless = []
+# Per-surface debug commands on stdin (`<surface> hover x y`, `stats`, `capture`), the real-API
+# successor of the spike's command language. Off in a shipped shell.
+debug-inject = ["dep:serde_json"]
 
 [[example]]
 name = "spike_bar"
@@ -65,6 +71,14 @@ peniko = { workspace = true }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "demo_bar"
+required-features = ["debug-inject"]
+
+[[example]]
+name = "demo_dock"
+required-features = ["debug-inject"]
 
 [[example]]
 name = "spike_widget"

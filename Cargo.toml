@@ -85,6 +85,17 @@ clap = { version = "4", features = ["derive"] }
 latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "e8344176ffcc0455c585dafd722c05c911ddc5c4" }
 # ---- END PINNED BLOCK ----
 
+# ---- Proposed for quire/docs/workspace-deps.toml (h1-freeze; FINDINGS.md F1) ----
+# Outside the pinned block on purpose: the freeze needs them and may not edit the block. The
+# reviewer either promotes them into docs/workspace-deps.toml (and every repo's copy) or rejects
+# them with the code that needs them. Both versions are already in Cargo.lock through
+# anyrender_vello_hybrid, so nothing new is compiled.
+# The per-device image cache anyrender_vello_hybrid's ImageManager borrows is an
+# `FxHashMap<u64, vello_common::paint::ImageId>`; neither type is re-exported (SPIKE.md S1
+# finding 5), so gpu/context.rs cannot hold one across frames without naming both crates.
+rustc-hash = "2"
+vello_common = "0.1"
+
 # `deny`, not `forbid`: exactly one module (gpu/raw_handle) may opt back in with an `allow`.
 [workspace.lints.rust]
 unsafe_code = "deny"
