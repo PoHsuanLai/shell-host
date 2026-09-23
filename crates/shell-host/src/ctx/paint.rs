@@ -315,6 +315,7 @@ fn region_of(compositor: &CompositorState, rects: &[Rect]) -> Option<Region> {
 }
 
 /// Render surface `id` offscreen at its buffer size (debug `capture`).
+#[cfg(feature = "debug-inject")]
 pub(crate) fn capture(state: &mut HostState, id: SurfaceId) -> Result<image::RgbaImage> {
     let time = state.clock.seconds_at(Instant::now());
     let surface = state
