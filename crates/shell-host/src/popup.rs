@@ -12,7 +12,9 @@ use wayland_protocols::xdg::shell::client::xdg_positioner::{
 };
 
 /// Where a popup is anchored: an explicit rect, or a DOM element resolved after layout.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Not `Copy`: `ElementId` owns a `String` (FINDINGS.md F3).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PopupAnchor {
     Rect,
     Element(ElementId),
@@ -100,7 +102,9 @@ pub enum Grab {
 /// How a popup should be positioned and behave, independent of any particular anchor rect or
 /// content size (those are resolved separately, after layout, and passed to
 /// `positioner_params`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Not `Copy`: `anchor` may own an `ElementId` (FINDINGS.md F3).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PopupConfig {
     pub anchor: PopupAnchor,
     pub size: PopupSize,
@@ -210,6 +214,32 @@ mod tests {
             adjust,
             grab: Grab::Grabbed,
         }
+    }
+
+    #[test]
+    fn positioner_params_ignores_which_kind_of_anchor_the_config_names() {
+        // `config.anchor` says *what* the anchor rect was resolved from (an explicit rect or a
+        // named element, FINDINGS.md F3); `positioner_params` only ever sees the already
+        // resolved `Rect`, so a `PopupAnchor::Element` config must behave exactly like a
+        // `PopupAnchor::Rect` one here.
+        let anchor = Rect {
+            x: 10,
+            y: 4,
+            width: 80,
+            height: 24,
+        };
+        let size = Size {
+            width: 160,
+            height: 200,
+        };
+        let mut by_rect = config(Edge::Bottom, Edge::Bottom, Adjust::NONE, PopupSize::Fixed);
+        let mut by_element = by_rect.clone();
+        by_element.anchor = PopupAnchor::Element(ElementId::new("dock-pill"));
+        by_rect.anchor = PopupAnchor::Rect;
+        assert_eq!(
+            positioner_params(&by_rect, anchor, size),
+            positioner_params(&by_element, anchor, size)
+        );
     }
 
     #[test]

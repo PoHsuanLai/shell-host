@@ -1,6 +1,5 @@
 //! `xdg_activation_v1`: tokens for launching an app with focus handed over
 //! (`HostCtx::activation_token`, `SurfaceHandle::activation_token`).
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use std::sync::Mutex;
 
@@ -22,15 +21,17 @@ pub struct ActivationRequest {
 
 impl RequestDataExt for ActivationRequest {
     fn app_id(&self) -> Option<&str> {
-        todo!()
+        self.app_id.as_deref()
     }
 
     fn seat_and_serial(&self) -> Option<(&WlSeat, u32)> {
-        todo!()
+        self.seat_and_serial
+            .as_ref()
+            .map(|(seat, serial)| (seat, *serial))
     }
 
     fn surface(&self) -> Option<&WlSurface> {
-        todo!()
+        self.surface.as_ref()
     }
 }
 
@@ -39,6 +40,11 @@ impl ActivationHandler for HostState {
 
     /// Send `token` to the request's reply channel.
     fn new_token(&mut self, token: String, data: &ActivationRequest) {
-        todo!()
+        // The receiver may already be gone (the caller dropped the future awaiting it); a
+        // failed send just means nobody is listening any more, which is not this handler's
+        // problem to report.
+        if let Some(reply) = data.reply.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let _ = reply.send(Some(token));
+        }
     }
 }

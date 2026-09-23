@@ -53,11 +53,26 @@ impl RoundedRect {
     }
 }
 
-/// An opaque reference to a laid-out DOM element, resolved to a `Rect` after layout by the
-/// caller (`get_element_by_id` + its bounding rect). The spike never resolves one; it exists so
-/// `RegionSpec::Element` has somewhere to put an id.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ElementId(pub u64);
+/// A DOM element's `id` attribute, resolved to a `Rect` after layout by the caller
+/// (`get_element_by_id(id.as_str())` + its bounding rect).
+///
+/// A string, not a hash: Blitz finds an element only by its `id` attribute string
+/// (`BaseDocument::get_element_by_id(&str)`), so anything else would need an interning table to
+/// get the string back (FINDINGS.md F3, resolved by this newtype).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ElementId(String);
+
+impl ElementId {
+    /// The element whose `id` attribute is `id`.
+    pub fn new(id: impl Into<String>) -> ElementId {
+        ElementId(id.into())
+    }
+
+    /// The `id` attribute this names.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 /// How a blur or input region is described before it is resolved to concrete geometry and sent
 /// to the compositor.
@@ -167,6 +182,18 @@ fn corner_inset(r: Px, row: Px) -> Px {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn element_ids_compare_by_the_name_they_were_built_from() {
+        assert_eq!(ElementId::new("dock-pill"), ElementId::new("dock-pill"));
+        assert_eq!(ElementId::new("dock-pill").as_str(), "dock-pill");
+        assert_ne!(ElementId::new("dock-pill"), ElementId::new("dock-hit"));
+        // `impl Into<String>` accepts both a borrowed and an owned string.
+        assert_eq!(
+            ElementId::new("dock-pill"),
+            ElementId::new("dock-pill".to_owned())
+        );
+    }
 
     #[test]
     fn zero_radius_is_the_rect_itself() {
