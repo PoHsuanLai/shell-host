@@ -102,7 +102,12 @@ impl HostSurface {
             }
             (SurfaceOp::SetVisibility(visibility), _) => self.visibility = *visibility,
             (SurfaceOp::Reposition(next), Role::Popup { placement, .. }) => *placement = *next,
-            (op, Role::Layer { config, keyboard, .. }) => record_layer(op, config, keyboard),
+            (
+                op,
+                Role::Layer {
+                    config, keyboard, ..
+                },
+            ) => record_layer(op, config, keyboard),
             // A layer op on a popup or a toplevel, or a reposition of a non-popup: ignored.
             (_, Role::Popup { .. } | Role::Toplevel { .. }) => {}
         }
@@ -213,7 +218,12 @@ mod tests {
     fn a_zero_axis_keeps_the_requested_size() {
         let size = |width, height| Size { width, height };
         let cases = [
-            ("bar: width from compositor", size(0, 32), size(1280, 0), size(1280, 32)),
+            (
+                "bar: width from compositor",
+                size(0, 32),
+                size(1280, 0),
+                size(1280, 32),
+            ),
             ("both given", size(740, 96), size(700, 90), size(700, 90)),
             ("both zero", size(740, 96), size(0, 0), size(740, 96)),
         ];

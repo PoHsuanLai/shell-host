@@ -42,8 +42,8 @@ impl<M: Send + 'static> Host<M> {
     /// backend. The GPU device is created on the first surface, validated by a first present.
     pub fn connect(config: HostConfig) -> Result<Host<M>> {
         let conn = Connection::connect_to_env().map_err(|e| HostError::Connect(e.to_string()))?;
-        let (globals, mut queue) =
-            registry_queue_init::<HostState>(&conn).map_err(|e| HostError::Connect(e.to_string()))?;
+        let (globals, mut queue) = registry_queue_init::<HostState>(&conn)
+            .map_err(|e| HostError::Connect(e.to_string()))?;
         let event_loop = EventLoop::<HostCtx<M>>::try_new().map_err(loop_error)?;
         let handle = event_loop.handle();
         let (ping, ping_source) = make_ping().map_err(loop_error)?;
@@ -52,9 +52,18 @@ impl<M: Send + 'static> Host<M> {
             .insert_source(ping_source, |(), (), _| {})
             .map_err(loop_error)?;
         let requests = RequestQueue::new(ping);
-        let mut state = HostState::bind(conn.clone(), &globals, queue.handle(), requests)?;
+        let first_mouse = config.first_mouse_window_ms.duration();
+        let mut state = HostState::bind(
+            conn.clone(),
+            &globals,
+            queue.handle(),
+            requests,
+            first_mouse,
+        )?;
         // The initial outputs (and seats), so `HostEvent::Started` can see them.
-        queue.roundtrip(&mut state).map_err(|e| protocol_error(&conn, &e))?;
+        queue
+            .roundtrip(&mut state)
+            .map_err(|e| protocol_error(&conn, &e))?;
         insert_wayland(&handle, conn, queue)?;
         let (sender, channel) = calloop::channel::channel();
         insert_channel(&handle, channel)?;
@@ -89,7 +98,10 @@ impl<M: Send + 'static> Host<M> {
 
     /// Run until `HostCtx::exit`, `HostHandle::exit`, or a fatal error. `HostEvent::Started`
     /// comes first, after the initial outputs.
-    pub fn run(self, mut on_event: impl FnMut(&mut HostCtx<M>, HostEvent<M>) + 'static) -> Result<()> {
+    pub fn run(
+        self,
+        mut on_event: impl FnMut(&mut HostCtx<M>, HostEvent<M>) + 'static,
+    ) -> Result<()> {
         let Host {
             mut event_loop,
             mut ctx,

@@ -39,7 +39,12 @@ use crate::surface::{AppliedRegions, Configured, HostSurface};
 use crate::toplevel::{Activation, ToplevelConfig, to_wire_decorations};
 
 /// Create and map layer surface `id`.
-pub(super) fn layer(state: &mut HostState, id: SurfaceId, config: LayerConfig, root: Root) -> Result<()> {
+pub(super) fn layer(
+    state: &mut HostState,
+    id: SurfaceId,
+    config: LayerConfig,
+    root: Root,
+) -> Result<()> {
     let name = SurfaceName(config.namespace.clone());
     let requested = requested_size(&config);
     let (blur, input) = (config.blur.clone(), config.input.clone());
@@ -134,10 +139,12 @@ fn layer_role(state: &mut HostState, config: LayerConfig) -> Result<Role> {
     }
     let output = match config.output {
         OutputTarget::CompositorPicks => None,
-        OutputTarget::Output(OutputId(name)) => state
-            .outputs
-            .outputs()
-            .find(|output| state.outputs.info(output).is_some_and(|info| info.id == name)),
+        OutputTarget::Output(OutputId(name)) => state.outputs.outputs().find(|output| {
+            state
+                .outputs
+                .info(output)
+                .is_some_and(|info| info.id == name)
+        }),
     };
     let surface = layer_shell.create_layer_surface(
         &state.qh,
@@ -194,7 +201,10 @@ fn popup_role(
             .element_rect(ToOwned::to_owned(element))
             .unwrap_or(placement.anchor_rect),
     };
-    let positioner = positioner(state, &positioner_params(&config, anchor_rect, placement.size))?;
+    let positioner = positioner(
+        state,
+        &positioner_params(&config, anchor_rect, placement.size),
+    )?;
     let wl = state.compositor.create_surface(&state.qh);
     if let Some(fractional) = state.fractional.as_mut() {
         fractional.watch(&state.qh, &wl);
@@ -222,9 +232,10 @@ fn popup_role(
 /// An `xdg_positioner` set up with `params`. Sizes are clamped to 1 px, since a zero size is a
 /// protocol error.
 pub(super) fn positioner(state: &HostState, params: &PositionerParams) -> Result<XdgPositioner> {
-    let positioner = XdgPositioner::new(&state.xdg_shell).map_err(|_| HostError::MissingGlobal {
-        global: "xdg_wm_base",
-    })?;
+    let positioner =
+        XdgPositioner::new(&state.xdg_shell).map_err(|_| HostError::MissingGlobal {
+            global: "xdg_wm_base",
+        })?;
     let rect = params.anchor_rect;
     positioner.set_size(params.size.width.max(1), params.size.height.max(1));
     positioner.set_anchor_rect(rect.x, rect.y, rect.width.max(1), rect.height.max(1));

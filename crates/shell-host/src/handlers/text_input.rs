@@ -131,11 +131,6 @@ impl Dispatch<ZwpTextInputV3, ()> for HostState {
 /// capability yet). Not gated on the `done` serial matching our own commit count (a compositor
 /// that acknowledges a stale commit is treated the same as one that is current) — a known
 /// simplification, see this crate's H2-input report.
-///
-/// Not yet called from anywhere in this crate: whoever drains `HostShellProvider::ime()` is
-/// `HostCtx::flush` (H2 core, `ctx.rs`), `todo!()` in this worktree. `#[allow(dead_code)]` until
-/// that wave wires it in.
-#[allow(dead_code)]
 pub(crate) fn apply_ime_request(state: &mut HostState, request: ImeRequest) {
     let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
         return;

@@ -136,7 +136,10 @@ fn ops_queued_during_a_poll_land_before_the_paint_of_the_same_flush() {
         flush::run(&mut fake).expect("no protocol error");
         want.extend([Seen::Timers, Seen::Flushed]);
         assert_eq!(fake.seen, want, "{name}");
-        assert!(fake.queue.drain().is_empty(), "{name}: the queue is drained");
+        assert!(
+            fake.queue.drain().is_empty(),
+            "{name}: the queue is drained"
+        );
     }
 }
 
@@ -201,7 +204,11 @@ fn percentiles_are_nearest_rank_over_the_window() {
         ("two", vec![9, 1], p(1, 9, 9)),
         ("unsorted", vec![5, 3, 9, 1, 7], p(5, 9, 9)),
         ("1..=100", hundred, p(50, 95, 100)),
-        ("an outlier moves only max", vec![1; 99].into_iter().chain([900]).collect(), p(1, 1, 900)),
+        (
+            "an outlier moves only max",
+            vec![1; 99].into_iter().chain([900]).collect(),
+            p(1, 1, 900),
+        ),
     ];
     for (name, samples, want) in cases {
         assert_eq!(percentiles(&samples), want, "{name}");
@@ -214,7 +221,10 @@ fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
     let mut window = StatsWindow::default();
     // Three frames, 1 ms of work each, presented a refresh apart.
     for n in 0..3u64 {
-        window.presented(Duration::from_millis(1), t0 + Duration::from_micros(16_667 * n));
+        window.presented(
+            Duration::from_millis(1),
+            t0 + Duration::from_micros(16_667 * n),
+        );
         window.callback();
     }
     window.watchdog_fired();
@@ -222,7 +232,11 @@ fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
     assert_eq!(samples, 3);
     assert_eq!(work.p95_us, 1000, "work is trigger to present");
     assert_eq!(interval.p50_us, 16_667, "interval is present to present");
-    assert_eq!(window.drain(), (work, interval, samples), "drain reports what peek did");
+    assert_eq!(
+        window.drain(),
+        (work, interval, samples),
+        "drain reports what peek did"
+    );
     assert_eq!(
         window.peek(),
         (Percentiles::default(), Percentiles::default(), 0),
@@ -250,8 +264,14 @@ fn debug_commands_address_surfaces_by_name() {
     let cases: Vec<(&str, Result<DebugCommand, CommandError>)> = vec![
         ("stats", Ok(DebugCommand::StatsAll)),
         ("quit\n", Ok(DebugCommand::Quit)),
-        ("bar hover 40 16", Ok(on("bar", Inject::Hover(Point { x: 40, y: 16 })))),
-        ("dock click 60 64", Ok(on("dock", Inject::Click(Point { x: 60, y: 64 })))),
+        (
+            "bar hover 40 16",
+            Ok(on("bar", Inject::Hover(Point { x: 40, y: 16 }))),
+        ),
+        (
+            "dock click 60 64",
+            Ok(on("dock", Inject::Click(Point { x: 60, y: 64 }))),
+        ),
         ("dock leave", Ok(on("dock", Inject::Leave))),
         ("bar/popup stats", Ok(on("bar/popup", Inject::Stats))),
         (
@@ -267,7 +287,10 @@ fn debug_commands_address_surfaces_by_name() {
                 needs: "X and Y",
             }),
         ),
-        ("dock hover x 1", Err(CommandError::NotACoordinate("x".into()))),
+        (
+            "dock hover x 1",
+            Err(CommandError::NotACoordinate("x".into())),
+        ),
         ("dock wiggle", Err(CommandError::Unknown("wiggle".into()))),
     ];
     for (line, want) in cases {

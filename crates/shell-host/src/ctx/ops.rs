@@ -6,10 +6,10 @@ use smithay_client_toolkit::shell::WaylandSurface;
 use crate::ctx::{HostCtx, request_token};
 use crate::event::{CloseReason, HostEvent};
 use crate::frame::{FrameInput, FrameState};
+use crate::handlers::data_device::claim_selection;
 use crate::id::SurfaceId;
 use crate::layer::{
-    to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer,
-    to_wire_size,
+    to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer, to_wire_size,
 };
 use crate::msg::{Request, SurfaceOp, Visibility};
 use crate::popup::{Grab, positioner_params};
@@ -45,7 +45,10 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
             }
         }
         Request::Close(id) => close(ctx, id, CloseReason::Requested),
-        Request::CopyText { text, .. } => ctx.state.clipboard.copy(text),
+        Request::CopyText { text, .. } => {
+            let qh = ctx.state.qh.clone();
+            claim_selection(&mut ctx.state, &qh, text);
+        }
         Request::ActivationToken {
             from,
             app_id,
@@ -118,7 +121,12 @@ fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op
 
 /// Hide or show surface `id` (`surface::visibility_change`). Hiding closes its popups.
 pub(super) fn set_visibility<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, to: Visibility) {
-    let Some(from) = ctx.state.surfaces.get(&id).map(|surface| surface.visibility) else {
+    let Some(from) = ctx
+        .state
+        .surfaces
+        .get(&id)
+        .map(|surface| surface.visibility)
+    else {
         return;
     };
     match visibility_change(from, to) {
@@ -163,7 +171,9 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
         Err(error) => {
             eprintln!("shell-host: hiding {id:?}: {error}");
             let reason = CloseReason::Failed;
-            state.events.push_back(HostEvent::SurfaceClosed { id, reason });
+            state
+                .events
+                .push_back(HostEvent::SurfaceClosed { id, reason });
         }
     }
 }
@@ -185,7 +195,9 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     if let Some(parent) = lifted {
         restore_keyboard(state, parent);
     }
-    state.events.push_back(HostEvent::SurfaceClosed { id, reason });
+    state
+        .events
+        .push_back(HostEvent::SurfaceClosed { id, reason });
 }
 
 /// Close every surface, children first.

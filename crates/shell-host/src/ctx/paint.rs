@@ -13,12 +13,13 @@ use std::time::Instant;
 use blitz_traits::shell::{ColorScheme, Viewport};
 use smithay_client_toolkit::compositor::{CompositorState, Region};
 use wayland_client::QueueHandle;
+use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::blur::BlurSpec;
 use crate::config::Backend;
 use crate::ctx::HostCtx;
 use crate::debug::AlphaMode;
-use crate::dom::shell_provider::RedrawRequest;
+use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
 use crate::error::{HostError, Recovery, Result};
 use crate::event::CloseReason;
 use crate::frame::{FrameInput, RenderCmd};
@@ -28,7 +29,9 @@ use crate::gpu::raw_handle::create_surface;
 use crate::gpu::shm::ShmBuffers;
 use crate::gpu::swapchain::Swapchain;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
+use crate::handlers::text_input::apply_ime_request;
 use crate::id::SurfaceId;
+use crate::ime::ImeFocus;
 use crate::msg::Visibility;
 use crate::region::Rect;
 use crate::resolve::{Resolved, resolve};
@@ -59,6 +62,7 @@ fn step_one<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
     }
     ensure_presenter(ctx, id)?;
     let state = &mut ctx.state;
+    sync_ime(state, id);
     sync_geometry(state, id);
     if let Some(surface) = state.surfaces.get(&id)
         && surface.shell.take_redraw() == RedrawRequest::Requested
@@ -92,11 +96,11 @@ pub(super) fn ensure_presenter<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) 
             Err(error) if error.recovery() == Recovery::Fallback => {
                 eprintln!("shell-host: no usable GPU ({error}); using the CPU backend");
                 ctx.backend = Backend::Cpu;
-                shm_presenter(&ctx.state, buffer)?
+                shm_presenter(&ctx.state, surface_wl(&ctx.state, id)?, buffer)?
             }
             Err(error) => return Err(error),
         },
-        Backend::Cpu => shm_presenter(&ctx.state, buffer)?,
+        Backend::Cpu => shm_presenter(&ctx.state, surface_wl(&ctx.state, id)?, buffer)?,
     };
     if let Some(surface) = ctx.state.surfaces.get_mut(&id) {
         surface.presenter = Some(presenter);
@@ -122,13 +126,40 @@ fn gpu_presenter<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<Pres
     Ok(Presenter::Wgpu(Box::new(Swapchain::new(wgpu_surface))))
 }
 
-fn shm_presenter(state: &HostState, buffer: Size) -> Result<Presenter> {
+fn surface_wl(state: &HostState, id: SurfaceId) -> Result<WlSurface> {
+    state
+        .surfaces
+        .get(&id)
+        .map(|surface| surface.role.wl_surface().clone())
+        .ok_or(HostError::NoSurface(id))
+}
+
+/// shm buffers that attach to and commit `wl` themselves (`ShmBuffers::for_surface`, H2 gpu).
+fn shm_presenter(state: &HostState, wl: WlSurface, buffer: Size) -> Result<Presenter> {
     // Before its first configure a surface may have no size yet; the configure resizes.
     let buffer = Size {
         width: buffer.width.max(1),
         height: buffer.height.max(1),
     };
-    ShmBuffers::new(&state.shm, buffer).map(Presenter::Shm)
+    ShmBuffers::for_surface(&state.shm, wl, buffer).map(Presenter::Shm)
+}
+
+/// Send the IME state the focused surface's document last asked for, when it differs from what
+/// the text input was last told (`handlers::text_input::apply_ime_request` commits every call).
+fn sync_ime(state: &mut HostState, id: SurfaceId) {
+    if state.input.keyboard_focus != Some(id) {
+        return;
+    }
+    let Some(wanted) = state.surfaces.get(&id).map(|surface| surface.shell.ime()) else {
+        return;
+    };
+    let current = match state.ime.focus {
+        ImeFocus::Disabled => ImeRequest::Disabled,
+        ImeFocus::Enabled { cursor_area } => ImeRequest::Enabled { cursor_area },
+    };
+    if wanted != current {
+        apply_ime_request(state, wanted);
+    }
 }
 
 /// Follow a new preferred scale or configured size: the viewport destination (or the integer
@@ -303,10 +334,9 @@ pub(crate) fn capture(state: &mut HostState, id: SurfaceId) -> Result<image::Rgb
         scale: surface.scale,
         time,
     };
-    let presenter = surface
-        .presenter
-        .as_mut()
-        .ok_or(HostError::Render("the surface has not been presented yet".into()))?;
+    let presenter = surface.presenter.as_mut().ok_or(HostError::Render(
+        "the surface has not been presented yet".into(),
+    ))?;
     presenter.capture(state.gpu.as_mut(), &mut surface.document, target)
 }
 

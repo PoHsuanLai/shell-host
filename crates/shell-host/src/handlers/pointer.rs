@@ -1,7 +1,5 @@
 //! Pointer frames -> document events, through `input::pointer`.
 
-use std::time::Duration;
-
 use blitz_traits::events::{BlitzWheelEvent, Point, PointerCoords, UiEvent};
 use cursor_icon::CursorIcon;
 use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
@@ -12,13 +10,6 @@ use crate::id::SurfaceId;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
-
-/// `menus.first_mouse_window_ms`'s documented default (design/22-SETTINGS.md), used until a
-/// settings mechanism is wired into `HostState` (see this crate's H2-input report: `HostState`
-/// has no settings field to read a live value from, so this is hard-coded rather than the
-/// per-surface `RegionSpec`/`BlurSpec`-style "always a settings key" rule CONVENTIONS.md §11
-/// asks for).
-const FIRST_MOUSE_WINDOW: Duration = Duration::from_millis(100);
 
 impl PointerHandler for HostState {
     /// Enter: focus and cursor. Leave: `clear_hover()` then `input::pointer::leave_event`.
@@ -155,7 +146,8 @@ impl PointerHandler for HostState {
 impl HostState {
     /// Whether a press on surface `id`, right now, is the click that activates it
     /// (design/13 §13.3.8): only for a toplevel, only when it is the one surface that currently
-    /// has keyboard focus, and only within [`FIRST_MOUSE_WINDOW`] of that focus arriving.
+    /// has keyboard focus, and only within the first-mouse window (`HostConfig::first_mouse_window_ms`,
+    /// the settings key `menus.first_mouse_window_ms`) of that focus arriving.
     fn first_mouse(&self, id: SurfaceId) -> FirstMouse {
         let is_toplevel = self
             .surfaces
@@ -165,6 +157,6 @@ impl HostState {
             return FirstMouse::Deliver;
         }
         let since_activation = self.input.focused_at.map(|at| at.elapsed());
-        pointer::first_mouse(since_activation, FIRST_MOUSE_WINDOW)
+        pointer::first_mouse(since_activation, self.first_mouse_window)
     }
 }

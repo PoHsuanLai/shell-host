@@ -63,7 +63,11 @@ impl Sim {
     /// The host's flush point: render iff the machine says so, never over a frame in flight.
     fn flush(&mut self) {
         if self.feed(FrameInput::Flush).render == RenderCmd::Render {
-            assert!(self.in_flight.is_none(), "rendered over a frame in flight at {}", self.now_ms);
+            assert!(
+                self.in_flight.is_none(),
+                "rendered over a frame in flight at {}",
+                self.now_ms
+            );
             self.frames += 1;
             self.in_flight = Some(self.now_ms);
             self.feed(FrameInput::Presented(self.animation));
@@ -180,7 +184,11 @@ fn a_stalled_compositor_is_paced_by_the_watchdog_and_recovers() {
     assert_eq!(sim.state.backoff, Duration::from_millis(50));
     let arms = sim.waits.len();
     sim.callback();
-    assert_eq!(sim.waits[arms..], [50], "the next arm uses the reset backoff");
+    assert_eq!(
+        sim.waits[arms..],
+        [50],
+        "the next arm uses the reset backoff"
+    );
 }
 
 /// An occluded surface whose compositor keeps sending callbacks (KWin, SPIKE.md S1 item c):

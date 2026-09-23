@@ -10,8 +10,8 @@
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, Host, HostConfig, HostCtx, HostEvent, KeyboardMode,
-    Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, Host, HostConfig, HostCtx, HostEvent,
+    KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
 };
 
 /// Tiles, gaps and the room the magnified end tiles need.

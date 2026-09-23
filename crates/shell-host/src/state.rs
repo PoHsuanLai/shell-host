@@ -27,7 +27,9 @@ use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1:
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+use blitz_traits::events::KeyState;
 
 use blitz_traits::events::MouseEventButtons;
 use keyboard_types::Modifiers;
@@ -50,10 +52,15 @@ use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
 use crate::ime::{Ime, ImeFocus, PendingIme};
+use crate::input::key::{Repeat, key_event};
 use crate::input::pointer::PointerPos;
 use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
+
+/// `wl_keyboard.repeat_info` values until the compositor sends its own (X's defaults).
+const DEFAULT_REPEAT_DELAY: Duration = Duration::from_millis(600);
+const DEFAULT_REPEAT_INTERVAL: Duration = Duration::from_millis(40);
 
 /// Everything the Wayland handlers read and write. Field order is drop order: surfaces (and
 /// with them every wgpu surface) first, the connection last (SPIKE.md S1 finding 6).
@@ -70,26 +77,20 @@ pub struct HostState {
     pub(crate) layer_shell: Option<LayerShell>,
     pub(crate) seat: SeatState,
     pub(crate) input: SeatInput,
-    // Read by the input handlers (H2 input); unread on this branch until they merge.
-    #[allow(dead_code)]
     pub(crate) data_device: Option<DataDeviceManagerState>,
     pub(crate) activation: Option<ActivationState>,
     pub(crate) fractional: Option<Fractional>,
     pub(crate) background_effect: Option<BackgroundEffect>,
-    // Read by the input handlers (H2 input); unread on this branch until they merge.
-    #[allow(dead_code)]
     pub(crate) text_input: Option<TextInputManager>,
-    // Read by the input handlers (H2 input); unread on this branch until they merge.
-    #[allow(dead_code)]
     pub(crate) cursor: Cursor,
-    // Read by the input handlers (H2 input); unread on this branch until they merge.
-    #[allow(dead_code)]
     pub(crate) ime: Ime,
     pub(crate) clipboard: Clipboard,
     pub(crate) fonts: SharedFonts,
     pub(crate) clock: HostClock,
     pub(crate) ids: SurfaceIds,
     pub(crate) color_scheme: ColorScheme,
+    /// `HostConfig::first_mouse_window_ms`, read by the pointer handler.
+    pub(crate) first_mouse_window: Duration,
     /// Requests from documents' `SurfaceHandle`s.
     pub(crate) requests: RequestQueue,
     /// Surfaces whose Dioxus tasks are ready.
@@ -110,6 +111,7 @@ impl HostState {
         globals: &GlobalList,
         qh: QueueHandle<HostState>,
         requests: RequestQueue,
+        first_mouse_window: Duration,
     ) -> Result<HostState> {
         let missing = |global| move |_| HostError::MissingGlobal { global };
         let compositor = CompositorState::bind(globals, &qh).map_err(missing("wl_compositor"))?;
@@ -136,6 +138,10 @@ impl HostState {
                 focused_at: None,
                 modifiers: Modifiers::empty(),
                 last_serial: 0,
+                data_device: None,
+                repeating: None,
+                repeat_delay: DEFAULT_REPEAT_DELAY,
+                repeat_interval: DEFAULT_REPEAT_INTERVAL,
             },
             data_device: DataDeviceManagerState::bind(globals, &qh).ok(),
             activation: ActivationState::bind(globals, &qh).ok(),
@@ -157,6 +163,7 @@ impl HostState {
             clock: HostClock::starting_at(Instant::now()),
             ids: SurfaceIds::new(),
             color_scheme: ColorScheme::Light,
+            first_mouse_window,
             requests,
             woken: WokenSet::default(),
             events: VecDeque::new(),
@@ -189,10 +196,21 @@ impl HostState {
     }
 
     /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`
-    /// (FINDINGS F9). Delivering the repeated key is the keyboard handler's job, and the frozen
-    /// `SeatInput` has no field holding the key being repeated, so there is nothing here to
-    /// re-deliver yet; the timer itself is armed, re-armed every interval and stopped as asked.
-    pub(crate) fn key_repeat(&mut self) {}
+    /// (FINDINGS F9): the held key again, as a `Repeat::Repeated` press, to the focused surface.
+    pub(crate) fn key_repeat(&mut self) {
+        let (Some(id), Some(held)) = (self.input.keyboard_focus, self.input.repeating.as_ref())
+        else {
+            return;
+        };
+        let event = key_event(
+            held,
+            self.input.modifiers,
+            KeyState::Pressed,
+            Repeat::Repeated,
+            self.composing(),
+        );
+        self.dispatch_key(id, event);
+    }
 
     /// The adapter label every stats line carries; empty on the CPU backend.
     pub(crate) fn adapter_label(&self) -> String {

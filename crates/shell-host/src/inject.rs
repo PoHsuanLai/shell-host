@@ -208,7 +208,11 @@ mod tests {
             ("", &[], ""),
             ("dock ho", &[], "dock ho"),
             ("stats\n", &["stats"], ""),
-            ("stats\n\ndock leave\ndock hov", &["stats", "dock leave"], "dock hov"),
+            (
+                "stats\n\ndock leave\ndock hov",
+                &["stats", "dock leave"],
+                "dock hov",
+            ),
         ];
         for (input, want, left) in cases {
             let mut pending = (*input).to_owned();
