@@ -1,7 +1,6 @@
 //! IME over `zwp_text_input_v3`. The protocol is double-buffered: `preedit_string`,
 //! `commit_string` and `delete_surrounding_text` accumulate until `done`, which applies them in
 //! the protocol's order (delete, commit, preedit). Only then are Blitz IME events produced.
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use blitz_traits::events::BlitzImeEvent;
 
@@ -51,5 +50,97 @@ pub struct Ime {
 /// Apply `done`: the Blitz events for everything pending, in protocol order, and an empty
 /// pending state. Pure.
 pub fn on_done(pending: PendingIme) -> (Vec<BlitzImeEvent>, PendingIme) {
-    todo!()
+    let mut events = Vec::new();
+    if let Some(delete) = pending.delete {
+        events.push(BlitzImeEvent::DeleteSurrounding {
+            before_bytes: delete.before as usize,
+            after_bytes: delete.after as usize,
+        });
+    }
+    if let Some(commit) = pending.commit {
+        events.push(BlitzImeEvent::Commit(commit));
+    }
+    if let Some(preedit) = pending.preedit {
+        events.push(BlitzImeEvent::Preedit(preedit.text, preedit.cursor));
+    }
+    (events, PendingIme::default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nothing_pending_produces_nothing() {
+        let (events, rest) = on_done(PendingIme::default());
+        assert!(events.is_empty());
+        assert_eq!(rest, PendingIme::default());
+    }
+
+    #[test]
+    fn a_commit_alone_produces_one_event_and_clears() {
+        let pending = PendingIme {
+            commit: Some("hello".to_owned()),
+            ..PendingIme::default()
+        };
+        let (events, rest) = on_done(pending);
+        assert_eq!(events, vec![BlitzImeEvent::Commit("hello".to_owned())]);
+        assert_eq!(rest, PendingIme::default());
+    }
+
+    #[test]
+    fn a_preedit_alone_carries_its_cursor() {
+        let pending = PendingIme {
+            preedit: Some(Preedit {
+                text: "ni".to_owned(),
+                cursor: Some((0, 2)),
+            }),
+            ..PendingIme::default()
+        };
+        let (events, _) = on_done(pending);
+        assert_eq!(
+            events,
+            vec![BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2)))]
+        );
+    }
+
+    #[test]
+    fn delete_then_commit_then_preedit_in_protocol_order() {
+        let pending = PendingIme {
+            preedit: Some(Preedit {
+                text: "ni".to_owned(),
+                cursor: Some((0, 2)),
+            }),
+            commit: Some("你".to_owned()),
+            delete: Some(DeleteSurrounding {
+                before: 1,
+                after: 0,
+            }),
+        };
+        let (events, rest) = on_done(pending);
+        assert_eq!(
+            events,
+            vec![
+                BlitzImeEvent::DeleteSurrounding {
+                    before_bytes: 1,
+                    after_bytes: 0,
+                },
+                BlitzImeEvent::Commit("你".to_owned()),
+                BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2))),
+            ]
+        );
+        assert_eq!(rest, PendingIme::default());
+    }
+
+    #[test]
+    fn an_empty_commit_string_still_produces_a_commit_event() {
+        // zwp_text_input_v3's `commit_string("")` is meaningful (clears any pending preedit
+        // without inserting text), so an empty string is not the same as "no commit".
+        let pending = PendingIme {
+            commit: Some(String::new()),
+            ..PendingIme::default()
+        };
+        let (events, _) = on_done(pending);
+        assert_eq!(events, vec![BlitzImeEvent::Commit(String::new())]);
+    }
 }
