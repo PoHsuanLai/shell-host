@@ -167,3 +167,20 @@ transparent 1x1 frame on a second connection, round-trips, and checks that conne
 `examples/demo_bar.rs` and `demo_dock.rs` are driven by stdin commands like the spike's, so both
 have `required-features = ["debug-inject"]`, and `debug-inject` pulls in `serde_json` (already
 an optional dependency for the spike).
+
+## H2 gpu (2026-09-24, live KDE session)
+
+- wgpu 29 binds an `Instance` to one `wl_display` and refuses surfaces from another display,
+  so the F16 adapter probe opens its own instance on the throwaway connection and presents
+  through the adapter whose `AdapterInfo` equals the candidate's; `validate(instance, ..)`'s
+  instance parameter is unused (signature kept).
+- NVIDIA 615.71: dropping a Vulkan instance that presented makes the next
+  `vkGetPhysicalDeviceSurfaceSupportKHR` on the host's instance jump to a null pointer inside
+  libnvidia-glcore (gdb-confirmed; not after RADV or llvmpipe probes). `probe.rs` keeps each
+  probe instance and connection alive for the process, one per validated candidate.
+- Facts: NVIDIA Vulkan passes validation (~300 ms), PreMultiplied + Mailbox; RADV (integrated)
+  is rejected by KWin on the first present (protocol error 7 or connection reset); llvmpipe
+  passes but ranks last; NVIDIA GL does not support the surface.
+- `Presenter::present` and `ShmBuffers::new` carry no `wl_surface`; `ShmBuffers::for_surface`
+  is the constructor the shm path needs. A `height:100%` chain did not size a plain div
+  offscreen; the headless tests use fixed heights (dom agent to check the UA stylesheet).
