@@ -26,6 +26,8 @@ blitz-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "e99fbdbd1d03b9
 blitz-paint = { git = "https://github.com/DioxusLabs/blitz", rev = "e99fbdbd1d03b9f0aa1622c3f810d95daac92042", features = ["custom-widget"] }
 blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "e99fbdbd1d03b9f0aa1622c3f810d95daac92042" }
 dioxus-native-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "e99fbdbd1d03b9f0aa1622c3f810d95daac92042", default-features = false, features = ["svg", "system-fonts", "accessibility"] }
+# The portable window path for apps (winit); the shell uses shell-host instead.
+dioxus-native = { git = "https://github.com/DioxusLabs/blitz", rev = "e99fbdbd1d03b9f0aa1622c3f810d95daac92042", default-features = false, features = ["vello-hybrid", "svg", "system-fonts", "accessibility"] }
 
 # Dioxus 0.7.x (renderer-free core; mailo is on 0.7.10).
 dioxus = { version = "0.7", default-features = false, features = ["macro", "html", "hooks", "signals"] }
