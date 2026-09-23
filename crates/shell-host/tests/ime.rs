@@ -1,0 +1,148 @@
+//! `ime::on_done`: preedit/commit/delete sequences accumulated over several wire events, applied
+//! once `done` arrives, against the public API only. The double-buffering itself (accumulate
+//! into `PendingIme`, apply and reset on `done`) is what `handlers/text_input.rs`'s `Dispatch`
+//! impl drives; these tests build the same `PendingIme` a sequence of events would leave behind
+//! and check what `on_done` does with it.
+
+use blitz_traits::events::BlitzImeEvent;
+use shell_host::ime::{DeleteSurrounding, Preedit, on_done};
+
+/// One step in a wire sequence: which buffered field it sets (`PendingIme` is double-buffered,
+/// so later events of the same kind in one cycle replace earlier ones, and a `done` with
+/// nothing buffered produces no events).
+#[derive(Debug, Clone, Default)]
+struct Pending {
+    preedit: Option<Preedit>,
+    commit: Option<&'static str>,
+    delete: Option<(u32, u32)>,
+}
+
+fn pending(steps: Pending) -> shell_host::ime::PendingIme {
+    shell_host::ime::PendingIme {
+        preedit: steps.preedit,
+        commit: steps.commit.map(str::to_owned),
+        delete: steps
+            .delete
+            .map(|(before, after)| DeleteSurrounding { before, after }),
+    }
+}
+
+/// A `done` with nothing buffered (no preedit_string, commit_string or delete_surrounding_text
+/// since the last `done`) produces no events and leaves the pending state empty.
+#[test]
+fn done_with_nothing_pending_is_a_no_op() {
+    let (events, rest) = on_done(pending(Pending::default()));
+    assert!(events.is_empty());
+    assert_eq!(rest, shell_host::ime::PendingIme::default());
+}
+
+/// `preedit_string("ni", 0, 2)` then `done`: one `Preedit` event, cursor at the given range.
+#[test]
+fn a_single_preedit_commits_its_cursor_range() {
+    let (events, rest) = on_done(pending(Pending {
+        preedit: Some(Preedit {
+            text: "ni".to_owned(),
+            cursor: Some((0, 2)),
+        }),
+        ..Pending::default()
+    }));
+    assert_eq!(
+        events,
+        vec![BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2)))]
+    );
+    assert_eq!(rest, shell_host::ime::PendingIme::default());
+}
+
+/// `preedit_string(_, -1, -1)` hides the cursor (protocol rule: both -1 means hidden).
+#[test]
+fn a_preedit_with_both_cursors_at_minus_one_hides_the_cursor() {
+    let (events, _) = on_done(pending(Pending {
+        preedit: Some(Preedit {
+            text: "n".to_owned(),
+            cursor: None,
+        }),
+        ..Pending::default()
+    }));
+    assert_eq!(events, vec![BlitzImeEvent::Preedit("n".to_owned(), None)]);
+}
+
+/// `commit_string("你")` then `done`: one `Commit` event.
+#[test]
+fn a_single_commit_produces_one_event() {
+    let (events, rest) = on_done(pending(Pending {
+        commit: Some("你"),
+        ..Pending::default()
+    }));
+    assert_eq!(events, vec![BlitzImeEvent::Commit("你".to_owned())]);
+    assert_eq!(rest, shell_host::ime::PendingIme::default());
+}
+
+/// `commit_string("")` is a real event (it clears any shown preedit without inserting text),
+/// distinct from no `commit_string` at all.
+#[test]
+fn an_empty_commit_string_is_still_a_commit_event() {
+    let (events, _) = on_done(pending(Pending {
+        commit: Some(""),
+        ..Pending::default()
+    }));
+    assert_eq!(events, vec![BlitzImeEvent::Commit(String::new())]);
+}
+
+/// `delete_surrounding_text(1, 0)` then `done`: one `DeleteSurrounding` event.
+#[test]
+fn a_single_delete_produces_one_event() {
+    let (events, rest) = on_done(pending(Pending {
+        delete: Some((1, 0)),
+        ..Pending::default()
+    }));
+    assert_eq!(
+        events,
+        vec![BlitzImeEvent::DeleteSurrounding {
+            before_bytes: 1,
+            after_bytes: 0,
+        }]
+    );
+    assert_eq!(rest, shell_host::ime::PendingIme::default());
+}
+
+/// A full compose-then-commit cycle: `delete_surrounding_text`, `commit_string` and
+/// `preedit_string` all buffered before one `done` apply in the protocol's fixed order —
+/// delete, commit, preedit — regardless of the order the wire events themselves arrived.
+#[test]
+fn a_full_cycle_applies_delete_then_commit_then_preedit() {
+    let (events, rest) = on_done(pending(Pending {
+        preedit: Some(Preedit {
+            text: "ni".to_owned(),
+            cursor: Some((0, 2)),
+        }),
+        commit: Some("你"),
+        delete: Some((1, 0)),
+    }));
+    assert_eq!(
+        events,
+        vec![
+            BlitzImeEvent::DeleteSurrounding {
+                before_bytes: 1,
+                after_bytes: 0,
+            },
+            BlitzImeEvent::Commit("你".to_owned()),
+            BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2))),
+        ]
+    );
+    assert_eq!(rest, shell_host::ime::PendingIme::default());
+}
+
+/// Two `done` cycles in a row: the second sees only what was buffered since the first (the
+/// double-buffering resets, it does not accumulate across cycles).
+#[test]
+fn a_second_done_only_sees_what_was_buffered_since_the_first() {
+    let (first_events, after_first) = on_done(pending(Pending {
+        commit: Some("a"),
+        ..Pending::default()
+    }));
+    assert_eq!(first_events, vec![BlitzImeEvent::Commit("a".to_owned())]);
+
+    // Nothing new buffered before the next `done`: it is a no-op, not a repeat of "a".
+    let (second_events, _) = on_done(after_first);
+    assert!(second_events.is_empty());
+}
