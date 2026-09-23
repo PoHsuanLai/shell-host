@@ -1,28 +1,68 @@
-//! A `NetProvider` that resolves `data:` URIs and nothing else. Blitz loads `@font-face`,
-//! `mask-image` and background images only through a net provider (quire FINDINGS S7, S8); a
-//! shell surface never fetches from the network.
+//! A `NetProvider` that serves local resources only: `data:` URIs and `file:` URLs. Blitz loads
+//! `@font-face`, `mask-image` and background images only through a net provider (quire FINDINGS
+//! S7, S8); a shell surface never fetches from the network, but the wallpaper is
+//! `background-image: url(file:///…)`.
 
-use blitz_traits::net::{Bytes, NetHandler, NetProvider, Request};
+use std::path::{Path, PathBuf};
 
-/// The data: URI loader.
+use blitz_traits::net::{Bytes, NetHandler, NetProvider, Request, Url};
+
+/// The local loader: `data:` decoded, `file:` read from disk. Anything else is left unanswered.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DataUriNet;
+pub struct LocalNet;
 
-impl NetProvider for DataUriNet {
-    fn fetch(&self, _doc_id: usize, request: Request, handler: Box<dyn NetHandler>) {
-        if request.url.scheme() != "data" {
-            // Nothing else is servable: leave the request unanswered rather than guess.
-            return;
+/// What a request asks [`LocalNet`] for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocalSource {
+    /// A `data:` URI, decoded in full.
+    Data(String),
+    /// An absolute path named by a `file:` URL (empty host or `localhost`).
+    File(PathBuf),
+    /// A scheme or a path this provider does not serve.
+    Unservable,
+}
+
+impl LocalSource {
+    /// Classify a request URL.
+    pub fn of(url: &Url) -> LocalSource {
+        match url.scheme() {
+            "data" => LocalSource::Data(url.as_str().to_owned()),
+            "file" => match url.to_file_path() {
+                Ok(path) if path.is_absolute() => LocalSource::File(path),
+                Ok(_) | Err(()) => LocalSource::Unservable,
+            },
+            _ => LocalSource::Unservable,
         }
-        let raw = request.url.as_str().to_owned();
-        let resolved = raw.clone();
-        // Decoding is cheap (small bundled assets), but runs off the surface's own poll so a
-        // large data URI never stalls a frame; the host holds `rt.enter()` on the main thread.
-        tokio::task::spawn_blocking(move || {
-            let bytes = decode_data_url(&raw).unwrap_or_default();
-            handler.bytes(resolved, Bytes::from(bytes));
-        });
     }
+}
+
+impl NetProvider for LocalNet {
+    fn fetch(&self, _doc_id: usize, request: Request, handler: Box<dyn NetHandler>) {
+        let resolved = request.url.as_str().to_owned();
+        // Both run off the surface's own poll, on the host runtime's blocking pool (the host
+        // holds `rt.enter()` on the main thread), so a large asset never stalls a frame.
+        match LocalSource::of(&request.url) {
+            LocalSource::Data(raw) => {
+                tokio::task::spawn_blocking(move || {
+                    let bytes = decode_data_url(&raw).unwrap_or_default();
+                    handler.bytes(resolved, Bytes::from(bytes));
+                });
+            }
+            LocalSource::File(path) => {
+                tokio::task::spawn_blocking(move || match read_file(&path) {
+                    Some(bytes) => handler.bytes(resolved, Bytes::from(bytes)),
+                    None => eprintln!("shell-host: cannot read {}", path.display()),
+                });
+            }
+            // Nothing else is servable: leave the request unanswered rather than guess.
+            LocalSource::Unservable => {}
+        }
+    }
+}
+
+/// The bytes of an absolute path; `None` when it cannot be read.
+fn read_file(path: &Path) -> Option<Vec<u8>> {
+    std::fs::read(path).ok()
 }
 
 /// Decode a `data:` URI's payload: `data:[<mediatype>][;base64],<data>` (RFC 2397). `None` for
@@ -134,5 +174,29 @@ mod tests {
             b"hello world"
         );
         assert_eq!(decode_data_url("http://example.com"), None);
+    }
+
+    #[test]
+    fn requests_classify_by_scheme_and_path() {
+        let cases: &[(&str, LocalSource)] = &[
+            (
+                "data:text/plain,hi",
+                LocalSource::Data("data:text/plain,hi".into()),
+            ),
+            (
+                "file:///usr/share/backgrounds/a.png",
+                LocalSource::File("/usr/share/backgrounds/a.png".into()),
+            ),
+            (
+                "file://localhost/tmp/a%20b.png",
+                LocalSource::File("/tmp/a b.png".into()),
+            ),
+            ("file://elsewhere/tmp/a.png", LocalSource::Unservable),
+            ("https://example.com/a.png", LocalSource::Unservable),
+        ];
+        for (url, want) in cases {
+            let parsed: Url = url.parse().expect(url);
+            assert_eq!(LocalSource::of(&parsed), *want, "{url}");
+        }
     }
 }

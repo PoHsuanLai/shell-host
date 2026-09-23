@@ -6,7 +6,8 @@
 //!    queues is part of this phase.
 //! 2. **Apply requests.** Everything `SurfaceHandle`s and `HostHandle`s queued, including ops
 //!    queued by the polls in phase 1: an op lands after the poll that caused it and before the
-//!    paint that shows it, so a region change and its frame share one commit.
+//!    paint that shows it, so a region change and its frame share one commit. Text a document
+//!    copied through its shell provider claims the selection here too.
 //! 3. **Step frames.** Per configured, visible surface: create the presenter on first use,
 //!    follow size and scale changes, take the document's redraw request, then render iff the
 //!    machine says so (`wl_surface.frame()`, then present, then clear the redraw flag).
@@ -84,6 +85,7 @@ impl<M: 'static> Flush for HostCtx<M> {
         for request in self.state.requests.drain() {
             super::ops::request(self, request);
         }
+        super::ops::claim_copied(self);
     }
 
     fn step_frames(&mut self) {

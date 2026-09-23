@@ -42,13 +42,11 @@ serde = { workspace = true }
 # Proposed for the pinned block (root Cargo.toml, FINDINGS.md F1): the shared image cache.
 rustc-hash = { workspace = true }
 vello_common = { workspace = true }
-# The spike (throwaway) and the debug-inject JSON stats lines.
+# The debug-inject JSON stats lines.
 serde_json = { workspace = true, optional = true }
 
 [features]
 default = []
-# Milestone 0 spike: the throwaway `spike` module and its examples.
-spike = ["dep:serde_json"]
 # `render_png` and everything downstream of it: no window, no Wayland connection, no GPU
 # surface. Off by default because it is a CI/testing path, not something a running shell
 # needs linked in.
@@ -57,13 +55,10 @@ headless = []
 # successor of the spike's command language. Off in a shipped shell.
 debug-inject = ["dep:serde_json"]
 
-[[example]]
-name = "spike_bar"
-required-features = ["spike"]
-
+# The acceptance probe: a plain xdg toplevel (JSON configure lines) the demo items cover.
 [[example]]
 name = "probe_toplevel"
-required-features = ["spike"]
+required-features = ["debug-inject"]
 
 [dev-dependencies]
 # Image paints for custom widgets in the examples (in the pinned block since S3).

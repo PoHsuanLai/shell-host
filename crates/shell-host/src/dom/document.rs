@@ -12,10 +12,10 @@ use blitz_traits::shell::{ShellProvider, Viewport};
 use dioxus_native_dom::DioxusDocument;
 
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
-use crate::dom::net::DataUriNet;
+use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::Animation;
-use crate::geometry::{element_name, enclosing_rect};
+use crate::geometry::enclosing_rect;
 use crate::region::{ElementId, Rect};
 use crate::root::Root;
 
@@ -31,7 +31,7 @@ pub struct DocumentEnv {
     pub shell: Arc<HostShellProvider>,
     /// A clone of the host's one `FontContext` (shares the source cache).
     pub fonts: FontContext,
-    pub net: Arc<DataUriNet>,
+    pub net: Arc<LocalNet>,
     pub viewport: Viewport,
 }
 
@@ -131,12 +131,11 @@ impl SurfaceDocument {
     }
 
     /// The laid-out rectangle of the element `id` names, in surface-local logical pixels
-    /// (`geometry::element_name`, `get_element_by_id`, `get_client_bounding_rect`,
-    /// `geometry::enclosing_rect`); `None` before layout or when absent.
+    /// (`get_element_by_id`, `get_client_bounding_rect`, `geometry::enclosing_rect`); `None`
+    /// before layout or when absent.
     pub fn element_rect(&self, id: ElementId) -> Option<Rect> {
-        let name = element_name(id)?;
         let inner = self.doc.inner();
-        let node_id = inner.get_element_by_id(name)?;
+        let node_id = inner.get_element_by_id(id.as_str())?;
         let bounds = inner.get_client_bounding_rect(node_id)?;
         Some(enclosing_rect(
             bounds.x,

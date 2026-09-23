@@ -1,33 +1,25 @@
 #!/usr/bin/env bash
-# Milestone 0 spike acceptance (S1): `scripts/spike-accept.sh <compositor> <item>`, item in
-# a b c f g. Runs against the LIVE session in $WAYLAND_DISPLAY; surfaces appear on screen for
-# a few seconds and are destroyed on exit. Results: spike/out/<compositor>/<item>.{log,json,png}.
-# Exit 0 = the item's acceptance holds (f may pass as "pending user scale change").
-#
-# `scripts/spike-accept.sh demo [<compositor>] <item>` runs the same items, with the same
-# thresholds, against the real-API examples instead (examples/demo_bar.rs, demo_dock.rs, built
-# with `debug-inject`): the H2 acceptance. The compositor defaults to $DEMO_COMPOSITOR, else
-# kwin-virtual. Results: spike/out/<compositor>/demo-<item>.{log,json,png}.
+# Milestone 0 acceptance on the real host: `scripts/spike-accept.sh demo [<compositor>] <item>`,
+# item in a b c f g, with the thresholds of SPIKE.md S1, against the real-API examples
+# (examples/demo_bar.rs, demo_dock.rs, and the plain-client probe_toplevel, built with
+# `debug-inject`). The compositor defaults to $DEMO_COMPOSITOR, else kwin-virtual; `kwin` is the
+# LIVE session in $WAYLAND_DISPLAY (surfaces appear on screen for a few seconds and are
+# destroyed on exit). Results: spike/out/demo/<compositor>/<item>.{log,json,png}. Exit 0 = the
+# item's acceptance holds. (The M0 `spike` mode and its examples were retired in H2; SPIKE.md
+# keeps their results.)
 set -euo pipefail
 self="$(realpath "$0")"
 cd "$(dirname "$0")/.."
 orig=("$@")
-mode=spike
-if [[ "${1:-}" == demo ]]; then
-  mode=demo
-  shift
-  if [[ $# -eq 1 ]]; then set -- "${DEMO_COMPOSITOR:-kwin-virtual}" "$1"; fi
-fi
-usage="usage: spike-accept.sh [demo] <compositor> <a|b|c|f|g>"
+usage="usage: spike-accept.sh demo [<compositor>] <a|b|c|f|g>"
+if [[ "${1:-}" != demo ]]; then echo "$usage" >&2; exit 2; fi
+shift
+if [[ $# -eq 1 ]]; then set -- "${DEMO_COMPOSITOR:-kwin-virtual}" "$1"; fi
 comp="${1:?$usage}"
 item="${2:?$usage}"
-out="spike/out/$comp"
+out="spike/out/demo/$comp"
 mkdir -p "$out"
-case "$mode" in
-  spike) features=spike ;;
-  demo) features=spike,debug-inject ;; # probe_toplevel is a spike example
-esac
-build() { cargo build --release -p shell-host --features "$features" --examples >&2; }
+build() { cargo build --release -p shell-host --features debug-inject --examples >&2; }
 # `kwin-virtual[@scale]`: a nested headless KWin (virtual output, OpenGL compositing, own D-Bus
 # session) at scale $SPIKE_SCALE (default 1.5). Used when the live session is locked, and for
 # item f at exactly 1.5 without touching the user's display.
@@ -71,7 +63,6 @@ if [[ -n "${SPIKE_NESTED:-}" ]]; then
 else
   build
 fi
-export SPIKE_MODE="$mode"
 export SPIKE_BIN="target/release/examples"
 export SPIKE_OUT="$out" SPIKE_ITEM="$item"
 python3 - <<'PY'
@@ -80,10 +71,7 @@ from PIL import Image
 import numpy as np
 
 OUT, ITEM, BIN = os.environ["SPIKE_OUT"], os.environ["SPIKE_ITEM"], os.environ["SPIKE_BIN"]
-# spike: the M0 examples. demo: the real-API examples, same items and thresholds (H2).
-DEMO = os.environ.get("SPIKE_MODE") == "demo"
-PFX = "demo-" if DEMO else ""
-LOG = open(f"{OUT}/{PFX}{ITEM}.log", "w")
+LOG = open(f"{OUT}/{ITEM}.log", "w")
 PROCS = []
 
 def log(*a):
@@ -92,8 +80,7 @@ def log(*a):
 
 class Proc:
     def __init__(self, name, args, env=None, prefix=""):
-        # `prefix` addresses the process's primary surface: the spike takes bare commands,
-        # the demos name the surface (`dock hover x y`).
+        # `prefix` addresses the process's primary surface (`dock hover x y`).
         self.name, self.lines, self.prefix = name, queue.Queue(), prefix
         e = dict(os.environ); e.update(env or {})
         self.p = subprocess.Popen([f"{BIN}/{name}"] + args, stdin=subprocess.PIPE,
@@ -119,11 +106,8 @@ class Proc:
         raise TimeoutError(f"{self.name}: expected line not seen")
     def stats(self, n=1):
         t0 = time.time(); self.send("stats")
-        if DEMO:
-            host = self.expect(lambda v: "host" in v)["host"]
-            rows = [demo_row(self.expect(lambda v: "counters" in v), host) for _ in range(n)]
-        else:
-            rows = [self.expect(lambda v: "frames" in v) for _ in range(n)]
+        host = self.expect(lambda v: "host" in v)["host"]
+        rows = [demo_row(self.expect(lambda v: "counters" in v), host) for _ in range(n)]
         return {r["surface"]: r for r in rows}, (time.time() - t0) * 1000
     def ctx(self):
         main = total = 0
@@ -142,7 +126,7 @@ class Proc:
             except subprocess.TimeoutExpired: self.p.kill()
 
 def demo_row(v, host):
-    """A demo `FrameStats` line in the spike's flat shape, so every check reads one shape."""
+    """A demo `FrameStats` line in the flat shape every check reads (the M0 spike's)."""
     c, w, i = v["counters"], v["work"], v["interval"]
     ms = lambda us: us / 1000.0
     dims = lambda d: [d["width"], d["height"]]
@@ -157,20 +141,17 @@ def demo_row(v, host):
                 vm_rss_kb=v["vm_rss_kib"], blur=host["blur"], host=host)
 
 def surfaces(kind, args=(), env=None):
-    """Start the process for `kind` ("bar", "dock" or "bar+dock"); `args` and `env` are the
-    spike's (SPIKE_BLUR, --exclusive, --mode, --layer), translated for the demos."""
+    """Start the demo for `kind` ("bar", "dock" or "bar+dock"); SPIKE_BLUR in `env` becomes
+    DEMO_BLUR, `args` pass through (--exclusive, --mode, --layer)."""
     args, env = list(args), dict(env or {})
-    if not DEMO:
-        return Proc("spike_bar", {"bar": [], "dock": ["--dock"], "bar+dock": ["--with-dock"]}[kind] + args, env)
     if "SPIKE_BLUR" in env: env["DEMO_BLUR"] = env.pop("SPIKE_BLUR")
     name = "demo_dock" if kind == "dock" else "demo_bar"
     extra = ["--with-dock"] if kind == "bar+dock" else []
     return Proc(name, extra + args, env, prefix=("dock " if kind == "dock" else "bar "))
 
 def blur_checks(st):
-    if DEMO:  # the host line: unbound, unsupported or supported
-        return {"blur_bound": st["blur"] != "unbound", "caps_has_blur": st["blur"] == "supported"}
-    return {"blur_bound": st["blur"].startswith("on"), "caps_has_blur": "Some(1)" in st["blur"]}
+    # The host line: unbound, unsupported or supported.
+    return {"blur_bound": st["blur"] != "unbound", "caps_has_blur": st["blur"] == "supported"}
 
 def cleanup():
     for p in PROCS: p.quit()
@@ -221,7 +202,7 @@ def item_a():
     bar = surfaces("bar", [], {"SPIKE_BLUR": "0"}); st = bar_ready(bar)["bar"]
     time.sleep(0.3)
     probe, v1 = probe_maximized(); time.sleep(1.5)
-    img = screenshot(f"{OUT}/{PFX}a.png")
+    img = screenshot(f"{OUT}/a.png")
     probe.quit(); bar.quit()
     s = img.shape[1] / info["logical"][0]
     px = lambda x, y: img[int(round(y * s)), int(round(x * s))]
@@ -241,7 +222,7 @@ def item_a():
 def bar_variance(blur):
     bar = surfaces("bar", ["--exclusive=0"], {"SPIKE_BLUR": blur}); st = bar_ready(bar)["bar"]
     probe, _ = probe_maximized(); time.sleep(1.5)
-    img = screenshot(f"{OUT}/{PFX}b_blur{blur}.png")
+    img = screenshot(f"{OUT}/b_blur{blur}.png")
     probe.quit(); bar.quit(); time.sleep(0.3)
     s = img.shape[1] / output_info()["logical"][0]
     region = lum(img[int(6 * s):int(26 * s), int(400 * s):int(1400 * s)])
@@ -251,16 +232,17 @@ def item_b():
     setting = blur_setting()
     v0, st0 = bar_variance("0"); v1, st1 = bar_variance("1")
     drop = 1 - v1 / v0 if v0 > 0 else 0.0
-    os.replace(f"{OUT}/{PFX}b_blur1.png", f"{OUT}/{PFX}b.png")
+    os.replace(f"{OUT}/b_blur1.png", f"{OUT}/b.png")
     checks = {**blur_checks(st1), "variance_drop_ge_80pct": drop >= 0.8}
     return dict(kwin_blur=setting, variance_blur0=v0, variance_blur1=v1, drop=drop,
                 blur0_stats=st0, blur1_stats=st1, checks=checks, pass_=all(checks.values()))
 
+# The debug grammar takes whole logical pixels (debug.rs), so the sweep rounds.
 def sweep(p, target=None, secs=1.0, y=64, x0=40, x1=720):
     target = p.prefix if target is None else target
     n = int(secs * 120)
     for i in range(n + 1):
-        p.send(f"{target}hover {x0 + (x1 - x0) * i / n:.1f} {y}"); time.sleep(secs / n)
+        p.send(f"{target}hover {round(x0 + (x1 - x0) * i / n)} {y}"); time.sleep(secs / n)
 
 def dock_run(mode, refresh, present="mailbox"):
     # Bottom layer so an ordinary toplevel really covers it (KWin keeps top-layer surfaces
@@ -317,13 +299,9 @@ def item_f():
     kd = subprocess.run(["kscreen-doctor", "-o"], capture_output=True, text=True).stdout
     kscale = float(re.search(r"Scale: ([\d.]+)", re.sub(r"\x1b\[[0-9;]*m", "", kd)).group(1))
     bar = surfaces("bar"); st = bar_ready(bar)["bar"]
-    cap = f"{os.path.abspath(OUT)}/{PFX}f_capture.png"
+    cap = f"{os.path.abspath(OUT)}/f_capture.png"
     bar.send(f"{bar.prefix}capture {cap}"); bar.expect(lambda v: "capture" in v)
-    time.sleep(0.5); img = screenshot(f"{OUT}/{PFX}f.png"); bar.quit()
-    # Recorded, not checked; the host always binds fractional-scale when offered.
-    st_int = None
-    if not DEMO:
-        fb = Proc("spike_bar", [], {"SPIKE_NO_FRACTIONAL": "1"}); st_int = bar_ready(fb)["bar"]; fb.quit()
+    time.sleep(0.5); img = screenshot(f"{OUT}/f.png"); bar.quit()
     s = st["scale120"] / 120
     buf = [int((l * st["scale120"] + 60) // 120) for l in st["logical"]]
     y = int(16 * s); x0, x1 = int(round(200 * s)), int(round(280 * s))
@@ -348,7 +326,7 @@ def item_f():
                 allowed_runs=allowed, mean_run=float(np.mean(runs)), antialiased_px=aa,
                 max_row_diff_opaque=float(np.abs(crow - srow)[opaque].max()),
                 max_row_diff_all=float(np.abs(crow - srow).max()), opaque_px=int(opaque.sum()),
-                surface_covers_output=int(img.shape[1]) <= st["buffer"][0], integer_fallback_stats=st_int,
+                surface_covers_output=int(img.shape[1]) <= st["buffer"][0],
                 checks=checks, pass_=all(checks.values()))
 
 def item_g():
@@ -370,7 +348,7 @@ try:
 finally:
     cleanup()
 res["pass"] = bool(res.pop("pass_"))
-json.dump(res, open(f"{OUT}/{PFX}{ITEM}.json", "w"), indent=2, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
+json.dump(res, open(f"{OUT}/{ITEM}.json", "w"), indent=2, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
 log(json.dumps(res, default=str))
 sys.exit(0 if res["pass"] else 1)
 PY

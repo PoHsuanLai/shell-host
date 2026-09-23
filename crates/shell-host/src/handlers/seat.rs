@@ -55,7 +55,7 @@ impl SeatHandler for HostState {
     }
 
     fn new_seat(&mut self, conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        // `Clipboard::paste` needs a connection to flush; any seat event hands us one.
+        // `Clipboard::follow` needs a connection to flush; any seat event hands us one.
         if self.clipboard.conn.is_none() {
             self.clipboard.conn = Some(conn.clone());
         }

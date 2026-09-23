@@ -42,10 +42,10 @@ impl DataDeviceHandler for HostState {
     ) {
     }
 
-    /// Remember the new selection offer. When it is our own (we just called `set_selection`),
-    /// `Clipboard::paste`'s `own` cache is read first and this offer is simply never used; when
-    /// someone else's, `own`/`source` are cleared by `DataSourceHandler::cancelled` on our old
-    /// source, not here.
+    /// Follow the new selection: read its text on a helper thread and publish it to the shell
+    /// providers (`Clipboard::follow`). Our own selection is read back the same way (the loop
+    /// serves `send_request` meanwhile); when someone else's, `own`/`source` are cleared by
+    /// `DataSourceHandler::cancelled` on our old source, not here.
     fn selection(
         &mut self,
         _conn: &Connection,
@@ -55,7 +55,7 @@ impl DataDeviceHandler for HostState {
         let offer = data_device
             .data::<DataDeviceData>()
             .and_then(|data| data.selection_offer());
-        self.clipboard.offer = offer;
+        self.clipboard.follow(offer);
     }
 
     fn drop_performed(

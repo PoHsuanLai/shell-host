@@ -36,8 +36,6 @@ pub mod resolve;
 pub mod role;
 pub mod root;
 pub mod scale;
-#[cfg(feature = "spike")]
-pub mod spike;
 pub mod state;
 pub mod surface;
 pub mod timers;

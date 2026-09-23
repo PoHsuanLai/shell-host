@@ -57,6 +57,21 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
     }
 }
 
+/// Claim the selection with text a document copied through its shell provider (Blitz's own
+/// copy in a text input), the same way as `SurfaceHandle::copy_text`.
+pub(super) fn claim_copied<M: 'static>(ctx: &mut HostCtx<M>) {
+    let copied: Vec<String> = ctx
+        .state
+        .surfaces
+        .values()
+        .filter_map(|surface| surface.shell.take_copied())
+        .collect();
+    let qh = ctx.state.qh.clone();
+    for text in copied {
+        claim_selection(&mut ctx.state, &qh, text);
+    }
+}
+
 /// Apply `op` to surface `id`: its Wayland requests now, its recorded state for the next paint,
 /// and an invalidation so that paint (and its commit) happens.
 pub(super) fn apply<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, op: SurfaceOp) {
