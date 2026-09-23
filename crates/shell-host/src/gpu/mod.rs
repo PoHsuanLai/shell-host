@@ -3,9 +3,11 @@
 //! unnecessary), with a CPU `wl_shm` presenter as the fallback.
 
 pub mod adapter;
+mod block_on;
 pub mod context;
 pub mod context_proxy;
 pub mod presenter;
+mod probe;
 pub mod raw_handle;
 pub mod render;
 pub mod shm;

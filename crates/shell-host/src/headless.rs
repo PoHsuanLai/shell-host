@@ -42,22 +42,9 @@ impl PixelSize {
     }
 }
 
-/// A rendering scale factor, stored as an integer in 120ths so geometry stays `Eq` — the same
-/// convention `shell-host`'s Wayland fractional-scale handling uses for buffer sizes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Scale(pub u32);
-
-impl Scale {
-    pub const ONE: Scale = Scale(120);
-
-    pub fn as_f32(self) -> f32 {
-        self.0 as f32 / 120.0
-    }
-
-    pub fn as_f64(self) -> f64 {
-        self.0 as f64 / 120.0
-    }
-}
+/// The rendering scale, in 120ths: the host's own [`crate::scale::Scale`] (FINDINGS F6; S3
+/// had a duplicate here with the same meaning).
+pub use crate::scale::Scale;
 
 /// Which fonts a headless render has available. `Bundled` is the reproducible choice for a
 /// snapshot test: it registers exactly one known face and turns system font discovery off, so
@@ -104,7 +91,7 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
         fonts,
     } = config;
 
-    let viewport = Viewport::new(size.width, size.height, scale.as_f32(), color_scheme);
+    let viewport = Viewport::new(size.width, size.height, scale.as_f64() as f32, color_scheme);
     let mut doc = DioxusDocument::new(
         VirtualDom::new(root),
         DocumentConfig {

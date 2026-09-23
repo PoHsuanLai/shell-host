@@ -2,16 +2,18 @@
 //! `wl_display` as a `HasDisplayHandle` for `InstanceDescriptor` (GL needs it at instance
 //! creation; SPIKE.md S1 "API changes").
 #![allow(unsafe_code)]
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle};
-use wayland_client::Connection;
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, RawDisplayHandle, RawWindowHandle,
+    WaylandDisplayHandle, WaylandWindowHandle,
+};
 use wayland_client::protocol::wl_surface::WlSurface;
+use wayland_client::{Connection, Proxy};
 
-use crate::error::Result;
+use crate::error::{HostError, Result};
 
 /// A wgpu surface presenting into `surface`.
 ///
@@ -24,7 +26,30 @@ pub fn create_surface(
     conn: &Connection,
     surface: &WlSurface,
 ) -> Result<wgpu::Surface<'static>> {
-    todo!()
+    let display = display_ptr(conn).ok_or_else(|| {
+        HostError::Surface(
+            "wl_display pointer is null (wayland-backend without client_system)".into(),
+        )
+    })?;
+    let window = NonNull::new(surface.id().as_ptr().cast::<c_void>()).ok_or_else(|| {
+        HostError::Surface("wl_surface pointer is null (surface destroyed)".into())
+    })?;
+    let target = wgpu::SurfaceTargetUnsafe::RawHandle {
+        raw_display_handle: Some(RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
+            display,
+        ))),
+        raw_window_handle: RawWindowHandle::Wayland(WaylandWindowHandle::new(window)),
+    };
+    // SAFETY: both pointers come from live libwayland objects of this process: the display
+    // from `conn`, the surface from a `WlSurface` whose proxy is alive (checked non-null
+    // above). The caller contract keeps both alive for as long as the returned surface; wgpu
+    // uses them only to create the VkSurfaceKHR / EGL window and to attach and commit on
+    // present, which is what they are for.
+    unsafe { instance.create_surface_unsafe(target) }.map_err(|e| HostError::Surface(e.to_string()))
+}
+
+fn display_ptr(conn: &Connection) -> Option<NonNull<c_void>> {
+    NonNull::new(conn.backend().display_ptr().cast::<c_void>())
 }
 
 /// The `wl_display` pointer as a display handle.
@@ -40,12 +65,16 @@ unsafe impl Sync for WaylandDisplay {}
 impl WaylandDisplay {
     /// The display of `conn`; `None` when wayland-backend is not using the system libwayland.
     pub fn new(conn: &Connection) -> Option<WaylandDisplay> {
-        todo!()
+        display_ptr(conn).map(WaylandDisplay)
     }
 }
 
 impl HasDisplayHandle for WaylandDisplay {
     fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
-        todo!()
+        let raw = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(self.0));
+        // SAFETY: the pointer came from a live `Connection`, and the instance holding this
+        // handle is created from (and dropped with) the host, which keeps that connection
+        // open for its whole life; the handle borrows `self`, so it cannot outlive it.
+        Ok(unsafe { DisplayHandle::borrow_raw(raw) })
     }
 }
