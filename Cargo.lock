@@ -2910,6 +2910,7 @@ dependencies = [
  "image",
  "keyboard-types",
  "parley",
+ "peniko",
  "raw-window-handle",
  "serde",
  "smithay-client-toolkit",
