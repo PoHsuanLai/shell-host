@@ -1,0 +1,15 @@
+READY: bar mapped, waiting for stdin commands (click x y | capture path | quit)
+EVENT BackgroundEffectCapabilities blur=Supported
+EVENT BarPainted logical=(2259,32) scale=120 buffer=(2259,32)
+EVENT PreferredScale surface=bar scale=204 (1.700x)
+EVENT BarPainted logical=(2259,32) scale=204 buffer=(3840,54)
+EVENT PositionerParams popup=popup1 size=(180,110) anchor_rect=(20,4,80,24) anchor=Bottom gravity=Bottom
+EVENT PopupConfigure position=(0,28) size=(180,110) serial=189649 kind=Initial
+EVENT PopupPainted size=(180,110) color=[20, 60, 20, f0] hot_rect=Some(Rect { x: 16, y: 44, width: 148, height: 28 })
+EVENT Captured path=/home/pohsuanlai/shell-host-wt/s2/spike/out/kwin/e.popup1.png
+EVENT PositionerParams popup=popup2 (submenu, nested in popup1) size=(160,90) anchor_rect=(16,44,148,28) anchor=Right gravity=Right
+EVENT PopupConfigure position=(164,13) size=(160,90) serial=189650 kind=Initial
+EVENT PopupPainted size=(160,90) color=[60, 20, 60, f0] hot_rect=None
+EVENT Captured path=/home/pohsuanlai/shell-host-wt/s2/spike/out/kwin/e.popup2.png
+EVENT PopupDismissed reason=client remaining_open=1
+EVENT PopupDismissed reason=client remaining_open=0
