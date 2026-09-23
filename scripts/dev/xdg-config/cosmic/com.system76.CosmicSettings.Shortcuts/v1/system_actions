@@ -1,0 +1,4 @@
+{
+    Launcher: "sill launcher toggle",
+    AppLibrary: "sill launcher open --query ''",
+}

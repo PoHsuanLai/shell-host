@@ -1,2 +1,6 @@
 /target
 /target-*
+
+# nested-compositor dev harness (scripts/dev/): run-time output, never checked in
+/scripts/dev/out/
+/scripts/dev/.nested-env
