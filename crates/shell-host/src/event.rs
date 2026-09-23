@@ -1,0 +1,109 @@
+//! What the host tells the shell.
+
+use crate::id::{OutputId, SurfaceId};
+use crate::output::OutputInfo;
+
+/// An event delivered to the closure given to `Host::run`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HostEvent<M> {
+    /// The loop is running and the initial outputs have been reported; spawn the first surfaces
+    /// here. Delivered exactly once, first.
+    Started,
+    OutputAdded(OutputInfo),
+    OutputChanged(OutputInfo),
+    OutputRemoved(OutputId),
+    /// A surface is gone; its id no longer matches anything.
+    SurfaceClosed {
+        id: SurfaceId,
+        reason: CloseReason,
+    },
+    /// Keyboard focus entered or left a surface.
+    KeyboardFocus {
+        id: SurfaceId,
+        focus: Focus,
+    },
+    /// A message sent through a `HostHandle`.
+    App(M),
+}
+
+/// Why a surface closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CloseReason {
+    /// `HostCtx::close`, `SurfaceHandle::close` or a `HostHandle` close.
+    Requested,
+    /// The compositor dismissed a popup (`xdg_popup.popup_done`, an outside click on a grab).
+    PopupDismissed,
+    /// The popup's parent closed, and popups close with their parent.
+    ParentClosed,
+    /// The compositor closed a layer surface (`zwlr_layer_surface_v1.closed`), for example
+    /// because its output went away.
+    Compositor,
+    /// The user asked a toplevel to close (`xdg_toplevel.close`). The host closes it; a shell
+    /// that wants to confirm first reopens.
+    UserClose,
+    /// The surface failed (its GPU surface could not be created or presented) and was removed.
+    Failed,
+}
+
+/// Keyboard focus, gained or lost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Focus {
+    Gained,
+    Lost,
+}
+
+/// An event raised inside the Wayland handlers, which never carry an app message. Widened to
+/// the caller's `HostEvent<M>` with [`widen`] when it is delivered.
+pub type ShellEvent = HostEvent<std::convert::Infallible>;
+
+/// `event` as a `HostEvent<M>`. Total: a `ShellEvent` cannot be `App`.
+pub fn widen<M>(event: ShellEvent) -> HostEvent<M> {
+    match event {
+        HostEvent::Started => HostEvent::Started,
+        HostEvent::OutputAdded(info) => HostEvent::OutputAdded(info),
+        HostEvent::OutputChanged(info) => HostEvent::OutputChanged(info),
+        HostEvent::OutputRemoved(id) => HostEvent::OutputRemoved(id),
+        HostEvent::SurfaceClosed { id, reason } => HostEvent::SurfaceClosed { id, reason },
+        HostEvent::KeyboardFocus { id, focus } => HostEvent::KeyboardFocus { id, focus },
+        HostEvent::App(never) => match never {},
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn widening_keeps_every_shell_event() {
+        let cases: Vec<(ShellEvent, HostEvent<String>)> = vec![
+            (HostEvent::Started, HostEvent::Started),
+            (
+                HostEvent::OutputRemoved(OutputId(3)),
+                HostEvent::OutputRemoved(OutputId(3)),
+            ),
+            (
+                HostEvent::SurfaceClosed {
+                    id: SurfaceId(2),
+                    reason: CloseReason::PopupDismissed,
+                },
+                HostEvent::SurfaceClosed {
+                    id: SurfaceId(2),
+                    reason: CloseReason::PopupDismissed,
+                },
+            ),
+            (
+                HostEvent::KeyboardFocus {
+                    id: SurfaceId(1),
+                    focus: Focus::Gained,
+                },
+                HostEvent::KeyboardFocus {
+                    id: SurfaceId(1),
+                    focus: Focus::Gained,
+                },
+            ),
+        ];
+        for (shell, want) in cases {
+            assert_eq!(widen::<String>(shell.clone()), want, "{shell:?}");
+        }
+    }
+}
