@@ -174,7 +174,7 @@ impl KeyboardHandler for HostState {
 impl HostState {
     /// Whether the focused surface's IME is enabled right now (`input::key::Composing`'s best
     /// available signal: `Ime` tracks enablement, not whether a preedit is currently showing).
-    fn composing(&self) -> Composing {
+    pub(crate) fn composing(&self) -> Composing {
         match self.ime.focus {
             ImeFocus::Enabled { .. } => Composing::Active,
             ImeFocus::Disabled => Composing::Idle,
@@ -182,7 +182,7 @@ impl HostState {
     }
 
     /// Feed `event` to surface `id`'s document and invalidate it.
-    fn dispatch_key(&mut self, id: SurfaceId, event: BlitzKeyEvent) {
+    pub(crate) fn dispatch_key(&mut self, id: SurfaceId, event: BlitzKeyEvent) {
         let ui_event = match event.state {
             KeyState::Pressed => UiEvent::KeyDown(event),
             KeyState::Released => UiEvent::KeyUp(event),

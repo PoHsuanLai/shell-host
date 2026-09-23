@@ -1,11 +1,10 @@
 //! `HostHandle`: sending to the host from any thread (a zbus task, a watcher thread).
-#![allow(unused_variables, dead_code)] // Freeze stubs: remove with the last todo!().
 
 use std::fmt;
 
 use calloop::channel::Sender;
 
-use crate::error::Result;
+use crate::error::{HostError, Result};
 use crate::id::SurfaceId;
 use crate::msg::{HostMsg, SurfaceOp};
 
@@ -17,28 +16,33 @@ pub struct HostHandle<M> {
 impl<M> HostHandle<M> {
     /// A handle sending into `sender`. Built by `Host::connect`.
     pub(crate) fn new(sender: Sender<HostMsg<M>>) -> HostHandle<M> {
-        todo!()
+        HostHandle { sender }
     }
 
     /// Deliver `msg` to the event closure as `HostEvent::App`. Fails with `HostError::HostGone`
     /// after the host has exited.
     pub fn send(&self, msg: M) -> Result<()> {
-        todo!()
+        self.post(HostMsg::App(msg))
     }
 
     /// Apply `op` to surface `id`, as `HostCtx::apply` would.
     pub fn apply(&self, id: SurfaceId, op: SurfaceOp) -> Result<()> {
-        todo!()
+        self.post(HostMsg::Apply { id, op })
     }
 
     /// Close surface `id`.
     pub fn close(&self, id: SurfaceId) -> Result<()> {
-        todo!()
+        self.post(HostMsg::Close(id))
     }
 
     /// Close every surface and return from `Host::run`.
     pub fn exit(&self) -> Result<()> {
-        todo!()
+        self.post(HostMsg::Exit)
+    }
+
+    /// The channel is closed exactly when the loop (and with it the receiver) is gone.
+    fn post(&self, msg: HostMsg<M>) -> Result<()> {
+        self.sender.send(msg).map_err(|_| HostError::HostGone)
     }
 }
 

@@ -154,11 +154,6 @@ impl DataSourceHandler for HostState {
 /// event, and updates the cache `Clipboard::copy` maintains. Called by whoever drains
 /// `Request::CopyText` (`HostCtx`, H2 core) — `Clipboard::copy` cannot make the wire request
 /// itself: its frozen signature has neither a queue handle nor an input serial to give it.
-///
-/// Not yet called from anywhere in this crate: `Request::CopyText` is drained by `HostCtx`
-/// (H2 core, `ctx.rs`), which is `todo!()` in this worktree. `#[allow(dead_code)]` until that
-/// wave wires it in; see this crate's H2-input report.
-#[allow(dead_code)]
 pub(crate) fn claim_selection(state: &mut HostState, qh: &QueueHandle<HostState>, text: String) {
     state.clipboard.copy(text);
     let (Some(manager), Some(device)) = (&state.data_device, &state.input.data_device) else {

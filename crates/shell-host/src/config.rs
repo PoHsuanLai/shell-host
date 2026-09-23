@@ -7,10 +7,41 @@ use serde::{Deserialize, Serialize};
 pub const ADAPTER_ENV: &str = "WGPU_ADAPTER_NAME";
 
 /// How a host is set up. `Host::connect` takes one.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostConfig {
     pub backend: Backend,
     pub adapter: AdapterPref,
+    /// How long after a toplevel is activated a press is swallowed as the activating click
+    /// (design/13 §13.3.8). The settings key `menus.first_mouse_window_ms`, which design/22
+    /// marks proposed, so a shell feeds it from settings.
+    #[serde(default = "Ms::first_mouse_window")]
+    pub first_mouse_window_ms: Ms,
+}
+
+impl Default for HostConfig {
+    fn default() -> HostConfig {
+        HostConfig {
+            backend: Backend::default(),
+            adapter: AdapterPref::default(),
+            first_mouse_window_ms: Ms::first_mouse_window(),
+        }
+    }
+}
+
+/// A configured duration in whole milliseconds, as settings keys spell them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Ms(pub u32);
+
+impl Ms {
+    /// `menus.first_mouse_window_ms`'s default (design/22-SETTINGS.md).
+    pub const fn first_mouse_window() -> Ms {
+        Ms(100)
+    }
+
+    /// As a `Duration`.
+    pub fn duration(self) -> std::time::Duration {
+        std::time::Duration::from_millis(u64::from(self.0))
+    }
 }
 
 /// How pixels reach the compositor.
@@ -94,7 +125,8 @@ mod tests {
             HostConfig::default(),
             HostConfig {
                 backend: Backend::Gpu,
-                adapter: AdapterPref::Auto
+                adapter: AdapterPref::Auto,
+                first_mouse_window_ms: Ms(100),
             }
         );
     }
