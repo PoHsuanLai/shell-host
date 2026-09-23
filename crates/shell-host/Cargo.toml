@@ -42,6 +42,20 @@ image = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+# Spike only (Milestone 0, throwaway).
+serde_json = { workspace = true, optional = true }
+
+[features]
+# Milestone 0 spike: the throwaway `spike` module and its examples.
+spike = ["dep:serde_json"]
+
+[[example]]
+name = "spike_bar"
+required-features = ["spike"]
+
+[[example]]
+name = "probe_toplevel"
+required-features = ["spike"]
 
 [dev-dependencies]
 # Not in the pinned dependency block, and flagged as a finding in SPIKE.md / the S3 report:

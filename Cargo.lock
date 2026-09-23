@@ -2913,6 +2913,7 @@ dependencies = [
  "peniko",
  "raw-window-handle",
  "serde",
+ "serde_json",
  "smithay-client-toolkit",
  "thiserror",
  "tokio",

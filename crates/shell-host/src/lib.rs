@@ -35,3 +35,5 @@ pub mod handlers;
 pub mod popup;
 pub mod region;
 pub mod scale;
+#[cfg(feature = "spike")]
+pub mod spike;
