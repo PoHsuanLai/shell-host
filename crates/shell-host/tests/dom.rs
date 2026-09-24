@@ -78,6 +78,44 @@ fn the_head_shim_delivers_a_style_element_into_the_document() {
     );
 }
 
+fn sized_content_app() -> Element {
+    rsx! {
+        style { "html,body{{margin:0}}#card{{width:160px;height:40px}}" }
+        div { id: "card", "hi" }
+    }
+}
+
+fn style_only_app() -> Element {
+    rsx! {
+        style { "html,body{{margin:0}}" }
+    }
+}
+
+/// `content_size` skips `<body>`'s literal `<style>` child (`display:none` by Blitz's own
+/// default stylesheet, and always body's first child in this codebase's rsx convention) and
+/// measures the actual content element after it.
+#[test]
+fn content_size_measures_the_first_content_element_under_body() {
+    let mut doc = SurfaceDocument::build(Root::new(sized_content_app), test_env());
+    doc.resolve(0.0);
+    assert_eq!(
+        doc.content_size(),
+        Some(shell_host::scale::Size {
+            width: 160,
+            height: 40
+        }),
+        "the #card div, not the #main mount point (which fills the 200px-wide viewport)"
+    );
+}
+
+/// A document whose body holds nothing but a `<style>` has no content to measure.
+#[test]
+fn content_size_is_none_with_no_content_element() {
+    let mut doc = SurfaceDocument::build(Root::new(style_only_app), test_env());
+    doc.resolve(0.0);
+    assert_eq!(doc.content_size(), None);
+}
+
 fn watched_app(rx: watch::Receiver<i32>) -> Element {
     let value = use_watch(rx);
     rsx! {

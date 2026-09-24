@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::task::Context;
 
-use blitz_dom::{Document as _, DocumentConfig, FontContext, StyleThreading};
+use blitz_dom::{Document as _, DocumentConfig, ElementData, FontContext, StyleThreading};
 use blitz_traits::events::UiEvent;
 use blitz_traits::net::NetProvider;
 use blitz_traits::shell::{ShellProvider, Viewport};
@@ -18,6 +18,7 @@ use crate::frame::Animation;
 use crate::geometry::enclosing_rect;
 use crate::region::{ElementId, Rect};
 use crate::root::Root;
+use crate::scale::Size;
 
 /// The host's user-agent stylesheet, added to every document. A sized root is what lets Blitz
 /// hit-test into the content at all (SPIKE.md S1 finding 2: with `html,body` at zero height,
@@ -183,6 +184,37 @@ impl SurfaceDocument {
         ))
     }
 
+    /// A popup document's content size, in logical px, for `PopupSize::FitContent`
+    /// (`popup::refit`). Neither `<body>` nor `dioxus-native-dom`'s own `<main id="main">` (the
+    /// fixed mount point every `DioxusDocument` renders its `VirtualDom` into,
+    /// `dioxus_native_dom::DioxusDocument::new`) is it: a block's default `width:auto` fills
+    /// its container, so both stretch to the surface's width regardless of content, which is
+    /// exactly the size `FitContent` needs to *not* read (`<body>`'s `height:100%`, from this
+    /// crate's own `UA_STYLESHEET`, does the same on the other axis). The measured element is
+    /// `#main`'s first content child: `<style>`, `<script>`, `<title>`, `<link>`, `<meta>`,
+    /// `<base>` and `<template>` are skipped (Blitz's own default stylesheet already hides them,
+    /// `display:none`, so their box carries no useful size, and a document's own `<style>`
+    /// tends to render as the first child of its root). `None` before the first layout, when
+    /// `#main` is missing (a caller contract: `dioxus-native-dom` always creates it), or when it
+    /// has no such child.
+    pub fn content_size(&self) -> Option<Size> {
+        let inner = self.doc.inner();
+        let main = inner.get_element_by_id("main")?;
+        let children = &inner.get_node(main)?.children;
+        let content = children.iter().copied().find(|&child| {
+            inner
+                .get_node(child)
+                .and_then(|node| node.element_data())
+                .is_some_and(is_content_element)
+        })?;
+        let bounds = inner.get_client_bounding_rect(content)?;
+        let rect = enclosing_rect(0.0, 0.0, bounds.width, bounds.height);
+        Some(Size {
+            width: rect.width,
+            height: rect.height,
+        })
+    }
+
     /// Whether the element at a surface-local point, or an ancestor, carries
     /// `data-first-mouse` (design/13 §13.3.8).
     pub fn wants_first_mouse(&self, x: f64, y: f64) -> FirstMouseOptIn {
@@ -213,6 +245,15 @@ impl SurfaceDocument {
     pub fn dioxus(&mut self) -> &mut DioxusDocument {
         &mut self.doc
     }
+}
+
+/// Whether `data` names a tag that `SurfaceDocument::content_size` should skip: never a
+/// document's own content, always `display:none` by Blitz's default stylesheet.
+fn is_content_element(data: &ElementData) -> bool {
+    !matches!(
+        &*data.name.local,
+        "style" | "script" | "title" | "link" | "meta" | "base" | "template"
+    )
 }
 
 /// Drain `head`'s queue into `doc`'s `<head>`; `true` if anything was applied.

@@ -213,13 +213,24 @@ pub enum DebugCommand {
     Quit,
 }
 
+/// A pointer button, as `debug click` and `Inject::Click` name it: the Linux evdev codes
+/// `input::pointer::button_from_evdev` maps to a DOM button. `Primary` is `BTN_LEFT` (272),
+/// `Secondary` is `BTN_RIGHT` (273), `Middle` is `BTN_MIDDLE` (274).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PointerButton {
+    #[default]
+    Primary,
+    Secondary,
+    Middle,
+}
+
 /// What a debug command does to its surface. Coordinates are surface-local logical pixels.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DebugAction {
     /// A pointer motion to the point.
     Hover(Point),
-    /// Move, press and release the primary button at the point.
-    Click(Point),
+    /// Move, press and release `button` at the point.
+    Click(Point, PointerButton),
     /// The pointer leaves the surface.
     Leave,
     /// Print this surface's stats.
@@ -242,9 +253,12 @@ pub enum CommandError {
     },
     #[error("{0:?} is not an integer coordinate")]
     NotACoordinate(String),
+    #[error("{0:?} is not a pointer button (primary, secondary or middle)")]
+    NotAButton(String),
 }
 
-/// Parse one line: `stats`, `quit`, or `<surface> hover|click X Y`, `<surface> leave`,
+/// Parse one line: `stats`, `quit`, or `<surface> hover X Y`, `<surface> click X Y [button]`
+/// (`button` is `primary`, `secondary` or `middle`; primary when omitted), `<surface> leave`,
 /// `<surface> stats`, `<surface> capture PATH`. Global verbs win, so no surface may be named
 /// `stats` or `quit`.
 pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
@@ -264,7 +278,7 @@ pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
 fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> {
     match (verb, args) {
         ("hover", _) => point("hover", args).map(DebugAction::Hover),
-        ("click", _) => point("click", args).map(DebugAction::Click),
+        ("click", _) => click(args),
         ("leave", []) => Ok(DebugAction::Leave),
         ("stats", []) => Ok(DebugAction::Stats),
         ("capture", [path]) => Ok(DebugAction::Capture(PathBuf::from(path))),
@@ -291,6 +305,33 @@ fn point(verb: &'static str, args: &[&str]) -> Result<Point, CommandError> {
         x: coord(x)?,
         y: coord(y)?,
     })
+}
+
+/// `click X Y` (primary) or `click X Y <button>`.
+fn click(args: &[&str]) -> Result<DebugAction, CommandError> {
+    match args {
+        [x, y] => Ok(DebugAction::Click(
+            point("click", &[x, y])?,
+            PointerButton::Primary,
+        )),
+        [x, y, button] => Ok(DebugAction::Click(
+            point("click", &[x, y])?,
+            parse_button(button)?,
+        )),
+        _ => Err(CommandError::Missing {
+            verb: "click",
+            needs: "X and Y, optionally a button",
+        }),
+    }
+}
+
+fn parse_button(word: &str) -> Result<PointerButton, CommandError> {
+    match word {
+        "primary" => Ok(PointerButton::Primary),
+        "secondary" => Ok(PointerButton::Secondary),
+        "middle" => Ok(PointerButton::Middle),
+        _ => Err(CommandError::NotAButton(word.to_owned())),
+    }
 }
 
 #[cfg(test)]
@@ -406,7 +447,24 @@ mod tests {
             ),
             (
                 "sill-bar click 5 -1",
-                Ok(on("sill-bar", DebugAction::Click(Point { x: 5, y: -1 }))),
+                Ok(on(
+                    "sill-bar",
+                    DebugAction::Click(Point { x: 5, y: -1 }, PointerButton::Primary),
+                )),
+            ),
+            (
+                "dock click 60 64 secondary",
+                Ok(on(
+                    "dock",
+                    DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Secondary),
+                )),
+            ),
+            (
+                "dock click 60 64 middle",
+                Ok(on(
+                    "dock",
+                    DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Middle),
+                )),
             ),
             ("dock leave", Ok(on("dock", DebugAction::Leave))),
             ("bar stats", Ok(on("bar", DebugAction::Stats))),
@@ -426,6 +484,17 @@ mod tests {
             (
                 "dock hover 1.5 2",
                 Err(CommandError::NotACoordinate("1.5".into())),
+            ),
+            (
+                "dock click 1 2 sideways",
+                Err(CommandError::NotAButton("sideways".into())),
+            ),
+            (
+                "dock click 1",
+                Err(CommandError::Missing {
+                    verb: "click",
+                    needs: "X and Y, optionally a button",
+                }),
             ),
             (
                 "dock capture",

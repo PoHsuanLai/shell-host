@@ -336,3 +336,88 @@ fn leaving_the_surface_runs_mouseleave_handlers() {
     assert_eq!(text_of(&mut doc, "#left"), "left 1");
     assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
 }
+
+fn context_menu_probe() -> Element {
+    let mut clicks = use_signal(|| 0u32);
+    let mut menus = use_signal(|| 0u32);
+    rsx! {
+        style { "{RESET}{CSS}" }
+        div {
+            id: "icon0",
+            class: "icon",
+            onclick: move |_| clicks += 1,
+            oncontextmenu: move |_| menus += 1,
+        }
+        p { id: "clicks", "clicks {clicks}" }
+        p { id: "menus", "menus {menus}" }
+    }
+}
+
+/// `Inject::Click { button: PointerButton::Secondary }` (`inject::clicked`, built from the same
+/// `press_events`/`release_event` this test drives directly) reaches the document as Blitz's
+/// own `contextmenu` event, not a `click` (`blitz-dom` `handle_pointerup`: a release of
+/// `MouseEventButton::Secondary` dispatches `DomEventData::ContextMenu` instead of `Click`),
+/// which Dioxus delivers to `oncontextmenu`. A primary release is the reverse: `onclick` only.
+#[test]
+fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick() {
+    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+    let env = DocumentEnv {
+        shell: Arc::new(HostShellProvider::new(
+            SurfaceId(1),
+            ping,
+            SharedSelection::default(),
+        )),
+        fonts: SharedFonts::system().for_document(),
+        net: Arc::new(LocalNet),
+        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+    };
+    let mut doc = SurfaceDocument::build(Root::new(context_menu_probe), env);
+    doc.resolve(0.0);
+    let icon = node_id(&mut doc, "#icon0");
+    let pos = center(&mut doc, icon);
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+
+    let secondary = pointer::press_events(
+        pos,
+        MouseEventButton::Secondary,
+        MouseEventButtons::None,
+        Modifiers::empty(),
+    );
+    feed(&mut doc, secondary);
+    feed(
+        &mut doc,
+        [pointer::release_event(
+            pos,
+            MouseEventButton::Secondary,
+            MouseEventButtons::Secondary,
+            Modifiers::empty(),
+        )],
+    );
+    doc.poll(&mut cx);
+    assert_eq!(text_of(&mut doc, "#clicks"), "clicks 0");
+    assert_eq!(text_of(&mut doc, "#menus"), "menus 1");
+
+    let primary = pointer::press_events(
+        pos,
+        MouseEventButton::Main,
+        MouseEventButtons::None,
+        Modifiers::empty(),
+    );
+    feed(&mut doc, primary);
+    feed(
+        &mut doc,
+        [pointer::release_event(
+            pos,
+            MouseEventButton::Main,
+            MouseEventButtons::Primary,
+            Modifiers::empty(),
+        )],
+    );
+    doc.poll(&mut cx);
+    assert_eq!(text_of(&mut doc, "#clicks"), "clicks 1");
+    assert_eq!(
+        text_of(&mut doc, "#menus"),
+        "menus 1",
+        "unchanged by the primary click"
+    );
+}

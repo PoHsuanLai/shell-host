@@ -12,12 +12,15 @@ use blitz_traits::events::{MouseEventButton, MouseEventButtons, UiEvent};
 use keyboard_types::Modifiers;
 
 use crate::ctx::HostCtx;
+use crate::debug::PointerButton;
 use crate::dom::document::Polled;
 use crate::error::{HostError, Result};
 use crate::frame::FrameInput;
 use crate::geometry::Point;
 use crate::id::SurfaceId;
-use crate::input::pointer::{PointerPos, move_event, press_events, release_event};
+use crate::input::pointer::{
+    ButtonChange, PointerPos, buttons_after, move_event, press_events, release_event,
+};
 use crate::region::Px;
 use crate::scale::Size;
 use crate::state::HostState;
@@ -28,8 +31,8 @@ use crate::state::HostState;
 pub enum Inject {
     /// The pointer moves to `at` (hover follows).
     Pointer { at: Point },
-    /// The pointer moves to `at` and the primary button is pressed and released there.
-    Click { at: Point },
+    /// The pointer moves to `at` and `button` is pressed and released there.
+    Click { at: Point, button: PointerButton },
     /// The pointer leaves the surface (hover clears).
     Leave,
     /// Render the surface offscreen at its buffer size and write it to `path` as a PNG.
@@ -56,7 +59,7 @@ impl<M: 'static> HostCtx<M> {
         }
         match inject {
             Inject::Pointer { at } => feed(&mut self.state, id, vec![pointer_moved(at)]),
-            Inject::Click { at } => feed(&mut self.state, id, clicked(at).to_vec()),
+            Inject::Click { at, button } => feed(&mut self.state, id, clicked(at, button).to_vec()),
             Inject::Leave => leave(&mut self.state, id),
             Inject::Capture { path } => {
                 let image = crate::ctx::capture(&mut self.state, id)?;
@@ -89,17 +92,23 @@ fn pointer_moved(at: Point) -> UiEvent {
     move_event(pos(at), MouseEventButtons::None, Modifiers::empty())
 }
 
-fn clicked(at: Point) -> [UiEvent; 3] {
+fn clicked(at: Point, button: PointerButton) -> [UiEvent; 3] {
     let mods = Modifiers::empty();
-    let [moved, down] = press_events(
-        pos(at),
-        MouseEventButton::Main,
-        MouseEventButtons::None,
-        mods,
-    );
-    let held = MouseEventButtons::Primary;
-    let up = release_event(pos(at), MouseEventButton::Main, held, mods);
+    let mouse_button = dom_button(button);
+    let [moved, down] = press_events(pos(at), mouse_button, MouseEventButtons::None, mods);
+    let held = buttons_after(MouseEventButtons::None, mouse_button, ButtonChange::Pressed);
+    let up = release_event(pos(at), mouse_button, held, mods);
     [moved, down, up]
+}
+
+/// The DOM button `PointerButton` maps to (`input::pointer::button_from_evdev` maps the other
+/// direction, from a real `wl_pointer` press).
+fn dom_button(button: PointerButton) -> MouseEventButton {
+    match button {
+        PointerButton::Primary => MouseEventButton::Main,
+        PointerButton::Secondary => MouseEventButton::Secondary,
+        PointerButton::Middle => MouseEventButton::Auxiliary,
+    }
 }
 
 /// The pointer leaves, as `handlers/pointer.rs` does it (`SurfaceDocument::pointer_left`); an
@@ -129,5 +138,59 @@ fn pos(point: Point) -> PointerPos {
     PointerPos {
         x: f64::from(point.x),
         y: f64::from(point.y),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BUTTON_CASES: &[(PointerButton, MouseEventButton, MouseEventButtons)] = &[
+        (
+            PointerButton::Primary,
+            MouseEventButton::Main,
+            MouseEventButtons::Primary,
+        ),
+        (
+            PointerButton::Secondary,
+            MouseEventButton::Secondary,
+            MouseEventButtons::Secondary,
+        ),
+        (
+            PointerButton::Middle,
+            MouseEventButton::Auxiliary,
+            MouseEventButtons::Auxiliary,
+        ),
+    ];
+
+    #[test]
+    fn every_pointer_button_maps_to_its_dom_button() {
+        for &(button, want, _) in BUTTON_CASES {
+            assert_eq!(dom_button(button), want, "{button:?}");
+        }
+    }
+
+    /// `clicked` is a move to `at`, then a down and an up of `button` there, with `buttons`
+    /// held only across the down/up pair (matching `input::pointer::press_events`).
+    #[test]
+    fn clicked_moves_then_presses_and_releases_the_named_button() {
+        let at = Point { x: 12, y: 4 };
+        for &(button, dom, held) in BUTTON_CASES {
+            let [moved, down, up] = clicked(at, button);
+            let UiEvent::PointerMove(mv) = moved else {
+                panic!("first event is not a move: {moved:?}");
+            };
+            let UiEvent::PointerDown(pd) = down else {
+                panic!("second event is not a down: {down:?}");
+            };
+            let UiEvent::PointerUp(pu) = up else {
+                panic!("third event is not an up: {up:?}");
+            };
+            assert_eq!(mv.buttons, MouseEventButtons::None, "{button:?}");
+            assert_eq!(pd.button, dom, "{button:?}");
+            assert_eq!(pd.buttons, held, "{button:?}");
+            assert_eq!(pu.button, dom, "{button:?}");
+            assert_eq!(pu.buttons, MouseEventButtons::None, "{button:?}");
+        }
     }
 }

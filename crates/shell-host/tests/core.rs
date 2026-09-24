@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use calloop::ping::make_ping;
 use shell_host::ctx::flush::{self, Flush, ORDER, Phase};
 use shell_host::debug::{
-    CommandError, DebugAction, DebugCommand, FrameCounters, Percentiles, StatsWindow, SurfaceName,
-    parse_command, percentiles,
+    CommandError, DebugAction, DebugCommand, FrameCounters, Percentiles, PointerButton,
+    StatsWindow, SurfaceName, parse_command, percentiles,
 };
 use shell_host::handle::RequestQueue;
 use shell_host::msg::{Request, SurfaceOp, Visibility};
@@ -271,7 +271,10 @@ fn debug_commands_address_surfaces_by_name() {
         ),
         (
             "dock click 60 64",
-            Ok(on("dock", DebugAction::Click(Point { x: 60, y: 64 }))),
+            Ok(on(
+                "dock",
+                DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Primary),
+            )),
         ),
         ("dock leave", Ok(on("dock", DebugAction::Leave))),
         ("bar/popup stats", Ok(on("bar/popup", DebugAction::Stats))),

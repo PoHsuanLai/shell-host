@@ -77,6 +77,12 @@ required-features = ["debug-inject"]
 # The tick mode's motion math has unit tests (FINDINGS F36).
 test = true
 
+# G7 acceptance: a `PopupSize::FitContent` popup measures its own content and re-fits when it
+# grows (FINDINGS.md F37).
+[[example]]
+name = "demo_popup"
+required-features = ["debug-inject"]
+
 [[example]]
 name = "spike_widget"
 required-features = ["headless"]

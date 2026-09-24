@@ -82,7 +82,7 @@ fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugActi
     let inject = match action {
         DebugAction::Stats => return print_stats(ctx, id),
         DebugAction::Hover(at) => Inject::Pointer { at },
-        DebugAction::Click(at) => Inject::Click { at },
+        DebugAction::Click(at, button) => Inject::Click { at, button },
         DebugAction::Leave => Inject::Leave,
         DebugAction::Capture(path) => {
             let written = ctx.inject(id, Inject::Capture { path: path.clone() });
