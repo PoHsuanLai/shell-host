@@ -176,3 +176,46 @@ fn snapshot_path(name: &str) -> PathBuf {
         .join("tests/snapshots")
         .join(format!("{name}.png"))
 }
+
+/// `Inject::Capture`'s writer (`inject::write_capture`, what `HostCtx::inject` calls after its
+/// offscreen render) on a headless render: it writes a PNG that decodes to the same pixels and
+/// returns the path and the pixel size instead of printing anything.
+#[cfg(feature = "debug-inject")]
+#[test]
+fn inject_capture_writes_a_png_and_returns_its_size() {
+    use shell_host::scale::Size;
+    use shell_host::{Injected, inject::write_capture};
+
+    let frame = render_png(
+        scene,
+        HeadlessConfig {
+            size: PixelSize::new(SIZE.0, SIZE.1),
+            scale: Scale::ONE,
+            color_scheme: ColorScheme::Light,
+            at_seconds: vec![0.0],
+            fonts: Fonts::Bundled,
+        },
+    )
+    .remove(0);
+    let dir = std::env::temp_dir().join(format!("shell-host-capture-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path = dir.join("capture.png");
+    let _ = std::fs::remove_file(&path);
+
+    let written = write_capture(&frame, path.clone()).expect("capture written");
+
+    let size = Size {
+        width: 240,
+        height: 160,
+    };
+    assert_eq!(
+        written,
+        Injected::Captured {
+            path: path.clone(),
+            size
+        }
+    );
+    let read = image::open(&path).expect("a PNG").to_rgba8();
+    assert_eq!(read, frame, "the file holds the rendered pixels");
+    std::fs::remove_dir_all(&dir).ok();
+}

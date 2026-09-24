@@ -38,6 +38,7 @@ pub mod root;
 pub mod scale;
 pub mod state;
 pub mod surface;
+pub mod tick;
 pub mod timers;
 pub mod toplevel;
 pub mod wake;
@@ -51,18 +52,21 @@ pub use debug::{FrameStats, Percentiles, SurfaceName};
 pub use error::{HostError, Recovery, Result};
 pub use event::{CloseReason, Focus, HostEvent};
 pub use geometry::{Margin, Point};
-pub use handle::{SurfaceHandle, use_surface};
+pub use handle::{SurfaceHandle, use_frame_tick, use_surface};
 pub use host::Host;
 pub use host_handle::HostHandle;
 pub use id::{OutputId, SurfaceId};
+#[cfg(feature = "debug-inject")]
+pub use inject::{Inject, Injected};
 pub use layer::{
     Anchor, ExclusiveZone, Extent, KeyboardMode, Layer, LayerConfig, LayerSize, OutputTarget,
 };
 pub use msg::{SurfaceOp, Visibility};
 pub use output::OutputInfo;
 pub use placement::PopupPlacement;
-pub use popup::{Adjust, Edge, Grab, Gravity, PopupAnchor, PopupConfig, PopupSize, Toggle};
+pub use popup::{Adjust, Edge, Grab, Gravity, Offset, PopupAnchor, PopupConfig, PopupSize, Toggle};
 pub use region::{ElementId, Px, Rect, RegionSpec, RoundedRect};
 pub use root::Root;
 pub use scale::{Scale, Size};
+pub use tick::{FrameDrive, FrameTick, HostInstant};
 pub use toplevel::{Activation, Decorations, ToplevelConfig};

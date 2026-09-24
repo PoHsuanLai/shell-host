@@ -36,6 +36,7 @@ use crate::root::Root;
 use crate::scale::{Scale, Size};
 use crate::state::HostState;
 use crate::surface::{AppliedRegions, Configured, HostSurface};
+use crate::tick::FrameTicks;
 use crate::toplevel::{Activation, ToplevelConfig, to_wire_decorations};
 
 /// Create and map layer surface `id`.
@@ -286,7 +287,8 @@ fn insert(
         state.requests.ping(),
         state.clipboard.selection.clone(),
     ));
-    let handle = SurfaceHandle::new(id, state.requests.clone(), state.ids.clone());
+    let ticks = FrameTicks::default();
+    let handle = SurfaceHandle::new(id, state.requests.clone(), state.ids.clone(), ticks.clone());
     let env = DocumentEnv {
         shell: Arc::clone(&shell),
         fonts: state.fonts.for_document(),
@@ -314,6 +316,7 @@ fn insert(
             stats: StatsWindow::default(),
             geometry: None,
             regions: AppliedRegions::default(),
+            ticks,
         },
     );
     state.woken.mark(id);
@@ -350,10 +353,12 @@ mod tests {
 
     use super::*;
     use crate::clipboard::SharedSelection;
+    use crate::dom::document::Polled;
     use crate::dom::fonts::SharedFonts;
-    use crate::handle::{RequestQueue, use_surface};
+    use crate::handle::{RequestQueue, use_frame_tick, use_surface};
     use crate::id::SurfaceIds;
     use crate::msg::{Request, SurfaceOp};
+    use crate::tick::{FrameTick, HostInstant};
 
     fn app() -> Element {
         let surface = use_surface();
@@ -361,12 +366,96 @@ mod tests {
         rsx! { div { "surface {surface.id().0}" } }
     }
 
+    fn ticking() -> Element {
+        let tick = use_frame_tick();
+        let FrameTick { at, dt } = tick();
+        rsx! { div { "at {at.0.as_millis()} dt {dt.as_millis()}" } }
+    }
+
+    fn text(document: &mut SurfaceDocument) -> String {
+        let mut text = String::new();
+        document.dioxus().inner().visit(|_, node| {
+            if node.is_text_node() {
+                text.push_str(&node.text_content());
+            }
+        });
+        text
+    }
+
+    /// Counts its wakes, so a test polls a document only when the host would.
+    #[derive(Default)]
+    struct Wakes(std::sync::atomic::AtomicU32);
+
+    impl std::task::Wake for Wakes {
+        fn wake(self: Arc<Self>) {
+            self.wake_by_ref();
+        }
+        fn wake_by_ref(self: &Arc<Self>) {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl Wakes {
+        fn take(&self) -> u32 {
+            self.0.swap(0, std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    /// `use_frame_tick` re-renders its component with every tick the host publishes, through
+    /// the document's own task and waker, and not before. The document is polled only when
+    /// its waker fired, as the flush does, so a tick whose wake is lost fails here.
+    #[test]
+    fn use_frame_tick_renders_each_published_tick() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let requests = RequestQueue::new(ping.clone());
+        let id = SurfaceId(7);
+        let ticks = FrameTicks::default();
+        let handle = SurfaceHandle::new(id, requests.clone(), SurfaceIds::new(), ticks.clone());
+        let env = DocumentEnv {
+            shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
+            fonts: SharedFonts::system().for_document(),
+            net: Arc::new(LocalNet),
+            viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
+        };
+        let mut document = surface_document(Root::new(ticking), handle.clone(), env);
+        let wakes = Arc::new(Wakes::default());
+        let waker = std::task::Waker::from(Arc::clone(&wakes));
+        let mut cx = std::task::Context::from_waker(&waker);
+        document.poll(&mut cx);
+        assert_eq!(text(&mut document), "at 0 dt 0");
+
+        let drive = handle.drive_frames();
+        assert!(
+            matches!(requests.drain().as_slice(), [Request::Redraw(SurfaceId(7))]),
+            "taking a drive asks for a frame"
+        );
+        let ms = |n| HostInstant(std::time::Duration::from_millis(n));
+        let frames = [
+            (100, "at 100 dt 0"),
+            (116, "at 116 dt 16"),
+            (133, "at 133 dt 17"),
+            (150, "at 150 dt 17"),
+        ];
+        for (at, want) in frames {
+            wakes.take();
+            ticks.frame_due(crate::frame::Animation::Stopped, ms(at));
+            assert!(wakes.take() > 0, "the tick at {at} ms woke the document");
+            assert_eq!(document.poll(&mut cx), Polled::Changed, "{want}");
+            assert_eq!(text(&mut document), want);
+        }
+        drop(drive);
+        ticks.frame_due(crate::frame::Animation::Stopped, ms(166));
+        assert_eq!(wakes.take(), 0, "no tick without a drive");
+        assert_eq!(text(&mut document), "at 150 dt 17");
+    }
+
     #[test]
     fn a_spawned_root_reads_its_surface_handle() {
         let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
         let requests = RequestQueue::new(ping.clone());
         let id = SurfaceId(42);
-        let handle = SurfaceHandle::new(id, requests.clone(), SurfaceIds::new());
+        let handle =
+            SurfaceHandle::new(id, requests.clone(), SurfaceIds::new(), Default::default());
         let env = DocumentEnv {
             shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
             fonts: SharedFonts::system().for_document(),

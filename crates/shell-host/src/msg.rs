@@ -77,6 +77,9 @@ pub enum Request {
         root: Root,
     },
     Close(SurfaceId),
+    /// Render surface `id` on the next flush (a frame drive was taken on an idle surface, which
+    /// has no callback coming to tick on).
+    Redraw(SurfaceId),
     CopyText {
         from: SurfaceId,
         text: String,

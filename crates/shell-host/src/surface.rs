@@ -8,7 +8,7 @@ use crate::blur::BlurSpec;
 use crate::debug::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow, SurfaceName};
 use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
-use crate::frame::{FrameAction, FrameInput, FrameState};
+use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
 use crate::msg::{SurfaceOp, Visibility};
@@ -16,6 +16,7 @@ use crate::region::{Px, RegionSpec};
 use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
+use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
 
 /// Whether the compositor has configured the surface yet. Nothing renders before it has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +77,8 @@ pub struct HostSurface {
     /// first configure and after the role is rebuilt.
     pub(crate) geometry: Option<Geometry>,
     pub(crate) regions: AppliedRegions,
+    /// Frame ticks and drives, shared with the surface's `SurfaceHandle`.
+    pub(crate) ticks: FrameTicks,
 }
 
 impl HostSurface {
@@ -89,6 +92,22 @@ impl HostSurface {
         let (next, action) = crate::frame::step(self.frame, input);
         self.frame = next;
         action
+    }
+
+    /// What the frame machine is told about this surface's motion: its document's animation,
+    /// or running while a `FrameDrive` is held (`tick::pacing`).
+    pub fn pacing(&self) -> Animation {
+        pacing(self.document.animation(), self.ticks.drive())
+    }
+
+    /// A frame is due at `at` (a callback, or the watchdog standing in for one): publish a
+    /// tick if the surface is animating or driven, and return what the machine is told.
+    pub fn frame_due(&mut self, at: HostInstant) -> Animation {
+        let (animation, ticked) = self.ticks.frame_due(self.document.animation(), at);
+        if ticked == Ticked::Ticked {
+            self.stats.ticked();
+        }
+        animation
     }
 
     /// Record a configure: the new logical size (0 on an axis keeps the requested size).

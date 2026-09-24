@@ -1,17 +1,22 @@
 //! The spike's dock on the real API: twelve 48 px tiles magnified on hover by a CSS transition
-//! (`--mode=transform`, the default, or `--mode=width`), anchored bottom, with its input and
-//! blur regions following the pill (`RegionSpec::Element`). `--layer=bottom` puts it under
-//! windows for the occlusion check. Driven by `dock hover X Y`, `dock leave`, `dock stats`.
-//! Re-passes spike item (c): a hover sweep renders once per callback with p95 work under the
-//! refresh period, and 5 s idle has zero frames, commits and main-thread wakeups.
+//! (`--mode=transform`, the default, or `--mode=width`), or by the component itself once per
+//! compositor frame (`--mode=tick`: `use_frame_tick` with a `FrameDrive` held from the first
+//! pointer motion until the tiles settle after the pointer leaves), anchored bottom, with its
+//! input and blur regions following the pill (`RegionSpec::Element`). `--layer=bottom` puts it
+//! under windows for the occlusion check. Driven by `dock hover X Y`, `dock leave`, `dock
+//! stats`. Re-passes spike item (c): a hover sweep renders once per callback with p95 work
+//! under the refresh period, and 5 s idle has zero frames, commits and main-thread wakeups.
 //!
 //! `demo_bar --with-dock` includes this file as a module to run the bar and the dock in one
 //! process (item g), so everything but `main` is shared.
 
+use std::time::Duration;
+
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, Host, HostConfig, HostCtx, HostEvent,
-    KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, FrameDrive, FrameTick, Host, HostConfig,
+    HostCtx, HostEvent, KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget,
+    RegionSpec, Root, use_frame_tick, use_surface,
 };
 
 /// Tiles, gaps and the room the magnified end tiles need.
@@ -25,6 +30,8 @@ pub enum Magnify {
     Transform,
     /// `width`/`height` transitions (relayout every frame).
     Width,
+    /// Scales computed by the component on every frame tick (`use_frame_tick`), no CSS motion.
+    Tick,
 }
 
 /// The margin and padding reset quire's `css/reset.css` would bring; the host's UA sheet sizes
@@ -79,6 +86,7 @@ pub fn dock(mode: Magnify) -> Element {
     let magnify = match mode {
         Magnify::Transform => TRANSFORM_CSS,
         Magnify::Width => WIDTH_CSS,
+        Magnify::Tick => return rsx! { TickDock {} },
     };
     rsx! {
         style { "{RESET_CSS}{DOCK_CSS}{magnify}" }
@@ -92,11 +100,115 @@ pub fn dock(mode: Magnify) -> Element {
     }
 }
 
-/// `--mode=transform|width` and `--layer=top|overlay|bottom` from `args`.
+/// Tile scales in thousandths.
+type Scales = [u32; 12];
+
+const REST: Scales = [1000; 12];
+
+/// The magnified scale at the tile centre under the pointer, and the reach of the effect.
+const PEAK: f64 = 1500.0;
+const REACH_PX: f64 = 112.0;
+
+/// How fast a tile closes on its target: the gap shrinks by `dt / TIME_CONSTANT` per tick.
+const TIME_CONSTANT: Duration = Duration::from_millis(60);
+
+/// Close enough to the target to stop moving (thousandths).
+const SETTLED: u32 = 4;
+
+/// The centre of tile `i`, in surface-local logical px: the pill is centred in the dock with
+/// 8 px padding, 48 px tiles and 8 px gaps.
+fn tile_centre(i: usize) -> f64 {
+    let pill = 12.0 * 48.0 + 11.0 * 8.0 + 16.0;
+    let left = (f64::from(DOCK_WIDTH) - pill) / 2.0;
+    left + 8.0 + i as f64 * 56.0 + 24.0
+}
+
+/// The scales the tiles move towards with the pointer at `x` (none: at rest).
+fn targets(x: Option<f64>) -> Scales {
+    let Some(x) = x else { return REST };
+    std::array::from_fn(|i| {
+        let d = ((x - tile_centre(i)) / REACH_PX).abs();
+        let lift = (1.0 - d * d).max(0.0);
+        (1000.0 + (PEAK - 1000.0) * lift).round() as u32
+    })
+}
+
+/// One tick of motion: each tile closes `dt / TIME_CONSTANT` of its gap to `target`, and
+/// snaps once within `SETTLED`.
+fn step(now: Scales, target: Scales, dt: Duration) -> Scales {
+    let k = (dt.as_secs_f64() / TIME_CONSTANT.as_secs_f64()).min(1.0);
+    std::array::from_fn(|i| {
+        let (s, t) = (f64::from(now[i]), f64::from(target[i]));
+        let next = (s + (t - s) * k).round() as u32;
+        if next.abs_diff(target[i]) <= SETTLED {
+            target[i]
+        } else {
+            next
+        }
+    })
+}
+
+/// The dock with magnification run by the component at the compositor's frame rate: pointer
+/// motion takes a `FrameDrive`, every `FrameTick` steps the scales, and the drive is dropped
+/// once the tiles reach their targets (at rest after the pointer leaves, or still under a
+/// resting pointer), so idle has zero frames.
+#[component]
+fn TickDock() -> Element {
+    let surface = use_surface();
+    let tick = use_frame_tick();
+    let mut pointer = use_signal(|| None::<f64>);
+    let mut scales = use_signal(|| REST);
+    let mut drive = use_signal(|| None::<FrameDrive>);
+    let leaving = surface.clone();
+    use_effect(move || {
+        let FrameTick { dt, .. } = tick();
+        let target = targets(*pointer.peek());
+        let next = step(*scales.peek(), target, dt);
+        if next != *scales.peek() {
+            scales.set(next);
+        }
+        if next == target && drive.peek().is_some() {
+            drive.set(None);
+        }
+    });
+    rsx! {
+        style { "{RESET_CSS}{DOCK_CSS}.icon{{transform-origin:50% 100%}}" }
+        div {
+            class: "dock",
+            onmousemove: move |event| {
+                pointer.set(Some(event.client_coordinates().x));
+                hold(drive, &surface);
+            },
+            onmouseleave: move |_| {
+                pointer.set(None);
+                hold(drive, &leaving);
+            },
+            div { id: "dock-pill", class: "pill",
+                for (i, colour) in COLOURS.iter().enumerate() {
+                    div {
+                        key: "{i}",
+                        class: "icon",
+                        style: "background:{colour};transform:scale({f64::from(scales()[i]) / 1000.0})",
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Take a drive for `surface` unless one is held already.
+fn hold(mut drive: Signal<Option<FrameDrive>>, surface: &shell_host::SurfaceHandle) {
+    if drive.peek().is_none() {
+        drive.set(Some(surface.drive_frames()));
+    }
+}
+
+/// `--mode=transform|width|tick` and `--layer=top|overlay|bottom` from `args`.
 pub fn dock_options(args: &[String]) -> Result<(Magnify, Layer), String> {
     let mode = match value(args, "--mode").as_deref() {
         None | Some("transform") => Magnify::Transform,
         Some("width") => Magnify::Width,
+        Some("tick") => Magnify::Tick,
         Some(other) => return Err(format!("unknown --mode={other}")),
     };
     Ok((mode, layer_option(args)?))
@@ -129,7 +241,7 @@ pub fn spawn_dock<M: 'static>(ctx: &mut HostCtx<M>, mode: Magnify, layer: Layer)
 
 /// `debug-inject` on stdin; a failure ends the demo, since nothing could drive it.
 pub fn install_commands<M: 'static>(ctx: &mut HostCtx<M>) {
-    if let Err(error) = shell_host::inject::install(ctx) {
+    if let Err(error) = shell_host::inject::stdin::install(ctx) {
         eprintln!("debug-inject: {error}");
         ctx.exit();
     }

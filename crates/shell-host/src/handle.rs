@@ -6,6 +6,9 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use calloop::ping::Ping;
+use dioxus::core::{spawn, use_hook};
+use dioxus::hooks::use_signal;
+use dioxus::signals::{ReadSignal, WritableExt};
 use tokio::sync::oneshot;
 
 use crate::blur::BlurSpec;
@@ -16,6 +19,7 @@ use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::Root;
+use crate::tick::{FrameDrive, FrameTick, FrameTicks};
 
 /// The main-thread queue a `SurfaceHandle` pushes into, and the ping that wakes the loop to
 /// drain it. Ops queue while a document is borrowed and apply after `poll()`, before paint.
@@ -57,12 +61,23 @@ pub struct SurfaceHandle {
     id: SurfaceId,
     requests: RequestQueue,
     ids: SurfaceIds,
+    ticks: FrameTicks,
 }
 
 impl SurfaceHandle {
     /// The handle for surface `id`. Built by the host when it creates the surface.
-    pub(crate) fn new(id: SurfaceId, requests: RequestQueue, ids: SurfaceIds) -> SurfaceHandle {
-        SurfaceHandle { id, requests, ids }
+    pub(crate) fn new(
+        id: SurfaceId,
+        requests: RequestQueue,
+        ids: SurfaceIds,
+        ticks: FrameTicks,
+    ) -> SurfaceHandle {
+        SurfaceHandle {
+            id,
+            requests,
+            ids,
+            ticks,
+        }
     }
 
     /// This surface's id.
@@ -121,6 +136,26 @@ impl SurfaceHandle {
         id
     }
 
+    /// Render this surface once per compositor frame callback until the returned drive is
+    /// dropped, ticking [`use_frame_tick`] and [`SurfaceHandle::next_frame`] every frame: how
+    /// a component runs its own animation (the dock's magnification, design/10 §10.4) at the
+    /// compositor's frame rate without a timer. Holding a drive with nothing animating is the
+    /// one way to get non-zero idle frames, so take it when the motion starts and drop it when
+    /// the motion settles or the hover that started it ends; never keep one for the life of a
+    /// component.
+    pub fn drive_frames(&self) -> FrameDrive {
+        let drive = self.ticks.hold();
+        self.requests.push(Request::Redraw(self.id));
+        drive
+    }
+
+    /// The next frame tick of this surface. Ticks fire once per presented frame while the
+    /// document has a CSS transition or animation running or a [`FrameDrive`] is held; at any
+    /// other time this waits until one of those starts.
+    pub async fn next_frame(&self) -> FrameTick {
+        self.ticks.after(self.ticks.count()).await.1
+    }
+
     /// Close this surface (and, for a parent, its popups).
     pub fn close(&self) {
         self.requests.push(Request::Close(self.id));
@@ -146,6 +181,27 @@ impl SurfaceHandle {
         // A dropped sender (the surface closed first) is the same answer as a refusal.
         answer.await.ok().flatten()
     }
+}
+
+/// The latest frame tick of the surface this component renders in, updated (and the component
+/// re-rendered) once per presented frame while the document animates or a [`FrameDrive`] is
+/// held (`SurfaceHandle::drive_frames`); `FrameTick::default()` before the first. Ticks are
+/// never skipped by this hook's own task: each one is written, though a component rendering
+/// slower than the frame rate reads only the latest.
+pub fn use_frame_tick() -> ReadSignal<FrameTick> {
+    let ticks = use_surface().ticks;
+    let mut latest = use_signal(FrameTick::default);
+    use_hook(move || {
+        spawn(async move {
+            let mut seen = ticks.count();
+            loop {
+                let (count, tick) = ticks.after(seen).await;
+                seen = count;
+                latest.set(tick);
+            }
+        });
+    });
+    ReadSignal::from(latest)
 }
 
 /// The handle of the surface this component renders in. Panics outside a host surface (a

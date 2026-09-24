@@ -12,7 +12,8 @@ use crate::role::Role;
 use crate::state::HostState;
 
 impl PointerHandler for HostState {
-    /// Enter: focus and cursor. Leave: `clear_hover()` then `input::pointer::leave_event`.
+    /// Enter: focus and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move, then
+    /// `clear_hover()`).
     /// Motion, press (move-before-down, first-mouse filter), release, axis
     /// (`input::pointer::wheel_delta`). Each changed document is invalidated.
     fn pointer_frame(
@@ -46,10 +47,7 @@ impl PointerHandler for HostState {
                     }
                     self.input.position = PointerPos::OUTSIDE;
                     if let Some(surface) = self.surfaces.get_mut(&id) {
-                        surface.document.clear_hover();
-                        surface
-                            .document
-                            .handle_event(pointer::leave_event(self.input.modifiers));
+                        surface.document.pointer_left(self.input.modifiers);
                     }
                     self.invalidate(id);
                 }

@@ -178,6 +178,7 @@ def demo_row(v, host):
     dims = lambda d: [d["width"], d["height"]]
     return dict(surface=v["surface"], frames=c["frames"], callbacks=c["callbacks"],
                 commits=c["commits"], skipped=c["skipped"], watchdog_fired=c["watchdog_fired"],
+                ticks=c.get("ticks", 0),
                 frame_ms_p50=ms(w["p50_us"]), frame_ms_p95=ms(w["p95_us"]),
                 frame_ms_max=ms(w["max_us"]), interval_ms_p50=ms(i["p50_us"]),
                 interval_ms_p95=ms(i["p95_us"]), samples=v["samples"], scale120=v["scale120"],
@@ -316,6 +317,7 @@ def dock_run(mode, refresh, present="mailbox"):
     sweep(d); d.send(f"{d.prefix}leave"); time.sleep(0.4)
     s1, _ = d.stats(); a, b = s0["dock"], s1["dock"]
     frames, cbs = b["frames"] - a["frames"], b["callbacks"] - a["callbacks"]
+    ticks = b["ticks"] - a["ticks"]
     c0 = d.ctx(); time.sleep(5.0); c1 = d.ctx()
     s2, _ = d.stats(); idle_frames = s2["dock"]["frames"] - b["frames"]
     idle_commits = s2["dock"]["commits"] - b["commits"]
@@ -331,7 +333,11 @@ def dock_run(mode, refresh, present="mailbox"):
               "idle_ctx_le_5": c1[0] - c0[0] <= 5,
               "occluded_no_block": max(rtts) < 250,
               "recovers_after_occlusion": sr["dock"]["frames"] > so1["dock"]["frames"]}
-    return dict(mode=mode, present_requested=present, sweep=dict(frames=frames, callbacks=cbs, frame_ms_p50=b["frame_ms_p50"],
+    if mode == "tick":
+        # The frame hook: the component's own motion ticks once per callback while driven.
+        checks["ticks_ge_0.9_callbacks"] = ticks >= 0.9 * cbs and ticks > 10
+        checks["idle_ticks_0"] = s2["dock"]["ticks"] == b["ticks"]
+    return dict(mode=mode, present_requested=present, sweep=dict(frames=frames, callbacks=cbs, ticks=ticks, frame_ms_p50=b["frame_ms_p50"],
                 frame_ms_p95=b["frame_ms_p95"], frame_ms_max=b["frame_ms_max"],
                 interval_ms_p50=b["interval_ms_p50"], interval_ms_p95=b["interval_ms_p95"],
                 budget_ms=budget),
@@ -347,7 +353,7 @@ def dock_run(mode, refresh, present="mailbox"):
 
 def item_c():
     hz = output_info()["refresh_hz"]
-    runs = [dock_run(m, hz) for m in ("transform", "width")]
+    runs = [dock_run(m, hz) for m in ("transform", "width", "tick")]
     fifo = dock_run("transform", hz, present="fifo")
     return dict(refresh_hz=hz, runs=runs, fifo_run=fifo, pass_=all(r["pass_"] for r in runs))
 

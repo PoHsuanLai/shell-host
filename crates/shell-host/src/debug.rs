@@ -71,6 +71,10 @@ pub struct FrameCounters {
     pub skipped: u64,
     /// Watchdog expiries (a compositor that stopped calling back).
     pub watchdog_fired: u64,
+    /// Frame ticks delivered to the document (`tick`): frames due while it was animating or
+    /// a `FrameDrive` was held.
+    #[serde(default)]
+    pub ticks: u64,
 }
 
 /// Everything `stats` reports about one surface.
@@ -128,6 +132,11 @@ impl StatsWindow {
     /// Record a frame that could not be presented.
     pub fn skipped(&mut self) {
         self.counters.skipped += 1;
+    }
+
+    /// Record a frame tick.
+    pub fn ticked(&mut self) {
+        self.counters.ticks += 1;
     }
 
     /// Record a watchdog expiry.
@@ -196,7 +205,7 @@ pub enum DebugCommand {
     /// Act on one surface.
     On {
         surface: SurfaceName,
-        action: Inject,
+        action: DebugAction,
     },
     /// Print stats for every surface.
     StatsAll,
@@ -206,7 +215,7 @@ pub enum DebugCommand {
 
 /// What a debug command does to its surface. Coordinates are surface-local logical pixels.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Inject {
+pub enum DebugAction {
     /// A pointer motion to the point.
     Hover(Point),
     /// Move, press and release the primary button at the point.
@@ -246,19 +255,19 @@ pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
         ["quit"] => Ok(DebugCommand::Quit),
         [surface, verb, rest @ ..] => Ok(DebugCommand::On {
             surface: SurfaceName((*surface).to_owned()),
-            action: parse_inject(verb, rest)?,
+            action: parse_action(verb, rest)?,
         }),
         [word] => Err(CommandError::Unknown((*word).to_owned())),
     }
 }
 
-fn parse_inject(verb: &str, args: &[&str]) -> Result<Inject, CommandError> {
+fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> {
     match (verb, args) {
-        ("hover", _) => point("hover", args).map(Inject::Hover),
-        ("click", _) => point("click", args).map(Inject::Click),
-        ("leave", []) => Ok(Inject::Leave),
-        ("stats", []) => Ok(Inject::Stats),
-        ("capture", [path]) => Ok(Inject::Capture(PathBuf::from(path))),
+        ("hover", _) => point("hover", args).map(DebugAction::Hover),
+        ("click", _) => point("click", args).map(DebugAction::Click),
+        ("leave", []) => Ok(DebugAction::Leave),
+        ("stats", []) => Ok(DebugAction::Stats),
+        ("capture", [path]) => Ok(DebugAction::Capture(PathBuf::from(path))),
         ("capture", _) => Err(CommandError::Missing {
             verb: "capture",
             needs: "one path",
@@ -363,7 +372,8 @@ mod tests {
                 callbacks: 2,
                 commits: 2,
                 skipped: 1,
-                watchdog_fired: 0
+                watchdog_fired: 0,
+                ticks: 0
             }
         );
         // Draining clears the samples, not the counters.
@@ -392,17 +402,17 @@ mod tests {
             ("  quit  ", Ok(DebugCommand::Quit)),
             (
                 "dock hover 60 40",
-                Ok(on("dock", Inject::Hover(Point { x: 60, y: 40 }))),
+                Ok(on("dock", DebugAction::Hover(Point { x: 60, y: 40 }))),
             ),
             (
                 "sill-bar click 5 -1",
-                Ok(on("sill-bar", Inject::Click(Point { x: 5, y: -1 }))),
+                Ok(on("sill-bar", DebugAction::Click(Point { x: 5, y: -1 }))),
             ),
-            ("dock leave", Ok(on("dock", Inject::Leave))),
-            ("bar stats", Ok(on("bar", Inject::Stats))),
+            ("dock leave", Ok(on("dock", DebugAction::Leave))),
+            ("bar stats", Ok(on("bar", DebugAction::Stats))),
             (
                 "bar capture /tmp/a.png",
-                Ok(on("bar", Inject::Capture("/tmp/a.png".into()))),
+                Ok(on("bar", DebugAction::Capture("/tmp/a.png".into()))),
             ),
             ("", Err(CommandError::Empty)),
             ("hover", Err(CommandError::Unknown("hover".into()))),

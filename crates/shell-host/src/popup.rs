@@ -99,6 +99,21 @@ pub enum Grab {
     Grabbed,
 }
 
+/// A shift of the popup from where its anchor edge and gravity put it, in the parent's logical
+/// pixels: design/13 §13.3.2 places a bar menu at (-8, +6) from its title button. Applied to
+/// the anchor rectangle before it is sent, so it moves with the anchor and survives a flip
+/// or a reposition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Offset {
+    pub dx: Px,
+    pub dy: Px,
+}
+
+impl Offset {
+    /// No shift: the popup sits exactly where its anchor edge and gravity put it.
+    pub const ZERO: Offset = Offset { dx: 0, dy: 0 };
+}
+
 /// How a popup should be positioned and behave, independent of any particular anchor rect or
 /// content size (those are resolved separately, after layout, and passed to
 /// `positioner_params`).
@@ -112,6 +127,8 @@ pub struct PopupConfig {
     pub gravity: Gravity,
     pub adjust: Adjust,
     pub grab: Grab,
+    /// Where the popup sits relative to its anchor; `Offset::ZERO` for none.
+    pub offset: Offset,
 }
 
 /// The resolved values an `xdg_positioner` should be configured with: `set_size`,
@@ -129,7 +146,7 @@ pub struct PositionerParams {
 /// Combine a `PopupConfig` with a resolved anchor rect and a resolved content size into the
 /// values to hand the `xdg_positioner`. `size` is the popup's natural size (already measured,
 /// for `PopupSize::FitContent`, or already fixed, for `PopupSize::Fixed`); `FitContent` only
-/// clamps it to its `max`.
+/// clamps it to its `max`. The config's `offset` translates the anchor rectangle.
 pub fn positioner_params(config: &PopupConfig, anchor: Rect, size: Size) -> PositionerParams {
     let size = match config.size {
         PopupSize::Fixed => size,
@@ -140,10 +157,19 @@ pub fn positioner_params(config: &PopupConfig, anchor: Rect, size: Size) -> Posi
     };
     PositionerParams {
         size,
-        anchor_rect: anchor,
+        anchor_rect: offset_rect(anchor, config.offset),
         anchor: config.edge,
         gravity: config.gravity,
         adjust: config.adjust,
+    }
+}
+
+/// `rect` moved by `offset`; its size is unchanged.
+pub fn offset_rect(rect: Rect, offset: Offset) -> Rect {
+    Rect {
+        x: rect.x + offset.dx,
+        y: rect.y + offset.dy,
+        ..rect
     }
 }
 
@@ -213,6 +239,7 @@ mod tests {
             gravity,
             adjust,
             grab: Grab::Grabbed,
+            offset: Offset::ZERO,
         }
     }
 
