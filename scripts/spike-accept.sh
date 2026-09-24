@@ -289,15 +289,20 @@ def bar_variance(blur):
     probe.quit(); bar.quit(); time.sleep(0.3)
     s = img.shape[1] / output_info()["logical"][0]
     region = lum(img[int(6 * s):int(26 * s), int(400 * s):int(1400 * s)])
-    return float(region.var()), st
+    # The checkerboard below the bar must still be there: a blank frame (nested cosmic-comp
+    # once returned a flat grey capture with blur on) would otherwise read as a perfect blur.
+    below = lum(img[int(200 * s):int(400 * s), int(400 * s):int(1400 * s)])
+    return float(region.var()), float(below.var()), st
 
 def item_b():
     setting = blur_setting()
-    v0, st0 = bar_variance("0"); v1, st1 = bar_variance("1")
+    v0, b0, st0 = bar_variance("0"); v1, b1, st1 = bar_variance("1")
     drop = 1 - v1 / v0 if v0 > 0 else 0.0
     os.replace(f"{OUT}/b_blur1.png", f"{OUT}/b.png")
-    checks = {**blur_checks(st1), "variance_drop_ge_80pct": drop >= 0.8}
+    checks = {**blur_checks(st1), "variance_drop_ge_80pct": drop >= 0.8,
+              "checker_still_visible_below_bar": b1 >= 0.5 * b0 and b0 > 1000}
     return dict(compositor_blur=setting, variance_blur0=v0, variance_blur1=v1, drop=drop,
+                below_variance_blur0=b0, below_variance_blur1=b1,
                 blur0_stats=st0, blur1_stats=st1, checks=checks, pass_=all(checks.values()))
 
 # The debug grammar takes whole logical pixels (debug.rs), so the sweep rounds.
