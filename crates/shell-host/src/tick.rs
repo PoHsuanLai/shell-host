@@ -148,6 +148,24 @@ impl FrameTicks {
 /// Keeps a surface rendering one frame per compositor frame callback while alive. Returned by
 /// `SurfaceHandle::drive_frames`; dropping it stops the frame requests (the surface idles after
 /// its next callback unless its document is still animating).
+///
+/// # Hold until settled
+///
+/// The pattern a component's own motion follows (`examples/demo_dock.rs`, `--mode=tick`):
+///
+/// 1. take a drive when the motion starts (the first pointer move, a leave that sends the
+///    tiles home), unless one is held already;
+/// 2. on every [`FrameTick`], step the motion by `dt` towards its target;
+/// 3. drop the drive on the tick where the motion reaches its target.
+///
+/// Step 3 must be reached in bounded time **at any tick rate**. The rate is the compositor's:
+/// 60 Hz on KWin, but nested cosmic-comp (winit, mailbox) calls back every 1-2 ms, a tenth or
+/// less of the `dt` a 60 Hz test sees. A step that moves `gap * dt / tau` rounded to whole
+/// units moves nothing once the gap is under `tau / (2 dt)` units (30 for `tau` = 60 ms at
+/// 1 ms); with a settle tolerance below that, the motion stalls short of its target and the
+/// drive, and a frame per callback, lives on until a long tick happens along (FINDINGS F36).
+/// Make each step move at least one unit, or integrate in floating point and settle within a
+/// tolerance, and test the settle at a 1 ms `dt` as well as at 16.7 ms.
 #[must_use = "dropping the drive stops the frame requests at once"]
 #[derive(Debug)]
 pub struct FrameDrive {
