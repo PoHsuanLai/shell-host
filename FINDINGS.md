@@ -437,3 +437,67 @@ completes (`Refused` on timeout or an unaccepted element). Spring-loading stays 
 machine (`DndMotion` carries `over`; the dwell timer is the machine's). The drag source side
 (dragging a tile out of the dock) is a separate `SurfaceHandle::start_drag(mimes, icon)` and not
 part of G4.
+## Cosmic blur (branch `cosmic-blur`, 2026-09-24)
+
+### F29. Nested cosmic-comp on NVIDIA EGL loses every layer surface that has a blur region
+
+**Symptom.** `scripts/spike-accept.sh demo cosmic b` with blur on: the grim capture shows the
+maximized checkerboard and no bar (an earlier run with no window behind showed only the flat
+grey background). Blur off, the magenta bar is there. KWin and kwin-virtual pass.
+
+**Cause: cosmic-comp, not us.** The condition is exactly: cosmic-comp 1.8.0, `COSMIC_BACKEND=winit`
+(nested), rendering through NVIDIA's EGL (the default here; host screen off, `__GL_SYNC_TO_VBLANK=0`).
+Any `ext_background_effect_surface_v1.set_blur_region` on a layer surface makes the whole surface
+vanish from the output, whatever the client. The same run with the compositor on Mesa (AMD iGPU,
+`__EGL_VENDOR_LIBRARY_FILENAMES=…50_mesa.json DRI_PRIME=1 vblank_mode=0`) blurs correctly
+(variance behind the bar 3306 → 1.0). Experiments (screenshots, comp.logs and client output in
+`spike/out/cosmic-blur/` (gitignored), numbers here; "bar var" is the luminance variance of the bar strip over the
+checkerboard, 16256 = bare checkerboard, i.e. no bar; 3306 = tinted bar, unblurred; ~1 = blurred):
+
+| # | Client / condition | Compositor EGL | Bar var | Result |
+| --- | --- | --- | --- | --- |
+| base | demo_bar, `RegionSpec::Whole`, set with the first buffer | NVIDIA | 16256 | bar gone |
+| base | same, blur off | NVIDIA | 3306 | bar visible |
+| 1 | blur_probe (plain sctk + `wl_shm`) region whole / one 300x32 rect / rounded strips | NVIDIA | 16256 each | whole surface gone, also outside the rect |
+| 2 | blur_probe region set with the first buffer / on a later commit after the first frame callback | NVIDIA | 16256 each | gone either way |
+| 3 | demo_bar, theme `frosted` High / Low / key absent | NVIDIA | 16256 each | strength irrelevant |
+| 4 | demo_bar on RADV (`WGPU_ADAPTER_NAME=AMD`), on llvmpipe; blur_probe ARGB8888 shm, XRGB8888 shm | NVIDIA | 16256 each | our buffer path irrelevant |
+| 5 | blur_probe layer surface, region none | NVIDIA | 3306 | visible |
+| 6 | blur_probe xdg toplevel, blur whole | NVIDIA / Mesa | window drawn, interior var 3515 = unblurred | toplevels are drawn but never blurred on either GPU |
+| 7 | demo_bar / blur_probe | Mesa | 1.0 | blurred, bar and checkerboard below correct |
+
+Is it unmapped (7)? No: the blurred surface keeps getting frame callbacks (blur_probe prints
+`frame callback 1` after its blurred commit), which cosmic-comp only sends for surfaces in the
+rendered element set, and elements drawn before it (the window below) survive. It is drawn and
+its pixels are lost. cosmic-comp's blur is a framebuffer-effect render element
+(`src/backend/render/wayland/blur_effect.rs`: it blits the active framebuffer into a texture and
+runs the down/up passes on textures bound mid-frame); on the winit backend the frame target is
+the EGL window surface, and on NVIDIA's EGL the draws that follow that pass (the surface itself)
+do not reach it. The DRM backend renders into GBM buffers and was not testable here (locked
+session); re-test on a real cosmic session, and with the host screen on, before treating this
+as winit-only. Not debugged further inside cosmic-comp.
+
+**Red herring.** comp.log's `eglSwapBuffers: EGL_BAD_SURFACE … is not current draw surface` /
+`eglCreatePlatformWindowSurfaceEXT: EGL_BAD_ALLOC` / `Failed to render frame … context lost`
+appear exactly once per `grim` capture, with blur on or off and on either EGL: an output capture
+on the winit backend blits into the capture buffer before the swap. Zero with no capture.
+
+**What changed on our side.**
+- `blur_health.rs` (pure, table-tested) decides `BlurHealth::{Renders, Breaks}` from
+  `CompositorFacts`: cosmic-comp (a `zcosmic_*`/`cosmic_*` global), the winit backend (an
+  output named `WINIT-n`) and an NVIDIA main render device. Only all three is `Breaks`.
+- `handlers/render_device.rs` binds `zwp_linux_dmabuf_v1` v4+ once for its default feedback's
+  `main_device`, reads the PCI vendor from `/sys/dev/char/M:m/device/vendor`, and destroys the
+  feedback. The facts are in by the connect roundtrip, before any surface.
+- `HostState::blur_supported` is `Unsupported` when the verdict is `Breaks`, so the host sends no
+  blur region and the surface keeps its tint (the solid-tint fallback the shell's `data-blur=off`
+  would give). The debug host line says `blur: degraded`. The public API is unchanged: no shell
+  can yet ask whether blur is on, so sill's `data-blur` still needs a host query (proposed for
+  the next signature wave: `HostCtx::blur() -> Support`, fed by the same verdict).
+- `scripts/dev/nested.sh` now runs the compositor on Mesa by default (`SILL_NESTED_GPU=nvidia`
+  for the old path) and sets `vblank_mode=0` next to `__GL_SYNC_TO_VBLANK=0`; without it a
+  Mesa-rendering nested compositor also stops answering screenshots while the host display is off.
+- `examples/blur_probe.rs`, a plain sctk/`wl_shm` blur client, is the upstream repro.
+
+Upstream: worth a cosmic-comp issue ("layer surface with ext-background-effect blur region not
+drawn on winit backend with NVIDIA EGL") with blur_probe as the repro; not filed from here.

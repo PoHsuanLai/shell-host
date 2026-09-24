@@ -530,3 +530,20 @@ but not fixed here since a graceful `stop` never leaves this behind — only the
 did). `kscreen-doctor --dpms` was restored to `off`, its state at the start of this session.
 `scripts/dev/.nested-env` does not exist on disk; only `wayland-0` (the host's own socket)
 remains in `$XDG_RUNTIME_DIR`.
+
+### Item b on cosmic (branch `cosmic-blur`, 2026-09-24): **pass** on the Mesa-rendering compositor
+
+The earlier failure (bar missing with blur on) is cosmic-comp losing blurred layer surfaces on the
+nested winit backend with NVIDIA's EGL (FINDINGS F29; plain `wl_shm` clients too). `nested.sh`
+now renders the compositor on Mesa by default, where blur works; on the NVIDIA path the host
+detects the condition and degrades to no blur (host line `blur: degraded`, bar visible with its
+tint) instead of vanishing.
+
+| Run | Result | Numbers | PNG |
+| --- | --- | --- | --- |
+| `demo cosmic b` (compositor Mesa, client NVIDIA Vulkan PreMultiplied) | **pass** | bar variance 3306.25 → 1.02, drop 99.97 %; checkerboard below 16256 → 16256; host `blur: supported` | `spike/out/demo/cosmic/b.png`, `b_blur0.png` |
+| `demo kwin-virtual b` | **pass** | 3306.25 → 0.555, drop 99.98 %; below 16256 → 16256 | `spike/out/demo/kwin-virtual/b.png` |
+| `SILL_NESTED_GPU=nvidia`, demo_bar `DEMO_BLUR=1` by hand | fails b by design | bar visible unblurred (variance 3306), host `blur: degraded` | (scratch) |
+
+Items a, c, f, g were not re-run on the Mesa-rendering compositor (another agent's nested
+compositor was up); they passed on the NVIDIA path before this change and blur is not in them.

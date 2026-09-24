@@ -14,6 +14,7 @@ use calloop::{Interest, Mode, PostAction};
 use serde_json::json;
 
 use super::{Inject, Injected};
+use crate::blur_health::BlurHealth;
 use crate::ctx::HostCtx;
 use crate::debug::{DebugAction, DebugCommand, parse_command};
 use crate::error::{HostError, Result};
@@ -109,10 +110,16 @@ fn print_stats<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
 /// What the compositor offers, for the acceptance script's blur and scale checks.
 fn host_facts(state: &HostState) -> serde_json::Value {
     let bound = |present: bool| if present { "bound" } else { "unbound" };
-    let blur = match (&state.background_effect, state.blur_supported()) {
+    let advertised = state
+        .background_effect
+        .as_ref()
+        .map(|effect| effect.capabilities().blur);
+    let blur = match (advertised, state.blur_health()) {
         (None, _) => "unbound",
-        (Some(_), Support::Supported) => "supported",
-        (Some(_), Support::Unsupported) => "unsupported",
+        (Some(Support::Supported), BlurHealth::Renders) => "supported",
+        // Advertised, but a known compositor bug would lose the surface (FINDINGS F29).
+        (Some(Support::Supported), BlurHealth::Breaks) => "degraded",
+        (Some(Support::Unsupported), _) => "unsupported",
     };
     json!({"host": {
         "blur": blur,

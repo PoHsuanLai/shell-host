@@ -12,6 +12,7 @@ pub mod keyboard;
 pub mod layer;
 pub mod output;
 pub mod pointer;
+pub mod render_device;
 pub mod seat;
 pub mod text_input;
 pub mod xdg;

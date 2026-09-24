@@ -2,6 +2,7 @@
 //! GPU device. Portable to any Wayland compositor; see DESIGN.md for the module map.
 
 pub mod blur;
+pub mod blur_health;
 pub mod bridge;
 pub mod clipboard;
 pub mod clock;
