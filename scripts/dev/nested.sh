@@ -79,6 +79,12 @@ stop_nested() {
     echo "nested.sh stop: pid $NESTED_COMPOSITOR_PID is already gone."
   fi
 
+  # cosmic-comp does not unlink its socket on SIGTERM; a stale socket plus lock makes the next
+  # start time out waiting for a new one.
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -e "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] \
+     && ! kill -0 "$NESTED_COMPOSITOR_PID" 2>/dev/null; then
+    rm -f "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY.lock"
+  fi
   rm -f "$ENV_FILE"
 }
 
@@ -99,6 +105,9 @@ start_nested() {
   local -a env_args=(
     "COSMIC_BACKEND=winit"
     "XDG_CONFIG_HOME=$XDG_CONFIG_SEED"
+    # With the host display in DPMS off (locked session, screen dark) the NVIDIA GL path
+    # blocks nested cosmic-comp on vblank and it never answers a client (sill F/G6).
+    "__GL_SYNC_TO_VBLANK=${NESTED_GL_SYNC_TO_VBLANK:-0}"
   )
 
   if [ "${SILL_NESTED_GPU:-}" = "amd" ]; then
