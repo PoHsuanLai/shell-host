@@ -83,6 +83,12 @@ test = true
 name = "demo_popup"
 required-features = ["debug-inject"]
 
+# A wallpaper-shaped Background surface whose content changes after its first frame
+# (FINDINGS.md F40, sill F171/G21).
+[[example]]
+name = "demo_wallpaper"
+required-features = ["debug-inject"]
+
 [[example]]
 name = "spike_widget"
 required-features = ["headless"]

@@ -21,6 +21,11 @@
 //! - A present that could not happen (no texture, render error) is treated as a frame in flight
 //!   whose callback will never come, so the watchdog retries it with the same backoff instead of
 //!   spinning.
+//! - A redraw a document asks for while its frame renders (a resource load completing on
+//!   another thread) is not the render's own echo: the host feeds it as an `Invalidate` after
+//!   `Presented`, which marks the frame in flight dirty and arms the watchdog, so it is painted
+//!   on the callback or, on a compositor that never sends one, when the watchdog fires
+//!   (FINDINGS F40).
 
 use std::time::Duration;
 
@@ -337,6 +342,25 @@ mod tests {
         ]);
         assert_eq!(end.pace, Idle);
         assert_eq!(acts.iter().filter(|a| a.render == Render).count(), 2);
+    }
+
+    /// FINDINGS F40: a load that completes while its frame renders reaches the machine as an
+    /// `Invalidate` after `Presented` (the host drops only the render's own request). With a
+    /// compositor that never calls back, the watchdog paints it once, and then nothing more
+    /// happens: no timer is left and no frame follows.
+    #[test]
+    #[rustfmt::skip]
+    fn a_load_landing_mid_render_is_painted_without_any_callback_then_stays_quiet() {
+        let (end, acts) = run(&[
+            I::Invalidate, I::Flush, I::Presented(Stopped),
+            I::Invalidate, I::Flush,
+            I::WatchdogFired, I::Flush, I::Presented(Stopped),
+            I::Flush, I::Flush,
+        ]);
+        assert_eq!(acts.iter().filter(|a| a.render == Render).count(), 2);
+        let timers: Vec<TimerCmd> = acts.iter().map(|a| a.timer).filter(|t| *t != Keep).collect();
+        assert_eq!(timers, vec![ARM_50]);
+        assert_eq!(end, st(InFlight, Disarmed, 100));
     }
 
     #[test]

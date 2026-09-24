@@ -249,8 +249,10 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             let now = Instant::now();
             surface.stats.presented(now - started, now);
             // Resolve may have asked for a redraw itself; continuation is decided on the
-            // callback by is_animating, or the machine never idles (S1 finding 4).
-            surface.shell.take_redraw();
+            // callback by is_animating, or the machine never idles (S1 finding 4). A load that
+            // completed on another thread meanwhile is not dropped: the next flush takes it
+            // and dirties the frame in flight (FINDINGS F40).
+            surface.shell.drop_echo();
             FrameInput::Presented(surface.pacing())
         }
         Err(_) => {

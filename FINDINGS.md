@@ -642,3 +642,115 @@ and `c` still pass unchanged (`"pass": true` in both `spike/out/demo/kwin-virtua
   `scripts/dev/nested.sh` now starts a watchdog that kills the compositor past
   `NESTED_RSS_MAX_MB` (default 4096) and logs it; `stop` also stops the watchdog. The Mesa
   default (F29) avoids the trigger. A cosmic-comp report belongs with the F29 repro.
+
+## Background frames (branch `background-frames`, 2026-09-25)
+
+Origin: sill FINDINGS F171 / gap G21 (the M2 wallpaper never showed its image on the nested
+cosmic-comp; frame counter stuck, suspected cosmic-comp #2777 and the watchdog not covering it).
+
+### F40. A load that completed while its frame rendered was dropped with the render's own redraw request
+
+**Reproduction.** `examples/demo_wallpaper.rs`: a sill-shaped wallpaper (`Layer::Background`,
+every edge, `ExclusiveZone::Ignore`, `RegionSpec::Empty` input, keyboard `None`, no blur) whose
+root paints rgb(200,40,40), and 300 ms after build swaps in rgb(20,120,220) content:
+`--source=file` (an `img` of a generated PNG in a temp file), `data` (the same PNG as a
+`data:` URL), `css` (`background-image` of the file), `none` (a plain element, no resource);
+`--png-side=N` sizes the PNG. Driven on the shared nested cosmic-comp (Mesa, `wayland-1`) by a
+script that reads `wallpaper stats` at 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.5 s, shoots the output
+with `grim` (centre pixel), idles 5 s with no command, reads stats again, then captures.
+
+Before (master 2c7159a), frames over time / on-screen centre / frames across the 5 s idle:
+
+| source | frames at 0.1 ... 2.5 s | screen centre | idle 5 s |
+| --- | --- | --- | --- |
+| `css` (64 px PNG), two runs | 0 1 1 2 2 2 2 | 200,40,40 (fallback) | 2 → 2 |
+| `file`, `--png-side=512` | 0 1 1 2 2 2 2 | 200,40,40 (fallback) | 2 → 2 |
+| `file` / `data` (64 px) | 0 1 1 2 2 2 2 | 20,120,220 | 2 → 2 |
+| `file`, 1024 / 2048 px | 0 1 1 3 3 3 3 | 20,120,220 | 3 → 3 |
+| `none` | 0 1 1 2 2 2 2 | 20,120,220 | 2 → 2 |
+
+So the surface is frozen with the fallback on screen whenever the image load finishes inside
+the window the table's second and third rows hit, and it is not the layer, the input region or
+the URL scheme: the same surface paints a plain DOM change, a small `img` and a large one. The
+`debug capture` of a frozen surface showed the *image* (20,120,220): `Presenter::capture`
+calls `resolve`, which drains the document's resource channel, so a capture is not evidence of
+what is on screen (it renders offscreen and never presents).
+
+**Cause, with the trace.** Temporary `eprintln!` tracing (frame inputs and actions, the frame
+callback, polls, every `request_redraw` with its thread, the redraw flag cleared after
+present; removed again) on a `css` run, times since start:
+
+```
+748.7ms request_redraw on "main"             (the swap's mutation)
+748.7ms poll Changed
+748.7ms Invalidate: Idle -> Dirty
+749.2ms request_redraw on "tokio-rt-worker"  (LocalNet's decode done: ResourceHandler::respond)
+750.5ms presented; redraw flag cleared was Requested
+750.5ms Presented(Stopped): InFlight -> InFlight
+751.4ms CALLBACK Stopped: InFlight -> Idle
+(nothing after this: 5 s idle, zero frames)
+```
+
+The callback arrived 0.9 ms after the present, as every callback did on this Background surface
+(callbacks equal frames in every run, `watchdog_fired` 0): cosmic-comp #2777 is not involved
+here and the watchdog had nothing to cover. The request did reach the host; the host threw it
+away. `ctx::paint::render` cleared the shell provider's redraw flag after presenting, because
+`resolve` asks for a redraw itself and the machine would otherwise never idle (SPIKE.md S1
+finding 4). But Blitz's `ResourceHandler::respond` (blitz-dom `net.rs`) runs on the net
+provider's thread: it sends the decoded image to the document's channel, then calls
+`request_redraw`. The channel is only drained by `resolve` (`handle_messages`). A background
+image's fetch starts *inside* `resolve` (`flush_pending_style_images`), after that drain, so a
+small `data:` or file image decodes and responds within the same render, its message sits in
+the channel, and its redraw request is cleared as if it were the render's own. An `img`'s
+fetch starts at the mutation, one poll earlier, so it loses the race only when its decode
+takes about as long as the render (512 px here; sill's 2176 x 1360 output-sized wallpaper
+renders for longer, which widens the window). Nothing else dirties a wallpaper, so the message
+stays unread and the surface stays on the old frame for good.
+
+### F41. A `height:100%` page under dioxus-native-dom's unsized `#main` is 0 px tall
+
+The first version of `demo_wallpaper` sized its root `width:100%;height:100%` under the host's
+UA sheet (`html,body{height:100%}`) and nothing else: `#main`, the mount point
+`dioxus-native-dom` renders every `VirtualDom` into, has `height:auto`, so the root resolved to
+0 px. The `css` and `none` runs then showed the compositor's own background on screen
+(39,41,42) and a fully transparent capture (0,0,0), not even the fallback; only an `img` showed,
+through its intrinsic aspect ratio. The demo now sizes `#main{height:100%}`. sill's wallpaper
+(`.sill-wallpaper{height:100%}` inside a `Ds` root, `.ds` in quire's reset has no height, and
+the image layers are `position:absolute;inset:0` under `overflow:hidden`) has the same shape;
+F171's "uniform black" capture fits it. Not verified in sill (no sill daemon was run here);
+reported for sill to check alongside F40.
+
+### F42. Fix: a redraw request from another thread survives the present
+
+`HostShellProvider` records where each `request_redraw` came from (`Origin::of(host thread,
+current thread)`, pure): the host's thread (event handling, polls, and the render's own
+`resolve`) sets one flag, any other thread (a resource load completing) sets another. The flush
+still takes both (`take_redraw`); after presenting, `render` now calls `drop_echo`, which
+clears only the host-thread flag. A load that lands mid-render is therefore taken by the next
+flush (its `request_redraw` pinged the loop) and fed as `FrameInput::Invalidate` onto the
+frame in flight: `InFlight → InFlightDirty`, watchdog armed at the current backoff. The frame
+machine needed no new transition, it already said the right thing for that input; what was
+wrong was the host never feeding it. On a compositor that never sends the callback, the
+watchdog renders it (new sequence test
+`frame::tests::a_load_landing_mid_render_is_painted_without_any_callback_then_stays_quiet`:
+two renders, one `Arm(50 ms)`, no timer left afterwards); with a callback, the callback does.
+A request that arrived before `resolve` drained the message costs at most one redundant frame,
+then the machine idles. Tests: `dom::shell_provider::tests::{origin_is_the_host_thread_only_on_the_host_thread,
+the_present_drops_the_renders_own_request, a_load_completing_on_another_thread_survives_the_present}`.
+
+**After**, same script, same compositor:
+
+| source | frames at 0.1 ... 2.5 s | screen centre | idle 5 s (frames, commits, watchdog) |
+| --- | --- | --- | --- |
+| `css` | 0 1 1 3 3 3 3 | 20,120,220 | 3 → 3, 3 → 3, 0 |
+| `data` | 0 1 1 3 3 3 3 | 20,120,220 | 3 → 3, 3 → 3, 0 |
+| `file` | 0 1 1 3 3 3 3 | 20,120,220 | 3 → 3, 3 → 3, 0 |
+| `file`, `--png-side=512` | 0 1 1 3 3 3 3 | 20,120,220 | 3 → 3 |
+| `none` | 0 1 1 2 2 2 2 | 20,120,220 | 2 → 2, 2 → 2, 0 |
+
+The traced `css` run after the fix: the worker's request at 739.7 ms, present at 740.9 ms,
+`Invalidate: InFlight → InFlightDirty, Arm(50ms)` at 741.0 ms, callback at 741.6 ms (`→ Dirty`,
+watchdog cancelled), the third frame presented at 743.8 ms, callback at 746.8 ms `→ Idle`. The
+count stops moving 5 ms after the swap and stays put through the 5 s idle. `scripts/spike-accept.sh
+demo cosmic c` (the shared nested cosmic-comp, reused, not started): all four runs pass, 5 s
+idle 0 frames / 0 commits / 0 main-thread wakeups each.
