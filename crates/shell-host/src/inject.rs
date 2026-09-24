@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use blitz_traits::events::{MouseEventButton, MouseEventButtons, UiEvent};
 use keyboard_types::Modifiers;
 
-use crate::blur_health::BlurHealth;
 use crate::ctx::HostCtx;
 use crate::dom::document::Polled;
 use crate::error::{HostError, Result};
