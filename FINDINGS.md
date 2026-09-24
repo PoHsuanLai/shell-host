@@ -501,3 +501,53 @@ on the winit backend blits into the capture buffer before the swap. Zero with no
 
 Upstream: worth a cosmic-comp issue ("layer surface with ext-background-effect blur region not
 drawn on winit backend with NVIDIA EGL") with blur_probe as the repro; not filed from here.
+
+## Tick idle on cosmic-comp (branch `tick-idle`, 2026-09-24)
+
+### F36. The tick dock's motion stalled at cosmic-comp's frame rate and held its drive
+
+**Symptom.** `scripts/spike-accept.sh demo cosmic c`: `transform` and `width` idle at 0, `tick`
+had 548 frames / 548 commits / 1479 main-thread wakeups in the 5 s idle after the leave (993 /
+993 / 2512 on a rerun). `demo kwin-virtual c` passed, 0 idle.
+
+**Not the pointer.** The acceptance hovers and leaves through `debug-inject` (`dock hover`, `dock
+leave`), not through `wl_pointer`, so neither compositor's enter/leave semantics (cosmic-comp
+#2230) is involved, and the host's leave path (F32, `SurfaceDocument::pointer_left`) is the same
+on both. A trace in the tick dock (on `mouseleave`, on every tick: `dt`, pointer, largest gap to
+target, drive held; on the drop) showed `mouseleave` arriving at once on both compositors, the
+target going to rest, and the drive held on:
+
+| | kwin-virtual | cosmic-comp (nested, winit, mailbox) |
+| --- | --- | --- |
+| tick `dt` after the leave | 16.5-17.5 ms | 1.1-2.0 ms, an occasional 4-6 ms |
+| largest gap per tick (thousandths) | 391, 284, 201, ..., 8, 6, 0 | 441, 432, 424, ..., then 7 for 693 ticks |
+| leave to drive dropped | 15 ticks, ~240 ms | 1393 ticks, 1852 ms (first leave); the last leave never dropped before quit |
+
+**Cause: our component, at a frame rate its test never saw.** `demo_dock`'s `step` moved each
+tile `round(gap * dt / 60 ms)` thousandths and snapped within 4. At 16.7 ms that rounds to zero
+only under a gap of 1.8, inside the snap; at 1-2 ms (nested cosmic-comp calls back as fast as it
+composites) it rounds to zero under a gap of 15-30, so the tiles stopped a few thousandths short
+of rest, `next == target` never held, and the drive, and with it a render and commit per
+callback, stayed until a tick long enough (about 6 ms) to move one unit happened along. The
+host did what `FrameDrive` promises: a held drive renders every frame.
+
+**Fix.** `step` now closes `1 - exp(-dt / 60 ms)` of the gap (frame-rate independent) and
+always at least one thousandth, never past the target, so it settles in bounded time at any
+rate. `FrameDrive`'s doc has the "hold until settled" pattern with this rule: the drop
+condition must be reachable at any tick rate; test it at 1 ms as well as 16.7 ms. The host is
+unchanged. `demo_dock` gained `test = true` so its unit tests run under `cargo test`:
+`tests::the_tiles_settle_at_any_tick_rate` (0.5 ms to 33 ms ticks, to and from a hover, within
+500 ms) fails with the old `step` ("dt 500 us: settled after None") and passes with the new;
+`tests::a_step_never_overshoots`.
+
+**After.** item c, 5 s idle after the leave, frames / commits / main-thread wakeups:
+
+| mode | cosmic (sweep frames = callbacks) | kwin-virtual (sweep frames = callbacks) |
+| --- | --- | --- |
+| transform | 0 / 0 / 0 (871) | 0 / 0 / 0 (73) |
+| width | 0 / 0 / 0 (792) | 0 / 0 / 0 (71) |
+| tick | 0 / 0 / 0 (830, 829 ticks) | 0 / 0 / 0 (79, 78 ticks) |
+| transform, fifo | 0 / 0 / 0 | 0 / 0 / 0 |
+
+sill's dock machine does not use the hook yet; when it does, its settle test needs the same
+1 ms case.

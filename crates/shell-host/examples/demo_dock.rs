@@ -109,7 +109,7 @@ const REST: Scales = [1000; 12];
 const PEAK: f64 = 1500.0;
 const REACH_PX: f64 = 112.0;
 
-/// How fast a tile closes on its target: the gap shrinks by `dt / TIME_CONSTANT` per tick.
+/// How fast a tile closes on its target: the gap decays as `exp(-t / TIME_CONSTANT)`.
 const TIME_CONSTANT: Duration = Duration::from_millis(60);
 
 /// Close enough to the target to stop moving (thousandths).
@@ -133,13 +133,20 @@ fn targets(x: Option<f64>) -> Scales {
     })
 }
 
-/// One tick of motion: each tile closes `dt / TIME_CONSTANT` of its gap to `target`, and
-/// snaps once within `SETTLED`.
+/// One tick of motion: each tile closes `1 - exp(-dt / TIME_CONSTANT)` of its gap to
+/// `target`, at least one thousandth, and snaps once within `SETTLED`. The one-unit floor is
+/// what makes it settle at any tick rate: rounded to thousandths, a 1 ms tick (nested
+/// cosmic-comp) would otherwise move nothing once the gap is under 30 (FINDINGS F36).
 fn step(now: Scales, target: Scales, dt: Duration) -> Scales {
-    let k = (dt.as_secs_f64() / TIME_CONSTANT.as_secs_f64()).min(1.0);
+    let k = 1.0 - (-dt.as_secs_f64() / TIME_CONSTANT.as_secs_f64()).exp();
     std::array::from_fn(|i| {
-        let (s, t) = (f64::from(now[i]), f64::from(target[i]));
-        let next = (s + (t - s) * k).round() as u32;
+        let gap = now[i].abs_diff(target[i]);
+        let moved = ((f64::from(gap) * k).round() as u32).max(1).min(gap);
+        let next = if now[i] < target[i] {
+            now[i] + moved
+        } else {
+            now[i] - moved
+        };
         if next.abs_diff(target[i]) <= SETTLED {
             target[i]
         } else {
@@ -270,4 +277,52 @@ fn run(args: &[String]) -> Result<(), String> {
         _ => {}
     })
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Simulated time until `step` reaches `target` from `from` at a fixed tick interval, or
+    /// `None` if it has not within 2 s.
+    fn settle_time(from: Scales, target: Scales, dt: Duration) -> Option<Duration> {
+        let mut now = from;
+        let mut elapsed = Duration::ZERO;
+        while elapsed < Duration::from_secs(2) {
+            now = step(now, target, dt);
+            elapsed += dt;
+            if now == target {
+                return Some(elapsed);
+            }
+        }
+        None
+    }
+
+    /// Nested cosmic-comp calls back every 1-2 ms (mailbox, no vblank), KWin at 60 Hz: the
+    /// tiles settle, and the drive is dropped, at every rate, within a few time constants.
+    #[test]
+    fn the_tiles_settle_at_any_tick_rate() {
+        let hovered = targets(Some(tile_centre(5)));
+        let rates_us = [500, 1_000, 1_500, 2_000, 6_944, 16_667, 33_333];
+        for us in rates_us {
+            let dt = Duration::from_micros(us);
+            for (from, to) in [(hovered, REST), (REST, hovered)] {
+                let took = settle_time(from, to, dt);
+                assert!(
+                    took.is_some_and(|t| t <= Duration::from_millis(500)),
+                    "dt {us} us: settled after {took:?}"
+                );
+            }
+        }
+    }
+
+    /// A step never passes its target, so the scales never oscillate around it.
+    #[test]
+    fn a_step_never_overshoots() {
+        let hovered = targets(Some(tile_centre(5)));
+        for us in [1_000, 16_667, 200_000] {
+            let next = step(hovered, REST, Duration::from_micros(us));
+            assert!(next.iter().all(|&s| (1000..=1500).contains(&s)), "{next:?}");
+        }
+    }
 }

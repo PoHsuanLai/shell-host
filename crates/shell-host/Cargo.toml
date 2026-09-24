@@ -74,6 +74,8 @@ required-features = ["debug-inject"]
 [[example]]
 name = "demo_dock"
 required-features = ["debug-inject"]
+# The tick mode's motion math has unit tests (FINDINGS F36).
+test = true
 
 [[example]]
 name = "spike_widget"
