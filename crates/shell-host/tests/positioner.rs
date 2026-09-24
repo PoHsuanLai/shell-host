@@ -1,9 +1,10 @@
 //! Table test for `positioner_params`, covering the flip/slide/resize `Adjust` combinations and
 //! the `PopupSize` clamping behaviour, against the public API only.
 
+use shell_host::PopupPlacement;
 use shell_host::popup::{
     Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize, Toggle, offset_rect,
-    positioner_params, to_wire_constraint_adjustment,
+    positioner_params, refit, to_wire_constraint_adjustment,
 };
 use shell_host::region::{ElementId, Rect};
 use shell_host::scale::Size;
@@ -299,4 +300,91 @@ fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
         assert_eq!(offset_rect(BUTTON, offset), want, "{offset:?}");
     }
     assert_eq!(Offset::default(), Offset::ZERO);
+}
+
+/// `popup::refit` (G7): a `FitContent` popup's placement changes, clamped to `max`, exactly
+/// when the measured content differs from its current placement.
+#[test]
+fn refit_reflows_a_fit_content_popup_to_its_measured_content_clamped_to_max() {
+    let fixed = PopupConfig {
+        anchor: PopupAnchor::Rect,
+        size: PopupSize::Fixed,
+        edge: Edge::Bottom,
+        gravity: Edge::Bottom,
+        adjust: Adjust::NONE,
+        grab: Grab::Ungrabbed,
+        offset: Offset::ZERO,
+    };
+    let fit_content = PopupConfig {
+        size: PopupSize::FitContent { max: 200 },
+        ..fixed.clone()
+    };
+    let current = PopupPlacement {
+        anchor_rect: BUTTON,
+        size: Size {
+            width: 160,
+            height: 48,
+        },
+    };
+
+    assert_eq!(
+        refit(
+            &fixed,
+            current,
+            Size {
+                width: 999,
+                height: 999
+            }
+        ),
+        None,
+        "Fixed never refits"
+    );
+    assert_eq!(
+        refit(
+            &fit_content,
+            current,
+            Size {
+                width: 160,
+                height: 48
+            }
+        ),
+        None,
+        "already at its measured size"
+    );
+    assert_eq!(
+        refit(
+            &fit_content,
+            current,
+            Size {
+                width: 160,
+                height: 144
+            }
+        ),
+        Some(PopupPlacement {
+            size: Size {
+                width: 160,
+                height: 144
+            },
+            ..current
+        }),
+        "content grew: refit to it"
+    );
+    assert_eq!(
+        refit(
+            &fit_content,
+            current,
+            Size {
+                width: 260,
+                height: 999
+            }
+        ),
+        Some(PopupPlacement {
+            size: Size {
+                width: 200,
+                height: 200
+            },
+            ..current
+        }),
+        "content past max: refit, clamped on each axis"
+    );
 }

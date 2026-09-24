@@ -26,6 +26,11 @@ cargo run --release -p shell-host --features debug-inject --example demo_bar -- 
 `--layer=bottom`. `--mode=tick` magnifies from the component itself, once per compositor frame,
 through the frame hook (`use_frame_tick` with a `FrameDrive` held only while the tiles move).
 
+`examples/demo_popup.rs` is `PopupSize::FitContent`'s acceptance (FINDINGS F37): `bar click 20
+16` opens a popup whose own list grows from 2 to 6 rows 300 ms after it opens with no further
+command, so `bar/popup stats`' `logical` size shows the fit landing at 160x48 and, a few frames
+later, re-fitting to 160x144.
+
 ### On a nested KWin (no effect on your session)
 
 A headless `kwin_wayland --virtual` on its own D-Bus session, torn down afterwards; works while

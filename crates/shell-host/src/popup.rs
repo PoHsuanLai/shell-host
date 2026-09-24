@@ -5,6 +5,7 @@
 //! request against a live connection) and belongs to the caller; this module only computes what
 //! to send.
 
+use crate::placement::PopupPlacement;
 use crate::region::{ElementId, Px, Rect};
 use crate::scale::Size;
 use wayland_protocols::xdg::shell::client::xdg_positioner::{
@@ -170,6 +171,33 @@ pub fn offset_rect(rect: Rect, offset: Offset) -> Rect {
         x: rect.x + offset.dx,
         y: rect.y + offset.dy,
         ..rect
+    }
+}
+
+/// Whether a `FitContent` popup's placement should change now that its document's `content`
+/// size is known, and what to (`SurfaceOp::Reposition`, applied by `ctx::paint::render` right
+/// after the layout that produced `content`). `None` for `PopupSize::Fixed` (nothing to fit),
+/// or when the clamped content size already matches `current.size` — the check that stops a
+/// settled popup from repositioning every frame.
+pub fn refit(
+    config: &PopupConfig,
+    current: PopupPlacement,
+    content: Size,
+) -> Option<PopupPlacement> {
+    let PopupSize::FitContent { max } = config.size else {
+        return None;
+    };
+    let fitted = Size {
+        width: content.width.min(max),
+        height: content.height.min(max),
+    };
+    if fitted == current.size {
+        None
+    } else {
+        Some(PopupPlacement {
+            size: fitted,
+            ..current
+        })
     }
 }
 
@@ -347,6 +375,92 @@ mod tests {
                 height: 20
             }
         );
+    }
+
+    fn placement(size: Size) -> PopupPlacement {
+        PopupPlacement {
+            anchor_rect: Rect {
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 10,
+            },
+            size,
+        }
+    }
+
+    // Table-tested: `refit` only ever changes a `FitContent` popup whose clamped content size
+    // differs from its current placement.
+    const REFIT_CASES: &[(&str, PopupSize, Size, Size, Option<Size>)] = &[
+        (
+            "Fixed never refits, however large the content",
+            PopupSize::Fixed,
+            Size {
+                width: 100,
+                height: 40,
+            },
+            Size {
+                width: 999,
+                height: 999,
+            },
+            None,
+        ),
+        (
+            "content already matches the current placement: no change",
+            PopupSize::FitContent { max: 200 },
+            Size {
+                width: 100,
+                height: 40,
+            },
+            Size {
+                width: 100,
+                height: 40,
+            },
+            None,
+        ),
+        (
+            "content grew: refit to the new size",
+            PopupSize::FitContent { max: 200 },
+            Size {
+                width: 100,
+                height: 40,
+            },
+            Size {
+                width: 150,
+                height: 60,
+            },
+            Some(Size {
+                width: 150,
+                height: 60,
+            }),
+        ),
+        (
+            "content past max: refit, clamped on each axis",
+            PopupSize::FitContent { max: 200 },
+            Size {
+                width: 100,
+                height: 40,
+            },
+            Size {
+                width: 999,
+                height: 999,
+            },
+            Some(Size {
+                width: 200,
+                height: 200,
+            }),
+        ),
+    ];
+
+    #[test]
+    fn refit_only_changes_a_fit_content_popup_whose_measured_size_differs() {
+        for &(name, popup_size, current_size, content, expected_size) in REFIT_CASES {
+            let cfg = config(Edge::Bottom, Edge::Bottom, Adjust::NONE, popup_size);
+            let current = placement(current_size);
+            let got = refit(&cfg, current, content);
+            let want = expected_size.map(|size| PopupPlacement { size, ..current });
+            assert_eq!(got, want, "{name}");
+        }
     }
 
     // Table-tested flip/slide/resize combinations, at the wire level: this is the part of

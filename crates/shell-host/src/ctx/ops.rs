@@ -12,6 +12,7 @@ use crate::layer::{
     to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer, to_wire_size,
 };
 use crate::msg::{Request, SurfaceOp, Visibility};
+use crate::placement::PopupPlacement;
 use crate::popup::{Grab, positioner_params};
 use crate::role::Role;
 use crate::state::HostState;
@@ -89,6 +90,20 @@ pub(super) fn apply<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, op: Surface
         send(state, id, &op);
     }
     state.frame_input(id, FrameInput::Invalidate);
+}
+
+/// Move popup `id` to `placement`, measured from its own content by `popup::refit`. Applied
+/// inline from `ctx::paint::render`, right after the layout that produced the measurement,
+/// rather than queued as a `Request`: the same wire request as `SurfaceOp::Reposition` (record,
+/// then send), just not routed through the request queue, so a `FitContent` popup lands in the
+/// same flush that measured it instead of waiting a flush for its own `Request::Apply` to drain.
+pub(super) fn refit_popup(state: &mut HostState, id: SurfaceId, placement: PopupPlacement) {
+    let Some(surface) = state.surfaces.get_mut(&id) else {
+        return;
+    };
+    let op = SurfaceOp::Reposition(placement);
+    surface.record(&op);
+    send(state, id, &op);
 }
 
 /// The Wayland requests for `op` on surface `id`. Region ops have none here: regions are

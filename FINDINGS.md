@@ -551,3 +551,81 @@ unchanged. `demo_dock` gained `test = true` so its unit tests run under `cargo t
 
 sill's dock machine does not use the hook yet; when it does, its settle test needs the same
 1 ms case.
+
+## sill gaps G7, G10 (branch `click-fit`, 2026-09-24)
+
+### F37. G10: `Inject::Click` and `debug click` take a `PointerButton`
+
+`Inject::Click { at }` pressed and released the primary button only. `debug::PointerButton`
+(`Primary | Secondary | Middle`, Linux evdev `BTN_LEFT`/`BTN_RIGHT`/`BTN_MIDDLE` = 272/273/274,
+same vocabulary `input::pointer::button_from_evdev` already maps a real press with) is a new
+field: `Inject::Click { at: Point, button: PointerButton }`. Not a `Default`-backed struct
+update — the two call sites (`HostCtx::inject`'s match arm and `inject::stdin::on_surface`)
+were updated directly, as the brief allowed. The stdin grammar's `click X Y` still defaults to
+`primary`; `click X Y secondary` and `click X Y middle` select the others
+(`debug::parse_command`'s `click` helper, `CommandError::NotAButton` for an unrecognised word).
+`inject::clicked(at, button)` maps `button` to a DOM `MouseEventButton` (`dom_button`, tested
+table-wise) and builds the same move-down-up sequence `input::pointer::press_events` /
+`release_event` already produce for a real press, so a secondary click behaves exactly like one
+delivered over `wl_pointer`.
+
+**What Dioxus receives.** Blitz's `handle_pointerup` (`blitz-dom` `events/pointer.rs`) dispatches
+`DomEventData::ContextMenu` on release of `MouseEventButton::Secondary` (and `Click` only for
+`Main`), which `dioxus-native-dom` delivers to an `oncontextmenu` handler exactly the way `Click`
+reaches `onclick` — no shell-host-side event translation is needed beyond picking the right
+`MouseEventButton`. `tests/pointer.rs::a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick`
+proves it headlessly, against a real `SurfaceDocument`: a secondary press+release increments
+`#menus` (`oncontextmenu`) and leaves `#clicks` (`onclick`) at 0; a primary press+release does
+the reverse. `inject.rs`'s own unit tests cover the button mapping and the built event sequence
+(`clicked_moves_then_presses_and_releases_the_named_button`, table-driven over all three
+buttons).
+
+### F38. G7: `PopupSize::FitContent` measures the popup's own document
+
+`positioner_params` already clamped a passed-in size to `FitContent`'s `max`; nothing supplied
+that size from the popup's actual content, so callers (sill's `bar::popup::menu_popup`) had to
+guess it by hand (sill FINDINGS F45). Two additions close the loop:
+
+- **`SurfaceDocument::content_size(&self) -> Option<Size>`** (`dom/document.rs`): the laid-out
+  box of the popup's content, in logical px. Neither `<body>` nor `dioxus-native-dom`'s own
+  fixed mount point (`<main id="main">`, `DioxusDocument::new`, always `<body>`'s one child) is
+  usable directly — a block's default `width:auto` fills its container, so both stretch to the
+  surface's width regardless of content (and `<body>`'s `height:100%`, this crate's own
+  `UA_STYLESHEET`, does the same on the other axis: measuring either would just read back the
+  viewport, the one thing `FitContent` must *not* do). The measured element is `#main`'s first
+  child that is not one of `style`/`script`/`title`/`link`/`meta`/`base`/`template` (Blitz's own
+  default stylesheet already hides those, `display:none`, and a document's own `<style>` element
+  — every demo in this crate writes one — renders as `#main`'s first child, ahead of its real
+  content). `None` before layout or when there is no such child.
+- **`popup::refit(config, current, content) -> Option<PopupPlacement>`**: pure; `None` for
+  `PopupSize::Fixed`, or when `content` clamped to `max` already equals `current.size` (the
+  check that stops a settled popup from repositioning every frame); otherwise the placement to
+  move to. `ctx::paint::render` calls it right after the layout `resolve()` that produced the
+  measurement (so a `FitContent` popup is measured before anything else that frame reads its
+  size) and, if it returns `Some`, applies it inline through the new `ctx::ops::refit_popup` —
+  the same record-then-`xdg_popup.reposition` pair `SurfaceOp::Reposition` already sends, just
+  run synchronously instead of queued, so the fit lands in the same flush that measured it. The
+  compositor's answering `xdg_popup.configure` then resizes the surface exactly as a caller-sent
+  `SurfaceOp::Reposition` already did (F30) — no new code path there, and never a buffer larger
+  than what was configured, since `surface.logical`/the presenter only ever change from that
+  configure, never from `refit_popup` itself.
+- **The placeholder before the first measurement is the caller's own initial `PopupPlacement`.**
+  Nothing new was needed: `PopupPlacement.size` was already sent as the first `xdg_positioner`
+  size (spawn.rs's `popup_role`) before any layout could happen, so it already served as "the
+  documented placeholder" the brief asks for; `refit` on the next render simply replaces it once
+  the real content is known.
+
+Tests: `popup::tests::refit_only_changes_a_fit_content_popup_whose_measured_size_differs` and
+`tests/positioner.rs::refit_reflows_a_fit_content_popup_to_its_measured_content_clamped_to_max`
+(table-driven: `Fixed` never refits, already-fitted is unchanged, growth refits, and refits
+clamp on each axis independently); `tests/dom.rs::content_size_measures_the_first_content_element_under_body`
+(skips a `<style>` sibling, measures the `160x40` div after it) and
+`::content_size_is_none_with_no_content_element`.
+
+**kwin-virtual acceptance**, `examples/demo_popup.rs` (a one-button bar; the button opens a
+`FitContent { max: 400 }` popup whose own list starts at 2 rows — 160x48 — and grows to 6 —
+160x144 — 300ms later with no further command), driven on a nested `kwin_wayland --virtual`:
+`bar/popup stats` 150ms after `bar click 20 16` reports `"logical":{"width":160,"height":48}`;
+the same command 500ms later (after the growth) reports `"logical":{"width":160,"height":144}`
+— the fit lands, and re-fits, exactly as designed. `scripts/spike-accept.sh demo kwin-virtual a`
+and `c` still pass unchanged (`"pass": true` in both `spike/out/demo/kwin-virtual/{a,c}.json`).

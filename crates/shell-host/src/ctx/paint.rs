@@ -33,8 +33,11 @@ use crate::handlers::text_input::apply_ime_request;
 use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::msg::Visibility;
+use crate::placement::PopupPlacement;
+use crate::popup::refit;
 use crate::region::Rect;
 use crate::resolve::{Change, Resolved, resolve};
+use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 use crate::state::HostState;
 use crate::surface::{Configured, Geometry, HostSurface};
@@ -206,11 +209,23 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     let started = Instant::now();
     let time = state.clock.seconds_at(started);
     let blur = blur_allowed(state, id);
+
+    let refit = {
+        let Some(surface) = state.surfaces.get_mut(&id) else {
+            return Ok(());
+        };
+        // Layout first, so element-following regions land in this frame's commit, and a
+        // `FitContent` popup can be measured before anything else this frame reads its size.
+        surface.document.resolve(time);
+        pending_refit(surface)
+    };
+    if let Some(placement) = refit {
+        super::ops::refit_popup(state, id, placement);
+    }
+
     let Some(surface) = state.surfaces.get_mut(&id) else {
         return Ok(());
     };
-    // Layout first, so element-following regions land in this frame's commit.
-    surface.document.resolve(time);
     send_regions(
         &state.compositor,
         state.background_effect.as_mut(),
@@ -252,6 +267,19 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         }
         Ok(()) => Ok(()),
     }
+}
+
+/// Whether `surface`'s just-laid-out content calls for a new placement (`popup::refit`);
+/// `None` for a non-popup, a `Fixed`-size popup, or one whose document has not laid out yet.
+fn pending_refit(surface: &HostSurface) -> Option<PopupPlacement> {
+    let Role::Popup {
+        config, placement, ..
+    } = &surface.role
+    else {
+        return None;
+    };
+    let content = surface.document.content_size()?;
+    refit(config, *placement, content)
 }
 
 /// Whether blur may be sent for surface `id`: the compositor blurs, and the surface has real
