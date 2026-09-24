@@ -94,13 +94,24 @@ isolated COSMIC config:
   compositor. Test shell shortcuts with **`Ctrl+Alt+Space`** (seeded above)
   or via the CLI/D-Bus path, never by pressing `Super` inside the nested
   window.
-- **NVIDIA EGL fallback.** This machine's primary GPU is an NVIDIA RTX
-  5070 Ti. The `winit` backend's GL/EGL context creation can fail against
-  the NVIDIA driver when nested. Set `SILL_NESTED_GPU=amd` before
-  `nested.sh start` to force the Mesa (AMD iGPU) EGL vendor
+- **The compositor renders on Mesa by default.** This machine's primary
+  GPU is an NVIDIA RTX 5070 Ti, but on NVIDIA's EGL the nested `winit`
+  backend loses every layer surface that has a blur region (FINDINGS F29:
+  the bar disappears, the rest of the frame is drawn). `nested.sh` therefore
+  forces the Mesa (AMD iGPU) EGL vendor
   (`__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`)
-  and `DRI_PRIME=1`. Record which path actually worked when reporting
-  results — see `scripts/dev/out/comp.log`.
+  and `DRI_PRIME=1` unless `SILL_NESTED_GPU=nvidia` is set, and sets both
+  `__GL_SYNC_TO_VBLANK=0` and `vblank_mode=0` so the compositor keeps
+  answering clients while the host display is off. Clients still pick their
+  own adapter (shell-host uses NVIDIA Vulkan either way). On the NVIDIA path
+  shell-host detects the condition and sends no blur region (host line
+  `blur: degraded`), so its surfaces stay visible with their tint.
+- **A screenshot costs one frame on the winit backend.** Every `grim`
+  capture logs `eglSwapBuffers: EGL_BAD_SURFACE ... is not current draw
+  surface` / `EGL_BAD_ALLOC` / `Failed to render frame` once, with or
+  without blur and on either GPU: the capture blits into its own buffer
+  before the window swap. It is harmless for the capture and unrelated to
+  F29.
 - **Do not run `cosmic-session` nested.** It hard-codes a full COSMIC
   component list (panel, power-key inhibitor, polkit agent, D-Bus service
   names, autostart entries) and will fight with the host session, restart

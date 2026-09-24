@@ -24,6 +24,8 @@ use wayland_protocols::ext::background_effect::v1::client::ext_background_effect
 use wayland_protocols::ext::background_effect::v1::client::ext_background_effect_surface_v1::ExtBackgroundEffectSurfaceV1;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1;
 use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
+use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_dmabuf_feedback_v1::ZwpLinuxDmabufFeedbackV1;
+use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
@@ -36,6 +38,10 @@ use keyboard_types::Modifiers;
 use smithay_client_toolkit::seat::pointer::cursor_shape::CursorShapeManager;
 use wayland_client::globals::GlobalList;
 
+use crate::blur_health::{
+    BlurHealth, CompositorFacts, CompositorKind, RenderVendor, blur_health, compositor_kind,
+    output_backend,
+};
 use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
 use crate::cursor::Cursor;
@@ -48,6 +54,7 @@ use crate::handle::RequestQueue;
 use crate::handlers::activation::ActivationRequest;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
 use crate::handlers::fractional::Fractional;
+use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
@@ -81,6 +88,10 @@ pub struct HostState {
     pub(crate) activation: Option<ActivationState>,
     pub(crate) fractional: Option<Fractional>,
     pub(crate) background_effect: Option<BackgroundEffect>,
+    /// The compositor's main render device, for `blur_health` (FINDINGS F29).
+    pub(crate) render_device: Option<RenderDevice>,
+    /// cosmic-comp or not, from the globals at bind time.
+    pub(crate) compositor_kind: CompositorKind,
     pub(crate) text_input: Option<TextInputManager>,
     pub(crate) cursor: Cursor,
     pub(crate) ime: Ime,
@@ -147,6 +158,10 @@ impl HostState {
             activation: ActivationState::bind(globals, &qh).ok(),
             fractional: Fractional::bind(globals, &qh).ok(),
             background_effect: BackgroundEffect::bind(globals, &qh).ok(),
+            render_device: RenderDevice::bind(globals, &qh).ok(),
+            compositor_kind: globals.contents().with_list(|list| {
+                compositor_kind(list.iter().map(|global| global.interface.as_str()))
+            }),
             text_input: TextInputManager::bind(globals, &qh).ok(),
             cursor: Cursor {
                 manager: CursorShapeManager::bind(globals, &qh).ok(),
@@ -188,11 +203,36 @@ impl HostState {
         }
     }
 
-    /// Whether the compositor can blur behind a surface at all.
+    /// Whether the compositor can blur behind a surface at all: it advertises blur, and it is
+    /// not a compositor known to lose blurred surfaces (FINDINGS F29).
     pub(crate) fn blur_supported(&self) -> Support {
-        self.background_effect
+        let advertised = self
+            .background_effect
             .as_ref()
-            .map_or(Support::Unsupported, |effect| effect.capabilities().blur)
+            .map_or(Support::Unsupported, |effect| effect.capabilities().blur);
+        match (advertised, self.blur_health()) {
+            (Support::Supported, BlurHealth::Renders) => Support::Supported,
+            (Support::Supported, BlurHealth::Breaks) | (Support::Unsupported, _) => {
+                Support::Unsupported
+            }
+        }
+    }
+
+    /// Whether advertised blur would render, from what is known about the compositor.
+    pub(crate) fn blur_health(&self) -> BlurHealth {
+        let names: Vec<String> = self
+            .outputs
+            .outputs()
+            .filter_map(|output| self.outputs.info(&output)?.name)
+            .collect();
+        blur_health(CompositorFacts {
+            kind: self.compositor_kind,
+            backend: output_backend(names.iter().map(String::as_str)),
+            vendor: self
+                .render_device
+                .as_ref()
+                .map_or(RenderVendor::Unknown, RenderDevice::vendor),
+        })
     }
 
     /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`
@@ -255,6 +295,15 @@ impl AsMut<BackgroundEffect> for HostState {
     }
 }
 
+impl AsMut<RenderDevice> for HostState {
+    fn as_mut(&mut self) -> &mut RenderDevice {
+        // Invariant: dmabuf feedback objects exist only when the global was bound.
+        self.render_device
+            .as_mut()
+            .expect("dmabuf feedback events imply a bound manager")
+    }
+}
+
 delegate_registry!(HostState);
 delegate_compositor!(HostState);
 delegate_output!(HostState);
@@ -276,5 +325,7 @@ delegate_dispatch!(HostState: [WpViewporter: ()] => Fractional);
 delegate_dispatch!(HostState: [WpViewport: ()] => Fractional);
 delegate_dispatch!(HostState: [ExtBackgroundEffectManagerV1: ()] => BackgroundEffect);
 delegate_dispatch!(HostState: [ExtBackgroundEffectSurfaceV1: ()] => BackgroundEffect);
+delegate_dispatch!(HostState: [ZwpLinuxDmabufV1: ()] => RenderDevice);
+delegate_dispatch!(HostState: [ZwpLinuxDmabufFeedbackV1: ()] => RenderDevice);
 // zwp_text_input_v3 is dispatched by `handlers::text_input` directly on `HostState`: sctk has no
 // helper to delegate to.

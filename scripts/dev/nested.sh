@@ -18,9 +18,10 @@
 #
 # Do NOT run cosmic-session nested: see scripts/dev/README.md.
 #
-# GPU: nested cosmic-comp (winit backend) can fail to create a GL/EGL
-# context on NVIDIA. Set SILL_NESTED_GPU=amd to force the Mesa (AMD iGPU)
-# EGL vendor and DRI_PRIME=1 as a fallback.
+# GPU: the compositor renders with Mesa (the AMD iGPU's EGL vendor, DRI_PRIME=1)
+# by default. On NVIDIA's EGL the winit backend loses every layer surface that
+# has a blur region (FINDINGS F29), so blur can only be seen on Mesa.
+# SILL_NESTED_GPU=nvidia keeps the system EGL vendor (NVIDIA here).
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -108,14 +109,19 @@ start_nested() {
     # With the host display in DPMS off (locked session, screen dark) the NVIDIA GL path
     # blocks nested cosmic-comp on vblank and it never answers a client (sill F/G6).
     "__GL_SYNC_TO_VBLANK=${NESTED_GL_SYNC_TO_VBLANK:-0}"
+    # Mesa's equivalent: without it a Mesa-rendering nested cosmic-comp blocks on the dark
+    # host display the same way and never answers a screenshot (F29 experiments).
+    "vblank_mode=${NESTED_VBLANK_MODE:-0}"
   )
 
-  if [ "${SILL_NESTED_GPU:-}" = "amd" ]; then
-    echo "nested.sh: SILL_NESTED_GPU=amd -> forcing Mesa EGL vendor + DRI_PRIME=1"
+  if [ "${SILL_NESTED_GPU:-amd}" = "amd" ]; then
+    echo "nested.sh: compositor on Mesa (AMD) EGL + DRI_PRIME=1 (SILL_NESTED_GPU=nvidia for NVIDIA)"
     env_args+=(
       "__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json"
       "DRI_PRIME=1"
     )
+  else
+    echo "nested.sh: SILL_NESTED_GPU=${SILL_NESTED_GPU} -> system EGL vendor; blurred layer surfaces vanish on NVIDIA (F29)"
   fi
 
   echo "nested.sh: starting cosmic-comp (log: $LOG_FILE)"
