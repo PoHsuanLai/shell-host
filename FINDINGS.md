@@ -629,3 +629,16 @@ clamp on each axis independently); `tests/dom.rs::content_size_measures_the_firs
 the same command 500ms later (after the growth) reports `"logical":{"width":160,"height":144}`
 — the fit lands, and re-fits, exactly as designed. `scripts/spike-accept.sh demo kwin-virtual a`
 and `c` still pass unchanged (`"pass": true` in both `spike/out/demo/kwin-virtual/{a,c}.json`).
+
+- **F39 A nested cosmic-comp whose EGL surface is lost runs away.** The instance the M1–M4 waves
+  shared (started on the NVIDIA GL path before F29 moved the default to Mesa, with
+  `__GL_SYNC_TO_VBLANK=0` and the host screen off) reached 64 GB resident plus 2.4 GB of swap
+  after 4.5 hours, growing about 9.5 MB/s at a full core with no client connected. comp.log
+  shows the mechanism: after a screenshot the winit backend's EGL window surface is lost
+  ("eglSwapBuffers: EGL_BAD_SURFACE", then "eglCreatePlatformWindowSurfaceEXT: EGL_BAD_ALLOC",
+  "Failed to render frame ... The context has been lost, it needs to be recreated"), the
+  compositor retries the surface on every frame, each failed attempt leaks, and with vblank
+  sync off nothing throttles the loop. This is cosmic-comp/smithay behaviour, not ours.
+  `scripts/dev/nested.sh` now starts a watchdog that kills the compositor past
+  `NESTED_RSS_MAX_MB` (default 4096) and logs it; `stop` also stops the watchdog. The Mesa
+  default (F29) avoids the trigger. A cosmic-comp report belongs with the F29 repro.

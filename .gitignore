@@ -5,3 +5,5 @@
 /scripts/dev/out/
 /scripts/dev/.nested-env
 /spike/out
+# cosmic-comp writes its own state into the seeded config dir
+scripts/dev/xdg-config/cosmic/com.system76.CosmicComp/
