@@ -6,8 +6,9 @@
 //! - A press is preceded by a synthesized `PointerMove` to the same point, because a surface
 //!   under a still pointer may never have received a motion (cosmic-comp #2230), and Blitz
 //!   resolves the press target from its hover state.
-//! - Leaving a surface is `clear_hover()` on the document (the caller's effect) plus a move to
-//!   (-1, -1) so `:hover` styles and pointer-leave handlers settle.
+//! - Leaving a surface is a move to (-1, -1), which unhovers through Blitz's own hover change
+//!   (so `mouseleave` handlers run), then `clear_hover()` as a backstop; both are the caller's
+//!   effect (`SurfaceDocument::pointer_left`).
 //! - A wheel with `value120` (or legacy `discrete`) steps is `Lines`; a continuous source
 //!   (touchpad, the palmrest virtual touchpad) is `Pixels`. Wayland's axis sign is the inverse
 //!   of the DOM's, so both are negated.
@@ -157,7 +158,7 @@ pub fn release_event(
     UiEvent::PointerUp(pointer_event(pos, button, after, mods))
 }
 
-/// The event sent after `clear_hover()` when the pointer leaves a surface.
+/// The event sent when the pointer leaves a surface, before `clear_hover()`.
 pub fn leave_event(mods: Modifiers) -> UiEvent {
     move_event(PointerPos::OUTSIDE, MouseEventButtons::None, mods)
 }

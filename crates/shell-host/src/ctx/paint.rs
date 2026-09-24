@@ -236,7 +236,7 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             // Resolve may have asked for a redraw itself; continuation is decided on the
             // callback by is_animating, or the machine never idles (S1 finding 4).
             surface.shell.take_redraw();
-            FrameInput::Presented(surface.document.animation())
+            FrameInput::Presented(surface.pacing())
         }
         Err(_) => {
             surface.stats.skipped();

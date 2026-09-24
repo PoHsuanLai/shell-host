@@ -22,8 +22,9 @@ cargo run --release -p shell-host --features debug-inject --example demo_bar -- 
 ```
 
 `demo_bar` takes `--with-dock` (both surfaces in one process) and `--exclusive=N`, and
-`DEMO_BLUR=1` blurs behind the bar; `demo_dock` takes `--mode=transform|width` and
-`--layer=bottom`.
+`DEMO_BLUR=1` blurs behind the bar; `demo_dock` takes `--mode=transform|width|tick` and
+`--layer=bottom`. `--mode=tick` magnifies from the component itself, once per compositor frame,
+through the frame hook (`use_frame_tick` with a `FrameDrive` held only while the tiles move).
 
 ### On a nested KWin (no effect on your session)
 
@@ -53,7 +54,8 @@ scripts/dev/nested.sh stop
 
 `scripts/spike-accept.sh demo [<compositor>] <a|b|c|f|g>` re-runs the Milestone 0 items with
 their thresholds against the demos: a (the bar reserves 32 px), b (blur), c (dock sweep once
-per frame callback, zero idle wakeups, no blocking when covered), f (fractional scale maps 1:1),
+per frame callback in the transform, width and tick modes, one tick per callback in tick mode, zero idle
+wakeups, no blocking when covered), f (fractional scale maps 1:1),
 g (two surfaces, one device). `<compositor>` is `kwin-virtual` (default, nested),
 `kwin-virtual@<scale>`, or `kwin` (the live session; surfaces show for a few seconds). Results
 land in `spike/out/demo/<compositor>/<item>.{log,json,png}`; exit 0 means the item passed.

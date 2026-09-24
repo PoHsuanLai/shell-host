@@ -2,7 +2,7 @@
 //! asked for (`timers::TimerRequest`, FINDINGS F9). Each surface has at most one watchdog; the
 //! key-repeat timer is one per host.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use calloop::timer::{TimeoutAction, Timer};
 
@@ -59,9 +59,13 @@ fn arm_watchdog<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, wait: Duration)
 
 fn watchdog_fired<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     ctx.watchdogs.remove(&id);
+    let at = ctx.state.clock.instant_at(Instant::now());
     if let Some(surface) = ctx.state.surfaces.get_mut(&id) {
         surface.watchdog = None;
         surface.stats.watchdog_fired();
+        // The expiry stands in for the callback that never came, so a driven surface still
+        // ticks, at the watchdog's pace.
+        surface.frame_due(at);
     }
     ctx.state.frame_input(id, FrameInput::WatchdogFired);
 }

@@ -17,7 +17,7 @@ use calloop::{LoopHandle, RegistrationToken};
 use tokio::sync::oneshot;
 
 use crate::config::{AdapterPref, Backend};
-use crate::debug::FrameStats;
+use crate::debug::{FrameStats, SurfaceName};
 use crate::error::Result;
 use crate::frame::FrameInput;
 use crate::handlers::activation::ActivationRequest;
@@ -122,14 +122,35 @@ impl<M: 'static> HostCtx<M> {
         answer
     }
 
-    /// Surface `id`'s frame statistics over the samples since the last debug `stats` report;
-    /// `None` for an unknown id.
+    /// Surface `id`'s frame statistics: cumulative counters, and percentiles over the samples
+    /// since the last [`HostCtx::take_stats`]; `None` for an unknown id. The one source of
+    /// frame statistics: the `debug-inject` stdin `stats` command prints `take_stats`.
     pub fn stats(&self, id: SurfaceId) -> Option<FrameStats> {
         let adapter = self.state.adapter_label();
         self.state
             .surfaces
             .get(&id)
             .map(|surface| surface.report(&adapter))
+    }
+
+    /// [`HostCtx::stats`], then start a new sample window, so the next report covers only the
+    /// time since this one (counters stay cumulative, FINDINGS F15).
+    pub fn take_stats(&mut self, id: SurfaceId) -> Option<FrameStats> {
+        let stats = self.stats(id)?;
+        if let Some(surface) = self.state.surfaces.get_mut(&id) {
+            surface.stats.drain();
+        }
+        Some(stats)
+    }
+
+    /// The surface a debug command would address as `name` (the layer namespace, the toplevel
+    /// app id, or `<parent>/popup`); the first match when several share a name.
+    pub fn surface_named(&self, name: &SurfaceName) -> Option<SurfaceId> {
+        self.state
+            .surfaces
+            .values()
+            .find(|surface| surface.name == *name)
+            .map(|surface| surface.id)
     }
 
     /// Set every document's `prefers-color-scheme`.

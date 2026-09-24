@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use calloop::ping::make_ping;
 use shell_host::ctx::flush::{self, Flush, ORDER, Phase};
 use shell_host::debug::{
-    CommandError, DebugCommand, FrameCounters, Inject, Percentiles, StatsWindow, SurfaceName,
+    CommandError, DebugAction, DebugCommand, FrameCounters, Percentiles, StatsWindow, SurfaceName,
     parse_command, percentiles,
 };
 use shell_host::handle::RequestQueue;
@@ -250,6 +250,7 @@ fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
             commits: 3,
             skipped: 0,
             watchdog_fired: 1,
+            ticks: 0,
         },
         "counters are cumulative"
     );
@@ -266,17 +267,17 @@ fn debug_commands_address_surfaces_by_name() {
         ("quit\n", Ok(DebugCommand::Quit)),
         (
             "bar hover 40 16",
-            Ok(on("bar", Inject::Hover(Point { x: 40, y: 16 }))),
+            Ok(on("bar", DebugAction::Hover(Point { x: 40, y: 16 }))),
         ),
         (
             "dock click 60 64",
-            Ok(on("dock", Inject::Click(Point { x: 60, y: 64 }))),
+            Ok(on("dock", DebugAction::Click(Point { x: 60, y: 64 }))),
         ),
-        ("dock leave", Ok(on("dock", Inject::Leave))),
-        ("bar/popup stats", Ok(on("bar/popup", Inject::Stats))),
+        ("dock leave", Ok(on("dock", DebugAction::Leave))),
+        ("bar/popup stats", Ok(on("bar/popup", DebugAction::Stats))),
         (
             "bar capture /tmp/f.png",
-            Ok(on("bar", Inject::Capture("/tmp/f.png".into()))),
+            Ok(on("bar", DebugAction::Capture("/tmp/f.png".into()))),
         ),
         ("   ", Err(CommandError::Empty)),
         ("leave", Err(CommandError::Unknown("leave".into()))),

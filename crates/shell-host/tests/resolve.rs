@@ -9,7 +9,7 @@ use shell_host::layer::{Extent, LayerSize};
 use shell_host::region::{ElementId, Rect, RegionSpec, RoundedRect};
 use shell_host::resolve::{Change, Resolved, Tracked, resolve, resolve_popup_anchor};
 use shell_host::scale::Size;
-use shell_host::{Adjust, Edge, Grab, PopupAnchor, PopupConfig, PopupSize};
+use shell_host::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize};
 
 const BUTTON: Rect = Rect {
     x: 10,
@@ -153,6 +153,7 @@ fn a_popup_anchored_to_an_element_falls_back_to_its_placement_rect_until_laid_ou
         gravity: Edge::Top,
         adjust: Adjust::NONE,
         grab: Grab::Ungrabbed,
+        offset: Offset::ZERO,
     };
     let placement = Rect {
         x: 0,

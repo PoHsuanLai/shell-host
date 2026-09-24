@@ -16,7 +16,7 @@ use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 use keyboard_types::Modifiers;
 use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, FirstMouseOptIn, SurfaceDocument};
+use shell_host::dom::document::{DocumentEnv, FirstMouseOptIn, Polled, SurfaceDocument};
 use shell_host::dom::fonts::SharedFonts;
 use shell_host::dom::net::LocalNet;
 use shell_host::dom::shell_provider::HostShellProvider;
@@ -161,8 +161,7 @@ fn leaving_clears_hover() {
         "precondition: icon0 is hovered before leaving"
     );
 
-    doc.clear_hover();
-    feed(&mut doc, [pointer::leave_event(Modifiers::empty())]);
+    doc.pointer_left(Modifiers::empty());
 
     assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
 }
@@ -275,4 +274,65 @@ fn the_activating_click_is_swallowed_unless_opted_in() {
         FirstMouseOptIn::Default,
         "an ordinary element does not opt in"
     );
+}
+
+fn leave_counter() -> Element {
+    let mut left = use_signal(|| 0u32);
+    rsx! {
+        style { "{RESET}{CSS}" }
+        div { id: "dock", onmouseleave: move |_| left += 1,
+            div { id: "icon0", class: "icon" }
+        }
+        p { id: "left", "left {left}" }
+    }
+}
+
+fn text_of(doc: &mut SurfaceDocument, selector: &str) -> String {
+    let id = node_id(doc, selector);
+    doc.dioxus()
+        .inner
+        .borrow()
+        .get_node(id)
+        .expect("node")
+        .text_content()
+}
+
+/// Leaving the surface runs the hovered chain's `mouseleave` handlers, so a component can see
+/// the hover end (the dock drops its `FrameDrive` there): the leave move goes first and
+/// Blitz's own hover change dispatches them; `clear_hover()` after it finds nothing left.
+#[test]
+fn leaving_the_surface_runs_mouseleave_handlers() {
+    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+    let env = DocumentEnv {
+        shell: Arc::new(HostShellProvider::new(
+            SurfaceId(1),
+            ping,
+            SharedSelection::default(),
+        )),
+        fonts: SharedFonts::system().for_document(),
+        net: Arc::new(LocalNet),
+        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+    };
+    let mut doc = SurfaceDocument::build(Root::new(leave_counter), env);
+    doc.resolve(0.0);
+    let icon = node_id(&mut doc, "#icon0");
+    let pos = center(&mut doc, icon);
+    feed(
+        &mut doc,
+        [pointer::move_event(
+            pos,
+            MouseEventButtons::None,
+            Modifiers::empty(),
+        )],
+    );
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    doc.poll(&mut cx);
+    assert_eq!(text_of(&mut doc, "#left"), "left 0");
+
+    let left = doc.pointer_left(Modifiers::empty());
+    doc.poll(&mut cx);
+
+    assert_eq!(left, Polled::Changed);
+    assert_eq!(text_of(&mut doc, "#left"), "left 1");
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
 }

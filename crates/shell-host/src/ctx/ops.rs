@@ -45,6 +45,7 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
             }
         }
         Request::Close(id) => close(ctx, id, CloseReason::Requested),
+        Request::Redraw(id) => ctx.state.frame_input(id, FrameInput::Invalidate),
         Request::CopyText { text, .. } => {
             let qh = ctx.state.qh.clone();
             claim_selection(&mut ctx.state, &qh, text);

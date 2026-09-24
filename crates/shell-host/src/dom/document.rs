@@ -44,6 +44,9 @@ impl std::fmt::Debug for DocumentEnv {
     }
 }
 
+/// Renders one `poll` may run before it yields to the rest of the flush.
+const MAX_POLLS: u32 = 8;
+
 /// Whether polling changed the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Polled {
@@ -84,11 +87,30 @@ impl SurfaceDocument {
         SurfaceDocument { doc, head }
     }
 
-    /// Run ready Dioxus work with `cx`'s waker, then apply queued head elements.
+    /// Run ready Dioxus work with `cx`'s waker until none is left, then apply queued head
+    /// elements.
+    ///
+    /// `DioxusDocument::poll` renders and returns as soon as the `VirtualDom` has dirty work,
+    /// without the `VirtualDom` keeping `cx`'s waker: only a poll that finds nothing to do
+    /// leaves it registered. So this polls until one finds nothing (FINDINGS F33); stopping
+    /// after a render would lose the next wake of any task (a frame tick, a `use_watch`
+    /// value) and leave the document unpolled until something else woke it. A document still
+    /// busy after `MAX_POLLS` wakes itself and is polled again on the next flush.
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Polled {
         let waker = cx.waker().clone();
-        let task_cx = Context::from_waker(&waker);
-        let doc_changed = self.doc.poll(Some(task_cx));
+        let mut doc_changed = false;
+        let mut settled = false;
+        for _ in 0..MAX_POLLS {
+            if self.doc.poll(Some(Context::from_waker(&waker))) {
+                doc_changed = true;
+            } else {
+                settled = true;
+                break;
+            }
+        }
+        if !settled {
+            waker.wake_by_ref();
+        }
         let head_changed = apply_head(&mut self.doc, &self.head);
         if doc_changed || head_changed {
             Polled::Changed
@@ -105,6 +127,22 @@ impl SurfaceDocument {
     /// Feed one input event.
     pub fn handle_event(&mut self, event: UiEvent) {
         self.doc.handle_ui_event(event);
+    }
+
+    /// The pointer left the surface: the leave move (`input::pointer::leave_event`) first, so
+    /// Blitz's own hover change dispatches `mouseout`/`mouseleave` to the hovered chain and a
+    /// component can see the hover end; then `clear_hover()` as a backstop for anything the
+    /// move left hovered. `Polled::Changed` if something was hovered before.
+    pub fn pointer_left(&mut self, mods: keyboard_types::Modifiers) -> Polled {
+        let hovered = self.doc.inner().get_hover_node_id().is_some();
+        self.doc
+            .handle_ui_event(crate::input::pointer::leave_event(mods));
+        self.clear_hover();
+        if hovered {
+            Polled::Changed
+        } else {
+            Polled::Unchanged
+        }
     }
 
     /// `clear_hover()`; `Polled::Changed` if something was hovered.

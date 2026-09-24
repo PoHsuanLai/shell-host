@@ -5,12 +5,16 @@
 //! `Sim` plays host and compositor at once: time advances in milliseconds, the host flushes
 //! after every event exactly as `HostCtx::flush` does (step `Flush`, render, feed `Presented`),
 //! and the watchdog is a single deadline armed and cancelled by the machine's `TimerCmd`s.
+//! Callbacks go through the surface's `FrameTicks` (the frame hook, `tick`), and every frame,
+//! callback and tick is recorded in a `StatsWindow`, the one source of `HostCtx::stats`.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use shell_host::debug::{FrameCounters, StatsWindow};
 use shell_host::frame::{
     Animation, FrameAction, FrameInput, FrameState, Pace, RenderCmd, TimerCmd, step,
 };
+use shell_host::tick::{FrameTicks, HostInstant, Ticked, pacing};
 
 /// A surface, the machine driving it, and what happened to it.
 struct Sim {
@@ -20,7 +24,11 @@ struct Sim {
     watchdog_at: Option<u64>,
     /// The frame in flight, if any, by the time it was presented.
     in_flight: Option<u64>,
+    /// The document's own animation; the machine is told `pacing(document, drive)`.
     animation: Animation,
+    ticks: FrameTicks,
+    stats: StatsWindow,
+    origin: Instant,
     frames: u32,
     callbacks: u32,
     arms: u32,
@@ -37,6 +45,9 @@ impl Sim {
             watchdog_at: None,
             in_flight: None,
             animation,
+            ticks: FrameTicks::default(),
+            stats: StatsWindow::default(),
+            origin: Instant::now(),
             frames: 0,
             callbacks: 0,
             arms: 0,
@@ -70,7 +81,12 @@ impl Sim {
             );
             self.frames += 1;
             self.in_flight = Some(self.now_ms);
-            self.feed(FrameInput::Presented(self.animation));
+            let now = self.origin + Duration::from_millis(self.now_ms);
+            self.stats.presented(Duration::from_micros(900), now);
+            self.feed(FrameInput::Presented(pacing(
+                self.animation,
+                self.ticks.drive(),
+            )));
         }
     }
 
@@ -83,7 +99,13 @@ impl Sim {
     fn callback(&mut self) {
         if self.in_flight.take().is_some() {
             self.callbacks += 1;
-            self.feed(FrameInput::Callback(self.animation));
+            self.stats.callback();
+            let at = HostInstant(Duration::from_millis(self.now_ms));
+            let (animation, ticked) = self.ticks.frame_due(self.animation, at);
+            if ticked == Ticked::Ticked {
+                self.stats.ticked();
+            }
+            self.feed(FrameInput::Callback(animation));
             self.flush();
         }
     }
@@ -206,4 +228,100 @@ fn callbacks_while_occluded_never_trip_the_watchdog() {
     assert_eq!(sim.callbacks, 300);
     assert_eq!(sim.frames, 301, "one frame per callback, plus the first");
     assert_eq!(sim.state.backoff, Duration::from_millis(50));
+}
+
+/// The frame hook (`SurfaceHandle::drive_frames`, `use_frame_tick`): a drive held over a
+/// static document renders once per callback and ticks once per callback; dropping it lets the
+/// frame in flight settle quietly, and after that nothing renders, ticks or arms a timer.
+#[test]
+fn a_held_drive_ticks_once_per_callback_and_stops_when_dropped() {
+    const N: u64 = 120;
+    let mut sim = Sim::new(Animation::Stopped);
+    let drive = sim.ticks.hold();
+    // `drive_frames` queues a redraw: an idle surface has no callback coming to tick on.
+    sim.invalidate();
+    for n in 1..=N {
+        sim.advance(vsync(n));
+        sim.callback();
+    }
+    assert_eq!(sim.callbacks, 120);
+    assert_eq!(sim.ticks.count(), N, "one tick per callback");
+    assert_eq!(sim.frames, 121, "one frame per callback, plus the first");
+    assert_eq!(sim.fired, 0);
+
+    drop(drive);
+    let (frames, arms) = (sim.frames, sim.arms);
+    // The frame presented before the drop is called back once more, without a tick.
+    sim.advance(vsync(N + 1));
+    sim.callback();
+    assert_eq!(
+        sim.state,
+        FrameState::NEW,
+        "idle after the settling callback"
+    );
+    // Five seconds on: nothing is in flight, so no callback comes and nothing happens.
+    for n in N + 2..N + 2 + 300 {
+        sim.advance(vsync(n));
+        sim.callback();
+    }
+    assert_eq!(sim.ticks.count(), N, "no tick after the drop");
+    assert_eq!(sim.frames, frames, "no frame after the drop");
+    assert_eq!(sim.arms, arms, "no timer after the drop");
+    assert_eq!(sim.watchdog_at, None);
+}
+
+/// A drive taken while the document is already animating adds nothing: the ticks follow the
+/// callbacks either way, and the run's `dt` is the callback spacing.
+#[test]
+fn ticks_follow_callbacks_while_the_document_animates() {
+    let mut sim = Sim::new(Animation::Running);
+    sim.invalidate();
+    for n in 1..=60 {
+        sim.advance(vsync(n));
+        sim.callback();
+    }
+    assert_eq!(sim.ticks.count(), 60);
+    assert_eq!(u64::from(sim.callbacks), sim.ticks.count());
+    // A static document with no drive never ticks.
+    let mut still = Sim::new(Animation::Stopped);
+    still.invalidate();
+    still.advance(vsync(1));
+    still.callback();
+    assert_eq!(still.ticks.count(), 0);
+    assert_eq!(still.callbacks, 1);
+}
+
+/// The stats path: what the host records per frame, callback and tick is what
+/// `HostCtx::stats` reports (cumulative counters), and taking the stats
+/// (`HostCtx::take_stats`) starts a new sample window without touching the counters.
+#[test]
+fn the_stats_window_counts_what_the_sweep_did() {
+    let mut sim = Sim::new(Animation::Stopped);
+    let drive = sim.ticks.hold();
+    sim.invalidate();
+    for n in 1..=30 {
+        sim.advance(vsync(n));
+        sim.callback();
+    }
+    drop(drive);
+    sim.advance(vsync(31));
+    sim.callback();
+    let want = FrameCounters {
+        frames: u64::from(sim.frames),
+        callbacks: u64::from(sim.callbacks),
+        commits: u64::from(sim.frames),
+        skipped: 0,
+        watchdog_fired: 0,
+        ticks: sim.ticks.count(),
+    };
+    assert_eq!(sim.stats.counters(), want);
+    assert_eq!((want.frames, want.callbacks, want.ticks), (31, 31, 30));
+    let (_, interval, samples) = sim.stats.drain();
+    assert_eq!(samples, 31);
+    assert!(
+        (16_000..=17_000).contains(&interval.p50_us),
+        "presents are one refresh apart: {interval:?}"
+    );
+    assert_eq!(sim.stats.peek().2, 0, "a new window after taking");
+    assert_eq!(sim.stats.counters(), want, "counters stay cumulative");
 }

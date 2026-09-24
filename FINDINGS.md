@@ -279,3 +279,161 @@ the host's UA sheet alone is enough for hit-testing into in-flow content (S1 fin
   the user's behalf; `demo kwin <item>` should be re-run with the screen on.
 - `probe_toplevel` is kept as a self-contained sctk example (no `spike` feature): the host's
   `ToplevelConfig` has no maximize, and the items need an ordinary other-client window.
+
+## sill gaps (branch `sill-gaps`, 2026-09-24)
+
+The host gaps sill's interface freeze reported (sill FINDINGS G1-G5). G1, G3 and G5 are built;
+G2 and G4 are designed here and not built. Numbered after F28.
+
+### F29. G1: debug injection returns its results; `HostCtx::stats` is the one stats source
+
+`inject::apply` printed stats and capture results to stdout and found surfaces by name inside
+the module, so a shell could not use it except through stdin. Now:
+
+- `HostCtx::inject(&mut self, SurfaceId, Inject) -> Result<Injected>` (feature
+  `debug-inject`), `Inject::{Pointer { at: Point }, Click { at: Point }, Leave, Capture { path:
+  PathBuf }}`, `Injected::{Done, Captured { path: PathBuf, size: Size }}` (`size` in physical
+  px, the buffer size). Nothing prints. An unknown id is `HostError::NoSurface`; a capture before
+  the first present is `HostError::Render`. `Click` is one variant more than sill asked for: the
+  stdin protocol has `click` and the demos' acceptance uses it, and a click is not a sequence of
+  `Pointer`s.
+- Frame statistics are not an injection: `HostCtx::stats(&self, SurfaceId)` (unchanged,
+  non-draining, F15) is the source, and `HostCtx::take_stats(&mut self, SurfaceId)` is it plus a
+  new sample window. `HostCtx::surface_named(&SurfaceName) -> Option<SurfaceId>` is the lookup
+  the module kept to itself.
+- The stdin protocol moved to `inject::stdin` (`install`, `apply`) and maps each line onto the
+  above; its output is byte-for-byte what the acceptance script parsed before. The command
+  language's per-surface action enum was renamed `debug::Inject` -> `debug::DebugAction` so the
+  typed API could take the name.
+- Tests: `tests/frame.rs::the_stats_window_counts_what_the_sweep_did` (what the flush records is
+  what `stats` reports; taking starts a new window, counters stay cumulative) and
+  `tests/headless.rs::inject_capture_writes_a_png_and_returns_its_size`. The headless test
+  covers `inject::write_capture`, the writer `Inject::Capture` calls after its offscreen render;
+  the render itself needs a presenter, which needs a compositor, so it is covered by acceptance
+  item f (`bar capture`, which now goes through `HostCtx::inject`; passes on kwin-virtual).
+
+### F30. G3: `PopupConfig::offset`
+
+`PopupConfig` gained `offset: Offset { dx: Px, dy: Px }` (logical px, `Offset::ZERO` =
+`Default`). `positioner_params` translates the anchor rectangle by it (`popup::offset_rect`), so
+the offset follows `PopupAnchor::Element`, `SurfaceOp::Reposition` and flips without new wire
+code; `xdg_positioner.set_offset` would do the same unflipped, and was not used so that
+`PositionerParams` and its wire mapping stay as they were. A rectangle moved past the parent's
+origin is sent as is (xdg-shell has no bounds error for the anchor rect). Table rows in
+`tests/positioner.rs`: the title menu at (-8, +6), a status menu at (+8, +6), a negative
+origin. **Breaking for literals**: every `PopupConfig { .. }` needs `offset` (sill's
+`bar::popup::menu_popup`; its `menu_offset` workaround can go).
+
+### F31. G5: the frame hook (`tick.rs`)
+
+A component could not observe `wl_surface.frame` callbacks, so sill's dock drove its `Frame`
+from a timer. Now, per surface:
+
+- `SurfaceHandle::drive_frames(&self) -> FrameDrive`: while any drive is alive the frame machine
+  is told `Animation::Running` (`tick::pacing`), so the surface renders once per callback even
+  with nothing changed; taking one queues `Request::Redraw` (an idle surface has no callback
+  coming). Dropping it stops the requests: the frame in flight is called back once more,
+  quietly, and the surface idles. **Holding a drive with no animation is the one way to get
+  non-zero idle frames**; a component takes it when its motion starts and drops it when the
+  motion settles or the hover that started it ends.
+- `use_frame_tick() -> ReadSignal<FrameTick>` and `SurfaceHandle::next_frame(&self) -> impl
+  Future<Output = FrameTick>`; `FrameTick { at: HostInstant, dt: Duration }`, `HostInstant` being
+  the host clock (the timeline CSS resolves on). A tick fires once per presented frame, at its
+  callback, while the document is animating or a drive is held; a watchdog expiry standing in for
+  a missing callback (cosmic-comp #2777) ticks too. `dt` is zero on the first tick of a run, so
+  nothing integrates over an idle gap. `FrameCounters::ticks` counts them (serde default 0).
+- Tests: `tick.rs` (pacing table, `dt`, drive counting, the waiting future),
+  `tests/frame.rs::a_held_drive_ticks_once_per_callback_and_stops_when_dropped` (120 ticks over
+  120 callbacks, then none, no frame and no timer after the drop), and
+  `ctx::spawn::tests::use_frame_tick_renders_each_published_tick` (the hook re-renders a real
+  document per tick through its own task, and not without a drive). `demo_dock --mode=tick`
+  magnifies from the component through the hook, and item c runs it next to the CSS modes.
+  kwin-virtual at 60 Hz, 1 s sweep then leave: tick mode 77 frames / 77 callbacks / 76 ticks,
+  work p95 1.1 ms; 5 s idle after the leave 0 frames, 0 commits, 0 main-thread wakeups
+  (transform 72/72, width 72/72, both 0 idle). Items a and f pass unchanged.
+
+### F32. Pointer leave never reached `mouseleave` handlers
+
+`handlers/pointer.rs` (and the debug `leave`) called `clear_hover()` and then sent the leave move
+to (-1, -1). `clear_hover` unhovers without dispatching anything, so the move found no hovered
+node, fell back to the root element, and no `mouseleave`/`mouseout` ever ran: a component could
+not see the pointer leave its surface, which the dock needs to drop its drive. Both paths now call
+`SurfaceDocument::pointer_left`, which sends the move first (Blitz's own hover change dispatches
+the leave events to the old chain) and keeps `clear_hover()` as a backstop.
+`tests/pointer.rs::leaving_the_surface_runs_mouseleave_handlers` fails with the old order ("left
+0") and passes with the new.
+
+### F33. A document stopped hearing its tasks after any render
+
+`DioxusDocument::poll` returns as soon as the `VirtualDom` has dirty work, rendering it, and the
+`VirtualDom` keeps the poll's waker only when a poll finds nothing to do. `SurfaceDocument::poll`
+polled once per wake, so after any poll that rendered, the next wake of a Dioxus task (a
+`use_watch` value, a frame tick) reached nobody and the document sat unpolled until something
+else (input, a configure) woke it. The frame hook made it visible: on kwin-virtual,
+`demo_dock --mode=tick` magnified the first tiles of the sweep, then froze with its drive held
+(300 frames in the 5 s idle), because the effect that drops the drive never ran again.
+`SurfaceDocument::poll` now polls until a poll finds nothing (at most 8 renders, then it wakes
+itself so the next flush continues). `ctx::spawn::tests::use_frame_tick_renders_each_published_tick`
+polls only when the waker fired and fails at the second tick with the old single poll.
+
+### F34. G2 (designed, not built): minimize rectangles need the host's connection
+
+design/10 §10.3.10 sets each dock tile as its app's minimize target
+(`zcosmic_toplevel_manager_v1.set_rectangle(handle, wl_surface, x, y, w, h)`). The toplevel
+handle lives on sill's `cosmic_wl` connection and the dock's `wl_surface` on shell-host's; a
+protocol object cannot cross connections, and shell-host may not name COSMIC protocols
+(`scripts/check-boundary.sh`), so a host-side `set_minimize_rect` op would either break
+portability or need a generic "foreign toplevel" abstraction the host has no other use for.
+
+The API to add is an export of the host's own connection and the surface on it:
+
+```rust
+/// The dock's `wl_surface` and the connection it lives on, for a client protocol the host does
+/// not speak. Valid until the surface is hidden or closed (a hidden surface's role is rebuilt
+/// with a new `wl_surface`): re-export on `HostEvent::SurfaceMapped { id }` (new event).
+pub struct WlSurfaceExport {
+    pub connection: wayland_client::Connection,
+    pub surface: wayland_client::protocol::wl_surface::WlSurface,
+    pub generation: u32,
+}
+impl HostCtx<M> { pub fn wl_surface(&self, id: SurfaceId) -> Option<WlSurfaceExport>; }
+impl SurfaceHandle { pub fn wl_surface(&self) -> Option<WlSurfaceExport>; }
+```
+
+sill's `cosmic_wl` thread then creates its own `EventQueue` on the exported `Connection`
+(wayland-client allows any number of queues per connection, each dispatched on its own thread),
+binds the toplevel manager there, and calls `set_rectangle` with the exported surface; both
+objects live on one connection. The rectangle is surface-local logical px, which the dock gets
+from `SurfaceDocument::element_rect` of the tile. Costs: sill stops opening a second connection
+(or keeps it for everything else and binds only the manager on the shared one), and must redo
+the rectangles after a hide/show. Nothing in shell-host changes beyond the two accessors and the
+mapped event.
+
+### F35. G4 (designed, not built): drag and drop into shell surfaces
+
+`handlers/data_device.rs` follows the selection only; `wl_data_device.enter/motion/leave/drop`
+are ignored, so file drops on dock tiles and spring-loading (design/10 §10.3.8) have no event
+source. The API to add:
+
+```rust
+/// Which drops an element takes: the host answers `wl_data_offer.accept`/`set_actions` on every
+/// motion from the element under the pointer, synchronously (a round trip through a component
+/// would miss the motion's serial), like `data-first-mouse`.
+/// Markup: `data-drop-accept="text/uri-list text/plain"`, `data-drop-action="copy|move|ask"`.
+pub enum DropEvent {
+    Enter { at: Point, mimes: Vec<String> },
+    Motion { at: Point, over: Option<ElementId> },
+    Leave,
+    Drop { at: Point, over: Option<ElementId>, payload: DropPayload },
+}
+pub enum DropPayload { Uris(Vec<PathBuf>), Text(String), Refused }
+/// The latest drag-and-drop event over this surface; `None` outside a drag.
+pub fn use_drop_event() -> ReadSignal<Option<DropEvent>>;
+```
+
+The payload is read like the clipboard (F22): `receive` on the accepted MIME, the pipe read on a
+helper thread with a timeout, `wl_data_offer.finish` after, and `Drop` delivered when the read
+completes (`Refused` on timeout or an unaccepted element). Spring-loading stays in sill's dock
+machine (`DndMotion` carries `over`; the dwell timer is the machine's). The drag source side
+(dragging a tile out of the dock) is a separate `SurfaceHandle::start_drag(mimes, icon)` and not
+part of G4.

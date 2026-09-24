@@ -12,14 +12,14 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | Module | Implements | State |
 | --- | --- | --- |
 | `host.rs` | `Host<M>`: `connect`, `handle`, `run`; plan "Event loop" (calloop, `run(None)`, tokio runtime entered) | effects |
-| `ctx.rs` | `HostCtx<M>`: `outputs`, `spawn_layer`, `spawn_toplevel`, `close`, `set_visibility`, `apply`, `activation_token`, `stats`, `set_color_scheme`, `exit` | effects |
+| `ctx.rs` | `HostCtx<M>`: `outputs`, `spawn_layer`, `spawn_toplevel`, `close`, `set_visibility`, `apply`, `activation_token`, `stats` (the one source of frame statistics), `take_stats`, `surface_named`, `set_color_scheme`, `exit` | effects |
 | `ctx/flush.rs` | the flush after every dispatch, plan "Event loop"; `ORDER` = `PollWoken`, `ApplyRequests`, `StepFrames`, `ArmTimers`, `FlushConnection` (see "Flush order" below); the `Flush` trait is the seam `tests/core.rs` records the order through | effects |
 | `ctx/spawn.rs` | building roles (layer, toplevel, popup) unmapped, mapping them, and the surface's document with its `SurfaceHandle` provided as a root context before the first build | effects |
 | `ctx/ops.rs` | applying queued requests: `SurfaceOp`s, popups, closes, `CopyText` and Blitz's own copies (`claim_copied`), activation tokens, hide/show (a hidden surface's role is rebuilt unmapped) | effects |
 | `ctx/paint.rs` | phase 3: presenter on first use (the one device, validated by first present, else shm), geometry follow, render; the only place regions are sent (`send_regions`, change-detected by `resolve::Tracked`) | effects |
 | `ctx/timer.rs` | phase 4: arming and cancelling watchdogs and key repeat from `TimerRequest`s | effects |
 | `host_handle.rs` | `HostHandle<M>`: `send`, `apply`, `close`, `exit` from any thread | effects |
-| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint" | effects |
+| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31) | effects |
 | `bridge.rs` | `use_watch` (plan: shared data on `tokio::sync::watch`) | effects |
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
@@ -35,7 +35,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | --- | --- | --- |
 | `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, S1 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
 | `toplevel.rs` | `ToplevelConfig`, `Decorations`, `Activation`; design/20 "All apps are xdg toplevels" | pure |
-| `popup.rs` | S2: `PopupConfig`, positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
+| `popup.rs` | S2: `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
 | `placement.rs` | `PopupPlacement` (anchor rect and size S2's config does not carry, FINDINGS F4) | pure (data) |
 | `region.rs` | S2: `RegionSpec`, `rounded_strips`; design/10 §10.3.12 | pure |
 | `resolve.rs` | `RegionSpec` -> strips after layout; `Tracked`, what was last sent, so only a changed region is recommitted; design/10 §10.3.12 "recomputed on every frame whose pill rect changed" | pure |
@@ -50,10 +50,12 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | Module | Implements | State |
 | --- | --- | --- |
 | `frame.rs` | plan "Frame machine" (Idle/Dirty/InFlight/InFlightDirty, watchdog 50..1000 ms); S1 findings 3, 4; cosmic-comp #2777; design/10 §10.7 "the watchdog applies" | pure |
+| `tick.rs` | the frame hook (design/10 §10.4's `Frame`): `FrameTicks` per surface, `FrameDrive`, `FrameTick`, `HostInstant`; `pacing` (animating or driven) and `tick_after` are pure (FINDINGS F31) | pure + shared cell |
 | `timers.rs` | `TimerRequest`: watchdog and key-repeat timers asked for by handlers, armed by `HostCtx` | pure (data) |
 | `clock.rs` | `HostClock` (plan "one HostClock for `resolve(t)`") | pure |
 | `debug.rs` | `FrameStats` (work time apart from interval, S1 "API changes"), `StatsWindow`, `percentiles`, `vm_rss_kib`, per-surface `DebugCommand` grammar | pure |
-| `inject.rs` | feature `debug-inject`: stdin commands (whole logical px), JSON stats, `capture` | effects |
+| `inject.rs` | feature `debug-inject`: `HostCtx::inject(SurfaceId, Inject) -> Result<Injected>` (pointer, click, leave, capture), returning results, printing nothing (FINDINGS F29) | effects |
+| `inject/stdin.rs` | the demos' stdin protocol (whole logical px) mapped onto `inject` and `take_stats`, one JSON line per result | effects |
 
 ## Documents (`dom/`)
 

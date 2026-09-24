@@ -62,8 +62,8 @@ use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 use shell_host::handlers::background_effect::BackgroundEffect;
 use shell_host::handlers::fractional::Fractional;
 use shell_host::popup::{
-    Adjust, Edge, Grab, PopupAnchor, PopupConfig, PopupSize, PositionerParams, positioner_params,
-    to_wire_anchor, to_wire_constraint_adjustment, to_wire_gravity,
+    Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize, PositionerParams,
+    positioner_params, to_wire_anchor, to_wire_constraint_adjustment, to_wire_gravity,
 };
 use shell_host::region::Rect;
 use shell_host::scale::{self, Scale};
@@ -280,6 +280,7 @@ impl App {
             gravity: Edge::Bottom,
             adjust: Adjust::SLIDE_AND_FLIP,
             grab: Grab::Ungrabbed,
+            offset: Offset::ZERO,
         };
         let params = positioner_params(
             &config,
@@ -313,6 +314,7 @@ impl App {
             gravity: Edge::Right,
             adjust: Adjust::SLIDE_AND_FLIP,
             grab: Grab::Ungrabbed,
+            offset: Offset::ZERO,
         };
         let params = positioner_params(
             &config,

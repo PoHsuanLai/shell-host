@@ -1,6 +1,8 @@
 //! `wl_surface` events: frame callbacks (the frame machine's `Callback` input), the integer
 //! scale fallback, and output enter/leave; plus the `wl_shm` accessor.
 
+use std::time::Instant;
+
 use smithay_client_toolkit::compositor::CompositorHandler;
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use wayland_client::protocol::{wl_output, wl_surface};
@@ -50,7 +52,8 @@ impl CompositorHandler for HostState {
     ) {
     }
 
-    /// Count the callback, then `FrameInput::Callback(doc animation)`.
+    /// Count the callback, tick the document if it is animating or driven (`tick`), then
+    /// `FrameInput::Callback` with that pacing.
     fn frame(
         &mut self,
         _conn: &Connection,
@@ -65,7 +68,7 @@ impl CompositorHandler for HostState {
             return;
         };
         host_surface.stats.callback();
-        let animation = host_surface.document.animation();
+        let animation = host_surface.frame_due(self.clock.instant_at(Instant::now()));
         let action = host_surface.step(FrameInput::Callback(animation));
         self.timers.push(TimerRequest::Watchdog {
             id,
