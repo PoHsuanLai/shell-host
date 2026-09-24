@@ -62,6 +62,7 @@ fn build() -> SurfaceDocument {
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+        prepaint: shell_host::Prepaint::None,
     };
     let mut doc = SurfaceDocument::build(Root::new(app), env);
     doc.resolve(0.0);
@@ -312,6 +313,7 @@ fn leaving_the_surface_runs_mouseleave_handlers() {
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+        prepaint: shell_host::Prepaint::None,
     };
     let mut doc = SurfaceDocument::build(Root::new(leave_counter), env);
     doc.resolve(0.0);
@@ -370,6 +372,7 @@ fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick()
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+        prepaint: shell_host::Prepaint::None,
     };
     let mut doc = SurfaceDocument::build(Root::new(context_menu_probe), env);
     doc.resolve(0.0);

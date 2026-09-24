@@ -313,6 +313,7 @@ fn the_stats_window_counts_what_the_sweep_did() {
         skipped: 0,
         watchdog_fired: 0,
         ticks: sim.ticks.count(),
+        prepaints: 0,
     };
     assert_eq!(sim.stats.counters(), want);
     assert_eq!((want.frames, want.callbacks, want.ticks), (31, 31, 30));

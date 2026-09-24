@@ -4,6 +4,7 @@
 pub mod flush;
 mod ops;
 mod paint;
+mod rescale;
 mod spawn;
 mod timer;
 

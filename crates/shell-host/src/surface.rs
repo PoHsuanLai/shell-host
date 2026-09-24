@@ -11,6 +11,7 @@ use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
+use crate::live_scale::LiveScale;
 use crate::msg::{SurfaceOp, Visibility};
 use crate::region::{Px, RegionSpec};
 use crate::resolve::Tracked;
@@ -79,6 +80,8 @@ pub struct HostSurface {
     pub(crate) regions: AppliedRegions,
     /// Frame ticks and drives, shared with the surface's `SurfaceHandle`.
     pub(crate) ticks: FrameTicks,
+    /// `scale`, published to the surface's document (`use_surface_scale`).
+    pub(crate) live_scale: LiveScale,
 }
 
 impl HostSurface {
@@ -116,9 +119,11 @@ impl HostSurface {
         self.configured = Configured::Done;
     }
 
-    /// Record a new preferred scale.
+    /// Record a new preferred scale and publish it to the document, whose components reading
+    /// `use_surface_scale` are woken (and so polled at the next flush's first phase).
     pub fn rescale(&mut self, scale: Scale) {
         self.scale = scale;
+        self.live_scale.publish(scale);
     }
 
     /// Record `op`'s effect on this surface's own fields; the Wayland requests are the

@@ -61,6 +61,7 @@ use crate::id::{SurfaceId, SurfaceIds};
 use crate::ime::{Ime, ImeFocus, PendingIme};
 use crate::input::key::{Repeat, key_event};
 use crate::input::pointer::PointerPos;
+use crate::prepaint::Prepaint;
 use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
@@ -100,6 +101,8 @@ pub struct HostState {
     pub(crate) clock: HostClock,
     pub(crate) ids: SurfaceIds,
     pub(crate) color_scheme: ColorScheme,
+    /// `HostConfig::prepaint`, handed to every document the host builds.
+    pub(crate) prepaint: Prepaint,
     /// `HostConfig::first_mouse_window_ms`, read by the pointer handler.
     pub(crate) first_mouse_window: Duration,
     /// Requests from documents' `SurfaceHandle`s.
@@ -178,6 +181,7 @@ impl HostState {
             clock: HostClock::starting_at(Instant::now()),
             ids: SurfaceIds::new(),
             color_scheme: ColorScheme::Light,
+            prepaint: Prepaint::None,
             first_mouse_window,
             requests,
             woken: WokenSet::default(),

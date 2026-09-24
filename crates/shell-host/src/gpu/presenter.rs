@@ -43,9 +43,10 @@ impl Presenter {
         }
     }
 
-    /// Resolve `doc` at `target.time`, paint, render, and present. The caller has already
-    /// requested the frame callback (`wl_surface.frame`), so the present's commit carries it
-    /// (SPIKE.md S1 finding 3). Never waits on the device.
+    /// Paint, render and present `doc`, which the caller has just resolved (with its pre-paint
+    /// hook, `SurfaceDocument::resolve`): resolving again here would re-round the layout the
+    /// hook snapped. The caller has also requested the frame callback (`wl_surface.frame`), so
+    /// the present's commit carries it (SPIKE.md S1 finding 3). Never waits on the device.
     pub fn present(
         &mut self,
         gpu: Option<&mut GpuContext>,
@@ -55,20 +56,21 @@ impl Presenter {
         match self {
             Presenter::Wgpu(swapchain) => present_wgpu(swapchain, need_gpu(gpu)?, doc, target),
             Presenter::Shm(buffers) => {
-                doc.resolve(target.time);
                 let mut base = doc.dioxus().inner.borrow_mut();
                 buffers.present(&mut base, target)
             }
         }
     }
 
-    /// Render `doc` offscreen at `target.buffer` and return RGBA8 pixels (debug `capture`).
+    /// Resolve `doc` (running its pre-paint hook), render it offscreen at `target.buffer` and
+    /// return RGBA8 pixels (debug `capture`).
     pub fn capture(
         &mut self,
         gpu: Option<&mut GpuContext>,
         doc: &mut SurfaceDocument,
         target: FrameTarget,
     ) -> Result<image::RgbaImage> {
+        // A capture is its own render, not a copy of the last frame: it resolves like one.
         doc.resolve(target.time);
         let mut base = doc.dioxus().inner.borrow_mut();
         match self {

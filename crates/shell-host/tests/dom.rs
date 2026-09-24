@@ -38,6 +38,7 @@ fn test_env() -> DocumentEnv {
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(200, 100, 1.0, ColorScheme::Light),
+        prepaint: shell_host::Prepaint::None,
     }
 }
 

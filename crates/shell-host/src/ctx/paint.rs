@@ -3,8 +3,8 @@
 //! Per surface, in order: create the presenter on first use (and the one GPU device on the
 //! first surface ever, validated by its first present, falling back to shm when no adapter
 //! survives); follow a new size or scale (viewport destination, document viewport, presenter
-//! size); take the document's redraw request; and if the frame machine says render: resolve,
-//! send any changed input and blur region, request the frame callback, present (whose commit
+//! size); take the document's redraw request; and if the frame machine says render: resolve
+//! (once, with the pre-paint hook), send any changed input and blur region, request the frame callback, present (whose commit
 //! carries all of it), clear the redraw flag, and feed `Presented` back (SPIKE.md S1 findings
 //! 3 and 4).
 
@@ -35,6 +35,7 @@ use crate::ime::ImeFocus;
 use crate::msg::Visibility;
 use crate::placement::PopupPlacement;
 use crate::popup::refit;
+use crate::prepaint::Prepainted;
 use crate::region::Rect;
 use crate::resolve::{Change, Resolved, resolve};
 use crate::role::Role;
@@ -169,19 +170,11 @@ fn sync_ime(state: &mut HostState, id: SurfaceId) {
 /// buffer scale without fractional-scale), the document's viewport, the presenter's size; then
 /// repaint with every region re-sent.
 fn sync_geometry(state: &mut HostState, id: SurfaceId) {
+    super::rescale::follow_preferred(state, id);
     let Some(surface) = state.surfaces.get_mut(&id) else {
         return;
     };
     let wl = surface.role.wl_surface().clone();
-    let preferred = state
-        .fractional
-        .as_ref()
-        .and_then(|fractional| fractional.preferred_scale(&wl));
-    if let Some(scale) = preferred
-        && scale != surface.scale
-    {
-        surface.rescale(scale);
-    }
     let now = Geometry {
         logical: surface.logical,
         scale: surface.scale,
@@ -216,7 +209,11 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         };
         // Layout first, so element-following regions land in this frame's commit, and a
         // `FitContent` popup can be measured before anything else this frame reads its size.
-        surface.document.resolve(time);
+        // The only resolve of the frame: it runs the pre-paint hook, and the present paints
+        // what it left, so regions, popup fits and pixels all read the same (snapped) layout.
+        if surface.document.resolve(time) == Prepainted::Ran {
+            surface.stats.prepainted();
+        }
         pending_refit(surface)
     };
     if let Some(placement) = refit {

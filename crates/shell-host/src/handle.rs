@@ -14,11 +14,13 @@ use tokio::sync::oneshot;
 use crate::blur::BlurSpec;
 use crate::id::{SurfaceId, SurfaceIds};
 use crate::layer::{ExclusiveZone, KeyboardMode, LayerSize};
+use crate::live_scale::LiveScale;
 use crate::msg::{Request, SurfaceOp};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::Root;
+use crate::scale::Scale;
 use crate::tick::{FrameDrive, FrameTick, FrameTicks};
 
 /// The main-thread queue a `SurfaceHandle` pushes into, and the ping that wakes the loop to
@@ -62,6 +64,7 @@ pub struct SurfaceHandle {
     requests: RequestQueue,
     ids: SurfaceIds,
     ticks: FrameTicks,
+    scale: LiveScale,
 }
 
 impl SurfaceHandle {
@@ -71,18 +74,26 @@ impl SurfaceHandle {
         requests: RequestQueue,
         ids: SurfaceIds,
         ticks: FrameTicks,
+        scale: LiveScale,
     ) -> SurfaceHandle {
         SurfaceHandle {
             id,
             requests,
             ids,
             ticks,
+            scale,
         }
     }
 
     /// This surface's id.
     pub fn id(&self) -> SurfaceId {
         self.id
+    }
+
+    /// This surface's scale right now, without subscribing to changes: for an event handler
+    /// or a task. A component that draws for the scale reads [`use_surface_scale`] instead.
+    pub fn current_scale(&self) -> Scale {
+        self.scale.get()
     }
 
     /// Blur behind this surface (`SurfaceOp::SetBlur`).
@@ -198,6 +209,34 @@ pub fn use_frame_tick() -> ReadSignal<FrameTick> {
                 let (count, tick) = ticks.after(seen).await;
                 seen = count;
                 latest.set(tick);
+            }
+        });
+    });
+    ReadSignal::from(latest)
+}
+
+/// The scale of the surface this component renders in, in 120ths (`Scale(180)` is 1.5x), as
+/// live state: the component re-renders when the compositor changes the surface's preferred
+/// scale (`wp_fractional_scale_v1`, else `preferred_buffer_scale` or the output's integer
+/// scale). Its first value is the scale the host knew when the component first rendered: the
+/// host publishes a new scale before it polls documents, so the frame that first shows a scale
+/// was rendered by a tree that had already read it. A surface starts at `Scale::ONE` until the
+/// compositor says otherwise.
+///
+/// For a design system's device-pixel snapping (quire's `HostScale`, or `Ds { scale }`); the
+/// layout half of snapping is `HostConfig::prepaint`.
+pub fn use_surface_scale() -> ReadSignal<Scale> {
+    let live = use_surface().scale;
+    let mut latest = use_signal(|| live.get());
+    use_hook(move || {
+        // Read before the task first runs, in the same render as the initial value, so a change
+        // landing between this render and the task's first poll is not missed.
+        let mut seen = live.changes();
+        spawn(async move {
+            loop {
+                let (count, scale) = live.changed_after(seen).await;
+                seen = count;
+                latest.set(scale);
             }
         });
     });

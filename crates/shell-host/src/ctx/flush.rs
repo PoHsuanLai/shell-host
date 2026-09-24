@@ -1,7 +1,8 @@
 //! The flush: what the host does after every dispatch, always in the same order.
 //!
-//! 1. **Poll woken documents.** Only surfaces whose Dioxus tasks woke are polled; a poll that
-//!    changed the document invalidates it. `SurfaceDocument::poll` applies the head queue
+//! 1. **Poll woken documents.** First every surface takes its latest preferred scale, which
+//!    wakes the documents that read it (`ctx::rescale`). Only surfaces whose Dioxus tasks woke
+//!    are polled; a poll that changed the document invalidates it. `SurfaceDocument::poll` applies the head queue
 //!    (`document::Style`, `Link`, `Title`) right after the Dioxus work, so draining the head
 //!    queues is part of this phase.
 //! 2. **Apply requests.** Everything `SurfaceHandle`s and `HostHandle`s queued, including ops
@@ -67,6 +68,7 @@ pub fn run(target: &mut impl Flush) -> Result<()> {
 
 impl<M: 'static> Flush for HostCtx<M> {
     fn poll_woken(&mut self) {
+        super::rescale::follow_all(&mut self.state);
         let state = &mut self.state;
         let ping = state.requests.ping();
         for id in state.woken.take() {

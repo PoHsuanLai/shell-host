@@ -1,4 +1,4 @@
-//! Painting a document through the shared renderer: `resolve(t)`, `paint_scene` into the
+//! Painting a resolved document through the shared renderer: `paint_scene` into the
 //! surface's `vello_hybrid::Scene` via a `VelloHybridScenePainter` borrowing the device's image
 //! cache and widget textures, then `Renderer::render` into the swapchain texture. The frame
 //! callback is requested before this, and `SurfaceTexture::present` after (SPIKE.md S1
@@ -16,7 +16,8 @@ use crate::gpu::presenter::FrameTarget;
 use crate::gpu::shm::swap_red_blue;
 use crate::gpu::swapchain::pixel_extent;
 
-/// Resolve and paint `doc` into `scene`, then render the scene into `view` with `encoder`.
+/// Paint the already resolved `doc` into `scene`, then render the scene into `view` with
+/// `encoder`. The caller resolved it (`SurfaceDocument::resolve`, which runs the pre-paint hook).
 pub fn render_into(
     gpu: &mut GpuContext,
     doc: &mut SurfaceDocument,
@@ -25,14 +26,13 @@ pub fn render_into(
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
 ) -> Result<()> {
-    doc.resolve(target.time);
     let mut base = doc.dioxus().inner.borrow_mut();
     paint_document(gpu, &mut base, scene, target, encoder, view)
 }
 
-/// Paint an already resolved document into `scene` and render it into `view`: the half of
-/// [`render_into`] after `resolve`. Widgets in the document see the shared device and register
-/// their textures into it, where they stay for later frames.
+/// Paint an already resolved document into `scene` and render it into `view`: [`render_into`]
+/// on a bare `BaseDocument`. Widgets in the document see the shared device and register their
+/// textures into it, where they stay for later frames.
 pub fn paint_document(
     gpu: &mut GpuContext,
     doc: &mut BaseDocument,

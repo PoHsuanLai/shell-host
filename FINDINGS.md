@@ -754,3 +754,77 @@ watchdog cancelled), the third frame presented at 743.8 ms, callback at 746.8 ms
 count stops moving 5 ms after the swap and stays put through the 5 s idle. `scripts/spike-accept.sh
 demo cosmic c` (the shared nested cosmic-comp, reused, not started): all four runs pass, 5 s
 idle 0 frames / 0 commits / 0 main-thread wakeups each.
+
+## Host scale and pre-paint (branch `host-scale`, 2026-09-25)
+
+quire v0.1.4 snaps hairlines and boxes to device pixels at 1.25, 1.5 and 1.75 (quire CONSUMING.md
+§2 "Pixel snapping"). It needs two things from a host that resolves its own documents; shell-host
+provides both without depending on quire.
+
+### F43. The scale reaches the document as live state; a pre-paint hook runs after the frame's one resolve
+
+**API.**
+
+- `shell_host::use_surface_scale() -> ReadSignal<Scale>` (next to `use_surface`), and
+  `SurfaceHandle::current_scale(&self) -> Scale` for a handler or task. `Scale(u32)` in 120ths,
+  from `wp_fractional_scale_v1.preferred_scale`, else `preferred_buffer_scale`/the output's
+  integer scale (`scale_factor_changed`). The surface's `LiveScale` is part of its
+  `SurfaceHandle`, a root context before `initial_build`, so the first render reads it. A
+  surface starts at `Scale::ONE`; a popup starts at its parent's scale.
+- `HostConfig::prepaint: Prepaint`, `Prepaint::{None, Hook(Arc<PrepaintFn>)}` with
+  `PrepaintFn = dyn Fn(&mut BaseDocument) + Send + Sync` and `Prepaint::hook(f)`. Per host,
+  not per document, because the design system is the whole shell's and a popup opened from a
+  component must get it too (`#[serde(skip)]`; equality is `Arc::ptr_eq`). sill passes
+  `Prepaint::hook(ds_native::snap_to_device)` and maps `use_surface_scale()` to
+  `Ds { scale }`/`HostScale`.
+- `FrameCounters::prepaints` (`#[serde(default)]`): renders that ran the hook.
+
+**One resolve per frame.** A frame used to resolve twice: `ctx::paint::render` (for regions and
+popup fits) and again inside `Presenter::present` / `gpu::render::render_into`. Blitz's
+`resolve_layout` runs `taffy::round_layout` unconditionally on every resolve, so a snap after the
+first resolve would have been undone by the second before the paint. `SurfaceDocument::resolve`
+now resolves and then runs the hook, it is the frame's only resolve, and the presenters paint
+what it left, so regions, `FitContent` measurement, hit testing and pixels all read the same
+snapped layout. The debug `capture` still resolves (with the hook) because it is its own render.
+
+**Scale before the poll.** The fractional handler only records the preferred scale per
+`wl_surface`. It used to reach the surface in phase 3 (`sync_geometry`), after the documents were
+polled, so a tree reading the scale would have drawn the first frame at the old value and a second
+frame at the new one. `ctx::rescale::follow_all` now runs at the start of phase 1: it publishes a
+changed scale (waking only the documents that read it), and the same flush's poll re-renders them
+before the frame is painted. An unchanged scale wakes nothing.
+
+**Tests.** `live_scale::tests::only_a_different_scale_is_a_change_and_wakes`;
+`ctx::spawn::tests::{use_surface_scale_starts_at_the_published_scale_and_follows_each_change,
+resolve_runs_the_prepaint_hook_once_after_layout, without_a_hook_resolve_reports_none_ran}` (the
+hook runs once per resolve, after layout, sees the viewport's 1.5, and never on build or poll);
+`prepaint::tests::a_hook_equals_only_itself`.
+
+### F44. `demo_scale` on the shared nested cosmic-comp
+
+`examples/demo_scale.rs`: a 28 px top layer with 1 px rules whose root prints the scale it reads
+on every render, and a `Prepaint` hook that counts its calls and records its viewport's scale.
+Reports at 2 s, then after 5 s with no input, then exits. Run on the shared nested cosmic-comp
+(`wayland-1`, winit output WINIT-0 2176x1360 at 60 Hz, `cosmic-randr list`: scale 100%; reused,
+not restarted, output scale not touched):
+
+| moment | frames | commits | callbacks | watchdog | `prepaints` | hook calls | hook scale | surface scale | logical / buffer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| settled (2 s) | 1 | 1 | 1 | 0 | 1 | 1 | 120 | 120 | 2176x28 / 2176x28 |
+| after 5 s idle | 1 | 1 | 1 | 0 | 1 | 1 | 120 | 120 | 2176x28 / 2176x28 |
+
+The root rendered once (`render reads scale120=120`, printed once). Two runs, same numbers.
+
+What the fractional-scale path reports there (`WAYLAND_DEBUG=1`): `wp_fractional_scale_manager_v1`
+and `wp_viewporter` are bound; `wl_output.scale(1)`; for the layer's surface the compositor sends
+`wp_fractional_scale_v1.preferred_scale(120)`, then `wl_surface.enter`, then the first
+`zwlr_layer_surface_v1.configure(2176, 28)`, all in one batch, and the host answers with
+`wp_viewport.set_destination(2176, 28)`. So on cosmic-comp the preferred scale lands in the same
+dispatch as the first configure, and the phase-1 publish means the first frame's tree has it. At
+this output's 1.0 that is also the default, so the run proves the counts and the idle, not a
+scale change; the change path is covered by the unit test above. Not run at 1.25/1.5/1.75: the
+compositor is shared, and `spike-accept.sh demo cosmic@1.5` would change its output scale for
+everyone.
+
+`scripts/spike-accept.sh demo cosmic c` on this branch (same compositor, reused): all four runs
+pass (transform, width, tick, fifo), 5 s idle 0 frames / 0 commits / 0 main-thread wakeups each.

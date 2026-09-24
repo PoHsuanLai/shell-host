@@ -75,6 +75,11 @@ pub struct FrameCounters {
     /// a `FrameDrive` was held.
     #[serde(default)]
     pub ticks: u64,
+    /// Renders that ran `HostConfig::prepaint`'s hook after resolving: equal to the frames
+    /// resolved with a hook installed (presented or not), and zero without one. A frame that
+    /// ran it twice, or an idle period that moves it, is a bug.
+    #[serde(default)]
+    pub prepaints: u64,
 }
 
 /// Everything `stats` reports about one surface.
@@ -137,6 +142,11 @@ impl StatsWindow {
     /// Record a frame tick.
     pub fn ticked(&mut self) {
         self.counters.ticks += 1;
+    }
+
+    /// Record a render that ran the pre-paint hook.
+    pub fn prepainted(&mut self) {
+        self.counters.prepaints += 1;
     }
 
     /// Record a watchdog expiry.
@@ -414,7 +424,8 @@ mod tests {
                 commits: 2,
                 skipped: 1,
                 watchdog_fired: 0,
-                ticks: 0
+                ticks: 0,
+                prepaints: 0
             }
         );
         // Draining clears the samples, not the counters.

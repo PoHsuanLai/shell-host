@@ -251,6 +251,7 @@ fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
             skipped: 0,
             watchdog_fired: 1,
             ticks: 0,
+            prepaints: 0,
         },
         "counters are cumulative"
     );

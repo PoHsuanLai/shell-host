@@ -60,6 +60,7 @@ impl<M: Send + 'static> Host<M> {
             requests,
             first_mouse,
         )?;
+        state.prepaint = config.prepaint;
         // The initial outputs (and seats), so `HostEvent::Started` can see them.
         queue
             .roundtrip(&mut state)

@@ -16,6 +16,7 @@ use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::Animation;
 use crate::geometry::enclosing_rect;
+use crate::prepaint::{Prepaint, Prepainted};
 use crate::region::{ElementId, Rect};
 use crate::root::Root;
 use crate::scale::Size;
@@ -34,6 +35,8 @@ pub struct DocumentEnv {
     pub fonts: FontContext,
     pub net: Arc<LocalNet>,
     pub viewport: Viewport,
+    /// Run after every `resolve` (`HostConfig::prepaint`).
+    pub prepaint: Prepaint,
 }
 
 impl std::fmt::Debug for DocumentEnv {
@@ -41,6 +44,7 @@ impl std::fmt::Debug for DocumentEnv {
         f.debug_struct("DocumentEnv")
             .field("shell", &self.shell)
             .field("viewport", &self.viewport)
+            .field("prepaint", &self.prepaint)
             .finish_non_exhaustive()
     }
 }
@@ -59,6 +63,7 @@ pub enum Polled {
 pub struct SurfaceDocument {
     doc: DioxusDocument,
     head: HeadQueue,
+    prepaint: Prepaint,
 }
 
 impl SurfaceDocument {
@@ -85,7 +90,11 @@ impl SurfaceDocument {
         doc.initial_build();
         apply_head(&mut doc, &head);
 
-        SurfaceDocument { doc, head }
+        SurfaceDocument {
+            doc,
+            head,
+            prepaint: env.prepaint,
+        }
     }
 
     /// Run ready Dioxus work with `cx`'s waker until none is left, then apply queued head
@@ -155,9 +164,14 @@ impl SurfaceDocument {
         }
     }
 
-    /// Resolve style and layout at document time `t` (seconds on the host clock).
-    pub fn resolve(&mut self, t: f64) {
-        self.doc.inner_mut().resolve(t);
+    /// Resolve style and layout at document time `t` (seconds on the host clock), then run the
+    /// pre-paint hook on the result. The two are one call because Blitz re-rounds the layout on
+    /// every resolve: a hook that snapped it must follow each one, or the paint shows the
+    /// unsnapped layout. So a frame resolves exactly once, here, and paints what this left.
+    pub fn resolve(&mut self, t: f64) -> Prepainted {
+        let mut base = self.doc.inner_mut();
+        base.resolve(t);
+        self.prepaint.run(&mut base)
     }
 
     /// Whether a transition or animation is still running.

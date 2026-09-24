@@ -24,6 +24,7 @@ use crate::layer::{
     Extent, KeyboardMode, LayerConfig, OutputTarget, to_wire_anchor, to_wire_exclusive,
     to_wire_keyboard, to_wire_layer, to_wire_size,
 };
+use crate::live_scale::LiveScale;
 use crate::msg::Visibility;
 use crate::placement::PopupPlacement;
 use crate::popup::{
@@ -51,7 +52,8 @@ pub(super) fn layer(
     let (blur, input) = (config.blur.clone(), config.input.clone());
     let role = layer_role(state, config)?;
     map(state, &role);
-    insert(state, id, role, name, requested, (blur, input), root);
+    let at = (requested, Scale::ONE);
+    insert(state, id, role, name, at, (blur, input), root);
     Ok(())
 }
 
@@ -62,7 +64,7 @@ pub(super) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelCon
     let role = toplevel_role(state, config);
     map(state, &role);
     let regions = (BlurSpec::None, RegionSpec::Whole);
-    insert(state, id, role, name, size, regions, root);
+    insert(state, id, role, name, (size, Scale::ONE), regions, root);
 }
 
 /// Create and map popup `id` on `parent`. A grabbing popup lifts a `KeyboardMode::None` parent
@@ -81,6 +83,13 @@ pub(super) fn popup(
         .map(|surface| surface.name.0.clone())
         .ok_or(HostError::NoSurface(parent))?;
     let grab = config.grab;
+    // A popup opens on its parent's output nearly always, so the parent's scale is the best
+    // first guess: the popup's first render already reads it (`use_surface_scale`), and the
+    // compositor's own preferred scale corrects it if it differs.
+    let initial = state
+        .surfaces
+        .get(&parent)
+        .map_or(Scale::ONE, |surface| surface.scale);
     let role = popup_role(state, parent, config, placement)?;
     if grab == Grab::Grabbed {
         lift_keyboard(state, parent);
@@ -88,7 +97,8 @@ pub(super) fn popup(
     map(state, &role);
     let name = SurfaceName(format!("{parent_name}/popup"));
     let regions = (BlurSpec::None, RegionSpec::Whole);
-    insert(state, id, role, name, placement.size, regions, root);
+    let at = (placement.size, initial);
+    insert(state, id, role, name, at, regions, root);
     Ok(())
 }
 
@@ -272,13 +282,14 @@ fn new_wl_surface(state: &mut HostState) -> WlSurface {
 }
 
 /// Build the document (with this surface's `SurfaceHandle` as a root context) and record the
-/// surface. It is marked woken, so the first flush polls it.
+/// surface at `logical` size and first-guess `scale`. It is marked woken, so the first flush
+/// polls it.
 fn insert(
     state: &mut HostState,
     id: SurfaceId,
     role: Role,
     name: SurfaceName,
-    logical: Size,
+    (logical, scale): (Size, Scale),
     (blur, input): (BlurSpec, RegionSpec),
     root: Root,
 ) {
@@ -288,12 +299,20 @@ fn insert(
         state.clipboard.selection.clone(),
     ));
     let ticks = FrameTicks::default();
-    let handle = SurfaceHandle::new(id, state.requests.clone(), state.ids.clone(), ticks.clone());
+    let live_scale = LiveScale::new(scale);
+    let handle = SurfaceHandle::new(
+        id,
+        state.requests.clone(),
+        state.ids.clone(),
+        ticks.clone(),
+        live_scale.clone(),
+    );
     let env = DocumentEnv {
         shell: Arc::clone(&shell),
         fonts: state.fonts.for_document(),
         net: Arc::new(LocalNet),
-        viewport: super::paint::viewport(logical, Scale::ONE, state.color_scheme),
+        viewport: super::paint::viewport(logical, scale, state.color_scheme),
+        prepaint: state.prepaint.clone(),
     };
     let document = surface_document(root, handle, env);
     state.surfaces.insert(
@@ -310,13 +329,14 @@ fn insert(
             configured: Configured::Pending,
             visibility: Visibility::Shown,
             logical,
-            scale: Scale::ONE,
+            scale,
             blur,
             input,
             stats: StatsWindow::default(),
             geometry: None,
             regions: AppliedRegions::default(),
             ticks,
+            live_scale,
         },
     );
     state.woken.mark(id);
@@ -355,9 +375,10 @@ mod tests {
     use crate::clipboard::SharedSelection;
     use crate::dom::document::Polled;
     use crate::dom::fonts::SharedFonts;
-    use crate::handle::{RequestQueue, use_frame_tick, use_surface};
+    use crate::handle::{RequestQueue, use_frame_tick, use_surface, use_surface_scale};
     use crate::id::SurfaceIds;
     use crate::msg::{Request, SurfaceOp};
+    use crate::prepaint::{Prepaint, Prepainted};
     use crate::tick::{FrameTick, HostInstant};
 
     fn app() -> Element {
@@ -380,6 +401,16 @@ mod tests {
             }
         });
         text
+    }
+
+    fn test_env(id: SurfaceId, ping: calloop::ping::Ping, prepaint: Prepaint) -> DocumentEnv {
+        DocumentEnv {
+            shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
+            fonts: SharedFonts::system().for_document(),
+            net: Arc::new(LocalNet),
+            viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
+            prepaint,
+        }
     }
 
     /// Counts its wakes, so a test polls a document only when the host would.
@@ -410,13 +441,14 @@ mod tests {
         let requests = RequestQueue::new(ping.clone());
         let id = SurfaceId(7);
         let ticks = FrameTicks::default();
-        let handle = SurfaceHandle::new(id, requests.clone(), SurfaceIds::new(), ticks.clone());
-        let env = DocumentEnv {
-            shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
-            fonts: SharedFonts::system().for_document(),
-            net: Arc::new(LocalNet),
-            viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
-        };
+        let handle = SurfaceHandle::new(
+            id,
+            requests.clone(),
+            SurfaceIds::new(),
+            ticks.clone(),
+            LiveScale::new(Scale::ONE),
+        );
+        let env = test_env(id, ping, Prepaint::None);
         let mut document = surface_document(Root::new(ticking), handle.clone(), env);
         let wakes = Arc::new(Wakes::default());
         let waker = std::task::Waker::from(Arc::clone(&wakes));
@@ -454,14 +486,14 @@ mod tests {
         let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
         let requests = RequestQueue::new(ping.clone());
         let id = SurfaceId(42);
-        let handle =
-            SurfaceHandle::new(id, requests.clone(), SurfaceIds::new(), Default::default());
-        let env = DocumentEnv {
-            shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
-            fonts: SharedFonts::system().for_document(),
-            net: Arc::new(LocalNet),
-            viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
-        };
+        let handle = SurfaceHandle::new(
+            id,
+            requests.clone(),
+            SurfaceIds::new(),
+            FrameTicks::default(),
+            LiveScale::new(Scale::ONE),
+        );
+        let env = test_env(id, ping, Prepaint::None);
 
         let mut document = surface_document(Root::new(app), handle, env);
 
@@ -483,5 +515,109 @@ mod tests {
             ),
             "the handle queues into the host: {queued:?}"
         );
+    }
+
+    fn scaled() -> Element {
+        let scale = use_surface_scale();
+        rsx! { div { "scale {scale().0}" } }
+    }
+
+    /// The scale is a root context before the first render, and each change the host
+    /// publishes re-renders the reader through its own task and waker; a repeated scale wakes
+    /// nothing, so it costs no frame.
+    #[test]
+    fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let id = SurfaceId(9);
+        let live = LiveScale::new(Scale(150));
+        let handle = SurfaceHandle::new(
+            id,
+            RequestQueue::new(ping.clone()),
+            SurfaceIds::new(),
+            FrameTicks::default(),
+            live.clone(),
+        );
+        let env = test_env(id, ping, Prepaint::None);
+        let mut document = surface_document(Root::new(scaled), handle.clone(), env);
+        assert_eq!(
+            text(&mut document),
+            "scale 150",
+            "the first render has the scale"
+        );
+        assert_eq!(handle.current_scale(), Scale(150));
+
+        let wakes = Arc::new(Wakes::default());
+        let waker = std::task::Waker::from(Arc::clone(&wakes));
+        let mut cx = std::task::Context::from_waker(&waker);
+        document.poll(&mut cx);
+        wakes.take();
+        live.publish(Scale(150));
+        assert_eq!(wakes.take(), 0, "an unchanged scale wakes nothing");
+        for wire in [180, 210, 120] {
+            live.publish(Scale(wire));
+            assert!(wakes.take() > 0, "publishing {wire} woke the document");
+            assert_eq!(document.poll(&mut cx), Polled::Changed);
+            assert_eq!(text(&mut document), format!("scale {wire}"));
+        }
+        assert_eq!(
+            document.poll(&mut cx),
+            Polled::Unchanged,
+            "then it is quiet"
+        );
+    }
+
+    /// The hook runs exactly once per `resolve`, after layout, at the viewport's scale (what
+    /// a device-grid snap reads), and never on a build or a poll.
+    #[test]
+    fn resolve_runs_the_prepaint_hook_once_after_layout() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let id = SurfaceId(11);
+        let seen = Arc::new(std::sync::Mutex::new(Vec::<(f64, f32)>::new()));
+        let record = Arc::clone(&seen);
+        let hook = Prepaint::hook(move |doc| {
+            let height = doc.root_element().final_layout().size.height;
+            let entry = (doc.viewport().scale_f64(), height);
+            record.lock().expect("unpoisoned").push(entry);
+        });
+        let env = DocumentEnv {
+            viewport: Viewport::new(300, 60, 1.5, ColorScheme::Light),
+            ..test_env(id, ping.clone(), hook)
+        };
+        let handle = SurfaceHandle::new(
+            id,
+            RequestQueue::new(ping),
+            SurfaceIds::new(),
+            FrameTicks::default(),
+            LiveScale::new(Scale(180)),
+        );
+        let mut document = surface_document(Root::new(app), handle, env);
+        let waker = std::task::Waker::noop();
+        document.poll(&mut std::task::Context::from_waker(waker));
+        let calls = || seen.lock().expect("unpoisoned").clone();
+        assert!(calls().is_empty(), "building and polling never run it");
+
+        assert_eq!(document.resolve(0.0), Prepainted::Ran);
+        let first = calls();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].0, 1.5, "the hook sees the viewport's scale");
+        assert!(first[0].1 > 0.0, "and a laid-out document: {first:?}");
+        assert_eq!(document.resolve(0.1), Prepainted::Ran);
+        assert_eq!(calls().len(), 2, "once per resolve");
+    }
+
+    #[test]
+    fn without_a_hook_resolve_reports_none_ran() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let id = SurfaceId(12);
+        let handle = SurfaceHandle::new(
+            id,
+            RequestQueue::new(ping.clone()),
+            SurfaceIds::new(),
+            FrameTicks::default(),
+            LiveScale::new(Scale::ONE),
+        );
+        let env = test_env(id, ping, Prepaint::None);
+        let mut document = surface_document(Root::new(app), handle, env);
+        assert_eq!(document.resolve(0.0), Prepainted::NoHook);
     }
 }

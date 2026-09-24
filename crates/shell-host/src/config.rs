@@ -1,6 +1,9 @@
-//! What a host is asked to use: which rendering backend and which GPU adapter.
+//! What a host is asked to use: which rendering backend and which GPU adapter, and the pass
+//! it runs over every document before painting it.
 
 use serde::{Deserialize, Serialize};
+
+use crate::prepaint::Prepaint;
 
 /// The environment variable that names an adapter by substring, as wgpu's own
 /// `initialize_adapter_from_env` reads it. It overrides [`HostConfig::adapter`].
@@ -16,6 +19,13 @@ pub struct HostConfig {
     /// marks proposed, so a shell feeds it from settings.
     #[serde(default = "Ms::first_mouse_window")]
     pub first_mouse_window_ms: Ms,
+    /// Run over every surface's and popup's document after each `resolve`, before painting
+    /// (`Prepaint`: pixel snapping at a fractional scale). Per host rather than per document
+    /// because the pass is a property of the design system the whole shell is drawn in, and
+    /// a popup opened from a component must get it without the component knowing. Code, not
+    /// settings, so it is never serialized.
+    #[serde(skip)]
+    pub prepaint: Prepaint,
 }
 
 impl Default for HostConfig {
@@ -24,6 +34,7 @@ impl Default for HostConfig {
             backend: Backend::default(),
             adapter: AdapterPref::default(),
             first_mouse_window_ms: Ms::first_mouse_window(),
+            prepaint: Prepaint::None,
         }
     }
 }
@@ -127,6 +138,7 @@ mod tests {
                 backend: Backend::Gpu,
                 adapter: AdapterPref::Auto,
                 first_mouse_window_ms: Ms(100),
+                prepaint: Prepaint::None,
             }
         );
     }

@@ -17,14 +17,15 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `ctx/spawn.rs` | building roles (layer, toplevel, popup) unmapped, mapping them, and the surface's document with its `SurfaceHandle` provided as a root context before the first build | effects |
 | `ctx/ops.rs` | applying queued requests: `SurfaceOp`s, popups, closes, `CopyText` and Blitz's own copies (`claim_copied`), activation tokens, hide/show (a hidden surface's role is rebuilt unmapped) | effects |
 | `ctx/paint.rs` | phase 3: presenter on first use (the one device, validated by first present, else shm), geometry follow, render; the only place regions are sent (`send_regions`, change-detected by `resolve::Tracked`) | effects |
+| `ctx/rescale.rs` | the start of phase 1: each surface takes its latest `wp_fractional_scale_v1` preferred scale and publishes it to its document before the woken documents are polled, so the frame that first shows a scale is rendered by a tree that read it (FINDINGS F43) | effects |
 | `ctx/timer.rs` | phase 4: arming and cancelling watchdogs and key repeat from `TimerRequest`s | effects |
 | `host_handle.rs` | `HostHandle<M>`: `send`, `apply`, `close`, `exit` from any thread | effects |
-| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31) | effects |
+| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43) | effects |
 | `bridge.rs` | `use_watch` (plan: shared data on `tokio::sync::watch`) | effects |
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
 | `msg.rs` | `SurfaceOp`, `Visibility`, `HostMsg<M>`, `Request` | pure (data) |
-| `config.rs` | `HostConfig{backend, adapter, first_mouse_window_ms}`, `Backend`, `AdapterPref` (S1: adapter validated by first present), `Ms`; `first_mouse_window_ms` is the settings key `menus.first_mouse_window_ms` (design/22, proposed, default 100), handed to `HostState` and read by the pointer handler | pure |
+| `config.rs` | `HostConfig{backend, adapter, first_mouse_window_ms, prepaint}`, `Backend`, `AdapterPref` (S1: adapter validated by first present), `Ms`; `first_mouse_window_ms` is the settings key `menus.first_mouse_window_ms` (design/22, proposed, default 100), handed to `HostState` and read by the pointer handler | pure |
 | `error.rs` | `HostError`, `Recovery::{Retry,Fallback,Degrade,Fatal}` (plan "Conventions substitutions") | pure |
 | `id.rs` | `SurfaceId`, `OutputId`, `SurfaceIds` | pure |
 | `output.rs` | `OutputInfo` | pure (data) |
@@ -33,8 +34,10 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Module | Implements | State |
 | --- | --- | --- |
+| `live_scale.rs` | `LiveScale`: a surface's scale shared with its `SurfaceHandle`, waking readers only on a change (FINDINGS F43) | shared cell |
 | `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, S1 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
 | `toplevel.rs` | `ToplevelConfig`, `Decorations`, `Activation`; design/20 "All apps are xdg toplevels" | pure |
+| `prepaint.rs` | `Prepaint::{None, Hook}`: the consumer's pass between the frame's one `resolve` and its paint, for device-pixel snapping (FINDINGS F43) | pure |
 | `popup.rs` | S2: `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
 | `placement.rs` | `PopupPlacement` (anchor rect and size S2's config does not carry, FINDINGS F4) | pure (data) |
 | `region.rs` | S2: `RegionSpec`, `rounded_strips`; design/10 §10.3.12 | pure |
