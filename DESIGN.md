@@ -18,13 +18,14 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `ctx/ops.rs` | applying queued requests: `SurfaceOp`s, popups, closes, `CopyText` and Blitz's own copies (`claim_copied`), activation tokens, hide/show (a hidden surface's role is rebuilt unmapped) | effects |
 | `ctx/paint.rs` | phase 3: presenter on first use (the one device, validated by first present, else shm), geometry follow, render; the only place regions are sent (`send_regions`, change-detected by `resolve::Tracked`) | effects |
 | `ctx/rescale.rs` | the start of phase 1: each surface takes its latest `wp_fractional_scale_v1` preferred scale and publishes it to its document before the woken documents are polled, so the frame that first shows a scale is rendered by a tree that read it (FINDINGS F43) | effects |
+| `ctx/window.rs` | a toplevel's window-management ops: `xdg_toplevel.move`/`.resize` under the serial rule (`grab`), maximize, minimize, fullscreen (FINDINGS F46, F49) | effects |
 | `ctx/timer.rs` | phase 4: arming and cancelling watchdogs and key repeat from `TimerRequest`s | effects |
 | `host_handle.rs` | `HostHandle<M>`: `send`, `apply`, `close`, `exit` from any thread | effects |
-| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43) | effects |
+| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43); the window's: `begin_move`, `begin_resize`, `set_maximized`, `set_minimized`, `set_fullscreen`, `current_toplevel_state`, `use_toplevel_state` (FINDINGS F46) | effects |
 | `bridge.rs` | `use_watch` (plan: shared data on `tokio::sync::watch`) | effects |
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
-| `msg.rs` | `SurfaceOp`, `Visibility`, `HostMsg<M>`, `Request` | pure (data) |
+| `msg.rs` | `SurfaceOp` (with the window ops and `repaint()`), `Repaint`, `Visibility`, `HostMsg<M>`, `Request` | pure (data) |
 | `config.rs` | `HostConfig{backend, adapter, first_mouse_window_ms, prepaint}`, `Backend`, `AdapterPref` (S1: adapter validated by first present), `Ms`; `first_mouse_window_ms` is the settings key `menus.first_mouse_window_ms` (design/22, proposed, default 100), handed to `HostState` and read by the pointer handler | pure |
 | `error.rs` | `HostError`, `Recovery::{Retry,Fallback,Degrade,Fatal}` (plan "Conventions substitutions") | pure |
 | `id.rs` | `SurfaceId`, `OutputId`, `SurfaceIds` | pure |
@@ -34,9 +35,12 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `live_scale.rs` | `LiveScale`: a surface's scale shared with its `SurfaceHandle`, waking readers only on a change (FINDINGS F43) | shared cell |
+| `live.rs` | `Live<T>`: a value the host publishes to a document, waking readers only on a change; carries the scale and the toplevel state | shared cell |
+| `live_scale.rs` | `LiveScale = Live<Scale>` (FINDINGS F43) | shared cell |
 | `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, S1 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
-| `toplevel.rs` | `ToplevelConfig`, `Decorations`, `Activation`; design/20 "All apps are xdg toplevels" | pure |
+| `toplevel.rs` | `ToplevelConfig`, `Decorations::{Client(ResizeMargin), Server}`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `TileEdges`, `ToplevelState` and their wire mappings; design/20 "All apps are xdg toplevels" (FINDINGS F46) | pure |
+| `csd.rs` | a client-decorated toplevel's geometry: the resize band (`Inset`, only while floating), surface vs frame, `set_window_geometry`, the document's inset in physical px, band strips, `zone_at` and the resize cursors (FINDINGS F48) | pure |
+| `grab.rs` | the move/resize serial rule: `PointerFacts`, `grab_serial`, `GrabRefused`, the shared `GrabRecord` (FINDINGS F49) | pure + shared cell |
 | `prepaint.rs` | `Prepaint::{None, Hook}`: the consumer's pass between the frame's one `resolve` and its paint, for device-pixel snapping (FINDINGS F43) | pure |
 | `popup.rs` | S2: `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
 | `placement.rs` | `PopupPlacement` (anchor rect and size S2's config does not carry, FINDINGS F4) | pure (data) |
@@ -109,8 +113,9 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `handlers/output.rs` | `HostEvent::Output*` | effects |
 | `handlers/layer.rs` | layer configure/closed; configure records the size and invalidates (regions follow on the render) | effects |
 | `handlers/xdg.rs` | toplevel and popup configure/close; `popup_done` (not client-drivable, S2) | effects |
-| `handlers/seat.rs` | capabilities, `SeatInput` | effects |
-| `handlers/pointer.rs`, `keyboard.rs` | input dispatch | effects |
+| `handlers/seat.rs` | capabilities (the first one adopts the seat, FINDINGS F47), `SeatInput` | effects |
+| `handlers/pointer.rs`, `keyboard.rs` | input dispatch; every press and release updates the grab record | effects |
+| `handlers/band.rs` | the pointer's half of `csd`: zone, document coordinates, the document's own cursor vs the band's, the resize a band press starts, dropping buttons at enter/leave (FINDINGS F48, F49) | effects |
 | `handlers/text_input.rs` | hand `Dispatch` for `zwp_text_input_v3` (plan: SCTK has no client-side helper) | effects |
 | `handlers/data_device.rs` | selection offers (`Clipboard::follow`), our data source, `claim_selection` | effects |
 | `handlers/activation.rs` | xdg-activation tokens | effects |
@@ -148,3 +153,5 @@ checkerboard window) the acceptance items measure against. `scripts/spike-accept
 [kwin-virtual|kwin-virtual@1.7|kwin] <a|b|c|f|g>` runs SPIKE.md S1's items with S1's thresholds;
 results are in SPIKE.md "H2 demos". `examples/spike_popup.rs` (bare-shm popup client, S2) and
 `spike_widget.rs` (custom widget, S3) are kept until a demo covers popups and widgets.
+`examples/demo_window.rs` is a client-decorated toplevel (titlebar drag, resize band, zoom,
+configure state) driven from stdin; its runs are FINDINGS F51.

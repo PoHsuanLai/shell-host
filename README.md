@@ -31,6 +31,12 @@ through the frame hook (`use_frame_tick` with a `FrameDrive` held only while the
 command, so `bar/popup stats`' `logical` size shows the fit landing at 160x48 and, a few frames
 later, re-fitting to 160x144.
 
+`examples/demo_window.rs` is a client-decorated window: press its red titlebar and drag to move
+it, drag its invisible 7 px border to resize, double-click the titlebar to zoom; on stdin `move`,
+`resize bottom-right`, `maximize`, `unmaximize`, `fullscreen`, `unfullscreen`, `minimize`, `stats`,
+`quit` (`move` and `resize` need a button held on the window). Each configure state change is
+printed as a JSON line.
+
 ### On a nested KWin (no effect on your session)
 
 A headless `kwin_wayland --virtual` on its own D-Bus session, torn down afterwards; works while
@@ -54,6 +60,33 @@ scripts/dev/run.sh target/release/examples/demo_bar --with-dock
 scripts/dev/shot.sh scripts/dev/out/demo.png
 scripts/dev/nested.sh stop
 ```
+
+## Consuming: the window seam (client-decorated frames)
+
+What a design system's window frame (quire's `ds::HostWindow`, implemented in sill's and mailo's
+glue) calls. Open the window with `ToplevelConfig { decorations: Decorations::CLIENT, .. }`
+(or `Decorations::Client(ResizeMargin(n))`); `size`, `min_size` and `max_size` are the visible
+frame's. Inside the window's document, `let window = use_surface();`:
+
+| Frame behaviour | Call | Notes |
+| --- | --- | --- |
+| titlebar drag region | `window.begin_move()` in its `onmousedown` | `Result<(), GrabRefused>`: `NoPress`, `PressedElsewhere`, `PointerElsewhere`, `NotAToplevel`, `NoSeat`. Call it while the button is down; the compositor moves the window until release and the document sees no motion meanwhile |
+| a frame-drawn resize handle | `window.begin_resize(ResizeEdge::BottomRight)` | same rule; not needed for the edges, the host's band already resizes |
+| zoom (green light, titlebar double-click) | `window.set_maximized(Maximize::Set / Unset)` | toggle on `window.current_toplevel_state().maximized`; nothing changes until the configure |
+| minimize (yellow light) | `window.set_minimized()` | the compositor restores it |
+| fullscreen | `window.set_fullscreen(Fullscreen::Set / Unset)` | |
+| close (red light) | `window.close()` | |
+| Fill in the zoom menu | `set_maximized(Maximize::Set)` | |
+| Left / Right / Centre in the zoom menu | none | no compositor offers it to a client (FINDINGS F50); hide the items |
+| draw the state | `use_toplevel_state()` -> `ReadSignal<ToplevelState>` | `maximized`, `fullscreen`, `activated`, `tiled: TileEdges` (`.any()`): the zoom glyph, square corners and no shadow when maximized or tiled, dimmed lights when inactive |
+
+The host owns the resize band: it is transparent surface outside the frame, the document never
+receives input there and needs no markup for it, and it disappears whenever the window is
+maximized, fullscreen or tiled (on cosmic-comp 1.8 that is always, FINDINGS F48). The document's
+origin is the frame's corner, its viewport the frame's size, and region specs and popup anchors
+are in the same coordinates. Every call is also a `SurfaceOp` (`BeginMove`,
+`BeginResize(edge)`, `SetMaximized`, `Minimize`, `SetFullscreen`) for `HostCtx::apply` or
+`HostHandle::apply` from outside the document.
 
 ## Acceptance
 
