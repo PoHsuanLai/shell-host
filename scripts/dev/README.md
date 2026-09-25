@@ -38,7 +38,20 @@ clients can be developed and screenshotted without a real COSMIC login.
 
 - `kwin-virtual.sh [start [WxH]|stop]` — a headless `kwin_wayland --virtual` on a private
   socket, a private D-Bus bus and an empty `XDG_CONFIG_HOME`, with fake input allowed; writes
-  `.kwin-env` (source it). `stop` kills it and everything started on its bus.
+  `.kwin-env` (source it). `stop` ends exactly what `start` started and never its caller
+  (FINDINGS F54):
+  - **Scope** (when a systemd `--user` manager answers): the bus and KWin run in a transient
+    scope, `kwin-virtual-<pid>.scope`, so D-Bus-activated services (portals, gvfsd, at-spi,
+    fcitx5, ksecretd), which daemonize and are reparented to init, stay in its cgroup; `stop` is
+    `systemctl --user stop` on that scope (5 s stop timeout).
+  - **Tree** (no user manager, or `KWIN_VIRTUAL_CONTAINMENT=tree`): the recorded KWin and bus
+    pids and their descendants by parent chain, never `stop`'s own process or its ancestors. A
+    service that daemonized away from the bus is not reached; it normally exits when the bus
+    goes.
+  - A process that only *names* the private bus in its environment (a script that sourced
+    `.kwin-env`, a client it started) is the caller's, not the helper's: end your own clients
+    before `stop`. The older rule (kill every process whose environment named the bus) killed
+    `stop`'s own caller and then itself, leaving the bus running.
 - `fake-input.sh` — synthetic pointer and keyboard input into that KWin, commands on stdin:
   `move X Y`, `press|release left|right|middle`, `key KEYSYM down|up`, `type "text"`,
   `sleep MS` (builds `tools/fake-input` on first use; FINDINGS F52).

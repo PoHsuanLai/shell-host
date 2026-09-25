@@ -1035,7 +1035,7 @@ touching the user's session. F51 used it from a scratch directory; it now lives 
   `dbus-daemon --session`, waits for the socket, and writes `scripts/dev/.kwin-env`
   (`WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, pids, log path). `stop`
   kills KWin, every process whose environment names that bus (D-Bus activation starts portals,
-  fcitx5 and ksecretd on it), and the bus.
+  fcitx5 and ksecretd on it), and the bus. (Narrowed by F54: `stop` now ends the scope `start` made.)
 - `tools/fake-input` (Rust, its own Cargo workspace because it needs `wayland-protocols-plasma`,
   which is KDE-only and not in the pinned block; not built by the shell-host gates) and its
   wrapper `scripts/dev/fake-input.sh`: stdin commands `move X Y` (`pointer_motion_absolute`),
@@ -1146,3 +1146,39 @@ bar: press 1
 Before: 2 document presses and 4 `wl_pointer.button` events for one press and release. After:
 1 and 2. The keyboard was not re-announced by fake input in this run (`capabilities` kept bit
 2 throughout), so its path is covered by the decision table and the shared code, not by a trace.
+
+### F54. `kwin-virtual.sh stop` killed its caller; it now stops the scope `start` made
+
+Found by sill (its G52). `stop` killed every process of the user whose `/proc/<pid>/environ`
+named the private bus, to catch what D-Bus activation had started on it. The environment is
+fixed at exec, so a script that sourced `.kwin-env` and then ran anything (including `stop`
+itself) matched: in the reproduction a caller runs `bash -c 'scripts/dev/kwin-virtual.sh stop'`
+with the bus exported; the old `stop` killed that `bash -c`, then itself (its own environment
+names the bus), before reaching the bus, which was left running (`Terminated`, KWin gone, bus
+alive). KWin's own `environ` is unreadable anyway (`kwin_wayland` has file capabilities, so
+`/proc/<pid>/environ` is root's), so the scan only ever found other processes.
+
+Where the activated services live decided the fix. A `gdbus call` to
+`org.freedesktop.portal.Desktop` on the private bus started `xdg-desktop-portal`,
+`xdg-permission-store`, `xdg-document-portal`, `xdg-desktop-portal-gtk`, `at-spi-bus-launcher`
+and `gvfsd`, each with parent pid 1 (activation daemonizes) and in the caller's own login
+cgroup (`session-*.scope`): a parent-chain walk from KWin or the bus misses all of them, and the
+cgroup they share is the caller's.
+
+**Rule.** `start` runs a small `inside` step of the script under `systemd-run --user --scope
+--collect --unit=kwin-virtual-<pid> --property=TimeoutStopSec=5`: it starts the bus, records its
+address and pid, and `exec`s KWin, so the recorded pid is KWin's and the bus, KWin and everything
+either starts (the activated services included, since a cgroup survives daemonizing) are in
+`app.slice/kwin-virtual-<pid>.scope`. `stop` is `systemctl --user stop` on it. Without a
+reachable user manager (`systemctl --user show-environment` fails) or with
+`KWIN_VIRTUAL_CONTAINMENT=tree`, `stop` kills the recorded KWin and bus pids and their
+descendants by parent chain, excluding its own process and ancestors; a daemonized service is
+not reached there (in the test they exited with the bus). A process that only names the bus is
+the caller's to end. `.kwin-env` gains `KWIN_CONTAINMENT` and `KWIN_SCOPE`.
+
+**Verified** (headless KWin 6.7.5): with the scope, the caller and the `bash -c` that ran `stop`
+survive, KWin, the bus and the portals on it are gone, and no process naming the bus is left;
+the same with `KWIN_VIRTUAL_CONTAINMENT=tree`. F53's reproduction runs unchanged on the new
+script (fake input still authorised). `spike-accept.sh`'s own `kwin-virtual` mode still scans
+environments, but from outside the `dbus-run-session` it started, so its caller never names the
+bus; not changed here.
