@@ -1250,3 +1250,39 @@ which bus config is loaded changes.
 `GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications
 was not provided by any .service files`, rather than starting anything. `kwin-virtual.sh stop`
 afterwards ended KWin and the bus and left the caller and its shell running, matching F54.
+
+## Pointer enter and unmap (branch `pointer-enter-unmap`, 2026-09-26)
+
+### F57. An enter moved nothing: one motion onto a surface hovered nothing
+
+Found by sill (its G100). `handlers/pointer.rs` took `wl_pointer.enter` as focus, zone and
+cursor only. The enter carries the position, and a pointer that reaches a surface in one motion
+gets the enter and no motion (KWin sends exactly that; so does a surface mapped under a still
+pointer), so the document's pointer stayed where it was and nothing was hovered until the next
+motion: no `:hover`, no `mouseenter`, the document's cursor not shown. Traced with
+`scripts/dev/accept-hover.sh` (new: `examples/demo_hover`'s two stacked 320 x 120 cards, `top`
+on the Overlay layer over `bottom` on Top, each printing `hover: <card> enter|leave`;
+`HOVER_TRACE=1` adds `WAYLAND_DEBUG`) on headless KWin 6.7.5, pointer rested at (100, 100)
+and then `move 960 540` onto the cards' centre:
+
+```
+wl_pointer#25.leave(8, wl_surface#54)                          <- move 100 100
+wl_pointer#25.enter(9, wl_surface#54, 160.00000000, 60.00000000) <- move 960 540: no motion
+wl_pointer#25.motion(349050373, 161.00000000, 60.00000000)     <- move 961 540
+hover: top enter
+```
+
+`FAIL enter_one_motion:  (wanted, in order: top enter)`, then `after a second motion: top
+enter`. The same gap made the card beneath a hidden card (F58's step) report nothing: KWin's
+`enter(11, wl_surface#27, 161, 60)` for `bottom` produced no `bottom enter`.
+
+**Fix.** The enter delivers the move to its position (`HostState::pointer_moved(id, pos)`, the
+same path a motion takes, so the band's zone rule holds), after focus and zone and before the
+cursor, which is then the document's own for what is under the pointer. This is the rule the
+plan already had for a press ("synthesize PointerMove before PointerDown"), now also at the
+enter; `input::pointer`'s module rules say so. cosmic-comp #2230 is unchanged by it: a layer
+surface mapped under a still pointer there may get no enter at all, and the press's own move
+still covers a click; only a hover waits for the first motion on that compositor.
+
+After: `PASS enter_one_motion: top enter` (and `hide top` now gives `bottom enter` from KWin's
+enter alone, before any motion).

@@ -15,7 +15,8 @@ use crate::role::Role;
 use crate::state::HostState;
 
 impl PointerHandler for HostState {
-    /// Enter: focus, zone and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move,
+    /// Enter: focus, zone, the move to its position (so `:hover` and `mouseenter` hold from the
+    /// first frame) and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move,
     /// then `clear_hover()`).
     /// Motion, press (move-before-down, first-mouse filter), release, axis
     /// (`input::pointer::wheel_delta`), in the document's coordinates; in a client-decorated
@@ -45,6 +46,14 @@ impl PointerHandler for HostState {
                     self.input.grab.update(|facts| facts.focus = Some(id));
                     self.input.position = pos;
                     self.input.zone = self.zone_of(id, pos);
+                    // The enter carries a position and no motion follows it: a pointer that
+                    // reaches the surface in one motion, or a surface mapped under a still
+                    // pointer, would hover nothing until the next motion. Deliver the move
+                    // here, as a press is preceded by one (`input::pointer`); it also gives
+                    // the document's cursor to the `show_cursor` below. Some compositors send
+                    // no enter at all to a surface mapped under a still pointer (cosmic-comp
+                    // #2230); there the press's own move still covers the click.
+                    self.pointer_moved(id, pos);
                     // A fresh `enter` invalidates any earlier serial, even for the same shape:
                     // force `Cursor::set` past its no-op-when-unchanged check.
                     self.cursor.current = None;
