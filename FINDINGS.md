@@ -1022,3 +1022,70 @@ comes from the host session, which was not touched, so the pointer items ran her
 
 Not run: the pointer items on cosmic-comp (above), and scales other than 1.0 (the band's
 device-pixel rounding at 1.5 and 2.0 is in `csd::tests`).
+
+## Real input on a headless KWin (branch `kwin-fake-input`, 2026-09-25)
+
+### F52. The headless-KWin input recipe, and how fake input is authorised
+
+For acceptance with real Wayland input (serials, implicit grabs, enter/leave, keymaps) without
+touching the user's session. F51 used it from a scratch directory; it now lives in the repo:
+
+- `scripts/dev/kwin-virtual.sh start [WxH]` starts `kwin_wayland --virtual --no-lockscreen
+  --no-global-shortcuts` on a private socket (`wayland-kwinvirt-<pid>`) with a private
+  `dbus-daemon --session`, waits for the socket, and writes `scripts/dev/.kwin-env`
+  (`WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, pids, log path). `stop`
+  kills KWin, every process whose environment names that bus (D-Bus activation starts portals,
+  fcitx5 and ksecretd on it), and the bus.
+- `tools/fake-input` (Rust, its own Cargo workspace because it needs `wayland-protocols-plasma`,
+  which is KDE-only and not in the pinned block; not built by the shell-host gates) and its
+  wrapper `scripts/dev/fake-input.sh`: stdin commands `move X Y` (`pointer_motion_absolute`),
+  `press|release left|right|middle` (`button` with evdev 272/273/274), `key KEYSYM down|up` and
+  `type "text"` (`keyboard_key`, v4+), `sleep MS`; `ok <line>` after each command's roundtrip.
+  Keysyms are resolved against the keymap KWin itself sends on `wl_keyboard.keymap`, so the
+  evdev code is right for whatever layout KWin runs; `type` adds `KEY_LEFTSHIFT` for a
+  character on the shift level. KWin hands every client a descriptor of the same keymap file,
+  so it is read with `read_exact_at(0)`: a plain read from the shared offset failed to parse
+  once another client had read it.
+- `scripts/dev/kwin-windows.js` prints `WINDOW {class, caption, frame, buffer, maximize,
+  fullscreen, active}` per window; `scripts/dev/kwin-windows.sh [--class APP_ID]` loads it via
+  `org.kde.kwin.Scripting.loadScript`, runs and unloads it, and cuts the lines from KWin's log
+  (`QT_LOGGING_RULES=js=true`, `QT_FORCE_STDERR_LOGGING=1`). `frame` is the window geometry,
+  `buffer` the whole surface.
+
+**Authorisation.** `org_kde_kwin_fake_input` is one of KWin 6's restricted interfaces: the
+global is advertised only to a client whose executable has a `.desktop` file listing it in
+`X-KDE-Wayland-Interfaces` (as `/usr/share/applications/org.kde.krfb.virtualmonitor.desktop`,
+`org.freedesktop.impl.portal.desktop.kde.desktop` and the fcitx5 ones do), or to every client
+when KWin runs with `KWIN_WAYLAND_NO_PERMISSION_CHECKS=1`. `--virtual` alone does not open it:
+a headless KWin 6.7.5 started without the variable does not list the global in `wayland-info`
+and `fake-input` fails with "org_kde_kwin_fake_input v4+ not offered". `kwin-virtual.sh` sets the
+variable (only on that instance; never set it on a real session). The protocol's
+`authenticate(application, reason)` is still sent first; with the variable KWin grants it at
+once, no prompt.
+
+**Isolation.** `kwin-virtual.sh` gives KWin an empty `XDG_CONFIG_HOME`
+(`scripts/dev/out/kwin-virtual-config`): with the user's own config it loaded the user's KWin
+scripts (its log showed `macspaces: loaded (maximize trigger on)`, `reveal-window-titlebar`,
+`window-corner-overview`), which act on the windows under test. `spike-accept.sh`'s own
+kwin-virtual does not isolate this yet, and F51's runs had those scripts loaded (maximize still
+gave the expected geometry).
+
+**Verified** on this branch with `demo_window` (same code as master): frame
+`[720,380,480,320]`, buffer `[713,373,494,334]`; `move 900 396`, `press left`, `sleep 100`,
+three moves to (1100, 496), `release left` gave `begin_move` Ok and frame `[920,480,480,320]`
+(exactly +200,+100); `key a down/up`, `type "Hi!"`, `key Return down/up` reached the client as
+14 `wl_keyboard.key` events with the right evdev codes (30; 42+35; 23; 42+2; 28).
+
+**Limits.**
+- A pointer drag must leave the client time between the press and the first motion (here
+  100 ms): the client answers the press with `xdg_toplevel.move`, and motion KWin handles before
+  that request arrives is plain motion; without the sleep the window did not move at all.
+- Fake input reaches KWin's own clients only: it is injected as a KWin input device, so it
+  goes wherever KWin routes input. It cannot reach the shared nested cosmic-comp (a client of
+  the user's session, not of this KWin) or the user's session.
+- cosmic-comp nested *inside* the headless KWin (`COSMIC_BACKEND=winit`, a client of it) is
+  untested. Its winit window is an ordinary KWin client, so it should receive the fake pointer
+  and keys when under the pointer / focused, and forward them into its own seat; coordinates
+  would be the winit window's (find it with `kwin-windows.sh`), the keyboard would go through
+  cosmic's own keymap rather than the one `fake-input` resolved against, and a pointer lock or
+  confinement by cosmic-comp could change motion delivery. Expected to work, not verified.

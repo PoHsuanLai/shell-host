@@ -1,0 +1,17 @@
+# A test-harness client for a nested KWin, outside the shell-host workspace: it needs
+# `wayland-protocols-plasma` (org_kde_kwin_fake_input), which is KDE-specific and not in the
+# pinned dependency block, and it never ships. See scripts/dev/fake-input.sh and FINDINGS F52.
+[package]
+name = "fake-input"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+wayland-client = "0.31"
+wayland-protocols-plasma = { version = "0.3", features = ["client"] }
+xkbcommon = { version = "0.8", default-features = false }
+
+# Its own workspace, so the shell-host workspace neither builds it nor lists it.
+[workspace]

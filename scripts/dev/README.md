@@ -36,6 +36,28 @@ clients can be developed and screenshotted without a real COSMIC login.
   `zcosmic_workspace_manager_v2`, `zwp_text_input_manager_v3`) and at what
   version.
 
+- `kwin-virtual.sh [start [WxH]|stop]` — a headless `kwin_wayland --virtual` on a private
+  socket, a private D-Bus bus and an empty `XDG_CONFIG_HOME`, with fake input allowed; writes
+  `.kwin-env` (source it). `stop` kills it and everything started on its bus.
+- `fake-input.sh` — synthetic pointer and keyboard input into that KWin, commands on stdin:
+  `move X Y`, `press|release left|right|middle`, `key KEYSYM down|up`, `type "text"`,
+  `sleep MS` (builds `tools/fake-input` on first use; FINDINGS F52).
+- `kwin-windows.sh [--class APP_ID]` — every window's frame (window geometry) and buffer
+  geometry as JSON lines, through `kwin-windows.js` and KWin's scripting D-Bus API.
+
+## Real input on a headless KWin
+
+```sh
+scripts/dev/kwin-virtual.sh start
+source scripts/dev/.kwin-env
+target/release/examples/demo_window &          # any client, on $WAYLAND_DISPLAY
+scripts/dev/kwin-windows.sh --class demo_window  # frame [720,380,480,320]
+printf 'move 900 396\npress left\nsleep 100\nmove 1000 446\nsleep 30\nmove 1100 496\nrelease left\n' \
+  | scripts/dev/fake-input.sh
+scripts/dev/kwin-windows.sh --class demo_window  # frame [920,480,480,320]
+scripts/dev/kwin-virtual.sh stop
+```
+
 ## Typical session
 
 ```sh
