@@ -67,6 +67,8 @@ pub(crate) fn close_surface_and_popups(state: &mut HostState, id: SurfaceId, rea
         id,
         cmd: TimerCmd::Cancel,
     });
+    // As for a close the host starts (FINDINGS F58): the pointer's stay ends with the surface.
+    state.withdraw_pointer(id);
     if state.surfaces.remove(&id).is_some() {
         state
             .events

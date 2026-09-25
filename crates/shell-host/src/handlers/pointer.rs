@@ -10,6 +10,7 @@ use wayland_client::{Connection, QueueHandle};
 use crate::csd::Zone;
 use crate::grab::Press;
 use crate::id::SurfaceId;
+use crate::input::focus::{self, Departure};
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
@@ -31,6 +32,9 @@ impl PointerHandler for HostState {
         events: &[PointerEvent],
     ) {
         for event in events {
+            // A surface that is no longer ours: the compositor's leave (or a straggling
+            // motion) for a wl_surface the host unmapped or closed, whose stay `withdraw_pointer`
+            // already ended.
             let Some(id) = self.surface_id_for(&event.surface) else {
                 continue;
             };
@@ -41,7 +45,7 @@ impl PointerHandler for HostState {
             // `PointerEventKind` is `Clone` but not `Copy`; `event` is only borrowed.
             match event.kind.clone() {
                 PointerEventKind::Enter { serial } => {
-                    self.input.pointer_focus = Some((id, serial));
+                    self.input.pointer_focus = focus::enter(id, serial);
                     self.forget_buttons();
                     self.input.grab.update(|facts| facts.focus = Some(id));
                     self.input.position = pos;
@@ -60,20 +64,10 @@ impl PointerHandler for HostState {
                     self.show_cursor(pointer, id);
                 }
                 PointerEventKind::Leave { serial: _ } => {
-                    if self.input.pointer_focus.map(|(focus, _)| focus) == Some(id) {
-                        self.input.pointer_focus = None;
-                    }
-                    self.input.grab.update(|facts| {
-                        if facts.focus == Some(id) {
-                            facts.focus = None;
-                        }
-                    });
-                    self.input.zone = Zone::Document;
-                    self.forget_buttons();
-                    self.input.position = PointerPos::OUTSIDE;
-                    if let Some(surface) = self.surfaces.get_mut(&id) {
-                        surface.document.pointer_left(self.input.modifiers);
-                    }
+                    // A leave the compositor sends is always a leave for the document, even
+                    // when the record already moved on (an enter elsewhere seen first).
+                    let _ = self.depart(id);
+                    self.pointer_off(id);
                     self.invalidate(id);
                 }
                 PointerEventKind::Motion { time: _ } => {
@@ -193,5 +187,40 @@ impl HostState {
         }
         let since_activation = self.input.focused_at.map(|at| at.elapsed());
         pointer::first_mouse(since_activation, self.first_mouse_window)
+    }
+
+    /// Surface `id` is being unmapped or closed by the host. If the pointer is on it, end the
+    /// stay now, while the surface is still known: the compositor's leave will name a
+    /// `wl_surface` the host no longer has (FINDINGS F58), and a document left hovering keeps
+    /// its hover chain into the next mapping, so the element under the pointer then never gets
+    /// a `mouseenter`. No invalidation: the surface is going, and a remapped one starts a new
+    /// frame machine.
+    pub(crate) fn withdraw_pointer(&mut self, id: SurfaceId) {
+        if self.depart(id) == Departure::Lost {
+            self.pointer_off(id);
+        }
+    }
+
+    /// Update the focus record and the grab's copy of it for surface `id` departing.
+    fn depart(&mut self, id: SurfaceId) -> Departure {
+        let (after, departure) = focus::depart(self.input.pointer_focus, id);
+        self.input.pointer_focus = after;
+        self.input.grab.update(|facts| {
+            if facts.focus == Some(id) {
+                facts.focus = None;
+            }
+        });
+        departure
+    }
+
+    /// The pointer is off surface `id`: reset its zone, buttons and position, and tell the
+    /// document it left (`SurfaceDocument::pointer_left`).
+    fn pointer_off(&mut self, id: SurfaceId) {
+        self.input.zone = Zone::Document;
+        self.forget_buttons();
+        self.input.position = PointerPos::OUTSIDE;
+        if let Some(surface) = self.surfaces.get_mut(&id) {
+            surface.document.pointer_left(self.input.modifiers);
+        }
     }
 }

@@ -189,6 +189,8 @@ pub(super) fn set_visibility<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, to
 
 fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     close_children(ctx, id);
+    // Before the rebuild, while the old wl_surface is still this id's (FINDINGS F58).
+    ctx.state.withdraw_pointer(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
     let Some(mut surface) = state.surfaces.remove(&id) else {
@@ -221,6 +223,8 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
 /// `reason`. Unknown ids are ignored.
 pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: CloseReason) {
     close_children(ctx, id);
+    // As for an unmap: the compositor's leave will name a destroyed wl_surface (FINDINGS F58).
+    ctx.state.withdraw_pointer(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
     let Some(surface) = state.surfaces.remove(&id) else {

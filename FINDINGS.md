@@ -1286,3 +1286,82 @@ still covers a click; only a hover waits for the first motion on that compositor
 
 After: `PASS enter_one_motion: top enter` (and `hide top` now gives `bottom enter` from KWin's
 enter alone, before any motion).
+
+### F58. An unmapped surface kept its hover; the compositor's leave named a surface the host no longer knew
+
+Found by sill (its G101). `ctx/ops.rs::unmap` (a `SetVisibility(Hidden)`) rebuilds the
+`wl_surface` but never ended the pointer's stay on it: the document kept its hover chain and
+the host kept `pointer_focus` (and the grab record's focus) on the id. The compositor's leave
+then names the destroyed object (KWin sends `leave(serial, nil)`), which `surface_id_for`
+cannot match, so nothing ever told the document. When the surface was shown again, the element
+under the pointer was still the hovered node (the new card reuses the removed one's node), so
+Blitz saw no hover change and dispatched no `mouseenter`, even after F57's move on the enter and
+a nudge: in sill, no hover pause and no close button on the next banner until the pointer left
+the column and came back. `close` (host-initiated) and `close_surface_and_popups` (the
+compositor's `closed`/`request_close`/`done`) had the same omission for the records; their
+document goes with the surface.
+
+`scripts/dev/accept-hover.sh`, headless KWin 6.7.5, the pointer resting on the cards' centre;
+`hide top`, then `show top` (with F57 already fixed, so the only failures are this one):
+
+```
+hover: hide top
+ -> zwlr_layer_surface_v1#58.destroy()
+ -> wl_surface#54.destroy()
+ -> zwlr_layer_shell_v1#11.get_layer_surface(new id zwlr_layer_surface_v1#133, wl_surface#126, nil, 3, "hover-top")
+wl_pointer#25.leave(11, nil)
+wl_pointer#25.enter(11, wl_surface#27, 161.00000000, 60.00000000)
+hover: bottom enter
+hover: show top
+wl_pointer#25.leave(14, wl_surface#27)
+wl_pointer#25.enter(14, wl_surface#126, 161.00000000, 60.00000000)
+hover: bottom leave
+wl_pointer#25.motion(349383501, 162.00000000, 60.00000000)     <- the nudge: still no top enter
+```
+
+`FAIL unmap_under: hide top,bottom enter` (no `top leave`), `FAIL remap_under: show top,bottom
+leave` (no `top enter`), and after a nudge still no `top enter`. On master (neither fix) the
+first two lines of each step were all there was: `hide top` alone, `show top` alone.
+
+**Fix.** The pointer-focus record is a type, `input::focus::PointerFocus::{Nowhere,
+On(Entered { surface, serial })}`, with the pure transitions `enter(surface, serial)` and
+`depart(focus, surface) -> (PointerFocus, Departure::{Lost, Unaffected})` (table-tested,
+including an unmap followed by the enter beneath and a second departure of the unmapped id).
+`HostState::withdraw_pointer(id)` departs the id and, when that took the focus, does what a
+leave does (zone to the document, buttons and press forgotten, position parked at (-1, -1),
+`SurfaceDocument::pointer_left`: the move to (-1, -1), so Blitz's own hover change runs
+`mouseleave`, then `clear_hover()`), without invalidating (the surface is going; a remapped one
+starts a new frame machine). `unmap` calls it before the rebuild, while the old `wl_surface` is
+still the id's; `close` and `close_surface_and_popups` call it before the removal. The
+compositor's later leave for the dead object is skipped by `surface_id_for` as before, silently
+(the host prints nothing for it; sctk passes it on without a warning, since a leave carries its own surface). The leave handler shares the same record update
+(`depart`) and reset. A button held on the surface when it goes is forgotten with it: its release
+goes to the compositor's grab on a surface that no longer exists.
+
+After, the same run:
+
+```
+hover: hide top
+hover: top leave
+ -> zwlr_layer_surface_v1#58.destroy()
+ -> wl_surface#54.destroy()
+ -> zwlr_layer_shell_v1#11.get_layer_surface(new id zwlr_layer_surface_v1#133, wl_surface#126, nil, 3, "hover-top")
+wl_pointer#25.leave(11, nil)
+wl_pointer#25.enter(11, wl_surface#27, 161.00000000, 60.00000000)
+hover: bottom enter
+hover: show top
+wl_pointer#25.leave(14, wl_surface#27)
+wl_pointer#25.enter(14, wl_surface#126, 161.00000000, 60.00000000)
+hover: bottom leave
+hover: top enter
+```
+
+```
+PASS enter_one_motion: top enter
+PASS unmap_under: hide top,top leave,bottom enter
+PASS remap_under: show top,bottom leave,top enter
+```
+
+Three runs, 3/3 each. The card beneath reports its enter the moment the top one is unmapped,
+with no pointer motion, and the re-mapped card is hovered again at once. sill's `repro` steps
+should now pass against this branch (not run here: no sill daemon from this worktree).

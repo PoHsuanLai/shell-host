@@ -17,6 +17,7 @@ use crate::frame::{FrameInput, TimerCmd};
 use crate::grab::GrabRecord;
 use crate::id::SurfaceId;
 use crate::input::capability::{Announcement, Held, capability_change};
+use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
@@ -28,7 +29,7 @@ pub struct SeatInput {
     pub(crate) pointer: Option<wl_pointer::WlPointer>,
     pub(crate) keyboard: Option<wl_keyboard::WlKeyboard>,
     /// The surface under the pointer and the serial of its `enter` (for cursor changes).
-    pub(crate) pointer_focus: Option<(SurfaceId, u32)>,
+    pub(crate) pointer_focus: PointerFocus,
     pub(crate) position: PointerPos,
     pub(crate) buttons: MouseEventButtons,
     pub(crate) keyboard_focus: Option<SurfaceId>,

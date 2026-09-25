@@ -11,6 +11,7 @@ use wayland_client::{Proxy, QueueHandle};
 use crate::csd::Zone;
 use crate::event::{Focus, HostEvent};
 use crate::input::capability::CapabilityChange;
+use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
@@ -85,7 +86,8 @@ impl HostState {
         if let Some(pointer) = self.input.pointer.take() {
             release_pointer_object(pointer);
         }
-        if let Some((id, _)) = self.input.pointer_focus.take() {
+        let focus = std::mem::replace(&mut self.input.pointer_focus, PointerFocus::Nowhere);
+        if let Some(id) = focus.surface() {
             if let Some(surface) = self.surfaces.get_mut(&id) {
                 surface.document.pointer_left(self.input.modifiers);
             }

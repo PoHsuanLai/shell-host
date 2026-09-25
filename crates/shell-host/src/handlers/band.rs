@@ -10,6 +10,7 @@ use crate::csd::{Zone, cursor_for, to_document, zone_at};
 use crate::ctx::begin_resize;
 use crate::dom::shell_provider::CursorRequest;
 use crate::id::SurfaceId;
+use crate::input::focus::{Entered, PointerFocus};
 use crate::input::pointer::{self, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
@@ -76,10 +77,10 @@ impl HostState {
     /// Show the cursor for the pointer's zone on surface `id`: the band's resize cursor, or
     /// the document's own. Needs the `enter` serial, so only for the focused surface.
     pub(crate) fn show_cursor(&mut self, pointer: &WlPointer, id: SurfaceId) {
-        let Some((focus, serial)) = self.input.pointer_focus else {
+        let PointerFocus::On(Entered { surface, serial }) = self.input.pointer_focus else {
             return;
         };
-        if focus != id {
+        if surface != id {
             return;
         }
         let icon = match self.input.zone {

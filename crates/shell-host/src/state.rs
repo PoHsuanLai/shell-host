@@ -61,6 +61,7 @@ use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
 use crate::ime::{Ime, ImeFocus, PendingIme};
+use crate::input::focus::PointerFocus;
 use crate::input::key::{Repeat, key_event};
 use crate::input::pointer::PointerPos;
 use crate::prepaint::Prepaint;
@@ -147,7 +148,7 @@ impl HostState {
                 seat: None,
                 pointer: None,
                 keyboard: None,
-                pointer_focus: None,
+                pointer_focus: PointerFocus::Nowhere,
                 position: PointerPos::OUTSIDE,
                 buttons: MouseEventButtons::None,
                 keyboard_focus: None,
