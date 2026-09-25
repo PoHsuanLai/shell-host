@@ -89,6 +89,11 @@ required-features = ["debug-inject"]
 name = "demo_wallpaper"
 required-features = ["debug-inject"]
 
+# A client-decorated toplevel: move, resize band, maximize, configure state (FINDINGS F46-F49).
+[[example]]
+name = "demo_window"
+required-features = ["debug-inject"]
+
 [[example]]
 name = "spike_widget"
 required-features = ["headless"]
