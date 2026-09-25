@@ -855,3 +855,170 @@ mapped or after the demo exited; the item's capture timing on a live compositor 
 the first presented frame before it can be called a rendering bug. The user's display
 scale was not changed. Results: `spike/out/demo/kwin/{a,b,c,f,g}.json` (untracked, `spike/out`
 is ignored); the a and b screenshots are on the progress page.
+
+## Window interaction (branch `window-interact`, 2026-09-25)
+
+Our client-decorated windows could not be moved or resized. The quire frame (a titlebar drag
+region, double-click zoom, the green light's zoom and a Fill/Left/Right/Centre menu) is built
+against a seam `ds::HostWindow`; this is the host half.
+
+### F46. The window API a client-decorated frame calls
+
+On `SurfaceHandle` (the document's own surface, `use_surface()`):
+
+| Call | Wire | Notes |
+| --- | --- | --- |
+| `begin_move(&self) -> Result<(), GrabRefused>` | `xdg_toplevel.move(seat, serial)` | call from the drag region's `onmousedown`, button still down |
+| `begin_resize(&self, ResizeEdge) -> Result<(), GrabRefused>` | `xdg_toplevel.resize(seat, serial, edge)` | `ResizeEdge::{Top, Bottom, Left, Right, TopLeft, TopRight, BottomLeft, BottomRight}`; the host's band already does this |
+| `set_maximized(&self, Maximize::{Set, Unset})` | `set_maximized` / `unset_maximized` | the zoom button and titlebar double-click |
+| `set_minimized(&self)` | `set_minimized` | no un-minimize request exists for a client |
+| `set_fullscreen(&self, Fullscreen::{Set, Unset})` | `set_fullscreen(None)` / `unset_fullscreen` | compositor's choice of output |
+| `current_toplevel_state(&self) -> ToplevelState` | last configure | for an event handler (toggle zoom) |
+| `use_toplevel_state() -> ReadSignal<ToplevelState>` | each `xdg_toplevel.configure` | re-renders only when the state changes, not on a size-only configure |
+
+`ToplevelState { maximized: Maximize, fullscreen: Fullscreen, activated: Activation, tiled:
+TileEdges { top, bottom, left, right: Tile::{Tiled, Free} } }`, `TileEdges::any()`. The same ops
+are `SurfaceOp::{BeginMove, BeginResize(ResizeEdge), SetMaximized(Maximize), Minimize,
+SetFullscreen(Fullscreen)}` for `HostCtx::apply` / `HostHandle::apply`; they do not repaint
+(`SurfaceOp::repaint() -> Repaint::NotNeeded`): the configure that answers repaints, so a
+refused or no-op request costs no frame. `ToplevelConfig::decorations` is now
+`Decorations::Client(ResizeMargin)` or `Decorations::Server`; `Decorations::CLIENT` is the
+default 7 px band (**breaking** for a literal `Decorations::Client`; no caller constructed one).
+`LiveScale` became `live::Live<Scale>`, the same mechanism that carries `ToplevelState`.
+
+The document's own cursor (Blitz's hover: `cursor:` CSS, text, links) is now shown through
+`wp_cursor_shape_v1`; `HostShellProvider` recorded it but nothing ever read it, so every surface
+showed the default arrow. A `None` from Blitz (nothing hovered) shows the default rather than
+hiding the pointer.
+
+Tests: `grab::tests` (the rule's table), `csd::tests` (band, zones, geometry, content offset at
+1.0/1.5/2.0, cursors), `toplevel::tests` (edge wire mapping), `ctx::spawn::tests::{
+use_toplevel_state_follows_each_configure, a_move_is_queued_only_with_a_held_press_on_the_surface}`.
+
+### F47. The seat present at startup was never adopted: no real pointer or keyboard input
+
+`handlers/seat.rs` tracked a seat only in `SeatHandler::new_seat`, and every capability handler
+returned unless the seat was the tracked one. sctk (0.20, `seat/mod.rs`) calls `new_seat` only
+from the registry handler for a seat announced *after* `SeatState::new`; a seat that exists when
+the host binds (every seat, in practice) goes straight to `new_capability`. So `input.seat`
+stayed `None`, no `wl_pointer` or `wl_keyboard` was ever created, and the clipboard's connection
+was never set. Every earlier acceptance drove documents through `debug-inject`, which bypasses
+Wayland input, so nothing noticed. Seen in the first `demo_window` run on nested KWin:
+`wl_seat.capabilities(3)` then `(7)` arrived and the client sent no `get_pointer`. Fix: the
+first capability adopts the seat (`HostState::adopt_seat`, also called from `new_seat`). sill
+should re-check anything it believed about real keyboard input through shell-host.
+
+### F48. CSD geometry: the band is surface, the window geometry is the frame
+
+A floating `Decorations::Client` toplevel's surface is its frame plus `ResizeMargin` on every
+side (`csd.rs`, pure): the buffer includes the band as transparent pixels, and
+`xdg_surface.set_window_geometry(m, m, frame_w, frame_h)` is sent with every configure, so the
+compositor measures, places, maximizes, tiles and shadows the frame, and configure sizes are the
+frame's (min/max sizes are too). The document's viewport is the frame; it paints at the band's
+width rounded to device pixels (`csd::content_px`, `paint_scene`'s offset), pointer positions
+are translated back by the same physical amount, and region specs (`Whole`, `Rects`,
+`Element`) are the document's, moved into surface coordinates. The input region adds the band
+(four strips, corners covered); the blur region never includes it; the IME cursor rectangle is
+offset too. Element rectangles therefore stay window-geometry coordinates, which is what
+`xdg_positioner` anchors a popup against.
+
+In the band the pointer handler shows `ns-resize`/`ew-resize`/`nwse-resize`/`nesw-resize` (a
+corner reaches one band width further along each side than the band's own square) and a
+primary press there calls `xdg_toplevel.resize` directly; the document sees neither, and
+crossing from the frame into the band sends it the leave. The zone is only re-decided with no
+button held, so a drag that began on the document keeps its events across the band. The band
+exists only while floating: maximized, fullscreen or any tiled edge give `Inset::NONE` and a
+window geometry of the whole surface.
+
+**cosmic-comp 1.8 configures a floating window as tiled on all four edges.** On the nested
+cosmic-comp the second configure of `demo_window` is `xdg_toplevel.configure(480, 320,
+array[16])`, four states, which sctk reads as `tiled_left/right/top/bottom`, and it stays so
+after unmaximize (`array[20]`, plus activated). So on cosmic-comp the host drops the band
+(`set_window_geometry(0, 0, 480, 320)`, surface 480x320) and resizing a floating window is
+cosmic-comp's own business (it signals "the compositor owns the edges" this way; its own
+edge-resize handling was not exercised, there is no pointer on the nested instance). On KWin
+the window floats with no tiled state and the band is there. The rule is per configure, so a
+compositor that stops sending the tiled states gets the band back without a change here.
+
+### F49. The serial rule, and what a compositor grab does to the buttons
+
+`xdg_toplevel.move`/`.resize` need the serial of a press that is still down: smithay (cosmic-comp)
+starts the grab only if the pointer's current implicit grab began with that serial, KWin only for
+its latest press; anything else is ignored with no error. `grab.rs` keeps, per seat, the pointer's
+surface and the held press (`PointerFacts`, shared with every `SurfaceHandle` as an `Rc<Cell>`),
+and `grab_serial` refuses up front: `GrabRefused::{PointerElsewhere, NoPress, PressedElsewhere,
+NotAToplevel, NoSeat}`. The handle checks synchronously, so `begin_move()` returns the refusal to
+the component; the apply checks again and logs if the press went away in between.
+
+Once the compositor takes the grab, the button's release goes to the compositor, not to us, so
+the press would otherwise stay "held" for ever: the zone would stay pinned (the next band press
+was delivered to the document) and a later `begin_move` would reuse a dead serial (it returned
+`Ok` on KWin with no button down). Now the press is dropped when `move`/`resize` is sent, and the
+buttons and press are dropped at every `enter` and `leave` (a leave with a button held means a
+grab took the pointer).
+
+### F50. Tiling requests: no compositor offers a client "Left half", "Right half" or "Centre"
+
+xdg-shell has nothing for it: `xdg_toplevel` requests are `set_parent`, `set_title`,
+`set_app_id`, `show_window_menu`, `move`, `resize`, `set_max_size`, `set_min_size`,
+`set_maximized`, `unset_maximized`, `set_fullscreen`, `unset_fullscreen`, `set_minimized`; the
+`tiled_*` states are compositor-to-client only. Globals, from `wayland-info`:
+
+| Compositor | Candidate | Offered | What it can do |
+| --- | --- | --- | --- |
+| cosmic-comp 1.8.0 (nested, `wayland-1`) | `xdg_toplevel_tag_manager_v1` | absent | - |
+| | `zcosmic_toplevel_manager_v1` | v4 | `close`, `activate`, `set/unset_maximized`, `set/unset_minimized`, `set/unset_fullscreen`, `set_rectangle` (the minimize target, not a placement), `move_to_workspace` (deprecated), `set/unset_sticky`, `move_to_ext_workspace`; capabilities enum has no tile/placement entry (cosmic-protocols c0cff4d) |
+| | anything with "tile" in its name | none | tiling is keyboard shortcuts and the compositor's own UI |
+| KWin 6.7.5 (live session, `wayland-0`, read-only listing) | `xdg_toplevel_tag_manager_v1` | v1 | `set_toplevel_tag`, `set_toplevel_description`: a stable name a user's window rule can match, no placement |
+| | `org_kde_plasma_shell` | v8 | `org_kde_plasma_surface.set_position(x, y)` in global coordinates: absolute placement, no tiled state, no size; would need `wayland-protocols-plasma` (not in the pinned block) and is KDE-only |
+| | `org_kde_plasma_window_management` | absent for an ordinary client | - |
+| | quick tile | D-Bus / KWin scripting only (`workspace` API), not a Wayland request | - |
+
+So the host implements maximize/unmaximize (the menu's Fill) and nothing for Left/Right/Centre.
+For the compositor-gaps list: **a client request to tile its own toplevel to a half or centre it
+(an `xdg_toplevel` placement hint, or a `zcosmic_toplevel_manager_v1.tile` request with a
+`tile` capability entry) is missing on cosmic-comp 1.8; on KWin only `org_kde_plasma_surface.set_position`
+(absolute, KDE-only) comes close.** quire's menu should hide Left/Right/Centre until one exists.
+
+### F51. `demo_window` on nested compositors
+
+`examples/demo_window.rs` (480x320 frame, a `rgb(230,60,40)` titlebar whose `onmousedown` calls
+`begin_move` and whose double-click toggles zoom, a blue body; stdin `move`, `resize <edge>`,
+`maximize`, `unmaximize`, `fullscreen`, `unfullscreen`, `minimize`, `stats`, `quit`; prints each
+`ToplevelState` change) was run next to `demo_bar` (a top layer reserving 32 px) with
+`WAYLAND_DEBUG=1` for the cursor and geometry requests. Results in `spike/out/window/`
+(ignored).
+
+**Nested KWin** (`kwin_wayland --virtual`, 1920x1080 at 1.0, own D-Bus session, started with
+`KWIN_WAYLAND_NO_PERMISSION_CHECKS=1` so a small out-of-tree `org_kde_kwin_fake_input` client
+could press real buttons; geometry from a KWin script printing `frameGeometry` and
+`bufferGeometry`). The shared nested cosmic-comp has no virtual-pointer protocol and its input
+comes from the host session, which was not touched, so the pointer items ran here.
+
+| Step | Result |
+| --- | --- |
+| open | frame 480x320 at (720, 396), buffer 494x334 at (713, 389): the window geometry excludes the 7 px band |
+| press on the titlebar, drag +200,+100, release | `begin_move` Ok; frame at (920, 496) |
+| press on the body, stdin `move`, drag -100,+50, release | Ok; frame at (820, 546) |
+| stdin `move`, no button down | `Err(NoPress)` |
+| pointer to the bottom-right band, press, drag +100,+60, release | frame 580x380 at (820, 546): grown from the corner, origin fixed |
+| `maximize` | state `maximized: Set`; frame and buffer 1920x1048 at (0, 32): the output minus the bar's 32 px, no band |
+| `unmaximize` | frame 580x380 back at (820, 546), buffer 594x394 (band back) |
+| `fullscreen` | 1920x1080 at (0, 0) |
+| cursor shapes sent, in order | 1 (default, frame), 29 `nwse_resize` (bottom-right band), 1 (back on the frame), 27 `ns_resize` (top band), 1 (frame) |
+| idle 5 s after the last configure | 0 frames, 0 commits, 0 callbacks |
+
+**Nested cosmic-comp** (`wayland-1`, shared, reused; WINIT-0 2560x1600 at 1.0; geometry from
+`grim` by the titlebar and body colours):
+
+| Step | Result |
+| --- | --- |
+| open | frame at (1041, 229), 478x318 on screen (cosmic's corner rounding eats the outer pixel); configured tiled on all edges, so no band (F48) |
+| stdin `move` (no pointer on the nested output) | `Err(PointerElsewhere)`, nothing sent |
+| `maximize` | `maximized: Set`, frame 2560x1568 at (0, 32): the output minus the bar's 32 px |
+| `unmaximize` | back to 480x320 at (1041, 229) |
+| `fullscreen` | 2560x1600 at (0, 0) |
+| idle 5 s | 0 frames, 0 commits, 0 callbacks |
+
+Not run: the pointer items on cosmic-comp (above), and scales other than 1.0 (the band's
+device-pixel rounding at 1.5 and 2.0 is in `csd::tests`).
