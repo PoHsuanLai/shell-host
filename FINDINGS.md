@@ -1217,3 +1217,31 @@ follow — `debug-inject`'s `stats` carries no region geometry to read back dire
 has counters and percentiles only), so this is the level the demos actually expose; wired
 through `DockProps { magnify, cards }` and `--cards=one|two` alongside the existing `--mode` and
 `--layer` (`dock_options`), reaching `demo_bar --with-dock` the same way.
+
+### F56. `kwin-virtual.sh`'s private bus had the stock session config's service directories
+
+Found while wiring notification-banner acceptance up to `kwin-virtual.sh` (F52): its `inside`
+started `dbus-daemon --session`, the stock config, which — like the `dbus-run-session` sill's own
+`dev/private-bus.conf` was written against (that file's own comment, "M6 freeze") — activates
+whatever claims a name. `/usr/share/dbus-1/services/org.kde.plasma.Notifications.service` claims
+`org.freedesktop.Notifications` on this machine, so a shell-host client's real `Notify` call
+would D-Bus-activate KDE's own notification daemon inside the headless session, which would
+answer instead of leaving the call to exercise shell-host's own banners — the same failure mode
+sill solved for its acceptance, now reached from the KWin side instead of `dbus-run-session`.
+
+**Fix.** `scripts/dev/private-bus.conf`, the stock `session` bus type with no `<servicedir>` and
+no `<standard_session_servicedirs/>` — equivalent to sill's own `dev/private-bus.conf`, `<listen>
+unix:tmpdir=/tmp</listen>` and all — so nothing on the bus is activatable. `kwin-virtual.sh`'s
+`inside` runs `dbus-daemon --config-file=scripts/dev/private-bus.conf --fork --print-address=1
+--print-pid=1` in place of `--session`; `--fork`, `--print-address` and `--print-pid` (and so the
+address/pid capture into `$BUS_FILE`, and the scope containment from F54) are unaffected — only
+which bus config is loaded changes.
+
+**Verified** on a headless KWin 6.7.5 started this way: `busctl --address
+"$DBUS_SESSION_BUS_ADDRESS" list --activatable` lists only `org.freedesktop.DBus` itself (no
+`org.freedesktop.Notifications`), and `busctl --user list` against the same address (sourcing
+`.kwin-env`, matching how a caller actually uses this bus) likewise shows no such name; a
+`gdbus call` of `org.freedesktop.Notifications.Notify` on that bus fails
+`GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications
+was not provided by any .service files`, rather than starting anything. `kwin-virtual.sh stop`
+afterwards ended KWin and the bus and left the caller and its shell running, matching F54.

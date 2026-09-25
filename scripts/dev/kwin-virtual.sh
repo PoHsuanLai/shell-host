@@ -12,6 +12,12 @@
 # a real session. Its log (QT_LOGGING_RULES enables `js` so KWin scripts' print() lands there)
 # is scripts/dev/out/kwin-virtual.log.
 #
+# The private D-Bus session bus runs on scripts/dev/private-bus.conf, not the stock session
+# config: the stock config's service directories let a client's `Notify` D-Bus-activate KDE's
+# own notification service inside this headless session, which would answer for the shell's own
+# notification banners under test (FINDINGS F56). private-bus.conf has no servicedirs, so
+# nothing on this bus is activatable.
+#
 # KWin gets its own empty XDG_CONFIG_HOME (scripts/dev/out/kwin-virtual-config): otherwise it
 # reads the user's kwinrc and runs the user's installed KWin scripts (window rules, tiling or
 # maximize helpers), which would act on the windows under test. Clients keep their own config.
@@ -98,7 +104,8 @@ stop() {
 # KWin, so that the pid start recorded is KWin's and both share the scope's cgroup.
 inside() {
   local size="$1" sock="$2" config="$3"
-  dbus-daemon --session --fork --print-address=1 --print-pid=1 >"$BUS_FILE"
+  dbus-daemon --config-file="$DEV_DIR/private-bus.conf" --fork --print-address=1 --print-pid=1 \
+      >"$BUS_FILE"
   local address
   address="$(sed -n 1p "$BUS_FILE")"
   export DBUS_SESSION_BUS_ADDRESS="$address" KWIN_WAYLAND_NO_PERMISSION_CHECKS=1

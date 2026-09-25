@@ -52,6 +52,15 @@ clients can be developed and screenshotted without a real COSMIC login.
     `.kwin-env`, a client it started) is the caller's, not the helper's: end your own clients
     before `stop`. The older rule (kill every process whose environment named the bus) killed
     `stop`'s own caller and then itself, leaving the bus running.
+  - The bus itself is `dbus-daemon --config-file=scripts/dev/private-bus.conf`, not the stock
+    session config: the stock config's service directories let a client's `Notify` D-Bus-activate
+    KDE's own `org.kde.plasma.Notifications.service` inside the headless session, which would
+    answer for the shell's own notification banners under test rather than leaving the call to
+    fail (FINDINGS F56). `private-bus.conf` has no `<servicedir>` or
+    `<standard_session_servicedirs/>`, only a `unix:tmpdir=` listen address, so nothing on this
+    bus is activatable; verified with `busctl --address "$DBUS_SESSION_BUS_ADDRESS" list
+    --activatable` (only `org.freedesktop.DBus` itself) and a `Notify` call, which fails
+    `ServiceUnknown` instead of starting anything.
 - `fake-input.sh` — synthetic pointer and keyboard input into that KWin, commands on stdin:
   `move X Y`, `press|release left|right|middle`, `key KEYSYM down|up`, `type "text"`,
   `sleep MS` (builds `tools/fake-input` on first use; FINDINGS F52).
