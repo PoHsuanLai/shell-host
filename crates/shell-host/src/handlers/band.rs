@@ -92,6 +92,15 @@ impl HostState {
         self.cursor.set(pointer, serial, icon);
     }
 
+    /// Drop the held buttons and the press. At an `enter` or a `leave` no button of ours can
+    /// be down: a leave with a button held means the compositor took the pointer (a move or
+    /// resize grab), and the release then goes to the compositor, never to us; keeping the
+    /// buttons would pin the zone and let a later `begin_move` reuse a dead serial.
+    pub(crate) fn forget_buttons(&mut self) {
+        self.input.buttons = blitz_traits::events::MouseEventButtons::None;
+        self.input.grab.update(|facts| facts.press = None);
+    }
+
     /// A press in surface `id`'s band: resize from `edge` with the press just recorded.
     pub(crate) fn resize_from_band(&self, id: SurfaceId, edge: ResizeEdge) {
         let Some(surface) = self.surfaces.get(&id) else {

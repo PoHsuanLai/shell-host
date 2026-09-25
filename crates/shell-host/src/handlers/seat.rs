@@ -64,14 +64,7 @@ impl SeatHandler for HostState {
     }
 
     fn new_seat(&mut self, conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        // `Clipboard::follow` needs a connection to flush; any seat event hands us one.
-        if self.clipboard.conn.is_none() {
-            self.clipboard.conn = Some(conn.clone());
-        }
-        // Only the first seat is tracked (`SeatInput`'s own doc: "the (single, first) seat").
-        if self.input.seat.is_none() {
-            self.input.seat = Some(seat);
-        }
+        self.adopt_seat(conn, seat);
     }
 
     /// Pointer: `get_pointer` plus the cursor-shape device. Keyboard: `get_keyboard` without
@@ -79,11 +72,15 @@ impl SeatHandler for HostState {
     /// text input and the data device.
     fn new_capability(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         qh: &QueueHandle<Self>,
         seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
+        // sctk calls `new_seat` only for a seat announced after startup; a seat that was
+        // already there when the host bound the globals (every seat, in practice) first shows
+        // up here, with its capabilities (FINDINGS F47).
+        self.adopt_seat(conn, seat.clone());
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
@@ -167,6 +164,17 @@ impl SeatHandler for HostState {
 /// `wl_surface` into the id it was spawned with, and to invalidate that surface's document after
 /// an event changes it.
 impl HostState {
+    /// Track `seat` if no seat is tracked yet (only the first seat is, `SeatInput`'s own doc),
+    /// and give the clipboard the connection it flushes on.
+    fn adopt_seat(&mut self, conn: &Connection, seat: wl_seat::WlSeat) {
+        if self.clipboard.conn.is_none() {
+            self.clipboard.conn = Some(conn.clone());
+        }
+        if self.input.seat.is_none() {
+            self.input.seat = Some(seat);
+        }
+    }
+
     /// The id of the surface `surface` belongs to, or `None` for a surface that is not (or is no
     /// longer) one of ours.
     pub(crate) fn surface_id_for(&self, surface: &WlSurface) -> Option<SurfaceId> {

@@ -61,6 +61,8 @@ pub(crate) fn begin_move(
     let serial = state.input.grab.serial_for(id)?;
     let seat = state.input.seat.as_ref().ok_or(GrabRefused::NoSeat)?;
     window.move_(seat, serial);
+    // The compositor owns the button from here; its release never reaches us.
+    state.input.grab.update(|facts| facts.press = None);
     Ok(())
 }
 
@@ -74,5 +76,6 @@ pub(crate) fn begin_resize(
     let serial = state.input.grab.serial_for(id)?;
     let seat = state.input.seat.as_ref().ok_or(GrabRefused::NoSeat)?;
     window.resize(seat, serial, to_wire_edge(edge));
+    state.input.grab.update(|facts| facts.press = None);
     Ok(())
 }

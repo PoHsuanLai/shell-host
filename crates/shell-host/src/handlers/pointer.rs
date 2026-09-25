@@ -41,6 +41,7 @@ impl PointerHandler for HostState {
             match event.kind.clone() {
                 PointerEventKind::Enter { serial } => {
                     self.input.pointer_focus = Some((id, serial));
+                    self.forget_buttons();
                     self.input.grab.update(|facts| facts.focus = Some(id));
                     self.input.position = pos;
                     self.input.zone = self.zone_of(id, pos);
@@ -59,6 +60,7 @@ impl PointerHandler for HostState {
                         }
                     });
                     self.input.zone = Zone::Document;
+                    self.forget_buttons();
                     self.input.position = PointerPos::OUTSIDE;
                     if let Some(surface) = self.surfaces.get_mut(&id) {
                         surface.document.pointer_left(self.input.modifiers);
