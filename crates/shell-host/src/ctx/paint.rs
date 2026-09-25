@@ -20,6 +20,7 @@ use crate::config::Backend;
 use crate::csd::{Inset, band, content_px, to_surface};
 use crate::ctx::HostCtx;
 use crate::debug::AlphaMode;
+use crate::dom::document::HoverShift;
 use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
 use crate::error::{HostError, Recovery, Result};
 use crate::event::CloseReason;
@@ -208,7 +209,7 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     let time = state.clock.seconds_at(started);
     let blur = blur_allowed(state, id);
 
-    let refit = {
+    let (refit, hover) = {
         let Some(surface) = state.surfaces.get_mut(&id) else {
             return Ok(());
         };
@@ -216,10 +217,11 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         // `FitContent` popup can be measured before anything else this frame reads its size.
         // The only resolve of the frame: it runs the pre-paint hook, and the present paints
         // what it left, so regions, popup fits and pixels all read the same (snapped) layout.
-        if surface.document.resolve(time) == Prepainted::Ran {
+        let resolved = surface.document.resolve(time);
+        if resolved.prepainted == Prepainted::Ran {
             surface.stats.prepainted();
         }
-        pending_refit(surface)
+        (pending_refit(surface), resolved.hover)
     };
     if let Some(placement) = refit {
         super::ops::refit_popup(state, id, placement);
@@ -264,6 +266,12 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         }
     };
     state.frame_input(id, input);
+    if hover == HoverShift::Moved {
+        // The resolve moved the hover (Blitz's `refresh_hover`, and the repair after it,
+        // FINDINGS F59): the `:hover` restyle it asked for is the next frame's, and its redraw
+        // request was just dropped as this render's echo.
+        state.frame_input(id, FrameInput::Invalidate);
+    }
     match presented {
         Err(error) if error.recovery() == Recovery::Fatal => Err(error),
         Err(error) => {

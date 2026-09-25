@@ -4,5 +4,6 @@
 pub mod document;
 pub mod fonts;
 pub mod head;
+pub mod hover_sync;
 pub mod net;
 pub mod shell_provider;

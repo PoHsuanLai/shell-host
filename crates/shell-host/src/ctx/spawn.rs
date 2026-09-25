@@ -651,12 +651,12 @@ mod tests {
         let calls = || seen.lock().expect("unpoisoned").clone();
         assert!(calls().is_empty(), "building and polling never run it");
 
-        assert_eq!(document.resolve(0.0), Prepainted::Ran);
+        assert_eq!(document.resolve(0.0).prepainted, Prepainted::Ran);
         let first = calls();
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].0, 1.5, "the hook sees the viewport's scale");
         assert!(first[0].1 > 0.0, "and a laid-out document: {first:?}");
-        assert_eq!(document.resolve(0.1), Prepainted::Ran);
+        assert_eq!(document.resolve(0.1).prepainted, Prepainted::Ran);
         assert_eq!(calls().len(), 2, "once per resolve");
     }
 
@@ -675,7 +675,7 @@ mod tests {
         );
         let env = test_env(id, ping, Prepaint::None);
         let mut document = surface_document(Root::new(app), handle, env);
-        assert_eq!(document.resolve(0.0), Prepainted::NoHook);
+        assert_eq!(document.resolve(0.0).prepainted, Prepainted::NoHook);
     }
 
     fn zoom_state() -> Element {

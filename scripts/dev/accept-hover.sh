@@ -12,6 +12,10 @@
 #                     without the pointer moving (F58, and F57 for the enter KWin sends)
 #   remap_under       `show top` with the pointer still: `bottom leave`, `top enter`; the
 #                     re-mapped surface's document hovers afresh (F58)
+#   slide_under_resting  the pointer rests on the `slide` surface's pad (bottom-left,
+#                     0..320 x 960..1080); 600 ms later its slider is placed under it; after a
+#                     wait and a 1 px nudge, `stats` must show the slider entered exactly once
+#                     and the pad left once (F59: Blitz's refresh_hover moved the hover silently)
 # Each step prints PASS/FAIL with the lines demo_hover printed during it; the log is
 # scripts/dev/out/hover.log.
 set -uo pipefail
@@ -109,6 +113,20 @@ sleep 0.8
 expect remap_under "show top" "bottom leave" "top enter"
 input "move $((CX + 2)) $CY" "sleep 300" || exit 1
 echo "     after a nudge: $(since | tr '\n' ',' | sed 's/,$//')"
+
+begin
+input "move 160 1020" "sleep 1500" || exit 1
+input "move 161 1020" "sleep 300" || exit 1
+echo stats >&4
+sleep 0.5
+expect slide_under_resting "slide pad enter" "slide placed" "slide pad leave" "slide slider enter"
+stats=$(since | sed -n 's/^stats //p' | tail -n 1)
+if printf '%s' "$stats" | grep -q '"pad":{"enter":1,"leave":1},"slider":{"enter":1,"leave":0}'; then
+  echo "PASS slide_counts: $stats"
+else
+  echo "FAIL slide_counts: $stats (wanted pad enter 1 leave 1, slider enter 1 leave 0)"
+  status=1
+fi
 
 echo quit >&4
 exit $status

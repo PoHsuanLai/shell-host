@@ -4,10 +4,21 @@
 //! moving. Each card prints `hover: <card> enter` / `hover: <card> leave` from its own
 //! `onmouseenter` / `onmouseleave`, which is what a `kwin-virtual.sh` + `fake-input.sh` run reads.
 //!
+//! A third surface, `slide` (320 x 120 at the output's bottom-left corner), is F59's: a `pad`
+//! filling it, and a `slider` that, 600 ms after the first pointer move on the pad, is placed
+//! under wherever the pointer then rests. Blitz notices the slider only in its own
+//! `refresh_hover` at the end of a resolve, which dispatches nothing; the host's repair is what
+//! gives the slider its enter and the pad its leave. Both elements count their
+//! `onpointerenter` / `onpointerleave` and print `hover: slide <element> enter|leave`.
+//!
 //! stdin, one command per line: `hide top|bottom` and `show top|bottom` (a
-//! `SurfaceOp::SetVisibility`, printed as `hover: hide top` when applied), `quit`.
+//! `SurfaceOp::SetVisibility`, printed as `hover: hide top` when applied), `stats` (prints
+//! `hover: stats {"pad":{"enter":N,"leave":N},"slider":{...}}`, the slide surface's counts),
+//! `quit`.
 
 use std::io::{BufRead, Write};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
@@ -82,10 +93,113 @@ fn config(which: Card) -> LayerConfig {
     }
 }
 
+/// How long after the first move on the pad the slider is placed under the pointer.
+const SLIDE_DELAY: Duration = Duration::from_millis(600);
+
+const SLIDE_CSS: &str = "html,body{margin:0;padding:0}\
+.pad{width:320px;height:120px;background:rgb(40,140,80)}\
+.slider{position:absolute;width:80px;height:40px;background:rgb(230,200,40)}\
+.slider:hover{outline:3px solid white;outline-offset:-3px}";
+
+/// One element's pointer enter and leave counts, shared with the `stats` command.
+struct Tally {
+    enter: AtomicU32,
+    leave: AtomicU32,
+}
+
+impl Tally {
+    const fn new() -> Tally {
+        Tally {
+            enter: AtomicU32::new(0),
+            leave: AtomicU32::new(0),
+        }
+    }
+
+    fn count(&self, name: &str, crossing: Crossing) {
+        let (counter, verb) = match crossing {
+            Crossing::Enter => (&self.enter, "enter"),
+            Crossing::Leave => (&self.leave, "leave"),
+        };
+        counter.fetch_add(1, Ordering::SeqCst);
+        say(&format!("slide {name} {verb}"));
+    }
+
+    fn json(&self) -> String {
+        format!(
+            "{{\"enter\":{},\"leave\":{}}}",
+            self.enter.load(Ordering::SeqCst),
+            self.leave.load(Ordering::SeqCst)
+        )
+    }
+}
+
+/// Which way the pointer crossed an element's edge.
+#[derive(Debug, Clone, Copy)]
+enum Crossing {
+    Enter,
+    Leave,
+}
+
+static PAD: Tally = Tally::new();
+static SLIDER: Tally = Tally::new();
+
+/// Whether the slider's timer was started.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Timer {
+    Idle,
+    Started,
+}
+
+fn slide() -> Element {
+    let mut pointer = use_signal(|| (0.0, 0.0));
+    let mut placed = use_signal(|| None::<(f64, f64)>);
+    let mut timer = use_signal(|| Timer::Idle);
+    let onmove = move |event: PointerEvent| {
+        let at = event.client_coordinates();
+        pointer.set((at.x, at.y));
+        if timer() == Timer::Idle {
+            timer.set(Timer::Started);
+            spawn(async move {
+                tokio::time::sleep(SLIDE_DELAY).await;
+                let (x, y) = *pointer.peek();
+                say(&format!("slide placed {x} {y}"));
+                placed.set(Some((x, y)));
+            });
+        }
+    };
+    rsx! {
+        style { "{SLIDE_CSS}" }
+        div {
+            class: "pad",
+            onpointermove: onmove,
+            onpointerenter: |_| PAD.count("pad", Crossing::Enter),
+            onpointerleave: |_| PAD.count("pad", Crossing::Leave),
+        }
+        if let Some((x, y)) = placed() {
+            div {
+                class: "slider",
+                style: "left:{x - 40.0}px;top:{y - 20.0}px",
+                onpointerenter: |_| SLIDER.count("slider", Crossing::Enter),
+                onpointerleave: |_| SLIDER.count("slider", Crossing::Leave),
+            }
+        }
+    }
+}
+
+fn slide_config() -> LayerConfig {
+    LayerConfig {
+        namespace: "hover-slide".to_string(),
+        layer: Layer::Overlay,
+        anchor: Anchor::BOTTOM.union(Anchor::LEFT),
+        ..config(Card::Top)
+    }
+}
+
 /// A stdin line, parsed on the reader thread.
 #[derive(Debug, Clone, Copy)]
 enum Command {
     Set(Card, Visibility),
+    Stats,
     Quit,
 }
 
@@ -99,6 +213,7 @@ fn parse(line: &str) -> Option<Command> {
     match words.as_slice() {
         ["hide", name] => card(name).map(|c| Command::Set(c, Visibility::Hidden)),
         ["show", name] => card(name).map(|c| Command::Set(c, Visibility::Shown)),
+        ["stats"] => Some(Command::Stats),
         ["quit"] => Some(Command::Quit),
         _ => None,
     }
@@ -155,6 +270,17 @@ fn run() -> Result<(), String> {
                     }
                 }
             }
+            if let Err(error) = ctx.spawn_layer(slide_config(), Root::new(slide)) {
+                eprintln!("demo_hover: slide: {error}");
+                ctx.exit();
+            }
+        }
+        HostEvent::App(Command::Stats) => {
+            say(&format!(
+                "stats {{\"pad\":{},\"slider\":{}}}",
+                PAD.json(),
+                SLIDER.json()
+            ));
         }
         HostEvent::App(Command::Set(which, visibility)) => {
             if let Some(id) = cards.get(which) {

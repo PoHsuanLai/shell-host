@@ -5,17 +5,21 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::task::Context;
 
-use blitz_dom::{Document as _, DocumentConfig, ElementData, FontContext, StyleThreading};
+use blitz_dom::{
+    BaseDocument, Document as _, DocumentConfig, ElementData, FontContext, NodeId, StyleThreading,
+};
 use blitz_traits::events::UiEvent;
 use blitz_traits::net::NetProvider;
 use blitz_traits::shell::{ShellProvider, Viewport};
 use dioxus_native_dom::DioxusDocument;
 
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
+use crate::dom::hover_sync::{self, Bounds, HoverSync, LastMove, Shift};
 use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::Animation;
 use crate::geometry::enclosing_rect;
+use crate::input::pointer::PointerPos;
 use crate::prepaint::{Prepaint, Prepainted};
 use crate::region::{ElementId, Rect};
 use crate::root::Root;
@@ -64,6 +68,23 @@ pub struct SurfaceDocument {
     doc: DioxusDocument,
     head: HeadQueue,
     prepaint: Prepaint,
+    /// The last real pointer position the surface fed, for `resolve`'s hover repair.
+    last_move: LastMove,
+}
+
+/// Whether a resolve moved the hover: the restyle it needs lands on a later frame, and the
+/// resolve's own redraw request is dropped as the render's echo (`ctx::paint`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoverShift {
+    Moved,
+    Kept,
+}
+
+/// What one `SurfaceDocument::resolve` did besides laying out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resolved {
+    pub prepainted: Prepainted,
+    pub hover: HoverShift,
 }
 
 impl SurfaceDocument {
@@ -94,6 +115,7 @@ impl SurfaceDocument {
             doc,
             head,
             prepaint: env.prepaint,
+            last_move: LastMove::Unknown,
         }
     }
 
@@ -134,8 +156,9 @@ impl SurfaceDocument {
         self.doc.inner_mut().set_viewport(viewport);
     }
 
-    /// Feed one input event.
+    /// Feed one input event, remembering a pointer position for `resolve`'s hover repair.
     pub fn handle_event(&mut self, event: UiEvent) {
+        self.last_move = hover_sync::remember(std::mem::take(&mut self.last_move), &event);
         self.doc.handle_ui_event(event);
     }
 
@@ -155,8 +178,9 @@ impl SurfaceDocument {
         }
     }
 
-    /// `clear_hover()`; `Polled::Changed` if something was hovered.
+    /// `clear_hover()`, and forget the pointer; `Polled::Changed` if something was hovered.
     pub fn clear_hover(&mut self) -> Polled {
+        self.last_move = LastMove::Unknown;
         if self.doc.inner_mut().clear_hover() {
             Polled::Changed
         } else {
@@ -164,14 +188,59 @@ impl SurfaceDocument {
         }
     }
 
-    /// Resolve style and layout at document time `t` (seconds on the host clock), then run the
-    /// pre-paint hook on the result. The two are one call because Blitz re-rounds the layout on
-    /// every resolve: a hook that snapped it must follow each one, or the paint shows the
-    /// unsnapped layout. So a frame resolves exactly once, here, and paints what this left.
-    pub fn resolve(&mut self, t: f64) -> Prepainted {
-        let mut base = self.doc.inner_mut();
-        base.resolve(t);
-        self.prepaint.run(&mut base)
+    /// Resolve style and layout at document time `t` (seconds on the host clock), repair the
+    /// hover the resolve moved, then run the pre-paint hook on the result. Resolve and hook are
+    /// one call because Blitz re-rounds the layout on every resolve: a hook that snapped it must
+    /// follow each one, or the paint shows the unsnapped layout. So a frame resolves exactly
+    /// once, here, and paints what this left. The hover repair (FINDINGS F59) touches hover
+    /// state and runs handlers, never layout, so the hook and the paint see the same layout;
+    /// the restyle it causes is the next frame's (`Resolved::hover`).
+    pub fn resolve(&mut self, t: f64) -> Resolved {
+        let before = self.hovered();
+        self.doc.inner_mut().resolve(t);
+        let after = self.hovered();
+        self.sync_hover(Shift { before, after });
+        let prepainted = self.prepaint.run(&mut self.doc.inner_mut());
+        let hover = if before == after {
+            HoverShift::Kept
+        } else {
+            HoverShift::Moved
+        };
+        Resolved { prepainted, hover }
+    }
+
+    /// The hovered element (a hovered text node counts as its element).
+    fn hovered(&self) -> Option<NodeId> {
+        let inner = self.doc.inner();
+        element_of(&inner, inner.get_hover_node_id()?)
+    }
+
+    /// Blitz's `refresh_hover` moved the hover without dispatching (its TODO): put the old
+    /// hover back without dispatch, then feed the last move again, so the driver dispatches the
+    /// leave/enter diff itself. At most once per resolve.
+    fn sync_hover(&mut self, shift: Shift<NodeId>) {
+        let sync = {
+            let inner = self.doc.inner();
+            hover_sync::decide(
+                shift,
+                &self.last_move,
+                |id| bounds_of(&inner, id),
+                |at| element_at(&inner, at),
+            )
+        };
+        match sync {
+            HoverSync::Unchanged => return,
+            HoverSync::Restore(at) => {
+                self.doc.inner_mut().set_hover_to(at.x as f32, at.y as f32);
+            }
+            HoverSync::Clear => {
+                self.doc.inner_mut().clear_hover();
+            }
+        }
+        if let LastMove::At(event) = &self.last_move {
+            self.doc
+                .handle_ui_event(UiEvent::PointerMove(event.clone()));
+        }
     }
 
     /// Whether a transition or animation is still running.
@@ -259,6 +328,35 @@ impl SurfaceDocument {
     pub fn dioxus(&mut self) -> &mut DioxusDocument {
         &mut self.doc
     }
+}
+
+/// `id` if it is an element, else its nearest element ancestor: the node whose listeners a
+/// hover change reaches.
+fn element_of(doc: &BaseDocument, id: NodeId) -> Option<NodeId> {
+    let node = doc.get_node(id)?;
+    if node.is_element() {
+        Some(id)
+    } else {
+        element_of(doc, node.parent?)
+    }
+}
+
+/// The element Blitz would hover at `at`: the hit, lifted out of anonymous boxes as
+/// `set_hover_to` lifts it, then to its element.
+fn element_at(doc: &BaseDocument, at: PointerPos) -> Option<NodeId> {
+    let hit = doc.hit(at.x as f32, at.y as f32)?;
+    element_of(doc, doc.nearest_non_anonymous_ancestor(hit.node_id)?)
+}
+
+/// `id`'s current border box, in the coordinates the pointer events use.
+fn bounds_of(doc: &BaseDocument, id: NodeId) -> Option<Bounds> {
+    let rect = doc.get_client_bounding_rect(id)?;
+    Some(Bounds {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+    })
 }
 
 /// Whether `data` names a tag that `SurfaceDocument::content_size` should skip: never a

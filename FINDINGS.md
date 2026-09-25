@@ -1365,3 +1365,82 @@ PASS remap_under: show top,bottom leave,top enter
 Three runs, 3/3 each. The card beneath reports its enter the moment the top one is unmapped,
 with no pointer motion, and the re-mapped card is hovered again at once. sill's `repro` steps
 should now pass against this branch (not run here: no sill daemon from this worktree).
+
+## Hover moved by layout (branch `hover-sync`, 2026-09-26)
+
+### F59. An element that arrives under a resting pointer was never entered; Blitz's `refresh_hover` moves the hover silently
+
+Found by sill (its Q170: a notification banner that slides in under a resting pointer never
+counts as hovered, so no hold pause and no close button, until the pointer leaves the column
+and comes back). Blitz (e99fbdbd) ends every `BaseDocument::resolve()` with `refresh_hover()`
+(`blitz-dom/src/resolve.rs:135`, `document.rs:1925`), which re-hit-tests the last pointer
+position against the fresh layout and sets `hover_node_id` without dispatching anything; its
+own doc comment says so: "TODO: synthesizing pointerenter/pointerleave DOM events for hover
+changes caused by layout shifts". The event driver (`events/driver.rs::handle_pointer_move`)
+diffs a move against that already-moved `hover_node_id`, so when the pointer then moves over
+the new element the diff is empty: no `pointerover`/`pointerenter`/`mouseenter` for the new
+chain, no `pointerout`/`pointerleave`/`mouseleave` for the one it covered. Moving the pointer
+within the element never repairs it.
+
+A second, smaller loss on the same path: the `:hover` restyle `refresh_hover` asks for is left
+for the next resolve, and its `request_redraw` comes from the host thread during the render, so
+`ctx::paint` drops it as the render's own echo (SPIKE.md S1 finding 4). A pure-CSS `:hover` on
+an element that arrived under the pointer waited for some unrelated frame.
+
+**Fix (host level; Blitz untouched).** `SurfaceDocument` remembers the last real pointer
+position it was fed (`dom::hover_sync::LastMove`, from `handle_event`: a move as is, a press or
+release as a move with the buttons it left held) and forgets it in `clear_hover` (so in
+`pointer_left`, the leave, the resize band and F58's unmap withdrawal). `resolve(t)` takes the
+hovered element before and after `base.resolve(t)` (a hovered text node counts as its element);
+when they differ and a move is known, `hover_sync::decide` (pure, table-tested) says how to put
+the old hover back without dispatch: probe `hit()` at the old element's current border box,
+centre first and then the four corners 1 px inside, lift each hit as `set_hover_to` does
+(`nearest_non_anonymous_ancestor`) and then to its element, and `set_hover_to` the first probe
+that yields exactly the old element (`HoverSync::Restore`); if none does (it left the layout, or
+is covered at every probe) `clear_hover()` (`HoverSync::Clear`). Then the remembered move is fed
+again through `handle_ui_event`, and Blitz's own driver dispatches exactly the leave/out and
+enter/over diff (plus one harmless `pointermove` at the same point). At most one repair per
+resolve. It runs after the resolve and before the pre-paint hook: it changes hover state and
+runs handlers, never layout, so "a frame resolves exactly once, then the prepaint hook runs"
+still holds and the hook and the paint see the same layout. `resolve` now returns `Resolved {
+prepainted, hover: HoverShift::{Moved, Kept} }`, and `ctx::paint` feeds an `Invalidate` after
+`Presented` when the hover moved, so the restyle lands on the next frame instead of being
+dropped with the echo.
+
+Known limits: when the old element cannot be restored (covered everywhere, or removed), the
+repair starts from no hover, so the new chain's shared ancestors get a second `pointerenter`
+(harmless for sill's banners, whose column is not a listener; a removed element gets no leave,
+as in a browser). Coordinates assume the document viewport is not scrolled (the host's surfaces
+never scroll the viewport; element scrolling is unaffected). blitz-shell windows (anything run
+through `dioxus-native`'s own shell rather than this host) are not covered: the repair is in
+`SurfaceDocument`, not in Blitz. The same recipe is in quire's ds-native `Harness` (branch
+`hover-sync`), which drives documents without this host.
+
+**Proof.** `tests/hover_sync.rs`: a real `SurfaceDocument`, the pointer resting at (100, 70)
+on a `pad`, then a `card` rendered over it through a `use_watch` channel: at that resolve the
+handlers see `pad leave, card enter`; a 1 px nudge then dispatches nothing; moving off gives
+`card leave, pad enter`; removing the card under the pointer gives `pad enter`; with no pointer
+nothing is dispatched. With the repair disabled the first two fail with `[]` (the bug).
+
+`examples/demo_hover` has a third surface, `slide` (320 x 120 at the output's bottom-left,
+Overlay): a `pad`, and a `slider` placed under the resting pointer 600 ms after the first move
+on the pad; both count `onpointerenter`/`onpointerleave`, and `stats` on stdin prints
+`hover: stats {"pad":{..},"slider":{..}}`. `scripts/dev/accept-hover.sh` (headless KWin 6.7.5
+through `kwin-virtual.sh`, input from `tools/fake-input`, F52; nothing on the user's session,
+no keyboard grab) has a new step `slide_under_resting`: `move 160 1020`, rest 1.5 s, nudge to
+(161, 1020), `stats`. With the repair:
+
+```
+PASS slide_under_resting: top leave,slide pad enter,slide placed 160 60,slide pad leave,slide slider enter,stats {"pad":{"enter":1,"leave":1},"slider":{"enter":1,"leave":0}}
+PASS slide_counts: {"pad":{"enter":1,"leave":1},"slider":{"enter":1,"leave":0}}
+```
+
+three runs, 3/3, the F57/F58 steps passing alongside. The same build with the repair disabled:
+
+```
+FAIL slide_under_resting: top leave,slide pad enter,slide placed 160 60,stats {"pad":{"enter":1,"leave":0},"slider":{"enter":0,"leave":0}}
+FAIL slide_counts: {"pad":{"enter":1,"leave":0},"slider":{"enter":0,"leave":0}}
+```
+
+sill's `accept-notifications-real-input.sh repro` (`repro_card_under_resting_pointer`) was not
+run from this worktree.
