@@ -1,5 +1,5 @@
 //! Applying what documents and other threads asked for: ops, popups, closes, clipboard and
-//! activation requests, and visibility changes.
+//! activation requests, drags, and visibility changes.
 
 use smithay_client_toolkit::shell::WaylandSurface;
 
@@ -56,6 +56,7 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
             app_id,
             reply,
         } => request_token(&mut ctx.state, from, app_id, reply),
+        Request::StartDrag { from, spec, reply } => super::drag::start(ctx, from, spec, reply),
     }
 }
 
@@ -131,7 +132,7 @@ fn send(state: &HostState, id: SurfaceId, op: &SurfaceOp) {
             }
         }
         (Role::Toplevel { window, .. }, op) => super::window::send(state, id, window, op),
-        (Role::Popup { .. }, _) => {}
+        (Role::Popup { .. } | Role::DragIcon { .. }, _) => {}
     }
 }
 
@@ -232,7 +233,9 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     };
     let lifted = match &surface.role {
         Role::Popup { parent, config, .. } if config.grab == Grab::Grabbed => Some(*parent),
-        Role::Popup { .. } | Role::Layer { .. } | Role::Toplevel { .. } => None,
+        Role::Popup { .. } | Role::Layer { .. } | Role::Toplevel { .. } | Role::DragIcon { .. } => {
+            None
+        }
     };
     drop(surface);
     if let Some(parent) = lifted {

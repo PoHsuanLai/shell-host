@@ -63,6 +63,8 @@ required-features = ["debug-inject"]
 [dev-dependencies]
 # Image paints for custom widgets in the examples (in the pinned block since S3).
 peniko = { workspace = true }
+# The drag outcome's wire form in tests, and demo_drag's JSON lines.
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

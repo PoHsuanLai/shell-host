@@ -20,8 +20,10 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `ctx/rescale.rs` | the start of phase 1: each surface takes its latest `wp_fractional_scale_v1` preferred scale and publishes it to its document before the woken documents are polled, so the frame that first shows a scale is rendered by a tree that read it (FINDINGS F43) | effects |
 | `ctx/window.rs` | a toplevel's window-management ops: `xdg_toplevel.move`/`.resize` under the serial rule (`grab`), maximize, minimize, fullscreen (FINDINGS F46, F49) | effects |
 | `ctx/timer.rs` | phase 4: arming and cancelling watchdogs and key repeat from `TimerRequest`s | effects |
+| `ctx/drag.rs` | starting a drag (`Request::StartDrag`: refused up front as `DragOutcome::Unsupported`, else `wl_data_device.start_drag` with the held press's serial), and phase 4's pipe writes: each `send` pipe made non-blocking and written from the loop a chunk per writable wakeup (FINDINGS F60) | effects |
+| `ctx/drag_icon.rs` | `DragIcon::Root`: a `Role::DragIcon` surface rendered through the ordinary presenter path, configured from birth, removed when the drag ends | effects |
 | `host_handle.rs` | `HostHandle<M>`: `send`, `apply`, `close`, `exit` from any thread | effects |
-| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43); the window's: `begin_move`, `begin_resize`, `set_maximized`, `set_minimized`, `set_fullscreen`, `current_toplevel_state`, `use_toplevel_state` (FINDINGS F46) | effects |
+| `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43); the window's: `begin_move`, `begin_resize`, `set_maximized`, `set_minimized`, `set_fullscreen`, `current_toplevel_state`, `use_toplevel_state` (FINDINGS F46); the drag source: `start_drag(DragSpec) -> DragOutcome` (FINDINGS F60) | effects |
 | `bridge.rs` | `use_watch` (plan: shared data on `tokio::sync::watch`) | effects |
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
@@ -103,6 +105,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `ime.rs` | text-input-v3 buffered until `done` (plan "IME") | effects |
 | `clipboard.rs` | own-selection cache; every selection event reads the offer on a helper thread (200 ms timeout, plan "Clipboard") and publishes into `SharedSelection` (generation-checked, so a slow old read never wins) | effects |
 | `cursor.rs` | `wp_cursor_shape_v1` | effects |
+| `drag/*.rs` | the drag source's pure parts: `spec` (`DragSpec`, `DragPayload`, `Mime`, `DragActions`, `DragIcon`), `offer` (mime types and bytes per payload), `serial` (the held press a drag starts from), `pipe` (bytes a pipe still owes, what a write result means), `outcome` (`DragOutcome`, `DragAction`, `DragRefused`, the end-to-outcome mapping) | pure |
 
 ## Wayland plumbing
 
@@ -117,7 +120,8 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `handlers/pointer.rs`, `keyboard.rs` | input dispatch; every press and release updates the grab record | effects |
 | `handlers/band.rs` | the pointer's half of `csd`: zone, document coordinates, the document's own cursor vs the band's, the resize a band press starts, dropping buttons at enter/leave (FINDINGS F48, F49) | effects |
 | `handlers/text_input.rs` | hand `Dispatch` for `zwp_text_input_v3` (plan: SCTK has no client-side helper) | effects |
-| `handlers/data_device.rs` | selection offers (`Clipboard::follow`), our data source, `claim_selection` | effects |
+| `handlers/data_device.rs` | selection offers (`Clipboard::follow`), our data source, `claim_selection`; source events of our drag are routed to `drag_source` | effects |
+| `handlers/drag_source.rs` | the drag's state (`Dragging`, `ActiveDrag`), `send` -> a queued pipe write, `action`, and `dnd_finished`/`cancelled` -> the outcome | effects |
 | `handlers/activation.rs` | xdg-activation tokens | effects |
 | `handlers/background_effect.rs`, `fractional.rs` | S2: blur and fractional-scale + viewporter `Dispatch` | effects |
 

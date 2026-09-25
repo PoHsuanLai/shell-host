@@ -9,6 +9,7 @@ pub mod band;
 pub mod compositor;
 pub mod data_device;
 pub mod devices;
+pub mod drag_source;
 pub mod fractional;
 pub mod keyboard;
 pub mod layer;

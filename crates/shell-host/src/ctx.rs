@@ -1,6 +1,8 @@
 //! `HostCtx`: what the shell's event closure uses to manage surfaces. It is the event loop's
 //! data: the Wayland state plus the loop-level pieces that depend on the app message type.
 
+mod drag;
+mod drag_icon;
 pub mod flush;
 mod ops;
 mod paint;

@@ -61,6 +61,13 @@ scripts/dev/shot.sh scripts/dev/out/demo.png
 scripts/dev/nested.sh stop
 ```
 
+`examples/demo_drag.rs` is the drag source's acceptance (FINDINGS F60): a 64 x 64 thumbnail
+whose press-and-move past 8 px drags a temporary file out as `text/uri-list`
+(`SurfaceHandle::start_drag`), printing the outcome as JSON (`stats` on stdin); `--icon=root`
+adds a `DragIcon::Root` document, `--keyboard=none|on-demand` sets its layer's keyboard mode.
+`scripts/dev/accept-drag.sh` runs it on a headless KWin against a foot terminal, and
+`scripts/dev/probe-modifiers.sh` uses it for FINDINGS F61.
+
 ## Consuming: the window seam (client-decorated frames)
 
 What a design system's window frame (quire's `ds::HostWindow`, implemented in sill's and mailo's

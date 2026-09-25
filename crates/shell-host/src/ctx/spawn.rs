@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use smithay_client_toolkit::compositor::Surface;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::popup::Popup;
 use smithay_client_toolkit::shell::xdg::{XdgPositioner, XdgSurface};
@@ -140,6 +141,14 @@ pub(super) fn rebuild(state: &mut HostState, old: Role) -> Result<Role> {
             drop(popup);
             popup_role(state, parent, config, placement)
         }
+        // A new surface has no role: the icon stays blank until its drag ends and it goes.
+        Role::DragIcon { surface, origin } => {
+            drop(surface);
+            Ok(Role::DragIcon {
+                surface: Surface::from(new_wl_surface(state)),
+                origin,
+            })
+        }
     }
 }
 
@@ -240,6 +249,12 @@ fn popup_role(
         Role::Layer { .. } => None,
         Role::Popup { popup, .. } => Some(popup.xdg_surface()),
         Role::Toplevel { window, .. } => Some(window.xdg_surface()),
+        Role::DragIcon { .. } => {
+            return Err(HostError::Unsupported {
+                global: "xdg_popup",
+                feature: "a popup on a drag icon",
+            });
+        }
     };
     let popup = Popup::from_surface(parent_xdg, &positioner, &state.qh, wl, &state.xdg_shell)
         .map_err(|_| HostError::MissingGlobal {
@@ -289,7 +304,7 @@ fn lift_keyboard(state: &mut HostState, parent: SurfaceId) {
     }
 }
 
-fn new_wl_surface(state: &mut HostState) -> WlSurface {
+pub(super) fn new_wl_surface(state: &mut HostState) -> WlSurface {
     let wl = state.compositor.create_surface(&state.qh);
     if let Some(fractional) = state.fractional.as_mut() {
         fractional.watch(&state.qh, &wl);
@@ -299,15 +314,15 @@ fn new_wl_surface(state: &mut HostState) -> WlSurface {
 
 /// A new surface's size, resize band and first-guess scale.
 #[derive(Debug, Clone, Copy)]
-struct Initial {
-    logical: Size,
-    inset: Inset,
-    scale: Scale,
+pub(super) struct Initial {
+    pub(super) logical: Size,
+    pub(super) inset: Inset,
+    pub(super) scale: Scale,
 }
 
 /// Build the document (with this surface's `SurfaceHandle` as a root context) and record the
 /// surface at its `Initial` size and scale. It is marked woken, so the first flush polls it.
-fn insert(
+pub(super) fn insert(
     state: &mut HostState,
     id: SurfaceId,
     role: Role,

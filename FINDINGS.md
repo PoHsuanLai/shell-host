@@ -1444,3 +1444,151 @@ FAIL slide_counts: {"pad":{"enter":1,"leave":0},"slider":{"enter":0,"leave":0}}
 
 sill's `accept-notifications-real-input.sh repro` (`repro_card_under_resting_pointer`) was not
 run from this worktree.
+
+## Drag source and modifiers without focus (branch `drag-source`, 2026-09-26)
+
+### F60. G120: a drag source (`SurfaceHandle::start_drag`)
+
+For sill's screenshot thumbnail (dragged out as a file) and later text drags. The API:
+
+```rust
+impl SurfaceHandle {
+    pub async fn start_drag(&self, spec: DragSpec) -> DragOutcome;
+}
+pub struct DragSpec { pub payload: DragPayload, pub actions: DragActions, pub icon: DragIcon }
+pub enum DragPayload { Uris(Vec<String>), Text(String), Bytes { mime: Mime, bytes: Vec<u8> } }
+pub struct Mime(/* private */);          // Mime::parse("image/png") -> Result<Mime, BadMime>
+pub enum DragActions { Copy, Move, CopyOrMove }
+pub enum DragIcon { None, Root { root: Root, size: Size } }
+pub enum DragOutcome { Dropped { action: DragAction }, Cancelled, Unsupported { why: DragRefused } }
+pub enum DragAction { Copy, Move }
+pub enum DragRefused { NoPress, PressedElsewhere, NoDataDevice, OldProtocol, InProgress, NoSurface }
+```
+
+Call it while the button that began the gesture is still down (a pointer-move handler past a
+threshold). The handle queues `Request::StartDrag`; `ctx::drag::start` refuses up front, as
+`Unsupported`, when the compositor would ignore or break it: another drag of ours still running,
+the surface gone, no `wl_data_device_manager` or no data device on the seat (it is made with the
+keyboard, F53), a manager older than v3 (no `dnd_drop_performed`/`dnd_finished`/`action`, so
+the source would never learn how the drop ended), or no held press on this surface
+(`drag::serial::drag_serial` on the grab record's press, F49: set by every press, cleared when
+the last button is up or the pointer leaves; unlike a move the pointer need not still be on the
+surface). Otherwise it creates the source offering the payload's types (`drag::offer`: `Uris` as
+`text/uri-list` with CRLF lines, then the three text types newline-joined; `Text` as the paste
+types; `Bytes` as its one mime) with `set_actions`, and sends `start_drag` with that serial.
+`handlers::drag_source` owns the rest: `send` queues the pipe; phase 4 of the flush
+(`ctx::drag::register_writes`) makes it non-blocking (`O_NONBLOCK` through
+`UnixStream::set_nonblocking`, safe std, no new dependency) and writes it from a calloop
+`Generic` source, one chunk of at most 64 KiB per writable wakeup, closing it when done or when
+the reader goes (`drag::pipe`), so a slow reader never blocks the Wayland thread; `action`
+records the compositor's choice; `dnd_finished` answers `Dropped { action }` (a finish with no
+action chosen is a copy) and `cancelled` answers `Cancelled` (`drag::outcome::outcome`, pure);
+either destroys the source and removes the icon. A dropped reply (the host exited mid-drag)
+resolves `Cancelled`. `DragOutcome` serializes adjacently tagged
+(`{"kind":"dropped","v":{"action":"copy"}}`).
+
+**The icon reached `DragIcon::Root`.** The icon is a `Role::DragIcon` surface (`RoleKind::
+DragIcon` is new) built by `ctx::spawn::drag_icon`: a plain `wl_surface` watched for fractional
+scale, its document and `SurfaceHandle` made like a popup's, the origin's scale as the first
+guess, `Configured::Done` from birth (a `dnd_icon` gets no configure) and no commit before
+`start_drag` gives it the role; its first render is the ordinary phase-3 render through the
+same presenter (one device, one renderer). On the headless KWin the trace shows
+`start_drag(wl_data_source#104, wl_surface#27, wl_surface#83, 19)`, then on `wl_surface#83`
+`wp_viewport.set_destination(48, 48)`, `frame`, `attach(wl_buffer#118)` (a Vulkan dmabuf),
+`commit`, KWin's `preferred_buffer_scale(1)` and the frame callback's `done`, and
+`wl_surface#83.destroy()` when the drag ends. A screenshot (spectacle through the headless KWin's
+own D-Bus) mid-drag shows the 48 x 48 document with its corner at the hotspot where the drag
+began, (1858, 1008); it had **not** followed the pointer, although KWin's own
+`workspace.cursorPos` said (1001, 500) and the same drags deliver `wl_data_device.motion` to
+foot at the right place. The headless KWin draws no cursor in its screenshots either (not even
+with `-p`), so this reads as that backend not repainting the cursor layer the icon rides on;
+whether the icon follows on a real session was not checked (nothing here may touch it). Queued
+for a manual check.
+
+**Acceptance.** `scripts/dev/accept-drag.sh` (new): `examples/demo_drag` (new: a 64 x 64
+thumbnail at the bottom-right, 1816..1880 x 976..1040, whose press and a move past 8 px drags a
+temp file as `DragPayload::Uris`, printing the outcome as JSON, `stats` on stdin) on
+`kwin-virtual.sh`'s headless KWin 6.7.5, input from `tools/fake-input`, and a foot 1.27.0
+window (`--app-id=drag-target`, running `stty raw -echo; cat > file`, so what foot types into
+its terminal lands in a file) in the same session; both clients with `WAYLAND_DEBUG=1`. foot is
+not installed here, so the script can fetch it with `dnf download foot fcft` and unpack it
+under `scripts/dev/out/foot` (no root; `FOOT=` or `PATH` otherwise). Three runs (two with
+`DragIcon::None`, one with `DRAG_ICON=root`), 3/3 each:
+
+- `cancel_over_nothing`: press at (1848, 1008), move 10 px (the start), glide to (1888, 1008),
+  40 px right and past the thumbnail's edge, release. `outcome {"kind":"cancelled"}`; our trace:
+  `start_drag(.., nil, 12)`, `action(0)` (twice), `dnd_drop_performed()`, `cancelled()`. KWin
+  sends `dnd_drop_performed` even for a release over nothing, then `cancelled`; the drag first
+  crossed our own thumbnail, which our device saw as one `wl_data_device.enter` and its `leave`
+  (checked: balanced by the end, and no pointer enter back onto the thumbnail before it).
+- `drop_on_foot`: the same press, glide to the centre of foot's frame (612,269 696x542),
+  release. `outcome {"kind":"dropped","v":{"action":"copy"}}`; ours: `action(0)` x3,
+  `action(1)`, `dnd_drop_performed()`, `send("text/uri-list", fd)`, `dnd_finished()`. foot's
+  side, from its own trace: `enter(.., wl_data_offer)`, the four `offer`s, `source_actions(1)`,
+  `accept(24, "text/uri-list")`, `set_actions(1, 1)`, `action(1)`, `drop()`,
+  `receive("text/uri-list")`, `finish()`. foot's terminal received
+  `'/tmp/shell-host-demo-drag-<pid>.txt'` (the path, shell-quoted, no newline).
+
+Not covered live: the `Unsupported` answers (table-tested in `drag::serial`; the others are
+plain checks), `Move`, `Text`/`Bytes` payloads, and a reader that stalls (the non-blocking
+write is unit-tested against a real pipe filled to `WouldBlock`). A reader that neither reads
+nor closes keeps its pipe's source registered until the host exits.
+
+### F61. G121: modifier state over a keyboard-less layer surface
+
+Question from sill: with `hot_corners.modifier`, does a `KeyboardMode::None` layer surface
+learn that Super is held when the pointer arrives, given that `wl_keyboard.modifiers` belongs to
+the keyboard-focused surface? Probed with `scripts/dev/probe-modifiers.sh` (new):
+`demo_drag`'s thumbnail with `--keyboard=none|on-demand`, `WAYLAND_DEBUG=1`, on the headless
+KWin 6.7.5; fake input: pointer on the desktop at (901, 500), `key Super_L down`, move onto the
+thumbnail (1848, 1008), move 2 px, `key Super_L up`, move, then Shift down, move, Shift up. Once
+alone and once with a foot window started first. The document prints the modifiers of every
+`mouseenter` and of each move whose modifiers changed.
+
+**On KWin the answer is yes, through a KWin-specific path, and one event late for the enter.**
+`KeyboardMode::None`, both with and without foot holding keyboard focus, the client's whole
+keyboard traffic was (no `wl_keyboard.enter` ever):
+
+```
+wl_keyboard#22.repeat_info(0, 600)
+wl_keyboard#22.keymap(1, fd, 35356)
+wl_pointer#25.enter(12, wl_surface#27, 32.0, 32.0)      <- the pointer arrives, Super held
+wl_keyboard#22.modifiers(13, 64, 0, 0, 0)                <- Mod4, right after the pointer enter
+wl_keyboard#22.modifiers(16, 0, 0, 0, 0)                 <- Super up, pointer still there
+wl_keyboard#22.modifiers(19, 1, 0, 0, 0)                 <- Shift down
+wl_keyboard#22.modifiers(22, 0, 0, 0, 0)                 <- Shift up
+```
+
+(serials 7/11/15/19 in the run without foot.) Nothing arrived while Super went down with the
+pointer elsewhere. So KWin sends the current modifiers to the client with *pointer* focus when
+the pointer enters, and each change while it stays, without keyboard focus; the protocol does
+not ask for this (modifiers follow `wl_keyboard.enter`), and other compositors are not expected
+to do it: smithay, which cosmic-comp is built on, is expected to send modifiers only to the
+keyboard focus (not verified here: fake input cannot reach the nested cosmic-comp, F52).
+
+The host takes the event as it takes any (`update_modifiers` sets `SeatInput::modifiers`, with
+no surface to check), so the document's pointer events carry it, except the enter: the
+modifiers come after `wl_pointer.enter` in the same dispatch, so `mouseenter` saw `0x0` and only
+the next move `META`:
+
+```
+enter Modifiers(0x0)
+move Modifiers(0x0)       <- the host's enter move (F57), same stale state
+move Modifiers(META)
+move Modifiers(0x0)
+move Modifiers(SHIFT)
+```
+
+**`KeyboardMode::OnDemand` changes it, but only because KWin focuses it.** On KWin an
+`OnDemand` layer surface got `wl_keyboard.enter(.., wl_surface#27, array[0])` when it mapped,
+with no click, even with foot mapped 1.5 s earlier and so focused (it took the focus from
+foot); from then on it
+had ordinary focused-surface modifiers and key events (`key(.., 125, 1)`, `modifiers(.., 64,
+..)`), received before the pointer arrived, so its `mouseenter` saw `META`. That is a focus
+steal a hot corner must not do, so it is no workaround either.
+
+For sill: a hot corner that reads the modifiers on its `mouseenter` sees nothing held (on KWin
+because the modifiers arrive just after the enter, elsewhere because they do not arrive); one
+that reads them on the next move sees Super on KWin only. Nothing portable tells
+a keyboard-less surface that Super is held, so `hot_corners.modifier` has no portable source.
+No workaround was implemented.

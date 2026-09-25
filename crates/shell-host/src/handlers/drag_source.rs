@@ -1,0 +1,92 @@
+//! Our drag's `wl_data_source` events (`handlers::data_device` routes them here when the
+//! source is the drag's): a target's `send` becomes a pipe write for the loop, `action`
+//! records the compositor's choice, and `dnd_finished` or `cancelled` ends the drag and answers
+//! `SurfaceHandle::start_drag`.
+
+use smithay_client_toolkit::data_device_manager::WritePipe;
+use smithay_client_toolkit::data_device_manager::data_source::DragSource;
+use tokio::sync::oneshot;
+use wayland_client::Proxy;
+use wayland_client::protocol::wl_data_device_manager::DndAction;
+use wayland_client::protocol::wl_data_source::WlDataSource;
+
+use crate::drag::offer::{Offered, bytes_for};
+use crate::drag::outcome::{DragAction, DragEnd, DragOutcome, outcome};
+use crate::drag::pipe::Outgoing;
+use crate::id::SurfaceId;
+use crate::state::HostState;
+
+/// The seat's drag, if one is under way, and the pipe writes waiting for the loop.
+#[derive(Debug, Default)]
+pub struct Dragging {
+    pub(crate) active: Option<ActiveDrag>,
+    /// Pipes a target asked us to fill since the last flush; `ctx::drag::register_writes`
+    /// hands each to the loop.
+    pub(crate) writes: Vec<PendingWrite>,
+}
+
+/// A drag the compositor is running.
+#[derive(Debug)]
+pub struct ActiveDrag {
+    /// Kept alive until the drag ends: dropping it destroys the source, which cancels the drag.
+    pub(crate) source: DragSource,
+    pub(crate) offered: Vec<Offered>,
+    pub(crate) reply: oneshot::Sender<DragOutcome>,
+    /// The compositor's latest `action` choice.
+    pub(crate) chosen: Option<DragAction>,
+    /// The icon surface, closed with the drag.
+    pub(crate) icon: Option<SurfaceId>,
+}
+
+/// A pipe and what it is owed.
+#[derive(Debug)]
+pub struct PendingWrite {
+    pub(crate) pipe: WritePipe,
+    pub(crate) outgoing: Outgoing,
+}
+
+impl HostState {
+    /// Whether `source` is the current drag's.
+    pub(crate) fn drags(&self, source: &WlDataSource) -> bool {
+        self.drag
+            .active
+            .as_ref()
+            .is_some_and(|drag| drag.source.inner().id() == source.id())
+    }
+
+    /// A target asked for the payload as `mime`: queue the write. A type we never offered gets
+    /// the pipe closed at once (an empty read), which is all a source can say.
+    pub(crate) fn drag_send(&mut self, mime: &str, pipe: WritePipe) {
+        let bytes = self
+            .drag
+            .active
+            .as_ref()
+            .and_then(|drag| bytes_for(&drag.offered, mime));
+        match bytes {
+            Some(bytes) => self.drag.writes.push(PendingWrite {
+                pipe,
+                outgoing: Outgoing::new(bytes),
+            }),
+            None => drop(pipe),
+        }
+    }
+
+    /// The compositor chose `action` (it may choose again as the pointer moves).
+    pub(crate) fn drag_action(&mut self, action: DndAction) {
+        if let Some(drag) = self.drag.active.as_mut() {
+            drag.chosen = DragAction::from_wire(action);
+        }
+    }
+
+    /// The drag is over: answer the caller, destroy the source and close the icon.
+    pub(crate) fn drag_end(&mut self, end: DragEnd) {
+        let Some(drag) = self.drag.active.take() else {
+            return;
+        };
+        // The caller may have stopped waiting; nobody is left to tell then.
+        let _ = drag.reply.send(outcome(end, drag.chosen));
+        if let Some(icon) = drag.icon {
+            self.surfaces.remove(&icon);
+        }
+    }
+}

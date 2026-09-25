@@ -4,6 +4,8 @@
 use tokio::sync::oneshot;
 
 use crate::blur::BlurSpec;
+use crate::drag::outcome::DragOutcome;
+use crate::drag::spec::DragSpec;
 use crate::geometry::Margin;
 use crate::id::SurfaceId;
 use crate::layer::{Anchor, ExclusiveZone, KeyboardMode, Layer, LayerSize};
@@ -137,5 +139,12 @@ pub enum Request {
         from: SurfaceId,
         app_id: Option<String>,
         reply: oneshot::Sender<Option<String>>,
+    },
+    /// Start dragging out of surface `from` (`SurfaceHandle::start_drag`); `reply` gets the
+    /// outcome when the drag ends, or at once when it cannot start.
+    StartDrag {
+        from: SurfaceId,
+        spec: DragSpec,
+        reply: oneshot::Sender<DragOutcome>,
     },
 }

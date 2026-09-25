@@ -55,6 +55,7 @@ use crate::grab::GrabRecord;
 use crate::handle::RequestQueue;
 use crate::handlers::activation::ActivationRequest;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
+use crate::handlers::drag_source::Dragging;
 use crate::handlers::fractional::Fractional;
 use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
@@ -100,6 +101,8 @@ pub struct HostState {
     pub(crate) cursor: Cursor,
     pub(crate) ime: Ime,
     pub(crate) clipboard: Clipboard,
+    /// The drag out of one of our surfaces, while one is under way.
+    pub(crate) drag: Dragging,
     pub(crate) fonts: SharedFonts,
     pub(crate) clock: HostClock,
     pub(crate) ids: SurfaceIds,
@@ -182,6 +185,7 @@ impl HostState {
                 serial: 0,
             },
             clipboard: Clipboard::default(),
+            drag: Dragging::default(),
             fonts: SharedFonts::system(),
             clock: HostClock::starting_at(Instant::now()),
             ids: SurfaceIds::new(),

@@ -12,6 +12,8 @@ use dioxus::signals::{ReadSignal, WritableExt};
 use tokio::sync::oneshot;
 
 use crate::blur::BlurSpec;
+use crate::drag::outcome::DragOutcome;
+use crate::drag::spec::DragSpec;
 use crate::grab::{GrabRecord, GrabRefused};
 use crate::id::{SurfaceId, SurfaceIds};
 use crate::layer::{ExclusiveZone, KeyboardMode, LayerSize};
@@ -268,6 +270,24 @@ impl SurfaceHandle {
         });
         // A dropped sender (the surface closed first) is the same answer as a refusal.
         answer.await.ok().flatten()
+    }
+
+    /// Drag `spec.payload` out of this surface: call it while the button that started the
+    /// gesture is still down (from a pointer-move handler past a threshold, say). The
+    /// compositor then owns the pointer until release, and this surface sees no motion
+    /// meanwhile. Resolves when the drag ends: `Dropped` when a target took the payload and
+    /// finished (`Move` means delete the original), `Cancelled` when released over nothing
+    /// that accepted it, or at once `Unsupported` when it cannot start (no button held on
+    /// this surface, no data device, another drag still running).
+    pub async fn start_drag(&self, spec: DragSpec) -> DragOutcome {
+        let (reply, answer) = oneshot::channel();
+        self.requests.push(Request::StartDrag {
+            from: self.id,
+            spec,
+            reply,
+        });
+        // A dropped sender means the host went away with the drag: nothing was dropped.
+        answer.await.unwrap_or(DragOutcome::Cancelled)
     }
 }
 

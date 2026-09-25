@@ -66,6 +66,13 @@ clients can be developed and screenshotted without a real COSMIC login.
   `sleep MS` (builds `tools/fake-input` on first use; FINDINGS F52).
 - `kwin-windows.sh [--class APP_ID]` — every window's frame (window geometry) and buffer
   geometry as JSON lines, through `kwin-windows.js` and KWin's scripting D-Bus API.
+- `accept-hover.sh` — real-input hover acceptance (FINDINGS F57-F59).
+- `accept-drag.sh` — the drag source's acceptance (FINDINGS F60): `demo_drag` dragged over
+  nothing (`Cancelled`) and onto a foot window in the same headless session (`Dropped`, foot's
+  side of the trace, and the path foot typed). foot comes from `PATH`, `FOOT=`, or `dnf
+  download` unpacked into `out/foot` (no root). `DRAG_ICON=root` adds the icon.
+- `probe-modifiers.sh` — which `wl_keyboard.modifiers` a keyboard-less layer surface gets while
+  Super is held (FINDINGS F61); prints, does not judge.
 
 ## Real input on a headless KWin
 

@@ -1,5 +1,6 @@
-//! `wl_data_device`: the selection offer (paste) and our own data source (copy). Drag and
-//! drop into shell surfaces is not supported in v1; the drag callbacks do nothing.
+//! `wl_data_device`: the selection offer (paste), our own copy source, and our drag's source
+//! (`handlers::drag_source`, which the source events are routed to). Drag and drop *into*
+//! shell surfaces is not supported in v1 (FINDINGS F35); the device's drag callbacks do nothing.
 
 use std::io::Write;
 
@@ -15,6 +16,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{Connection, QueueHandle};
 
 use crate::clipboard::TEXT_MIME;
+use crate::drag::outcome::DragEnd;
 use crate::state::HostState;
 
 impl DataDeviceHandler for HostState {
@@ -99,24 +101,34 @@ impl DataSourceHandler for HostState {
     ) {
     }
 
-    /// Write our copied text into `fd`; closing it (by dropping it here) is what tells the
+    /// Our drag's: queue the write for the loop (`handlers::drag_source`). Our selection's:
+    /// write the copied text into `fd`; closing it (by dropping it here) is what tells the
     /// reader it has seen everything.
     fn send_request(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _source: &WlDataSource,
-        _mime: String,
+        source: &WlDataSource,
+        mime: String,
         mut fd: WritePipe,
     ) {
+        if self.drags(source) {
+            self.drag_send(&mime, fd);
+            return;
+        }
         if let Some(text) = &self.clipboard.own {
             let _ = fd.write_all(text.as_bytes());
         }
     }
 
-    /// Someone else took the selection: forget our copy and let the source (no longer ours to
-    /// keep alive) be destroyed.
+    /// Our drag ended without a finished drop (`DragOutcome::Cancelled`). Our selection's:
+    /// someone else took the selection, so forget our copy and let the source (no longer ours
+    /// to keep alive) be destroyed.
     fn cancelled(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
+        if self.drags(source) {
+            self.drag_end(DragEnd::Cancelled);
+            return;
+        }
         if self
             .clipboard
             .source
@@ -128,24 +140,30 @@ impl DataSourceHandler for HostState {
         }
     }
 
+    /// The user released over a target that accepted: the target now reads (`send_request`)
+    /// and then finishes or gives up, so the drag stays open until `dnd_finished` or
+    /// `cancelled`.
     fn dnd_dropped(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _source: &WlDataSource) {
     }
 
-    fn dnd_finished(
-        &mut self,
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-        _source: &WlDataSource,
-    ) {
+    /// The target is done with our drag's payload (`DragOutcome::Dropped`).
+    fn dnd_finished(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
+        if self.drags(source) {
+            self.drag_end(DragEnd::Finished);
+        }
     }
 
+    /// The compositor's current choice of action for our drag.
     fn action(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _source: &WlDataSource,
-        _action: DndAction,
+        source: &WlDataSource,
+        action: DndAction,
     ) {
+        if self.drags(source) {
+            self.drag_action(action);
+        }
     }
 }
 

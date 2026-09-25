@@ -1,5 +1,6 @@
 //! What kind of surface a `HostSurface` is, with the sctk object that owns its `wl_surface`.
 
+use smithay_client_toolkit::compositor::Surface;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use smithay_client_toolkit::shell::xdg::popup::Popup;
@@ -34,6 +35,9 @@ pub enum Role {
         /// As of the last configure (`activated` drives the first-mouse filter).
         state: ToplevelState,
     },
+    /// A drag's icon (`wl_data_device.start_drag`'s `icon`, the `dnd_icon` role). Never
+    /// configured and never given input; it lives as long as the drag from `origin`.
+    DragIcon { surface: Surface, origin: SurfaceId },
 }
 
 /// Which role a surface has, without its objects: what a `SurfaceHandle` knows of its surface.
@@ -42,6 +46,7 @@ pub enum RoleKind {
     Layer,
     Popup,
     Toplevel,
+    DragIcon,
 }
 
 impl Role {
@@ -51,6 +56,7 @@ impl Role {
             Role::Layer { .. } => RoleKind::Layer,
             Role::Popup { .. } => RoleKind::Popup,
             Role::Toplevel { .. } => RoleKind::Toplevel,
+            Role::DragIcon { .. } => RoleKind::DragIcon,
         }
     }
 
@@ -60,6 +66,7 @@ impl Role {
             Role::Layer { surface, .. } => surface.wl_surface(),
             Role::Popup { popup, .. } => popup.wl_surface(),
             Role::Toplevel { window, .. } => window.wl_surface(),
+            Role::DragIcon { surface, .. } => surface.wl_surface(),
         }
     }
 
@@ -67,7 +74,7 @@ impl Role {
     pub fn parent(&self) -> Option<SurfaceId> {
         match self {
             Role::Popup { parent, .. } => Some(*parent),
-            Role::Layer { .. } | Role::Toplevel { .. } => None,
+            Role::Layer { .. } | Role::Toplevel { .. } | Role::DragIcon { .. } => None,
         }
     }
 }
