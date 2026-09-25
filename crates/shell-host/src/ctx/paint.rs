@@ -17,6 +17,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::blur::BlurSpec;
 use crate::config::Backend;
+use crate::csd::{Inset, band, content_px, to_surface};
 use crate::ctx::HostCtx;
 use crate::debug::AlphaMode;
 use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
@@ -177,6 +178,7 @@ fn sync_geometry(state: &mut HostState, id: SurfaceId) {
     let wl = surface.role.wl_surface().clone();
     let now = Geometry {
         logical: surface.logical,
+        inset: surface.inset,
         scale: surface.scale,
     };
     if surface.geometry == Some(now) {
@@ -186,9 +188,12 @@ fn sync_geometry(state: &mut HostState, id: SurfaceId) {
         Some(fractional) => fractional.set_destination(&wl, now.logical.width, now.logical.height),
         None => wl.set_buffer_scale(integer_scale(now.scale)),
     }
-    surface
-        .document
-        .set_viewport(viewport(now.logical, now.scale, state.color_scheme));
+    surface.document.set_viewport(viewport(
+        now.logical,
+        now.inset,
+        now.scale,
+        state.color_scheme,
+    ));
     let buffer = surface.buffer();
     if let Some(presenter) = surface.presenter.as_mut() {
         presenter.resize(state.gpu.as_ref(), buffer);
@@ -234,6 +239,7 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     wl.frame(&state.qh, wl.clone());
     let target = FrameTarget {
         buffer: surface.buffer(),
+        content: surface.content(),
         scale: surface.scale,
         time,
     };
@@ -296,7 +302,8 @@ fn blur_allowed(state: &HostState, id: SurfaceId) -> Support {
 }
 
 /// Resolve the input and blur regions against the laid-out document and send whichever
-/// changed since they were last sent.
+/// changed since they were last sent. Both are the document's, moved to surface coordinates;
+/// the input region adds the resize band (`csd::band`), the blur region never covers it.
 fn send_regions(
     compositor: &CompositorState,
     effect: Option<&mut BackgroundEffect>,
@@ -304,13 +311,20 @@ fn send_regions(
     surface: &mut HostSurface,
     blur: Support,
 ) {
-    let size = surface.logical;
+    let size = surface.document_size();
+    let inset = surface.inset;
     let document = &surface.document;
-    let input = resolve(&surface.input, size, |id| document.element_rect(id));
+    let input = in_surface(
+        resolve(&surface.input, size, |id| document.element_rect(id)),
+        inset,
+        band(surface.logical, inset),
+    );
     let blur = match (&surface.blur, blur) {
-        (BlurSpec::Region(spec), Support::Supported) => {
-            resolve(spec, size, |id| document.element_rect(id))
-        }
+        (BlurSpec::Region(spec), Support::Supported) => in_surface(
+            resolve(spec, size, |id| document.element_rect(id)),
+            inset,
+            Vec::new(),
+        ),
         (BlurSpec::None, _) | (BlurSpec::Region(_), Support::Unsupported) => {
             Resolved::Strips(Vec::new())
         }
@@ -333,6 +347,19 @@ fn send_regions(
     }
 }
 
+/// A document-coordinate region in surface coordinates, plus `extra` surface strips. A
+/// pending region stays pending: the surface keeps the one it has.
+fn in_surface(resolved: Resolved, inset: Inset, extra: Vec<Rect>) -> Resolved {
+    match resolved {
+        Resolved::Strips(rects) => {
+            let mut strips = to_surface(rects, inset);
+            strips.extend(extra);
+            Resolved::Strips(strips)
+        }
+        Resolved::Pending => Resolved::Pending,
+    }
+}
+
 fn region_of(compositor: &CompositorState, rects: &[Rect]) -> Option<Region> {
     let region = Region::new(compositor).ok()?;
     for rect in rects {
@@ -351,6 +378,7 @@ pub(crate) fn capture(state: &mut HostState, id: SurfaceId) -> Result<image::Rgb
         .ok_or(HostError::NoSurface(id))?;
     let target = FrameTarget {
         buffer: surface.buffer(),
+        content: surface.content(),
         scale: surface.scale,
         time,
     };
@@ -360,14 +388,16 @@ pub(crate) fn capture(state: &mut HostState, id: SurfaceId) -> Result<image::Rgb
     presenter.capture(state.gpu.as_mut(), &mut surface.document, target)
 }
 
-/// The document viewport for a surface of `logical` size at `scale`: physical pixels, the
-/// scale factor, the colour scheme. At least 1x1, so an unconfigured surface still lays out.
-pub(super) fn viewport(logical: Size, scale: Scale, scheme: ColorScheme) -> Viewport {
-    let buffer = buffer_size(logical, scale);
+/// The document viewport for a surface of `logical` size with resize band `inset` at `scale`:
+/// the physical pixels the document paints in (`csd::content_px`, the whole buffer without a
+/// band), the scale factor, the colour scheme. At least 1x1, so an unconfigured surface still
+/// lays out.
+pub(super) fn viewport(logical: Size, inset: Inset, scale: Scale, scheme: ColorScheme) -> Viewport {
+    let content = content_px(buffer_size(logical, scale), inset, scale);
     let px = |v: i32| u32::try_from(v).unwrap_or(0).max(1);
     // Blitz takes the scale as f32; 120ths are exact in it.
     let factor = scale.as_f64() as f32;
-    Viewport::new(px(buffer.width), px(buffer.height), factor, scheme)
+    Viewport::new(px(content.width), px(content.height), factor, scheme)
 }
 
 /// `wl_surface.set_buffer_scale` for a compositor without fractional-scale: whole numbers only.

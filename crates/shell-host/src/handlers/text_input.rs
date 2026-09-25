@@ -150,9 +150,15 @@ pub(crate) fn apply_ime_request(state: &mut HostState, request: ImeRequest) {
                 input.enable();
                 input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
             }
+            // The document's rectangle, in the surface's coordinates (past any resize band).
+            let inset = state
+                .input
+                .keyboard_focus
+                .and_then(|id| state.surfaces.get(&id))
+                .map_or(0, |surface| surface.inset.0);
             input.set_cursor_rectangle(
-                cursor_area.x,
-                cursor_area.y,
+                cursor_area.x + inset,
+                cursor_area.y + inset,
                 cursor_area.width,
                 cursor_area.height,
             );

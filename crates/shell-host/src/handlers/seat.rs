@@ -12,7 +12,9 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::protocol::{wl_keyboard, wl_pointer, wl_seat};
 use wayland_client::{Connection, QueueHandle};
 
+use crate::csd::Zone;
 use crate::frame::{FrameInput, TimerCmd};
+use crate::grab::GrabRecord;
 use crate::id::SurfaceId;
 use crate::input::pointer::PointerPos;
 use crate::state::HostState;
@@ -34,6 +36,13 @@ pub struct SeatInput {
     pub(crate) modifiers: Modifiers,
     /// The serial of the last press, for popup grabs, selections and activation tokens.
     pub(crate) last_serial: u32,
+    /// The pointer's surface and held press, for the move/resize serial rule; shared with
+    /// every `SurfaceHandle` so `begin_move()` can refuse synchronously.
+    pub(crate) grab: GrabRecord,
+    /// Whether the pointer is on the focused surface's document or in its resize band. Only
+    /// re-decided while no button is held: a drag that started on the document stays the
+    /// document's when it crosses the band (the implicit grab).
+    pub(crate) zone: Zone,
     /// The seat's data device, created alongside the keyboard (`new_capability`); the object
     /// `handlers::data_device`'s claim helper calls `set_selection` on. Held here (rather than
     /// just its raw `wl_data_device::WlDataDevice`) because `DataDevice::drop` releases the
@@ -119,6 +128,7 @@ impl SeatHandler for HostState {
                 self.input.pointer_focus = None;
                 self.input.position = PointerPos::OUTSIDE;
                 self.input.buttons = MouseEventButtons::None;
+                self.input.grab.update(|facts| *facts = Default::default());
                 self.cursor.device = None;
             }
             Capability::Keyboard => {
@@ -147,6 +157,7 @@ impl SeatHandler for HostState {
         self.input.modifiers = Modifiers::empty();
         self.input.data_device = None;
         self.input.repeating = None;
+        self.input.grab.update(|facts| *facts = Default::default());
         self.cursor.device = None;
     }
 }

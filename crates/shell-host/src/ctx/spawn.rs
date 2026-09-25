@@ -12,18 +12,20 @@ use smithay_client_toolkit::shell::xdg::{XdgPositioner, XdgSurface};
 use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::blur::BlurSpec;
+use crate::csd::{Inset, inset_for, surface_of};
 use crate::debug::{StatsWindow, SurfaceName};
 use crate::dom::document::{DocumentEnv, SurfaceDocument};
 use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::error::{HostError, Result};
 use crate::frame::FrameState;
-use crate::handle::SurfaceHandle;
+use crate::handle::{HandleParts, SurfaceHandle};
 use crate::id::{OutputId, SurfaceId};
 use crate::layer::{
     Extent, KeyboardMode, LayerConfig, OutputTarget, to_wire_anchor, to_wire_exclusive,
     to_wire_keyboard, to_wire_layer, to_wire_size,
 };
+use crate::live::Live;
 use crate::live_scale::LiveScale;
 use crate::msg::Visibility;
 use crate::placement::PopupPlacement;
@@ -38,7 +40,7 @@ use crate::scale::{Scale, Size};
 use crate::state::HostState;
 use crate::surface::{AppliedRegions, Configured, HostSurface};
 use crate::tick::FrameTicks;
-use crate::toplevel::{Activation, ToplevelConfig, to_wire_decorations};
+use crate::toplevel::{ToplevelConfig, ToplevelState, to_wire_decorations};
 
 /// Create and map layer surface `id`.
 pub(super) fn layer(
@@ -52,19 +54,29 @@ pub(super) fn layer(
     let (blur, input) = (config.blur.clone(), config.input.clone());
     let role = layer_role(state, config)?;
     map(state, &role);
-    let at = (requested, Scale::ONE);
+    let at = Initial {
+        logical: requested,
+        inset: Inset::NONE,
+        scale: Scale::ONE,
+    };
     insert(state, id, role, name, at, (blur, input), root);
     Ok(())
 }
 
-/// Create and map toplevel `id`.
+/// Create and map toplevel `id`. A client-decorated window starts floating, so its surface
+/// starts with the resize band around `config.size`.
 pub(super) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelConfig, root: Root) {
     let name = SurfaceName(config.app_id.clone());
-    let size = config.size;
+    let inset = inset_for(config.decorations, ToplevelState::default());
+    let at = Initial {
+        logical: surface_of(config.size, inset),
+        inset,
+        scale: Scale::ONE,
+    };
     let role = toplevel_role(state, config);
     map(state, &role);
     let regions = (BlurSpec::None, RegionSpec::Whole);
-    insert(state, id, role, name, (size, Scale::ONE), regions, root);
+    insert(state, id, role, name, at, regions, root);
 }
 
 /// Create and map popup `id` on `parent`. A grabbing popup lifts a `KeyboardMode::None` parent
@@ -97,7 +109,11 @@ pub(super) fn popup(
     map(state, &role);
     let name = SurfaceName(format!("{parent_name}/popup"));
     let regions = (BlurSpec::None, RegionSpec::Whole);
-    let at = (placement.size, initial);
+    let at = Initial {
+        logical: placement.size,
+        inset: Inset::NONE,
+        scale: initial,
+    };
     insert(state, id, role, name, at, regions, root);
     Ok(())
 }
@@ -191,7 +207,7 @@ fn toplevel_role(state: &mut HostState, config: ToplevelConfig) -> Role {
     Role::Toplevel {
         window,
         config,
-        activation: Activation::Inactive,
+        state: ToplevelState::default(),
     }
 }
 
@@ -281,15 +297,26 @@ fn new_wl_surface(state: &mut HostState) -> WlSurface {
     wl
 }
 
+/// A new surface's size, resize band and first-guess scale.
+#[derive(Debug, Clone, Copy)]
+struct Initial {
+    logical: Size,
+    inset: Inset,
+    scale: Scale,
+}
+
 /// Build the document (with this surface's `SurfaceHandle` as a root context) and record the
-/// surface at `logical` size and first-guess `scale`. It is marked woken, so the first flush
-/// polls it.
+/// surface at its `Initial` size and scale. It is marked woken, so the first flush polls it.
 fn insert(
     state: &mut HostState,
     id: SurfaceId,
     role: Role,
     name: SurfaceName,
-    (logical, scale): (Size, Scale),
+    Initial {
+        logical,
+        inset,
+        scale,
+    }: Initial,
     (blur, input): (BlurSpec, RegionSpec),
     root: Root,
 ) {
@@ -300,18 +327,21 @@ fn insert(
     ));
     let ticks = FrameTicks::default();
     let live_scale = LiveScale::new(scale);
-    let handle = SurfaceHandle::new(
-        id,
-        state.requests.clone(),
-        state.ids.clone(),
-        ticks.clone(),
-        live_scale.clone(),
-    );
+    let live_toplevel = Live::new(ToplevelState::default());
+    let parts = HandleParts {
+        requests: state.requests.clone(),
+        ids: state.ids.clone(),
+        ticks: ticks.clone(),
+        scale: live_scale.clone(),
+        toplevel: live_toplevel.clone(),
+        grab: state.input.grab.clone(),
+    };
+    let handle = SurfaceHandle::new(id, role.kind(), parts);
     let env = DocumentEnv {
         shell: Arc::clone(&shell),
         fonts: state.fonts.for_document(),
         net: Arc::new(LocalNet),
-        viewport: super::paint::viewport(logical, scale, state.color_scheme),
+        viewport: super::paint::viewport(logical, inset, scale, state.color_scheme),
         prepaint: state.prepaint.clone(),
     };
     let document = surface_document(root, handle, env);
@@ -329,6 +359,7 @@ fn insert(
             configured: Configured::Pending,
             visibility: Visibility::Shown,
             logical,
+            inset,
             scale,
             blur,
             input,
@@ -337,6 +368,8 @@ fn insert(
             regions: AppliedRegions::default(),
             ticks,
             live_scale,
+            live_toplevel,
+            doc_cursor: Some(cursor_icon::CursorIcon::Default),
         },
     );
     state.woken.mark(id);
@@ -375,11 +408,29 @@ mod tests {
     use crate::clipboard::SharedSelection;
     use crate::dom::document::Polled;
     use crate::dom::fonts::SharedFonts;
-    use crate::handle::{RequestQueue, use_frame_tick, use_surface, use_surface_scale};
+    use crate::grab::{GrabRecord, GrabRefused, PointerFacts, Press};
+    use crate::handle::{
+        HandleParts, RequestQueue, use_frame_tick, use_surface, use_surface_scale,
+        use_toplevel_state,
+    };
     use crate::id::SurfaceIds;
+    use crate::live::Live;
     use crate::msg::{Request, SurfaceOp};
     use crate::prepaint::{Prepaint, Prepainted};
+    use crate::role::RoleKind;
     use crate::tick::{FrameTick, HostInstant};
+    use crate::toplevel::{Maximize, ResizeEdge, ToplevelState};
+
+    fn parts(requests: RequestQueue, ticks: FrameTicks, scale: LiveScale) -> HandleParts {
+        HandleParts {
+            requests,
+            ids: SurfaceIds::new(),
+            ticks,
+            scale,
+            toplevel: Live::new(ToplevelState::default()),
+            grab: GrabRecord::default(),
+        }
+    }
 
     fn app() -> Element {
         let surface = use_surface();
@@ -443,10 +494,8 @@ mod tests {
         let ticks = FrameTicks::default();
         let handle = SurfaceHandle::new(
             id,
-            requests.clone(),
-            SurfaceIds::new(),
-            ticks.clone(),
-            LiveScale::new(Scale::ONE),
+            RoleKind::Toplevel,
+            parts(requests.clone(), ticks.clone(), LiveScale::new(Scale::ONE)),
         );
         let env = test_env(id, ping, Prepaint::None);
         let mut document = surface_document(Root::new(ticking), handle.clone(), env);
@@ -488,10 +537,12 @@ mod tests {
         let id = SurfaceId(42);
         let handle = SurfaceHandle::new(
             id,
-            requests.clone(),
-            SurfaceIds::new(),
-            FrameTicks::default(),
-            LiveScale::new(Scale::ONE),
+            RoleKind::Toplevel,
+            parts(
+                requests.clone(),
+                FrameTicks::default(),
+                LiveScale::new(Scale::ONE),
+            ),
         );
         let env = test_env(id, ping, Prepaint::None);
 
@@ -532,10 +583,12 @@ mod tests {
         let live = LiveScale::new(Scale(150));
         let handle = SurfaceHandle::new(
             id,
-            RequestQueue::new(ping.clone()),
-            SurfaceIds::new(),
-            FrameTicks::default(),
-            live.clone(),
+            RoleKind::Toplevel,
+            parts(
+                RequestQueue::new(ping.clone()),
+                FrameTicks::default(),
+                live.clone(),
+            ),
         );
         let env = test_env(id, ping, Prepaint::None);
         let mut document = surface_document(Root::new(scaled), handle.clone(), env);
@@ -585,10 +638,12 @@ mod tests {
         };
         let handle = SurfaceHandle::new(
             id,
-            RequestQueue::new(ping),
-            SurfaceIds::new(),
-            FrameTicks::default(),
-            LiveScale::new(Scale(180)),
+            RoleKind::Toplevel,
+            parts(
+                RequestQueue::new(ping),
+                FrameTicks::default(),
+                LiveScale::new(Scale(180)),
+            ),
         );
         let mut document = surface_document(Root::new(app), handle, env);
         let waker = std::task::Waker::noop();
@@ -611,13 +666,122 @@ mod tests {
         let id = SurfaceId(12);
         let handle = SurfaceHandle::new(
             id,
-            RequestQueue::new(ping.clone()),
-            SurfaceIds::new(),
-            FrameTicks::default(),
-            LiveScale::new(Scale::ONE),
+            RoleKind::Toplevel,
+            parts(
+                RequestQueue::new(ping.clone()),
+                FrameTicks::default(),
+                LiveScale::new(Scale::ONE),
+            ),
         );
         let env = test_env(id, ping, Prepaint::None);
         let mut document = surface_document(Root::new(app), handle, env);
         assert_eq!(document.resolve(0.0), Prepainted::NoHook);
+    }
+
+    fn zoom_state() -> Element {
+        let state = use_toplevel_state();
+        rsx! { div { "{state().maximized:?}" } }
+    }
+
+    /// The configure state reaches the document as live state: the first render has what the
+    /// host knew, each change re-renders, and a configure that changes nothing wakes nothing.
+    #[test]
+    fn use_toplevel_state_follows_each_configure() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let id = SurfaceId(13);
+        let live = Live::new(ToplevelState::default());
+        let handle = SurfaceHandle::new(
+            id,
+            RoleKind::Toplevel,
+            HandleParts {
+                toplevel: live.clone(),
+                ..parts(
+                    RequestQueue::new(ping.clone()),
+                    FrameTicks::default(),
+                    LiveScale::new(Scale::ONE),
+                )
+            },
+        );
+        let env = test_env(id, ping, Prepaint::None);
+        let mut document = surface_document(Root::new(zoom_state), handle.clone(), env);
+        assert_eq!(text(&mut document), "Unset");
+        let wakes = Arc::new(Wakes::default());
+        let waker = std::task::Waker::from(Arc::clone(&wakes));
+        let mut cx = std::task::Context::from_waker(&waker);
+        document.poll(&mut cx);
+        wakes.take();
+        live.publish(ToplevelState::default());
+        assert_eq!(wakes.take(), 0, "an unchanged state wakes nothing");
+        let zoomed = ToplevelState {
+            maximized: Maximize::Set,
+            ..ToplevelState::default()
+        };
+        live.publish(zoomed);
+        assert!(wakes.take() > 0);
+        assert_eq!(document.poll(&mut cx), Polled::Changed);
+        assert_eq!(text(&mut document), "Set");
+        assert_eq!(handle.current_toplevel_state(), zoomed);
+    }
+
+    /// `begin_move` and `begin_resize` queue their op only under the serial rule, and say why
+    /// not otherwise; maximize is queued as asked.
+    #[test]
+    fn a_move_is_queued_only_with_a_held_press_on_the_surface() {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let requests = RequestQueue::new(ping);
+        let grab = GrabRecord::default();
+        let id = SurfaceId(14);
+        let handle_of = |kind| {
+            SurfaceHandle::new(
+                id,
+                kind,
+                HandleParts {
+                    grab: grab.clone(),
+                    ..parts(
+                        requests.clone(),
+                        FrameTicks::default(),
+                        LiveScale::new(Scale::ONE),
+                    )
+                },
+            )
+        };
+        let window = handle_of(RoleKind::Toplevel);
+        assert_eq!(window.begin_move(), Err(GrabRefused::PointerElsewhere));
+        grab.update(|facts| facts.focus = Some(id));
+        assert_eq!(window.begin_move(), Err(GrabRefused::NoPress));
+        assert!(requests.drain().is_empty(), "a refusal sends nothing");
+
+        grab.update(|facts| {
+            *facts = PointerFacts {
+                focus: Some(id),
+                press: Some(Press {
+                    surface: id,
+                    serial: 9,
+                }),
+            }
+        });
+        assert_eq!(window.begin_move(), Ok(()));
+        assert_eq!(window.begin_resize(ResizeEdge::BottomRight), Ok(()));
+        window.set_maximized(Maximize::Set);
+        let ops: Vec<SurfaceOp> = requests
+            .drain()
+            .into_iter()
+            .filter_map(|request| match request {
+                Request::Apply { op, .. } => Some(op),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            ops,
+            [
+                SurfaceOp::BeginMove,
+                SurfaceOp::BeginResize(ResizeEdge::BottomRight),
+                SurfaceOp::SetMaximized(Maximize::Set),
+            ]
+        );
+        assert_eq!(
+            handle_of(RoleKind::Layer).begin_move(),
+            Err(GrabRefused::NotAToplevel)
+        );
     }
 }

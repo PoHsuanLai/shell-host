@@ -10,7 +10,7 @@ use crate::id::SurfaceId;
 use crate::layer::{KeyboardMode, LayerConfig};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
-use crate::toplevel::{Activation, ToplevelConfig};
+use crate::toplevel::{ToplevelConfig, ToplevelState};
 
 /// A surface's role.
 #[derive(Debug)]
@@ -31,11 +31,29 @@ pub enum Role {
     Toplevel {
         window: Window,
         config: ToplevelConfig,
-        activation: Activation,
+        /// As of the last configure (`activated` drives the first-mouse filter).
+        state: ToplevelState,
     },
 }
 
+/// Which role a surface has, without its objects: what a `SurfaceHandle` knows of its surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RoleKind {
+    Layer,
+    Popup,
+    Toplevel,
+}
+
 impl Role {
+    /// This role's kind.
+    pub fn kind(&self) -> RoleKind {
+        match self {
+            Role::Layer { .. } => RoleKind::Layer,
+            Role::Popup { .. } => RoleKind::Popup,
+            Role::Toplevel { .. } => RoleKind::Toplevel,
+        }
+    }
+
     /// The `wl_surface` the role owns.
     pub fn wl_surface(&self) -> &WlSurface {
         match self {

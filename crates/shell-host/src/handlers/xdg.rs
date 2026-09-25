@@ -3,10 +3,12 @@
 use std::num::NonZeroU32;
 
 use smithay_client_toolkit::shell::WaylandSurface;
+use smithay_client_toolkit::shell::xdg::XdgSurface;
 use smithay_client_toolkit::shell::xdg::popup::{Popup, PopupConfigure, PopupHandler};
 use smithay_client_toolkit::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use wayland_client::{Connection, QueueHandle};
 
+use crate::csd::{inset_for, surface_of, window_geometry};
 use crate::event::CloseReason;
 use crate::frame::FrameInput;
 use crate::handlers::{close_surface_and_popups, surface_id_by_wl};
@@ -19,7 +21,7 @@ use crate::scale::{self, Size};
 use crate::state::HostState;
 use crate::surface::Configured;
 use crate::timers::TimerRequest;
-use crate::toplevel::Activation;
+use crate::toplevel::{Decorations, state_of};
 
 impl WindowHandler for HostState {
     /// `HostEvent::SurfaceClosed{reason: UserClose}`.
@@ -30,7 +32,8 @@ impl WindowHandler for HostState {
         close_surface_and_popups(self, id, CloseReason::UserClose);
     }
 
-    /// Size, `activated` state (for the first-mouse filter), invalidate.
+    /// Size, state (published; `activated` drives the first-mouse filter), resize band and
+    /// window geometry, invalidate.
     fn configure(
         &mut self,
         _conn: &Connection,
@@ -123,35 +126,53 @@ impl PopupHandler for HostState {
     }
 }
 
-/// Records the configured logical size on `id`'s toplevel and marks it configured, and updates
-/// its `Activation` from the configure's `ACTIVATED` state (drives the first-mouse filter,
-/// design/13 §13.3.8). Returns the logical size and scale for the caller's buffer/viewport
-/// arithmetic, or `None` if `id` no longer names a live toplevel.
+/// Records a toplevel configure on `id`: its state (published to the document), the resize
+/// band that state allows, the frame size (the configure's, or the current frame on an axis it
+/// leaves to us), the surface around it, and the window geometry that tells the compositor
+/// where the frame is inside the surface (`csd`). Returns the surface's logical size and scale
+/// for the caller's buffer/viewport arithmetic, or `None` if `id` no longer names a live
+/// toplevel.
 fn record_toplevel_configure(
     state: &mut HostState,
     id: SurfaceId,
     configure: &WindowConfigure,
 ) -> Option<(Size, scale::Scale)> {
     let host_surface = state.surfaces.get_mut(&id)?;
-    if !matches!(host_surface.role, Role::Toplevel { .. }) {
+    let frame_now = host_surface.document_size();
+    let Role::Toplevel {
+        window,
+        config,
+        state: current,
+    } = &mut host_surface.role
+    else {
         return None;
+    };
+    let next = state_of(configure);
+    let inset = inset_for(config.decorations, next);
+    let frame = toplevel_configured_size(frame_now, configure.new_size);
+    let surface = surface_of(frame, inset);
+    if let Decorations::Client(_) = config.decorations {
+        let geometry = window_geometry(surface, inset);
+        let px = |v: Px| u32::try_from(v).unwrap_or(0);
+        window.set_window_geometry(
+            px(geometry.x),
+            px(geometry.y),
+            px(geometry.width),
+            px(geometry.height),
+        );
     }
-    let logical = toplevel_configured_size(host_surface.logical, configure.new_size);
-    host_surface.configure(logical);
+    *current = next;
+    host_surface.inset = inset;
+    host_surface.configure(surface);
     host_surface.configured = Configured::Done;
-    if let Role::Toplevel { activation, .. } = &mut host_surface.role {
-        *activation = if configure.is_activated() {
-            Activation::Active
-        } else {
-            Activation::Inactive
-        };
-    }
-    Some((logical, host_surface.scale))
+    host_surface.live_toplevel.publish(next);
+    Some((surface, host_surface.scale))
 }
 
-/// The logical size to record from an `xdg_toplevel.configure`: the compositor's value on an
-/// axis it constrains, or `current` (the surface's last-known size, initially its
-/// `ToplevelConfig::size`) on an axis it leaves to the client (`new_size`'s `None`).
+/// The frame size to record from an `xdg_toplevel.configure`: the compositor's value on an
+/// axis it constrains, or `current` (the last-known frame, initially `ToplevelConfig::size`)
+/// on an axis it leaves to the client (`new_size`'s `None`). Configure sizes are window
+/// geometry, so they never include the resize band.
 fn toplevel_configured_size(current: Size, wire: (Option<NonZeroU32>, Option<NonZeroU32>)) -> Size {
     let axis =
         |got: Option<NonZeroU32>, fallback: Px| -> Px { got.map_or(fallback, |v| v.get() as Px) };

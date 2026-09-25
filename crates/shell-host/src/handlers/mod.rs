@@ -5,6 +5,7 @@
 
 pub mod activation;
 pub mod background_effect;
+pub mod band;
 pub mod compositor;
 pub mod data_device;
 pub mod fractional;

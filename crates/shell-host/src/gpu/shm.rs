@@ -117,8 +117,10 @@ fn frame_len(size: Size) -> usize {
 /// Paint a resolved document on the CPU at `target.buffer`: premultiplied RGBA8.
 pub(crate) fn paint_cpu(doc: &mut BaseDocument, target: FrameTarget) -> Vec<u8> {
     let (width, height) = pixel_extent(target.buffer);
+    let (paint_width, paint_height, x, y) = target.paint_area();
+    let scale = target.scale.as_f64();
     render_to_buffer::<VelloCpuImageRenderer, _>(
-        |painter| paint_scene(painter, doc, target.scale.as_f64(), width, height, 0, 0),
+        |painter| paint_scene(painter, doc, scale, paint_width, paint_height, x, y),
         width,
         height,
     )

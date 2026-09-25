@@ -42,6 +42,7 @@ pub fn paint_document(
     view: &wgpu::TextureView,
 ) -> Result<()> {
     let (width, height) = pixel_extent(target.buffer);
+    let (paint_width, paint_height, x, y) = target.paint_area();
     fit_scene(scene, width, height)?;
     let GpuContext {
         device,
@@ -66,10 +67,10 @@ pub fn paint_document(
             &mut painter,
             doc,
             target.scale.as_f64(),
-            width,
-            height,
-            0,
-            0,
+            paint_width,
+            paint_height,
+            x,
+            y,
         );
     }
     renderer

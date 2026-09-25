@@ -11,7 +11,7 @@ use crate::id::SurfaceId;
 use crate::layer::{
     to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer, to_wire_size,
 };
-use crate::msg::{Request, SurfaceOp, Visibility};
+use crate::msg::{Repaint, Request, SurfaceOp, Visibility};
 use crate::placement::PopupPlacement;
 use crate::popup::{Grab, positioner_params};
 use crate::role::Role;
@@ -89,7 +89,9 @@ pub(super) fn apply<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, op: Surface
     if surface.visibility == Visibility::Shown {
         send(state, id, &op);
     }
-    state.frame_input(id, FrameInput::Invalidate);
+    if op.repaint() == Repaint::Needed {
+        state.frame_input(id, FrameInput::Invalidate);
+    }
 }
 
 /// Move popup `id` to `placement`, measured from its own content by `popup::refit`. Applied
@@ -128,7 +130,8 @@ fn send(state: &HostState, id: SurfaceId, op: &SurfaceOp) {
                 popup.reposition(&positioner, REPOSITION_TOKEN);
             }
         }
-        (Role::Popup { .. } | Role::Toplevel { .. }, _) => {}
+        (Role::Toplevel { window, .. }, op) => super::window::send(state, id, window, op),
+        (Role::Popup { .. }, _) => {}
     }
 }
 
@@ -146,7 +149,12 @@ fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op
         SurfaceOp::SetBlur(_)
         | SurfaceOp::SetInputRegion(_)
         | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_) => {}
+        | SurfaceOp::Reposition(_)
+        | SurfaceOp::BeginMove
+        | SurfaceOp::BeginResize(_)
+        | SurfaceOp::SetMaximized(_)
+        | SurfaceOp::Minimize
+        | SurfaceOp::SetFullscreen(_) => {}
     }
 }
 

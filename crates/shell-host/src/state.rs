@@ -44,12 +44,14 @@ use crate::blur_health::{
 };
 use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
+use crate::csd::Zone;
 use crate::cursor::Cursor;
 use crate::dom::fonts::SharedFonts;
 use crate::error::{HostError, Result};
 use crate::event::ShellEvent;
 use crate::frame::{FrameInput, TimerCmd};
 use crate::gpu::context::GpuContext;
+use crate::grab::GrabRecord;
 use crate::handle::RequestQueue;
 use crate::handlers::activation::ActivationRequest;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
@@ -152,6 +154,8 @@ impl HostState {
                 focused_at: None,
                 modifiers: Modifiers::empty(),
                 last_serial: 0,
+                grab: GrabRecord::default(),
+                zone: Zone::Document,
                 data_device: None,
                 repeating: None,
                 repeat_delay: DEFAULT_REPEAT_DELAY,

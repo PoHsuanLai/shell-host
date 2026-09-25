@@ -11,6 +11,7 @@ use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::Root;
+use crate::toplevel::{Fullscreen, Maximize, ResizeEdge};
 
 /// A change to one surface. Applied after the documents are polled and before painting, so a
 /// region change lands in the same commit as the frame that caused it. An op that does not fit
@@ -35,6 +36,54 @@ pub enum SurfaceOp {
     /// Popups only: move an open popup (`xdg_popup.reposition`, xdg_wm_base v3), which is how a
     /// menu bar switches menus on hover without a new grab (design/13 §13.7).
     Reposition(PopupPlacement),
+    /// Toplevels only: start an interactive move (`xdg_toplevel.move`) with the seat's held
+    /// press on this surface (`grab`'s rule); ignored, with a log line, without one.
+    BeginMove,
+    /// Toplevels only: start an interactive resize from `edge` (`xdg_toplevel.resize`), under
+    /// the same rule as `BeginMove`.
+    BeginResize(ResizeEdge),
+    /// Toplevels only: `xdg_toplevel.set_maximized` / `unset_maximized`. The compositor answers
+    /// with a configure; nothing changes until it does.
+    SetMaximized(Maximize),
+    /// Toplevels only: `xdg_toplevel.set_minimized`. There is no un-minimize request: the
+    /// compositor (a dock, a task switcher) restores the window.
+    Minimize,
+    /// Toplevels only: `xdg_toplevel.set_fullscreen` on the compositor's choice of output, or
+    /// `unset_fullscreen`.
+    SetFullscreen(Fullscreen),
+}
+
+/// Whether applying an op must repaint the surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Repaint {
+    /// The op changes what the next commit carries (a region, a layer's size or anchor).
+    Needed,
+    /// A window-management request: the compositor answers with a configure if anything
+    /// changes, and that configure repaints. Repainting now would cost an idle frame.
+    NotNeeded,
+}
+
+impl SurfaceOp {
+    /// Whether applying this op repaints the surface.
+    pub fn repaint(&self) -> Repaint {
+        match self {
+            SurfaceOp::BeginMove
+            | SurfaceOp::BeginResize(_)
+            | SurfaceOp::SetMaximized(_)
+            | SurfaceOp::Minimize
+            | SurfaceOp::SetFullscreen(_) => Repaint::NotNeeded,
+            SurfaceOp::SetBlur(_)
+            | SurfaceOp::SetInputRegion(_)
+            | SurfaceOp::SetKeyboard(_)
+            | SurfaceOp::SetExclusiveZone(_)
+            | SurfaceOp::SetSize(_)
+            | SurfaceOp::SetMargin(_)
+            | SurfaceOp::SetAnchor(_)
+            | SurfaceOp::SetLayer(_)
+            | SurfaceOp::SetVisibility(_)
+            | SurfaceOp::Reposition(_) => Repaint::Needed,
+        }
+    }
 }
 
 /// Whether a surface is on screen.

@@ -272,11 +272,7 @@ fn document(app: fn() -> Element, buffer: Size, scale: Scale) -> DioxusDocument 
 fn render(doc: &mut DioxusDocument, buffer: Size, scale: Scale) -> image::RgbaImage {
     let mut base = doc.inner.borrow_mut();
     base.resolve(0.0);
-    let target = FrameTarget {
-        buffer,
-        scale,
-        time: 0.0,
-    };
+    let target = FrameTarget::whole(buffer, scale, 0.0);
     capture_document(&mut gpu(), &mut base, target).expect("offscreen render")
 }
 

@@ -25,8 +25,9 @@ use crate::region::Px;
 use crate::scale::Size;
 use crate::state::HostState;
 
-/// Something done to one surface as if the user had done it. Coordinates are surface-local
-/// logical pixels.
+/// Something done to one surface as if the user had done it. Coordinates are the document's
+/// logical pixels: surface-local, except that a client-decorated window's document starts
+/// inside its resize band (`csd`), which injection never reaches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Inject {
     /// The pointer moves to `at` (hover follows).

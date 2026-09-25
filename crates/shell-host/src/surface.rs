@@ -3,21 +3,25 @@
 use std::sync::Arc;
 
 use calloop::RegistrationToken;
+use cursor_icon::CursorIcon;
 
 use crate::blur::BlurSpec;
+use crate::csd::{Inset, content_px, frame_of};
 use crate::debug::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow, SurfaceName};
 use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
+use crate::live::Live;
 use crate::live_scale::LiveScale;
 use crate::msg::{SurfaceOp, Visibility};
-use crate::region::{Px, RegionSpec};
+use crate::region::{Px, Rect, RegionSpec};
 use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
+use crate::toplevel::ToplevelState;
 
 /// Whether the compositor has configured the surface yet. Nothing renders before it has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +34,7 @@ pub enum Configured {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Geometry {
     pub logical: Size,
+    pub inset: Inset,
     pub scale: Scale,
 }
 
@@ -69,7 +74,10 @@ pub struct HostSurface {
     pub(crate) watchdog: Option<RegistrationToken>,
     pub(crate) configured: Configured,
     pub(crate) visibility: Visibility,
+    /// The surface's logical size, including a client-decorated toplevel's resize band.
     pub(crate) logical: Size,
+    /// The resize band around the document (`csd`); `Inset::NONE` for every other surface.
+    pub(crate) inset: Inset,
     pub(crate) scale: Scale,
     pub(crate) blur: BlurSpec,
     pub(crate) input: RegionSpec,
@@ -82,12 +90,28 @@ pub struct HostSurface {
     pub(crate) ticks: FrameTicks,
     /// `scale`, published to the surface's document (`use_surface_scale`).
     pub(crate) live_scale: LiveScale,
+    /// A toplevel's configure state, published to its document (`use_toplevel_state`); the
+    /// default forever on any other surface.
+    pub(crate) live_toplevel: Live<ToplevelState>,
+    /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
+    /// the document rather than in the resize band.
+    pub(crate) doc_cursor: Option<CursorIcon>,
 }
 
 impl HostSurface {
     /// The buffer size for the current logical size and scale.
     pub fn buffer(&self) -> Size {
         buffer_size(self.logical, self.scale)
+    }
+
+    /// The document's logical size: the surface less the resize band.
+    pub fn document_size(&self) -> Size {
+        frame_of(self.logical, self.inset)
+    }
+
+    /// Where the document paints in the buffer, in physical pixels.
+    pub fn content(&self) -> Rect {
+        content_px(self.buffer(), self.inset, self.scale)
     }
 
     /// Step the frame machine; the caller performs the returned action.
@@ -199,7 +223,12 @@ fn record_layer(
         SurfaceOp::SetBlur(_)
         | SurfaceOp::SetInputRegion(_)
         | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_) => {}
+        | SurfaceOp::Reposition(_)
+        | SurfaceOp::BeginMove
+        | SurfaceOp::BeginResize(_)
+        | SurfaceOp::SetMaximized(_)
+        | SurfaceOp::Minimize
+        | SurfaceOp::SetFullscreen(_) => {}
     }
 }
 

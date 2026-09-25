@@ -1,21 +1,27 @@
 //! Pointer frames -> document events, through `input::pointer`.
 
-use blitz_traits::events::{BlitzWheelEvent, Point, PointerCoords, UiEvent};
-use cursor_icon::CursorIcon;
+use blitz_traits::events::{
+    BlitzWheelEvent, MouseEventButton, MouseEventButtons, Point, PointerCoords, UiEvent,
+};
 use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
 use wayland_client::protocol::wl_pointer::WlPointer;
 use wayland_client::{Connection, QueueHandle};
 
+use crate::csd::Zone;
+use crate::grab::Press;
 use crate::id::SurfaceId;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
 
 impl PointerHandler for HostState {
-    /// Enter: focus and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move, then
-    /// `clear_hover()`).
+    /// Enter: focus, zone and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move,
+    /// then `clear_hover()`).
     /// Motion, press (move-before-down, first-mouse filter), release, axis
-    /// (`input::pointer::wheel_delta`). Each changed document is invalidated.
+    /// (`input::pointer::wheel_delta`), in the document's coordinates; in a client-decorated
+    /// window's resize band (`csd`) the host shows the resize cursor and a press starts the
+    /// resize, and the document sees neither. Each changed document is invalidated. Every
+    /// press and release updates the seat's grab record (the move/resize serial rule).
     fn pointer_frame(
         &mut self,
         _conn: &Connection,
@@ -35,16 +41,24 @@ impl PointerHandler for HostState {
             match event.kind.clone() {
                 PointerEventKind::Enter { serial } => {
                     self.input.pointer_focus = Some((id, serial));
+                    self.input.grab.update(|facts| facts.focus = Some(id));
                     self.input.position = pos;
+                    self.input.zone = self.zone_of(id, pos);
                     // A fresh `enter` invalidates any earlier serial, even for the same shape:
                     // force `Cursor::set` past its no-op-when-unchanged check.
                     self.cursor.current = None;
-                    self.cursor.set(pointer, serial, Some(CursorIcon::Default));
+                    self.show_cursor(pointer, id);
                 }
                 PointerEventKind::Leave { serial: _ } => {
                     if self.input.pointer_focus.map(|(focus, _)| focus) == Some(id) {
                         self.input.pointer_focus = None;
                     }
+                    self.input.grab.update(|facts| {
+                        if facts.focus == Some(id) {
+                            facts.focus = None;
+                        }
+                    });
+                    self.input.zone = Zone::Document;
                     self.input.position = PointerPos::OUTSIDE;
                     if let Some(surface) = self.surfaces.get_mut(&id) {
                         surface.document.pointer_left(self.input.modifiers);
@@ -53,14 +67,8 @@ impl PointerHandler for HostState {
                 }
                 PointerEventKind::Motion { time: _ } => {
                     self.input.position = pos;
-                    if let Some(surface) = self.surfaces.get_mut(&id) {
-                        surface.document.handle_event(pointer::move_event(
-                            pos,
-                            self.input.buttons,
-                            self.input.modifiers,
-                        ));
-                    }
-                    self.invalidate(id);
+                    self.pointer_moved(id, pos);
+                    self.show_cursor(pointer, id);
                 }
                 PointerEventKind::Press {
                     button,
@@ -73,21 +81,34 @@ impl PointerHandler for HostState {
                     };
                     self.input.position = pos;
                     let held_before = self.input.buttons;
+                    if held_before == MouseEventButtons::None {
+                        self.input.zone = self.zone_of(id, pos);
+                    }
                     self.input.buttons =
                         pointer::buttons_after(held_before, btn, ButtonChange::Pressed);
+                    self.input.grab.update(|facts| {
+                        facts.press = Some(Press {
+                            surface: id,
+                            serial,
+                        });
+                    });
+                    if let Zone::Edge(edge) = self.input.zone {
+                        // The band is the host's: the press starts the resize, whether or not
+                        // the window is active, and the document never hears of it.
+                        if btn == MouseEventButton::Main {
+                            self.resize_from_band(id, edge);
+                        }
+                        continue;
+                    }
                     if self.first_mouse(id) == FirstMouse::Swallow {
                         // The press still counts as having happened (buttons updated above), it
                         // just never reaches the document: this is the click that activates the
                         // window, not a click on anything in it.
                         continue;
                     }
-                    let events = pointer::press_events(pos, btn, held_before, self.input.modifiers);
-                    if let Some(surface) = self.surfaces.get_mut(&id) {
-                        for event in events {
-                            surface.document.handle_event(event);
-                        }
-                    }
-                    self.invalidate(id);
+                    let at = self.document_pos(id, pos);
+                    let events = pointer::press_events(at, btn, held_before, self.input.modifiers);
+                    self.deliver(id, events);
                 }
                 PointerEventKind::Release {
                     button,
@@ -101,11 +122,15 @@ impl PointerHandler for HostState {
                     let held_before = self.input.buttons;
                     self.input.buttons =
                         pointer::buttons_after(held_before, btn, ButtonChange::Released);
-                    let event = pointer::release_event(pos, btn, held_before, self.input.modifiers);
-                    if let Some(surface) = self.surfaces.get_mut(&id) {
-                        surface.document.handle_event(event);
+                    if self.input.buttons == MouseEventButtons::None {
+                        self.input.grab.update(|facts| facts.press = None);
                     }
-                    self.invalidate(id);
+                    if self.input.zone == Zone::Document {
+                        let at = self.document_pos(id, pos);
+                        let event =
+                            pointer::release_event(at, btn, held_before, self.input.modifiers);
+                        self.deliver(id, [event]);
+                    }
                 }
                 PointerEventKind::Axis {
                     horizontal,
@@ -116,7 +141,11 @@ impl PointerHandler for HostState {
                     let Some(delta) = pointer::wheel_delta(horizontal, vertical) else {
                         continue;
                     };
-                    let (x, y) = (pos.x as f32, pos.y as f32);
+                    if self.input.zone != Zone::Document {
+                        continue;
+                    }
+                    let at = self.document_pos(id, pos);
+                    let (x, y) = (at.x as f32, at.y as f32);
                     let wheel = BlitzWheelEvent {
                         delta,
                         coords: PointerCoords {
@@ -131,10 +160,7 @@ impl PointerHandler for HostState {
                         mods: self.input.modifiers,
                         element: Point::default(),
                     };
-                    if let Some(surface) = self.surfaces.get_mut(&id) {
-                        surface.document.handle_event(UiEvent::Wheel(wheel));
-                    }
-                    self.invalidate(id);
+                    self.deliver(id, [UiEvent::Wheel(wheel)]);
                 }
             }
         }

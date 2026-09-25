@@ -7,9 +7,11 @@ mod paint;
 mod rescale;
 mod spawn;
 mod timer;
+mod window;
 
 #[cfg(feature = "debug-inject")]
 pub(crate) use paint::capture;
+pub(crate) use window::begin_resize;
 
 use std::collections::{BTreeMap, VecDeque};
 

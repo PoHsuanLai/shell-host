@@ -8,6 +8,7 @@ use crate::gpu::context::GpuContext;
 use crate::gpu::render::{capture_document, render_into};
 use crate::gpu::shm::{ShmBuffers, paint_cpu};
 use crate::gpu::swapchain::{Swapchain, alpha_mode_of, pixel_extent, present_mode_of};
+use crate::region::Rect;
 use crate::scale::{Scale, Size};
 
 /// A surface's presenter.
@@ -24,9 +25,36 @@ pub enum Presenter {
 pub struct FrameTarget {
     /// Physical pixels, `scale::buffer_size(logical, scale)`.
     pub buffer: Size,
+    /// Where in the buffer the document paints, physical pixels: the whole buffer, or less a
+    /// client-decorated toplevel's resize band (`csd::content_px`).
+    pub content: Rect,
     pub scale: Scale,
     /// Seconds on the host clock.
     pub time: f64,
+}
+
+impl FrameTarget {
+    /// A target whose document covers the whole buffer.
+    pub fn whole(buffer: Size, scale: Scale, time: f64) -> FrameTarget {
+        FrameTarget {
+            buffer,
+            content: Rect {
+                x: 0,
+                y: 0,
+                width: buffer.width,
+                height: buffer.height,
+            },
+            scale,
+            time,
+        }
+    }
+
+    /// `paint_scene`'s viewport width and height and its x and y offset, physical pixels.
+    pub fn paint_area(&self) -> (u32, u32, u32, u32) {
+        let px = |v: i32| u32::try_from(v).unwrap_or(0);
+        let c = self.content;
+        (px(c.width), px(c.height), px(c.x), px(c.y))
+    }
 }
 
 impl Presenter {
