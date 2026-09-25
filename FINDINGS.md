@@ -828,3 +828,28 @@ everyone.
 
 `scripts/spike-accept.sh demo cosmic c` on this branch (same compositor, reused): all four runs
 pass (transform, width, tick, fifo), 5 s idle 0 frames / 0 commits / 0 main-thread wakeups each.
+
+## Milestone 0 on the live KWin session (2026-09-25)
+
+### F45. `spike-accept.sh demo kwin` on the user's unlocked Plasma 6 session at scale 2.0
+
+Run once the KDE session was unlocked (KWin 6.7.5, one 3840x2160 output at scale 2.0, NVIDIA
+RTX 5070 Ti over Vulkan, blur supported, fractional-scale and layer-shell bound). The first run
+failed before any demo started because the invoking shell had no `XDG_RUNTIME_DIR`, so
+`wayland-info` and the demos could not find the socket; set it (`/run/user/1000`) and it ran.
+
+| Item | Result | Numbers |
+| --- | --- | --- |
+| a bar | pass | maximised height 1048 = output 1080 minus 32; bar pixel magenta; checker visible at (10,40); one frame, 4.2 ms |
+| b blur | pass | variance drop 99.98 % with blur on; below the bar the checker keeps its variance; KWin blur effect loaded |
+| c dock | pass, 4 runs | transform/width/tick at mailbox and transform at fifo: frames = callbacks (72/71/78/69), p95 0.86/1.26/0.96/0.90 ms under the 16.67 ms budget, idle 0 frames, 0 commits, 0 main-thread wakeups, present never blocks while occluded, recovers after |
+| f fractional | partial | buffer 3840x64 = round(1920x32 x 2), checker runs of exactly 4 device px, preferred scale 240 matches the compositor; `screen_row_equals_buffer_row` false (max row diff 250, 160 opaque px) |
+| g two surfaces | pass | one device, same adapter, dock counted (33 frames), bar untouched, +232 KB RSS for the second surface |
+
+Item f was written for a 1.5 output (kscreen-doctor to 1.5, then the 2-logical-px checkerboard
+must be exactly 3 physical px). The user's display is at 2.0 now (they preferred it to 1.5), so
+the fractional path itself was not exercised live; at 2.0 the buffer and checker checks pass and
+only the screenshot-row-versus-buffer-row equality fails, which needs a look at how spectacle's
+capture at scale 2 lines up with the buffer before it can be called a bug. The user's display
+scale was not changed. Results: `spike/out/demo/kwin/{a,b,c,f,g}.json` (untracked, `spike/out`
+is ignored); the a and b screenshots are on the progress page.
