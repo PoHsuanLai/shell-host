@@ -1592,3 +1592,52 @@ because the modifiers arrive just after the enter, elsewhere because they do not
 that reads them on the next move sees Super on KWin only. Nothing portable tells
 a keyboard-less surface that Super is held, so `hot_corners.modifier` has no portable source.
 No workaround was implemented.
+
+### F62. Blitz's default `body { margin: 8px }` kept a bare document off its surface's corner
+
+Found by sill (2026-09-26). Blitz's user-agent stylesheet (`blitz-dom/assets/default.css`,
+included as `blitz_dom::DEFAULT_CSS` and added by `BaseDocument::new` whenever
+`DocumentConfig::ua_stylesheets` is `None`) has the browser default:
+
+```css
+body {
+    display: block;
+    margin: 8px;
+}
+```
+
+A document without quire's `Ds` root (whose `css/reset.css` zeroes the body) kept it: a
+never-painted 2 px hot-corner surface or an input catcher laid out from (8, 8), 16 px narrower
+than its surface, so an `inset:0` box never reached the true (0, 0) corner. sill worked around it
+with an oversize box pulled back by a negative margin.
+
+**The reset.** Every document the host builds now gets `BODY_RESET` (`body{margin:0}`,
+`dom::document`) as a second user-agent sheet, next to `UA_STYLESHEET`, before its first
+layout: `SurfaceDocument::build` (layer, toplevel, popup and drag icon documents all come
+through it, `ctx::spawn`) and `headless::render_png`. It goes through
+`BaseDocument::add_user_agent_stylesheet`, not `DocumentConfig::ua_stylesheets`: that field
+*replaces* `DEFAULT_CSS` rather than adding to it, so using it would mean re-supplying Blitz's
+whole default sheet. As a user-agent sheet appended after `DEFAULT_CSS`, it beats the 8 px rule
+(same origin and specificity, later) and loses to any rule a document writes itself (author
+origin), so a `Ds` root's reset, or any document's own body margin, still decides.
+
+**What it does not fix.** An `inset:0` box on a bare document now starts at (0, 0) and spans
+the surface's width, but it is still 0 px tall: Taffy places an absolute or fixed box against its
+parent, and that parent is dioxus-native-dom's `#main`, `height:auto` and empty of flow content
+(sill F172; quire's `RootExtent::Viewport` answers it for `Ds` roots with
+`min-height:100vh; min-width:100vw`). A bare document that must cover its surface sizes its box
+in viewport units (`width:100vw; height:100vh`), which now lands exactly on the surface, so
+sill's oversize box and negative margin can go. Sizing `#main` from the host was not done: a
+percentage height on a content root would then resolve against the surface and change content
+layouts (and `content_size` for `PopupSize::FitContent`).
+
+**Proof.** `tests/body_margin.rs`: a bare `inset:0` box is at (0, 0) with the full 120 px
+width (and 0 px tall, as above); a bare `100vw x 100vh` box is exactly the 120 x 80 surface; a
+document with its own `body{margin:4px}` keeps its box at (4, 4), 8 px narrower; and a headless
+render of a bare viewport-sized red box paints pixels (0, 0) and (119, 79) red. With the reset
+emptied, the three bare-document tests fail (8, 8 origin; 104 px wide; transparent corner).
+
+The headless snapshot scene (`tests/headless.rs`) had no body reset of its own, so its goldens
+had baked in the 8 px margin (the 240 x 160 card drawn from (8, 8), its right and bottom 8 px
+cut off, a transparent frame at the top and left). `drift_t0.png` and `drift_t0_1.png` were
+regenerated: the card now fills the frame from (0, 0), the drifting box moved up and left by 8 px.

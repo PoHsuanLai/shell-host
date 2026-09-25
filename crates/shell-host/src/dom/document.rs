@@ -31,6 +31,12 @@ use crate::scale::Size;
 /// desktop show through. Margins and the rest of the reset come from quire's `css/reset.css`.
 pub const UA_STYLESHEET: &str = "html,body{height:100%;background:transparent}";
 
+/// Zero `<body>`'s margin, added to every document the host builds (the headless path too):
+/// Blitz's default stylesheet gives it `margin: 8px` (`blitz-dom/assets/default.css`), which
+/// kept a bare document, one without quire's reset, from ever reaching its surface's (0, 0)
+/// corner (FINDINGS F62). A user-agent sheet, so any rule of the document's own wins.
+pub const BODY_RESET: &str = "body{margin:0}";
+
 /// Everything a document is built with besides its root.
 #[derive(Clone)]
 pub struct DocumentEnv {
@@ -89,7 +95,7 @@ pub struct Resolved {
 
 impl SurfaceDocument {
     /// Build and initially render `root`: `StyleThreading::Sequential` (every document resolves
-    /// on the main thread, blitz #430), the UA stylesheet, the head shim as the Dioxus
+    /// on the main thread, blitz #430), the UA stylesheet and the body reset, the head shim as the Dioxus
     /// `Document` context, the `SurfaceHandle` as a root context.
     pub fn build(root: Root, env: DocumentEnv) -> SurfaceDocument {
         let head = HeadQueue::default();
@@ -108,6 +114,7 @@ impl SurfaceDocument {
 
         let mut doc = DioxusDocument::new(vdom, config);
         doc.inner_mut().add_user_agent_stylesheet(UA_STYLESHEET);
+        doc.inner_mut().add_user_agent_stylesheet(BODY_RESET);
         doc.initial_build();
         apply_head(&mut doc, &head);
 

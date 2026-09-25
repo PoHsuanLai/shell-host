@@ -25,6 +25,8 @@ use dioxus_native_dom::DioxusDocument;
 use image::RgbaImage;
 use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
 
+use crate::dom::document::BODY_RESET;
+
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
 /// component whose effects never settle (a bug, not a feature) cannot hang a render.
 const MAX_POLL_ITERATIONS: u32 = 32;
@@ -100,6 +102,7 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
             ..Default::default()
         },
     );
+    doc.inner_mut().add_user_agent_stylesheet(BODY_RESET);
 
     doc.initial_build();
     for _ in 0..MAX_POLL_ITERATIONS {
