@@ -109,7 +109,11 @@ fn dock_region(cards: Cards) -> RegionSpec {
         inflate: 0,
     };
     match cards {
-        Cards::One => RegionSpec::Element(pill),
+        Cards::One => RegionSpec::Element {
+            id: pill.id,
+            radius: pill.radius,
+            inflate: pill.inflate,
+        },
         Cards::Two => RegionSpec::Elements(vec![
             pill,
             ElementRegion {

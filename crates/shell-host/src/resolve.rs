@@ -36,10 +36,21 @@ pub fn resolve(
         RegionSpec::Rects(rects) => {
             Resolved::Strips(rects.iter().flat_map(|&rr| rounded_strips(rr)).collect())
         }
-        RegionSpec::Element(element) => match rounded_rect(element, &lookup) {
-            Some(rr) => Resolved::Strips(rounded_strips(rr)),
-            None => Resolved::Pending,
-        },
+        RegionSpec::Element {
+            id,
+            radius,
+            inflate: by,
+        } => {
+            let element = ElementRegion {
+                id: id.clone(),
+                radius: *radius,
+                inflate: *by,
+            };
+            match rounded_rect(&element, &lookup) {
+                Some(rr) => Resolved::Strips(rounded_strips(rr)),
+                None => Resolved::Pending,
+            }
+        }
         RegionSpec::Elements(elements) => Resolved::Strips(
             elements
                 .iter()
@@ -192,11 +203,11 @@ mod tests {
             ),
             (
                 "element, square, inflated",
-                RegionSpec::Element(ElementRegion {
+                RegionSpec::Element {
                     id: pill(),
                     radius: 0,
                     inflate: 2,
-                }),
+                },
                 Resolved::Strips(vec![Rect {
                     x: 18,
                     y: 6,
@@ -206,11 +217,11 @@ mod tests {
             ),
             (
                 "missing element keeps the old region",
-                RegionSpec::Element(ElementRegion {
+                RegionSpec::Element {
                     id: ElementId::new("no-such-element"),
                     radius: 8,
                     inflate: 0,
-                }),
+                },
                 Resolved::Pending,
             ),
         ];
@@ -221,11 +232,11 @@ mod tests {
 
     #[test]
     fn a_rounded_element_is_its_strips() {
-        let spec = RegionSpec::Element(ElementRegion {
+        let spec = RegionSpec::Element {
             id: pill(),
             radius: 6,
             inflate: 0,
-        });
+        };
         let want = rounded_strips(RoundedRect {
             rect: PILL_RECT,
             radius: 6,

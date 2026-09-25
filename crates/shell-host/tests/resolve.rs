@@ -125,11 +125,11 @@ fn tracked_only_reports_a_change_when_the_resolved_rect_moves() {
 fn resolving_a_rounded_element_region_matches_resolving_the_equivalent_rects_spec() {
     let id = ElementId::new("dock-pill");
     let lookup = |candidate: ElementId| (candidate == id).then_some(BUTTON);
-    let element_spec = RegionSpec::Element(ElementRegion {
+    let element_spec = RegionSpec::Element {
         id: id.clone(),
         radius: 6,
         inflate: 0,
-    });
+    };
     let rects_spec = RegionSpec::Rects(vec![RoundedRect {
         rect: BUTTON,
         radius: 6,

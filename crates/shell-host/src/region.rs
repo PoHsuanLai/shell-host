@@ -74,9 +74,11 @@ impl ElementId {
     }
 }
 
-/// One element whose bounding rect (found by `id` after layout) contributes to a region: the
-/// rect is inflated by `inflate`, then rounded to `radius`. The unit `RegionSpec::Element`
-/// wraps and `RegionSpec::Elements` collects.
+/// One element whose bounding rect (found by `id` after layout) contributes to a
+/// `RegionSpec::Elements` region: the rect is inflated by `inflate`, then rounded to `radius`
+/// (the same two fields `RegionSpec::Element` carries directly — kept a separate struct-variant
+/// there, not this type, so an existing `RegionSpec::Element { .. }` construction, such as
+/// sill's, keeps compiling unchanged).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementRegion {
     pub id: ElementId,
@@ -98,7 +100,11 @@ pub enum RegionSpec {
     /// the document, `resolve::resolve` keeps whatever region the surface already has, rather
     /// than shrinking it to nothing — right for a single moving part, wrong for several (see
     /// `Elements`).
-    Element(ElementRegion),
+    Element {
+        id: ElementId,
+        radius: Px,
+        inflate: Px,
+    },
     /// The union of several DOM elements' bounding rects, each resolved independently after
     /// layout (one `rounded_strips` per element, concatenated — overlapping strips are fine for
     /// a `wl_region`). For a region with several moving parts, such as a stack of notification

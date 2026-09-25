@@ -1189,16 +1189,21 @@ bus; not changed here.
 
 The notification banners are several stacked cards, each its own DOM element, each moving on
 its own: `RegionSpec::Element { id, radius, inflate }` (G59 and earlier) can only ever follow
-one. Modelled as a new element per region, `ElementRegion { id, radius, inflate }`, and two
-`RegionSpec` variants built from it: `Element(ElementRegion)`, unchanged in behaviour (a missing
-element keeps the surface's current region — `resolve::resolve`'s existing contract, right for
-one moving part), and `Elements(Vec<ElementRegion>)`, the union of every element's own
-`rounded_strips`, concatenated (overlapping strips are fine for a `wl_region`, and cheaper than
-deduplicating them). The two differ in exactly one place: `Elements` treats an element missing
-from the document as contributing nothing to the union rather than pending the whole thing, so
-one card not yet laid out (or one closed and about to be removed) never blanks out the cards
-still there. Both resolve through one shared helper (`resolve::rounded_rect`), so the
-concatenation and the strip decomposition are not duplicated between them.
+one. `RegionSpec::Element` keeps that exact struct-variant shape unchanged — shell-host is a
+path dependency of sill, which constructs `RegionSpec::Element { .. }` directly (for example
+`crates/sill-surfaces/src/surfaces/launcher/hit.rs`'s `card_region()`), so a shape change here
+turns sill master red the moment shell-host master moves. The new case is a sibling instead: a
+struct `ElementRegion { id, radius, inflate }` (the same two geometry fields, named so several
+of them can live in one `Vec`) and `RegionSpec::Elements(Vec<ElementRegion>)`, the union of
+every element's own `rounded_strips`, concatenated (overlapping strips are fine for a
+`wl_region`, and cheaper than deduplicating them). `resolve::resolve`'s `Element` arm builds an
+`ElementRegion` from its three fields internally and resolves it exactly as before (a missing
+element keeps the surface's current region, right for one moving part); `Elements` differs in
+exactly one place — it treats an element missing from the document as contributing nothing to
+the union rather than pending the whole thing, so one card not yet laid out (or one closed and
+about to be removed) never blanks out the cards still there. Both arms resolve through one
+shared helper (`resolve::rounded_rect`, taking an `&ElementRegion`), so the concatenation and
+the strip decomposition are not duplicated between them.
 
 `crates/shell-host/src/resolve.rs`'s pure `resolve` gained the `Elements` arm; both crates'
 test suites gained table tests against it — two overlapping cards resolving to the concatenation
