@@ -16,6 +16,7 @@ use crate::csd::Zone;
 use crate::frame::{FrameInput, TimerCmd};
 use crate::grab::GrabRecord;
 use crate::id::SurfaceId;
+use crate::input::capability::{Announcement, Held, capability_change};
 use crate::input::pointer::PointerPos;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
@@ -67,9 +68,9 @@ impl SeatHandler for HostState {
         self.adopt_seat(conn, seat);
     }
 
-    /// Pointer: `get_pointer` plus the cursor-shape device. Keyboard: `get_keyboard` without
-    /// sctk's repeat (the repeat timer is the context's, via `TimerRequest::Repeat*`), plus the
-    /// text input and the data device.
+    /// Pointer: `get_pointer` plus the cursor-shape device. Keyboard: `get_keyboard`, the text
+    /// input and the data device (`handlers::devices`). Only when no object for the capability
+    /// is held: a re-announced capability reuses the one it has (FINDINGS F53).
     fn new_capability(
         &mut self,
         conn: &Connection,
@@ -84,78 +85,57 @@ impl SeatHandler for HostState {
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
-        match capability {
-            Capability::Pointer => {
-                let Ok(pointer) = self.seat.get_pointer(qh, &seat) else {
-                    return;
-                };
-                if let Some(manager) = &self.cursor.manager {
-                    self.cursor.device = Some(manager.get_shape_device(&pointer, qh));
-                }
-                self.input.pointer = Some(pointer);
-            }
-            Capability::Keyboard => {
-                if let Ok(keyboard) = self.seat.get_keyboard::<Self, Self>(qh, &seat, None) {
-                    self.input.keyboard = Some(keyboard);
-                }
-                if let Some(text_input) = &mut self.text_input {
-                    text_input.attach(&seat, qh);
-                }
-                if let Some(manager) = &self.data_device {
-                    self.input.data_device = Some(manager.get_data_device(qh, &seat));
-                }
-            }
-            _ => {}
-        }
+        self.announce(qh, &seat, capability, Announcement::Added);
     }
 
+    /// Release the capability's object (`wl_pointer.release`/`wl_keyboard.release`): dropping
+    /// it would leave it live on the compositor's side, delivering every press again once a
+    /// new one exists (FINDINGS F53).
     fn remove_capability(
         &mut self,
         _conn: &Connection,
-        _qh: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
         seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
-        match capability {
-            Capability::Pointer => {
-                self.input.pointer = None;
-                self.input.pointer_focus = None;
-                self.input.position = PointerPos::OUTSIDE;
-                self.input.buttons = MouseEventButtons::None;
-                self.input.grab.update(|facts| *facts = Default::default());
-                self.cursor.device = None;
-            }
-            Capability::Keyboard => {
-                self.input.keyboard = None;
-                self.input.keyboard_focus = None;
-                self.input.focused_at = None;
-                self.input.repeating = None;
-                self.timers.push(TimerRequest::RepeatStop);
-            }
-            _ => {}
-        }
+        self.announce(qh, &seat, capability, Announcement::Removed);
     }
 
     fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
+        self.release_pointer();
+        self.release_keyboard();
         self.input.seat = None;
-        self.input.pointer = None;
-        self.input.keyboard = None;
-        self.input.pointer_focus = None;
-        self.input.position = PointerPos::OUTSIDE;
-        self.input.buttons = MouseEventButtons::None;
-        self.input.keyboard_focus = None;
-        self.input.focused_at = None;
-        self.input.modifiers = Modifiers::empty();
         self.input.data_device = None;
-        self.input.repeating = None;
-        self.input.grab.update(|facts| *facts = Default::default());
-        self.cursor.device = None;
+    }
+}
+
+impl HostState {
+    /// Decide what `announcement` of `capability` means for the object held
+    /// (`input::capability`) and act on it. Touch is not used.
+    fn announce(
+        &mut self,
+        qh: &QueueHandle<Self>,
+        seat: &wl_seat::WlSeat,
+        capability: Capability,
+        announcement: Announcement,
+    ) {
+        match capability {
+            Capability::Pointer => {
+                let change = capability_change(announcement, Held::of(&self.input.pointer));
+                self.change_pointer(change, qh, seat);
+            }
+            Capability::Keyboard => {
+                let change = capability_change(announcement, Held::of(&self.input.keyboard));
+                self.change_keyboard(change, qh, seat);
+            }
+            _ => {}
+        }
     }
 }
 

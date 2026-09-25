@@ -13,6 +13,8 @@
 #[path = "demo_dock.rs"]
 mod dock;
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use dioxus::prelude::*;
 use shell_host::{
     Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
@@ -50,11 +52,20 @@ fn bar_config(blur: BlurSpec) -> LayerConfig {
     }
 }
 
+/// Presses the bar's document has received, printed as `bar: press N` on each one so a real-input
+/// run can count them against the presses it sent (FINDINGS F53: one press must arrive once).
+static PRESSES: AtomicU32 = AtomicU32::new(0);
+
 /// The bar document: a tinted strip with a label and the checkerboard probe.
 fn bar() -> Element {
     rsx! {
         style { "{RESET_CSS}{BAR_CSS}" }
-        div { class: "bar",
+        div {
+            class: "bar",
+            onmousedown: move |_| {
+                let count = PRESSES.fetch_add(1, Ordering::Relaxed) + 1;
+                eprintln!("bar: press {count}");
+            },
             span { "shell-host demo bar" }
             div { class: "checker",
                 for i in 0..40 {

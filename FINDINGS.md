@@ -1089,3 +1089,60 @@ three moves to (1100, 496), `release left` gave `begin_move` Ok and frame `[920,
   would be the winit window's (find it with `kwin-windows.sh`), the keyboard would go through
   cosmic's own keymap rather than the one `fake-input` resolved against, and a pointer lock or
   confinement by cosmic-comp could change motion delivery. Expected to work, not verified.
+
+## Seat re-announcement and the headless-KWin teardown (branch `seat-reannounce`, 2026-09-25)
+
+### F53. A re-announced capability made a second `wl_pointer`; one press arrived once per pointer
+
+Found by sill (its G50). KWin re-announces the seat's capabilities whenever its input devices
+change: every `org_kde_kwin_fake_input` client is a new device, so connecting one sends
+`wl_seat.capabilities(3)` then `(7)` (pointer, then touch, added) and disconnecting sends `(6)`
+then `(2)`. A real seat does the same when a mouse is unplugged and plugged back. sctk 0.20
+turns each flip into `remove_capability`/`new_capability` (it compares against its own
+per-seat `has_pointer`, so an unchanged capability is not re-delivered). shell-host set
+`input.pointer = None` on removal, which drops the proxy without sending `wl_pointer.release`,
+so the old object stayed live on KWin's side, and the next `new_capability` added a second
+one: every later press arrived once per pointer ever made. Traced with `WAYLAND_DEBUG=1` on
+`demo_bar` (which now prints `bar: press N` from the bar document's `onmousedown`), headless
+KWin 6.7.5, one client that only moves, then one that presses once:
+
+```
+wl_seat#12.capabilities(7)
+ -> wl_seat#12.get_pointer(new id wl_pointer#91)
+wl_seat#12.capabilities(6)
+wl_seat#12.capabilities(2)
+wl_seat#12.capabilities(3)
+wl_seat#12.capabilities(7)
+ -> wl_seat#12.get_pointer(new id wl_pointer#87)
+wl_pointer#87.button(5, 341930300, 272, 1)
+wl_pointer#91.button(5, 341930300, 272, 1)
+bar: press 1
+bar: press 2
+```
+
+**Fix.** `input::capability::capability_change(Announcement, Held) -> CapabilityChange::{New,
+Repeat, Removed, Absent}` (pure, table-tested): a capability announced while its object is held
+reuses it; one removed while held releases it. `handlers::devices` acts on the decision: removal
+destroys the cursor-shape device, sends `wl_pointer.release` (`wl_keyboard.release` for the
+keyboard; both since `wl_seat` v3, dropped without a request before that), sends the surface
+under the pointer a leave and clears held buttons and the grab record; for the keyboard, raises
+`KeyboardFocus{Lost}`, stops the repeat and clears the modifiers. The text input and the data
+device belong to the seat and are reused by a keyboard that comes back (the data device was
+re-created per keyboard before). `remove_seat` releases both objects the same way. The same
+run after the fix:
+
+```
+ -> wl_seat#12.get_pointer(new id wl_pointer#91)
+wl_seat#12.capabilities(6)
+wl_seat#12.capabilities(2)
+ -> wl_pointer#91.release()
+wl_seat#12.capabilities(3)
+wl_seat#12.capabilities(7)
+ -> wl_seat#12.get_pointer(new id wl_pointer#87)
+wl_pointer#87.button(5, 342074599, 272, 1)
+bar: press 1
+```
+
+Before: 2 document presses and 4 `wl_pointer.button` events for one press and release. After:
+1 and 2. The keyboard was not re-announced by fake input in this run (`capabilities` kept bit
+2 throughout), so its path is covered by the decision table and the shared code, not by a trace.
