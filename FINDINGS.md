@@ -849,7 +849,9 @@ failed before any demo started because the invoking shell had no `XDG_RUNTIME_DI
 Item f was written for a 1.5 output (kscreen-doctor to 1.5, then the 2-logical-px checkerboard
 must be exactly 3 physical px). The user's display is at 2.0 now (they preferred it to 1.5), so
 the fractional path itself was not exercised live; at 2.0 the buffer and checker checks pass and
-only the screenshot-row-versus-buffer-row equality fails, which needs a look at how spectacle's
-capture at scale 2 lines up with the buffer before it can be called a bug. The user's display
+only the screenshot-row-versus-buffer-row equality fails: `f.png` contains no bar at all (the
+desktop with a browser window at the top), so spectacle captured before the layer surface was
+mapped or after the demo exited; the item's capture timing on a live compositor needs a wait for
+the first presented frame before it can be called a rendering bug. The user's display
 scale was not changed. Results: `spike/out/demo/kwin/{a,b,c,f,g}.json` (untracked, `spike/out`
 is ignored); the a and b screenshots are on the progress page.
