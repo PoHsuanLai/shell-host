@@ -1182,3 +1182,38 @@ the same with `KWIN_VIRTUAL_CONTAINMENT=tree`. F53's reproduction runs unchanged
 script (fake input still authorised). `spike-accept.sh`'s own `kwin-virtual` mode still scans
 environments, but from outside the `dbus-run-session` it started, so its caller never names the
 bus; not changed here.
+
+## Notification-banner regions and a bus with nothing activatable (branch `region-elements`, 2026-09-25)
+
+### F55. `RegionSpec::Elements`: a region made of several independently moving elements
+
+The notification banners are several stacked cards, each its own DOM element, each moving on
+its own: `RegionSpec::Element { id, radius, inflate }` (G59 and earlier) can only ever follow
+one. Modelled as a new element per region, `ElementRegion { id, radius, inflate }`, and two
+`RegionSpec` variants built from it: `Element(ElementRegion)`, unchanged in behaviour (a missing
+element keeps the surface's current region — `resolve::resolve`'s existing contract, right for
+one moving part), and `Elements(Vec<ElementRegion>)`, the union of every element's own
+`rounded_strips`, concatenated (overlapping strips are fine for a `wl_region`, and cheaper than
+deduplicating them). The two differ in exactly one place: `Elements` treats an element missing
+from the document as contributing nothing to the union rather than pending the whole thing, so
+one card not yet laid out (or one closed and about to be removed) never blanks out the cards
+still there. Both resolve through one shared helper (`resolve::rounded_rect`), so the
+concatenation and the strip decomposition are not duplicated between them.
+
+`crates/shell-host/src/resolve.rs`'s pure `resolve` gained the `Elements` arm; both crates'
+test suites gained table tests against it — two overlapping cards resolving to the concatenation
+of their own strips, one of two missing contributing nothing while the other still resolves,
+every element missing being an empty union (not `Resolved::Pending`), and (in
+`tests/resolve.rs`, the public-API suite) that resolving `Elements` matches resolving the
+equivalent `Rects` spec built by hand, present and with one element missing.
+
+`demo_dock`'s `--cards=two` renders a second, plain in-flow element (`#dock-card`, no
+`position:absolute`: an absolute sibling here lost pointer hit-testing before, SPIKE.md S1
+finding 2) above the pill, both driven by `RegionSpec::Elements`, each printing `dock: card
+press N` / `bar: press N`-style (FINDINGS F53) on its own `onmousedown` so a `kwin-virtual.sh` +
+`fake-input.sh` run can confirm on a real compositor that a click on the card, a click on the
+pill and a click in the gap between them are routed (or not) by the element each is meant to
+follow — `debug-inject`'s `stats` carries no region geometry to read back directly (`FrameStats`
+has counters and percentiles only), so this is the level the demos actually expose; wired
+through `DockProps { magnify, cards }` and `--cards=one|two` alongside the existing `--mode` and
+`--layer` (`dock_options`), reaching `demo_bar --with-dock` the same way.

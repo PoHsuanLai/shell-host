@@ -4,9 +4,9 @@
 //! Re-passes spike items (a) bar, (b) blur, (f) fractional scale, and with `--with-dock`, (g)
 //! two surfaces on one device (`scripts/spike-accept.sh demo <item>`).
 //!
-//! Flags: `--with-dock` (bar and dock in one process; the dock takes `--mode` and `--layer`
-//! as in `demo_dock`), `--exclusive=N` (reserve N px instead of 32; item b uses 0 so a window
-//! can sit behind the bar).
+//! Flags: `--with-dock` (bar and dock in one process; the dock takes `--mode`, `--cards` and
+//! `--layer` as in `demo_dock`), `--exclusive=N` (reserve N px instead of 32; item b uses 0 so
+//! a window can sit behind the bar).
 
 // Only the dock's document and config are used here; its `main` is demo_dock's own.
 #[allow(dead_code)]
@@ -81,7 +81,7 @@ fn bar() -> Element {
 struct Options {
     blur: BlurSpec,
     exclusive: ExclusiveZone,
-    dock: Option<(dock::Magnify, Layer)>,
+    dock: Option<(dock::DockProps, Layer)>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -129,8 +129,8 @@ fn run(args: &[String]) -> Result<(), String> {
                 eprintln!("bar: {error}");
                 ctx.exit();
             }
-            if let Some((mode, layer)) = options.dock {
-                dock::spawn_dock(ctx, mode, layer);
+            if let Some((props, layer)) = options.dock {
+                dock::spawn_dock(ctx, props, layer);
             }
         }
         // The compositor closed a surface (its output went away): nothing is left to drive.

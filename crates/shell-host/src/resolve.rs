@@ -11,7 +11,7 @@
 
 use crate::geometry::inflate;
 use crate::popup::PopupAnchor;
-use crate::region::{ElementId, Rect, RegionSpec, RoundedRect, rounded_strips};
+use crate::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect, rounded_strips};
 use crate::scale::Size;
 
 /// A region ready to send.
@@ -36,18 +36,31 @@ pub fn resolve(
         RegionSpec::Rects(rects) => {
             Resolved::Strips(rects.iter().flat_map(|&rr| rounded_strips(rr)).collect())
         }
-        RegionSpec::Element {
-            id,
-            radius,
-            inflate: by,
-        } => match lookup(id.clone()) {
-            Some(rect) => Resolved::Strips(rounded_strips(RoundedRect {
-                rect: inflate(rect, *by),
-                radius: *radius,
-            })),
+        RegionSpec::Element(element) => match rounded_rect(element, &lookup) {
+            Some(rr) => Resolved::Strips(rounded_strips(rr)),
             None => Resolved::Pending,
         },
+        RegionSpec::Elements(elements) => Resolved::Strips(
+            elements
+                .iter()
+                .filter_map(|element| rounded_rect(element, &lookup))
+                .flat_map(rounded_strips)
+                .collect(),
+        ),
     }
+}
+
+/// `element`'s bounding rect, inflated and given its radius; `None` while it is not (or no
+/// longer) in the document. Shared by `RegionSpec::Element` and `RegionSpec::Elements`, which
+/// differ only in what an absent element means to the caller.
+fn rounded_rect(
+    element: &ElementRegion,
+    lookup: impl Fn(ElementId) -> Option<Rect>,
+) -> Option<RoundedRect> {
+    lookup(element.id.clone()).map(|rect| RoundedRect {
+        rect: inflate(rect, element.inflate),
+        radius: element.radius,
+    })
 }
 
 /// Resolve a popup's anchor rectangle: `PopupAnchor::Rect` uses `placement_rect` (the value
@@ -179,11 +192,11 @@ mod tests {
             ),
             (
                 "element, square, inflated",
-                RegionSpec::Element {
+                RegionSpec::Element(ElementRegion {
                     id: pill(),
                     radius: 0,
                     inflate: 2,
-                },
+                }),
                 Resolved::Strips(vec![Rect {
                     x: 18,
                     y: 6,
@@ -193,11 +206,11 @@ mod tests {
             ),
             (
                 "missing element keeps the old region",
-                RegionSpec::Element {
+                RegionSpec::Element(ElementRegion {
                     id: ElementId::new("no-such-element"),
                     radius: 8,
                     inflate: 0,
-                },
+                }),
                 Resolved::Pending,
             ),
         ];
@@ -208,16 +221,107 @@ mod tests {
 
     #[test]
     fn a_rounded_element_is_its_strips() {
-        let spec = RegionSpec::Element {
+        let spec = RegionSpec::Element(ElementRegion {
             id: pill(),
             radius: 6,
             inflate: 0,
-        };
+        });
         let want = rounded_strips(RoundedRect {
             rect: PILL_RECT,
             radius: 6,
         });
         assert_eq!(resolve(&spec, SIZE, lookup), Resolved::Strips(want));
+    }
+
+    /// A second element for the `Elements` cases: overlaps `PILL_RECT` on purpose (concatenated
+    /// strips are fine for a `wl_region`, G60).
+    const CARD_RECT: Rect = Rect {
+        x: 60,
+        y: 4,
+        width: 100,
+        height: 24,
+    };
+
+    fn card() -> ElementId {
+        ElementId::new("card")
+    }
+
+    /// Both `pill()` and `card()` resolve; anything else (the "missing" cases below) does not.
+    fn lookup_two(id: ElementId) -> Option<Rect> {
+        if id == pill() {
+            Some(PILL_RECT)
+        } else if id == card() {
+            Some(CARD_RECT)
+        } else {
+            None
+        }
+    }
+
+    #[test]
+    fn elements_resolves_to_the_concatenated_strips_of_every_present_element() {
+        let missing = ElementId::new("missing");
+        let cases: Vec<(&str, Vec<ElementRegion>, Vec<Rect>)> = vec![
+            (
+                "two overlapping cards, both present",
+                vec![
+                    ElementRegion {
+                        id: pill(),
+                        radius: 6,
+                        inflate: 0,
+                    },
+                    ElementRegion {
+                        id: card(),
+                        radius: 0,
+                        inflate: 0,
+                    },
+                ],
+                [
+                    rounded_strips(RoundedRect {
+                        rect: PILL_RECT,
+                        radius: 6,
+                    }),
+                    rounded_strips(RoundedRect {
+                        rect: CARD_RECT,
+                        radius: 0,
+                    }),
+                ]
+                .concat(),
+            ),
+            (
+                "one of two missing contributes nothing, the other still resolves",
+                vec![
+                    ElementRegion {
+                        id: pill(),
+                        radius: 0,
+                        inflate: 0,
+                    },
+                    ElementRegion {
+                        id: missing.clone(),
+                        radius: 4,
+                        inflate: 0,
+                    },
+                ],
+                vec![PILL_RECT],
+            ),
+            (
+                "every element missing is an empty union, not pending",
+                vec![ElementRegion {
+                    id: missing,
+                    radius: 4,
+                    inflate: 0,
+                }],
+                vec![],
+            ),
+            ("no elements at all is an empty union", vec![], vec![]),
+        ];
+        for (name, elements, want) in cases {
+            let spec = RegionSpec::Elements(elements);
+            assert_eq!(
+                resolve(&spec, SIZE, lookup_two),
+                Resolved::Strips(want),
+                "{name}"
+            );
+        }
     }
 
     #[test]

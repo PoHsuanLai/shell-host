@@ -6,7 +6,7 @@
 use shell_host::geometry::{enclosing_rect, inflate};
 use shell_host::handlers::layer::configured_size;
 use shell_host::layer::{Extent, LayerSize};
-use shell_host::region::{ElementId, Rect, RegionSpec, RoundedRect};
+use shell_host::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect};
 use shell_host::resolve::{Change, Resolved, Tracked, resolve, resolve_popup_anchor};
 use shell_host::scale::Size;
 use shell_host::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize};
@@ -125,11 +125,11 @@ fn tracked_only_reports_a_change_when_the_resolved_rect_moves() {
 fn resolving_a_rounded_element_region_matches_resolving_the_equivalent_rects_spec() {
     let id = ElementId::new("dock-pill");
     let lookup = |candidate: ElementId| (candidate == id).then_some(BUTTON);
-    let element_spec = RegionSpec::Element {
+    let element_spec = RegionSpec::Element(ElementRegion {
         id: id.clone(),
         radius: 6,
         inflate: 0,
-    };
+    });
     let rects_spec = RegionSpec::Rects(vec![RoundedRect {
         rect: BUTTON,
         radius: 6,
@@ -141,6 +141,83 @@ fn resolving_a_rounded_element_region_matches_resolving_the_equivalent_rects_spe
     assert_eq!(
         resolve(&element_spec, size, lookup),
         resolve(&rects_spec, size, |_| None),
+    );
+}
+
+#[test]
+fn resolving_two_elements_matches_resolving_the_equivalent_rects_spec() {
+    let a = ElementId::new("card-a");
+    let b = ElementId::new("card-b");
+    const OTHER: Rect = Rect {
+        x: 60,
+        y: 4,
+        width: 100,
+        height: 24,
+    };
+    let lookup = |candidate: ElementId| {
+        if candidate == a {
+            Some(BUTTON)
+        } else if candidate == b {
+            Some(OTHER)
+        } else {
+            None
+        }
+    };
+    let elements_spec = RegionSpec::Elements(vec![
+        ElementRegion {
+            id: a.clone(),
+            radius: 6,
+            inflate: 0,
+        },
+        ElementRegion {
+            id: b.clone(),
+            radius: 0,
+            inflate: 0,
+        },
+    ]);
+    let rects_spec = RegionSpec::Rects(vec![
+        RoundedRect {
+            rect: BUTTON,
+            radius: 6,
+        },
+        RoundedRect {
+            rect: OTHER,
+            radius: 0,
+        },
+    ]);
+    let size = Size {
+        width: 200,
+        height: 40,
+    };
+    assert_eq!(
+        resolve(&elements_spec, size, lookup),
+        resolve(&rects_spec, size, |_| None),
+        "present elements concatenate the same as an equivalent Rects spec",
+    );
+
+    let one_missing = RegionSpec::Elements(vec![
+        ElementRegion {
+            id: a.clone(),
+            radius: 6,
+            inflate: 0,
+        },
+        ElementRegion {
+            id: ElementId::new("no-such-card"),
+            radius: 0,
+            inflate: 0,
+        },
+    ]);
+    assert_eq!(
+        resolve(&one_missing, size, lookup),
+        resolve(
+            &RegionSpec::Rects(vec![RoundedRect {
+                rect: BUTTON,
+                radius: 6,
+            }]),
+            size,
+            |_| None,
+        ),
+        "a missing element contributes nothing, the other still resolves",
     );
 }
 

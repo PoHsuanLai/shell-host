@@ -74,6 +74,16 @@ impl ElementId {
     }
 }
 
+/// One element whose bounding rect (found by `id` after layout) contributes to a region: the
+/// rect is inflated by `inflate`, then rounded to `radius`. The unit `RegionSpec::Element`
+/// wraps and `RegionSpec::Elements` collects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElementRegion {
+    pub id: ElementId,
+    pub radius: Px,
+    pub inflate: Px,
+}
+
 /// How a blur or input region is described before it is resolved to concrete geometry and sent
 /// to the compositor.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,12 +94,17 @@ pub enum RegionSpec {
     Whole,
     /// An explicit set of rounded rectangles, already in surface-local coordinates.
     Rects(Vec<RoundedRect>),
-    /// The bounding rect of a DOM element, inflated and rounded, resolved after layout.
-    Element {
-        id: ElementId,
-        radius: Px,
-        inflate: Px,
-    },
+    /// One DOM element's bounding rect, resolved after layout. While the element is not yet in
+    /// the document, `resolve::resolve` keeps whatever region the surface already has, rather
+    /// than shrinking it to nothing — right for a single moving part, wrong for several (see
+    /// `Elements`).
+    Element(ElementRegion),
+    /// The union of several DOM elements' bounding rects, each resolved independently after
+    /// layout (one `rounded_strips` per element, concatenated — overlapping strips are fine for
+    /// a `wl_region`). For a region with several moving parts, such as a stack of notification
+    /// cards each following its own element: an element missing from the document contributes
+    /// nothing to the union, so one card not yet laid out never blanks out the others.
+    Elements(Vec<ElementRegion>),
 }
 
 /// Decompose a rounded rectangle into the axis-aligned strips whose union approximates it.

@@ -2,26 +2,35 @@
 //! (`--mode=transform`, the default, or `--mode=width`), or by the component itself once per
 //! compositor frame (`--mode=tick`: `use_frame_tick` with a `FrameDrive` held from the first
 //! pointer motion until the tiles settle after the pointer leaves), anchored bottom, with its
-//! input and blur regions following the pill (`RegionSpec::Element`). `--layer=bottom` puts it
-//! under windows for the occlusion check. Driven by `dock hover X Y`, `dock leave`, `dock
-//! stats`. Re-passes spike item (c): a hover sweep renders once per callback with p95 work
-//! under the refresh period, and 5 s idle has zero frames, commits and main-thread wakeups.
+//! input and blur regions following the pill (`RegionSpec::Element`). `--cards=two` adds a
+//! second, independently region-tracked element above the pill (`RegionSpec::Elements`, G60),
+//! for verifying on a headless KWin (FINDINGS F52/F55) that fake input reaches each element's
+//! own strips and nothing in the gap between them. `--layer=bottom` puts it under windows for
+//! the occlusion check. Driven by `dock hover X Y`, `dock leave`, `dock stats`. Re-passes spike
+//! item (c): a hover sweep renders once per callback with p95 work under the refresh period,
+//! and 5 s idle has zero frames, commits and main-thread wakeups.
 //!
 //! `demo_bar --with-dock` includes this file as a module to run the bar and the dock in one
 //! process (item g), so everything but `main` is shared.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, FrameDrive, FrameTick, Host, HostConfig,
-    HostCtx, HostEvent, KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget,
-    RegionSpec, Root, use_frame_tick, use_surface,
+    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Extent, FrameDrive, FrameTick, Host,
+    HostConfig, HostCtx, HostEvent, KeyboardMode, Layer, LayerConfig, LayerSize, Margin,
+    OutputTarget, RegionSpec, Root, use_frame_tick, use_surface,
 };
 
 /// Tiles, gaps and the room the magnified end tiles need.
 pub const DOCK_WIDTH: u32 = 12 * 48 + 11 * 8 + 96;
 pub const DOCK_HEIGHT: u32 = 96;
+
+/// The second element's (`--cards=two`) size, and the gap it keeps from the pill.
+const CARD_WIDTH: u32 = 220;
+const CARD_HEIGHT: u32 = 40;
+const CARDS_GAP: u32 = 16;
 
 /// How the tiles magnify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,17 +43,51 @@ pub enum Magnify {
     Tick,
 }
 
+/// How many independently region-tracked elements the dock renders (G60): the pill alone
+/// (`RegionSpec::Element`), or the pill plus a small card above it, each following its own
+/// strips (`RegionSpec::Elements`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Cards {
+    #[default]
+    One,
+    Two,
+}
+
+/// Props for the dock's root component.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DockProps {
+    pub magnify: Magnify,
+    pub cards: Cards,
+}
+
 /// The margin and padding reset quire's `css/reset.css` would bring; the host's UA sheet sizes
 /// the root but leaves the reset to the design system (FINDINGS F12).
 const RESET_CSS: &str = "html,body{margin:0;padding:0}";
 
-// In-flow layout on purpose: with the row `position:absolute` Blitz hit-testing never reached
-// the icons (SPIKE.md S1 finding 2).
-const DOCK_CSS: &str = ".dock{height:96px;display:flex;align-items:flex-end;\
-justify-content:center;padding-bottom:8px;box-sizing:border-box}\
-.pill{display:flex;align-items:flex-end;gap:8px;padding:8px;border-radius:12px;\
-background:rgba(30,30,40,0.35)}\
-.icon{width:48px;height:48px;border-radius:12px;flex:none}";
+/// `.dock`, `.pill`, `.icon` and `.card`, sized for a dock `height` px tall (`DOCK_HEIGHT` for
+/// one element, `dock_height(Cards::Two)` for two). In-flow layout on purpose, `.card` included:
+/// with the row `position:absolute` Blitz hit-testing never reached the icons (SPIKE.md S1
+/// finding 2), so `flex-direction:column` stacks the card above the pill instead, both centred
+/// and the pill flush with the bottom exactly as the single-element layout was.
+fn dock_css(height: u32) -> String {
+    format!(
+        ".dock{{height:{height}px;display:flex;flex-direction:column;align-items:center;\
+justify-content:flex-end;gap:{CARDS_GAP}px;padding-bottom:8px;box-sizing:border-box}}\
+.pill{{display:flex;align-items:flex-end;gap:8px;padding:8px;border-radius:12px;\
+background:rgba(30,30,40,0.35)}}\
+.icon{{width:48px;height:48px;border-radius:12px;flex:none}}\
+.card{{width:{CARD_WIDTH}px;height:{CARD_HEIGHT}px;border-radius:8px;\
+background:rgba(255,255,255,0.45)}}"
+    )
+}
+
+/// The dock's total height for `cards`: just the pill's row, or the card and its gap added.
+fn dock_height(cards: Cards) -> u32 {
+    match cards {
+        Cards::One => DOCK_HEIGHT,
+        Cards::Two => DOCK_HEIGHT + CARD_HEIGHT + CARDS_GAP,
+    }
+}
 
 const TRANSFORM_CSS: &str = ".icon{transition:transform 170ms;transform-origin:50% 100%}\
 .icon:hover{transform:scale(1.5)}";
@@ -57,40 +100,83 @@ const COLOURS: [&str; 12] = [
     "#bcf60c", "#fabebe", "#008080", "#e6beff",
 ];
 
-/// The dock's layer surface: bottom-centred, never focused, input and blur on the pill.
-pub fn dock_config(layer: Layer) -> LayerConfig {
-    let pill = RegionSpec::Element {
+/// The pill alone (`Cards::One`), or the pill and the card above it (`Cards::Two`): input and
+/// blur both follow the same elements (G60).
+fn dock_region(cards: Cards) -> RegionSpec {
+    let pill = ElementRegion {
         id: ElementId::new("dock-pill"),
         radius: 12,
         inflate: 0,
     };
+    match cards {
+        Cards::One => RegionSpec::Element(pill),
+        Cards::Two => RegionSpec::Elements(vec![
+            pill,
+            ElementRegion {
+                id: ElementId::new("dock-card"),
+                radius: 8,
+                inflate: 0,
+            },
+        ]),
+    }
+}
+
+/// The dock's layer surface: bottom-centred, never focused, input and blur on `cards`'
+/// elements, tall enough to hold them.
+pub fn dock_config(layer: Layer, cards: Cards) -> LayerConfig {
+    let region = dock_region(cards);
     LayerConfig {
         namespace: "dock".to_owned(),
         layer,
         anchor: Anchor::BOTTOM,
         size: LayerSize {
             width: Extent::Px(DOCK_WIDTH),
-            height: Extent::Px(DOCK_HEIGHT),
+            height: Extent::Px(dock_height(cards)),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin::ZERO,
         keyboard: KeyboardMode::None,
         output: OutputTarget::CompositorPicks,
-        blur: BlurSpec::Region(pill.clone()),
-        input: pill,
+        blur: BlurSpec::Region(region.clone()),
+        input: region,
     }
 }
 
-/// The dock document for `mode`.
-pub fn dock(mode: Magnify) -> Element {
-    let magnify = match mode {
+/// Presses the card (`Cards::Two`) has received, printed as `dock: card press N` so a real-input
+/// run can check they land only when the card's own region is hit (matching `demo_bar`'s
+/// `bar: press N`, FINDINGS F53).
+static CARD_PRESSES: AtomicU32 = AtomicU32::new(0);
+
+/// The optional second region-tracked element. Never `position:absolute` (see `dock_css`): an
+/// absolutely-positioned sibling here lost pointer hit-testing before (SPIKE.md S1 finding 2).
+fn card(cards: Cards) -> Element {
+    match cards {
+        Cards::One => rsx! {},
+        Cards::Two => rsx! {
+            div {
+                id: "dock-card",
+                class: "card",
+                onmousedown: move |_| {
+                    let count = CARD_PRESSES.fetch_add(1, Ordering::Relaxed) + 1;
+                    eprintln!("dock: card press {count}");
+                },
+            }
+        },
+    }
+}
+
+/// The dock document for `props`.
+pub fn dock(props: DockProps) -> Element {
+    let magnify = match props.magnify {
         Magnify::Transform => TRANSFORM_CSS,
         Magnify::Width => WIDTH_CSS,
-        Magnify::Tick => return rsx! { TickDock {} },
+        Magnify::Tick => return rsx! { TickDock { cards: props.cards } },
     };
+    let css = dock_css(dock_height(props.cards));
     rsx! {
-        style { "{RESET_CSS}{DOCK_CSS}{magnify}" }
+        style { "{RESET_CSS}{css}{magnify}" }
         div { class: "dock",
+            {card(props.cards)}
             div { id: "dock-pill", class: "pill",
                 for (i, colour) in COLOURS.iter().enumerate() {
                     div { key: "{i}", class: "icon", style: "background:{colour}" }
@@ -160,7 +246,7 @@ fn step(now: Scales, target: Scales, dt: Duration) -> Scales {
 /// once the tiles reach their targets (at rest after the pointer leaves, or still under a
 /// resting pointer), so idle has zero frames.
 #[component]
-fn TickDock() -> Element {
+fn TickDock(cards: Cards) -> Element {
     let surface = use_surface();
     let tick = use_frame_tick();
     let mut pointer = use_signal(|| None::<f64>);
@@ -178,8 +264,9 @@ fn TickDock() -> Element {
             drive.set(None);
         }
     });
+    let css = dock_css(dock_height(cards));
     rsx! {
-        style { "{RESET_CSS}{DOCK_CSS}.icon{{transform-origin:50% 100%}}" }
+        style { "{RESET_CSS}{css}.icon{{transform-origin:50% 100%}}" }
         div {
             class: "dock",
             onmousemove: move |event| {
@@ -190,6 +277,7 @@ fn TickDock() -> Element {
                 pointer.set(None);
                 hold(drive, &leaving);
             },
+            {card(cards)}
             div { id: "dock-pill", class: "pill",
                 for (i, colour) in COLOURS.iter().enumerate() {
                     div {
@@ -210,15 +298,21 @@ fn hold(mut drive: Signal<Option<FrameDrive>>, surface: &shell_host::SurfaceHand
     }
 }
 
-/// `--mode=transform|width|tick` and `--layer=top|overlay|bottom` from `args`.
-pub fn dock_options(args: &[String]) -> Result<(Magnify, Layer), String> {
-    let mode = match value(args, "--mode").as_deref() {
+/// `--mode=transform|width|tick`, `--cards=one|two` and `--layer=top|overlay|bottom` from
+/// `args`.
+pub fn dock_options(args: &[String]) -> Result<(DockProps, Layer), String> {
+    let magnify = match value(args, "--mode").as_deref() {
         None | Some("transform") => Magnify::Transform,
         Some("width") => Magnify::Width,
         Some("tick") => Magnify::Tick,
         Some(other) => return Err(format!("unknown --mode={other}")),
     };
-    Ok((mode, layer_option(args)?))
+    let cards = match value(args, "--cards").as_deref() {
+        None | Some("one") => Cards::One,
+        Some("two") => Cards::Two,
+        Some(other) => return Err(format!("unknown --cards={other}")),
+    };
+    Ok((DockProps { magnify, cards }, layer_option(args)?))
 }
 
 /// `--layer=top|overlay|bottom`, top by default.
@@ -239,8 +333,9 @@ pub fn value(args: &[String], name: &str) -> Option<String> {
 }
 
 /// Spawn the dock; a failure ends the demo.
-pub fn spawn_dock<M: 'static>(ctx: &mut HostCtx<M>, mode: Magnify, layer: Layer) {
-    if let Err(error) = ctx.spawn_layer(dock_config(layer), Root::with_props(dock, mode)) {
+pub fn spawn_dock<M: 'static>(ctx: &mut HostCtx<M>, props: DockProps, layer: Layer) {
+    let config = dock_config(layer, props.cards);
+    if let Err(error) = ctx.spawn_layer(config, Root::with_props(dock, props)) {
         eprintln!("dock: {error}");
         ctx.exit();
     }
@@ -254,7 +349,7 @@ pub fn install_commands<M: 'static>(ctx: &mut HostCtx<M>) {
     }
 }
 
-/// Parse `--mode` and `--layer`, `Host::connect`, `debug-inject`, spawn the dock on
+/// Parse `--mode`, `--cards` and `--layer`, `Host::connect`, `debug-inject`, spawn the dock on
 /// `HostEvent::Started`, run until `quit`.
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -265,12 +360,12 @@ fn main() {
 }
 
 fn run(args: &[String]) -> Result<(), String> {
-    let (mode, layer) = dock_options(args)?;
+    let (props, layer) = dock_options(args)?;
     let host = Host::<()>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
     host.run(move |ctx, event| match event {
         HostEvent::Started => {
             install_commands(ctx);
-            spawn_dock(ctx, mode, layer);
+            spawn_dock(ctx, props, layer);
         }
         // The compositor closed the dock (its output went away): nothing is left to drive.
         HostEvent::SurfaceClosed { .. } => ctx.exit(),

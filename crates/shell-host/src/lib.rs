@@ -75,7 +75,7 @@ pub use output::OutputInfo;
 pub use placement::PopupPlacement;
 pub use popup::{Adjust, Edge, Grab, Gravity, Offset, PopupAnchor, PopupConfig, PopupSize, Toggle};
 pub use prepaint::{Prepaint, PrepaintFn};
-pub use region::{ElementId, Px, Rect, RegionSpec, RoundedRect};
+pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::Root;
 pub use scale::{Scale, Size};
 pub use tick::{FrameDrive, FrameTick, HostInstant};
