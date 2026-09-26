@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Real-input `use_modifiers` acceptance (FINDINGS F66): examples/demo_switcher's Exclusive-
+# Real-input `use_modifiers` acceptance (FINDINGS F66, F67): examples/demo_switcher's Exclusive-
 # keyboard panel on a headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's
 # session (every client here sources .kwin-env), no keyboard grab.
 #
 #   scripts/dev/accept-modifiers.sh
 #
-# Two cases, each its own kwin-virtual.sh instance (so neither's modifier state leaks into the
+# Three cases, each its own kwin-virtual.sh instance (so neither's modifier state leaks into the
 # other) and its own demo_switcher, mapped only after the modifier state is set up first. Every
 # run prints a "modifiers" line at the panel's very first render, always the default (nothing
 # held or locked yet: it predates the surface's first configure, let alone a keyboard event) —
@@ -16,6 +16,13 @@
 #               then produces a further line with logo released.
 #   caps_lock   Caps Lock tapped (down, up) before `map`: the next line already has caps_lock
 #               locked.
+#   restale     G210: Super held, `map`, `unmap` (still held), Super released while the surface
+#               is hidden, `map` again with nothing held. `unmap` rebuilds the same surface's
+#               `wl_surface` (FINDINGS F58's unmap, the one G210 covers for the keyboard); a host
+#               that never withdrew the keyboard from it would carry the held-at-unmap modifiers
+#               into this second opening, a line reading logo held where the physical key is up.
+#               `demo_switcher`'s `unmap`/`map` drive this same surface (`Visibility::Hidden`/
+#               `Shown`), not a close and a fresh spawn.
 # Each case prints PASS/FAIL; logs are scripts/dev/out/modifiers-*.log.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,6 +40,13 @@ check() {
 # Every "modifiers" line demo_switcher printed, whole (one JSON object per line; serde_json
 # does not preserve field order, so "event" is not necessarily first).
 modifiers_lines() { grep -F '"event":"modifiers"' "$1"; }
+
+# Every "focus" line (`HostEvent::KeyboardFocus`), just the Gained/Lost states in order, comma
+# joined: "Gained,Lost,Gained," across an unmap and a remap when the host withdraws the
+# keyboard at the unmap (G210), "Gained,Gained," (no `Lost` between them) when it does not.
+focus_states() {
+  grep -F '"event":"focus"' "$1" | sed -E 's/.*"state":"([A-Za-z]+)".*/\1/' | tr '\n' ','
+}
 
 # Runs demo_switcher and fake-input against a fresh headless KWin, calls the case function
 # (which drives fd 3, the fake-input fifo, and fd 4, the demo's stdin fifo, through `input`), and
@@ -134,7 +148,55 @@ caps_lock_case() {
   input "key Caps_Lock down" "sleep 100" "key Caps_Lock up" "sleep 100" || true
 }
 
+# G210: the same surface (`Visibility::Hidden`/`Shown`, not a close and respawn) unmapped while
+# Super is still held, released while it is hidden, then mapped again with nothing held. A host
+# that never withdrew the keyboard at the unmap (never reset the record, never reset the
+# surface's published modifiers) risks a second opening that starts from the first opening's
+# logo held rather than the physical key's true, released state.
+restale_case() {
+  local log=$1
+  input "move 640 400" "sleep 200" || return 1
+  input "key Super_L down" "sleep 200" || return 1
+  echo map >&4
+  wait_lines "$log" 2 || { echo "no modifiers line beyond the pre-focus default after map" >&2; return 1; }
+  local seen_on_enter
+  seen_on_enter=$(modifiers_lines "$log" | sed -n '2p')
+  local ok=0
+  echo "$seen_on_enter" | grep -q '"logo":"Held"' && ok=1
+  check restale_seen_on_enter $ok "line 2: $seen_on_enter"
+
+  # Unmap while Super is still held (the compositor's own leave, naming the destroyed
+  # wl_surface, can never be matched to anything, FINDINGS F58): a fixed host resets the
+  # surface's modifiers to the default right here rather than waiting for it. Super is then
+  # released while the surface is hidden — no key event of ours to carry the release, since a
+  # hidden surface has no keyboard focus to receive one.
+  echo unmap >&4
+  sleep 0.3
+  input "key Super_L up" "sleep 300" || return 1
+  echo map >&4
+  # Give a fresh `wl_keyboard.enter` and the `modifiers` event beside it time to land.
+  sleep 1.5
+  local final
+  final=$(modifiers_lines "$log" | tail -n 1)
+  ok=0
+  echo "$final" | grep -q '"logo":"Released"' && ok=1
+  local total
+  total=$(modifiers_lines "$log" | wc -l)
+  check restale_after_remap $ok "after unmap (Super still held), release while hidden, and remap (nothing held): $final ($total lines total)"
+
+  # The directly discriminating signal: a host that withdraws the keyboard at the unmap
+  # (G210's fix) tells the shell `Lost` right there, before the second `Gained`; one that
+  # leaves the record stale goes straight from `Gained` to `Gained` again, since the
+  # compositor's own leave (for the destroyed wl_surface) never matches anything either.
+  local focus_seq
+  focus_seq=$(focus_states "$log")
+  ok=0
+  [ "$focus_seq" = "Gained,Lost,Gained," ] && ok=1
+  check restale_lost_between_openings $ok "focus events: $focus_seq"
+}
+
 run_case super super_case
 run_case caps_lock caps_lock_case
+run_case restale restale_case
 
 exit $status

@@ -11,7 +11,7 @@ use crate::csd::Inset;
 use crate::ctx::HostCtx;
 use crate::ctx::spawn::{Initial, insert, new_wl_surface};
 use crate::debug::SurfaceName;
-use crate::event::{Focus, HostEvent};
+use crate::event::HostEvent;
 use crate::handlers::output::output_info;
 use crate::id::{OutputId, SurfaceId};
 use crate::live::Live;
@@ -26,7 +26,6 @@ use crate::role::Role;
 use crate::root::Root;
 use crate::scale::Size;
 use crate::state::HostState;
-use crate::timers::TimerRequest;
 
 impl<M: 'static> HostCtx<M> {
     /// Lock the session (`ext_session_lock_manager_v1.lock`). A lock surface is made at once for
@@ -208,21 +207,11 @@ fn find_output(state: &HostState, output: OutputId) -> Option<(WlOutput, OutputI
 }
 
 /// Remove lock surface `id` without a `SurfaceClosed` (the shell never held its id): the
-/// pointer's stay and the keyboard focus end with it, then the surface (its presenter before
-/// its `wl_surface`, and the lock surface object with it).
+/// pointer's stay and the keyboard focus end with it (FINDINGS F58, G210), then the surface
+/// (its presenter before its `wl_surface`, and the lock surface object with it).
 fn remove_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     ctx.state.withdraw_pointer(id);
+    ctx.state.withdraw_keyboard(id);
     super::timer::cancel_watchdog(ctx, id);
-    let state = &mut ctx.state;
-    if state.input.keyboard_focus == Some(id) {
-        state.input.keyboard_focus = None;
-        state.input.focused_at = None;
-        state.input.repeating = None;
-        state.timers.push(TimerRequest::RepeatStop);
-        let focus = Focus::Lost;
-        state
-            .events
-            .push_back(HostEvent::KeyboardFocus { id, focus });
-    }
-    state.surfaces.remove(&id);
+    ctx.state.surfaces.remove(&id);
 }

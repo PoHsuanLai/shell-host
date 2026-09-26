@@ -1,12 +1,15 @@
-//! The pointer-focus record: which surface the pointer is on, and the `enter` serial a cursor
-//! change needs. Pure; `handlers::pointer` holds it and acts on what a departure means.
+//! Focus records: which surface the pointer is on (with the `enter` serial a cursor change
+//! needs), and which surface holds the keyboard. Pure; `handlers::pointer` and
+//! `handlers::keyboard` hold the records and act on what a departure means.
 //!
-//! A surface stops having the pointer in two ways. The compositor says so with
-//! `wl_pointer.leave`, or the host takes the surface away itself: an unmap rebuilds the
+//! A surface stops having a focus in two ways. The compositor says so with `wl_pointer.leave`
+//! or `wl_keyboard.leave`, or the host takes the surface away itself: an unmap rebuilds the
 //! `wl_surface` and a close destroys it, and the compositor's leave that follows names an
-//! object the host no longer knows (KWin sends `leave(serial, nil)`), so it cannot be matched
-//! to anything. The host therefore ends the stay itself at the unmap or close, while the
-//! surface is still known, and ignores the late leave (FINDINGS F58).
+//! object the host no longer knows (KWin sends `leave(serial, nil)` for the pointer; the
+//! keyboard's leave names the destroyed or superseded `wl_surface`), so it cannot be matched to
+//! anything. The host therefore ends the stay itself at the unmap or close, while the surface is
+//! still known, and ignores the late leave (FINDINGS F58 for the pointer, G210 for the
+//! keyboard).
 
 use crate::id::SurfaceId;
 
@@ -61,6 +64,21 @@ pub fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, Departu
     }
 }
 
+/// The record after `surface` departs keyboard focus (a `wl_keyboard.leave`, an unmap or a
+/// close), and whether that took it. Unlike the pointer's record there is no serial to keep —
+/// a surface either holds the keyboard or it does not — so the record is a bare
+/// `Option<SurfaceId>` rather than its own type.
+pub fn depart_keyboard(
+    focus: Option<SurfaceId>,
+    surface: SurfaceId,
+) -> (Option<SurfaceId>, Departure) {
+    if focus == Some(surface) {
+        (None, Departure::Lost)
+    } else {
+        (focus, Departure::Unaffected)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,6 +120,22 @@ mod tests {
         let focus = enter(B, 4);
         assert_eq!(focus.surface(), Some(B));
         assert_eq!(depart(focus, A), (focus, Departure::Unaffected));
+    }
+
+    #[test]
+    fn keyboard_departures() {
+        let cases = [
+            (Some(A), A, None, Departure::Lost),
+            (Some(A), B, Some(A), Departure::Unaffected),
+            (None, A, None, Departure::Unaffected),
+        ];
+        for (focus, surface, after, departure) in cases {
+            assert_eq!(
+                depart_keyboard(focus, surface),
+                (after, departure),
+                "{focus:?} - {surface:?}"
+            );
+        }
     }
 
     #[test]

@@ -69,8 +69,10 @@ pub(crate) fn close_surface_and_popups(state: &mut HostState, id: SurfaceId, rea
         id,
         cmd: TimerCmd::Cancel,
     });
-    // As for a close the host starts (FINDINGS F58): the pointer's stay ends with the surface.
+    // As for a close the host starts (FINDINGS F58, G210): the pointer's stay and the keyboard
+    // focus end with the surface.
     state.withdraw_pointer(id);
+    state.withdraw_keyboard(id);
     if state.surfaces.remove(&id).is_some() {
         state
             .events

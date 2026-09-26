@@ -12,6 +12,7 @@ use wayland_client::{Connection, QueueHandle};
 use crate::event::{Focus, HostEvent};
 use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
+use crate::input::focus::{self, Departure};
 use crate::input::key::{self, Composing, Repeat};
 use crate::input::modifiers::modifiers_from;
 use crate::modifiers::Modifiers;
@@ -49,7 +50,10 @@ impl KeyboardHandler for HostState {
         });
     }
 
-    /// `HostEvent::KeyboardFocus{Lost}`, stop repeating.
+    /// `HostEvent::KeyboardFocus{Lost}`, stop repeating. A leave that names a surface the host
+    /// no longer knows — its unmap or close already withdrew the keyboard from it, before the
+    /// rebuild or removal took the `wl_surface` this leave names (FINDINGS F58, G210) — is
+    /// ignored.
     fn leave(
         &mut self,
         _conn: &Connection,
@@ -59,24 +63,13 @@ impl KeyboardHandler for HostState {
         _serial: u32,
     ) {
         let Some(id) = self.surface_id_for(surface) else {
+            #[cfg(debug_assertions)]
+            eprintln!("shell-host: wl_keyboard.leave for a surface no longer known (ignored)");
             return;
         };
-        if self.input.keyboard_focus == Some(id) {
-            self.input.keyboard_focus = None;
-            self.input.focused_at = None;
+        if self.depart_keyboard(id) == Departure::Lost {
+            self.reset_keyboard_focus(id);
         }
-        self.input.repeating = None;
-        self.timers.push(TimerRequest::RepeatStop);
-        // Reset to empty on `leave` (F66): the modifiers a surface saw were true only while it
-        // held keyboard focus, and the seat's own `held_modifiers` cache lives on for whoever's
-        // next, unaffected.
-        if let Some(surface) = self.surfaces.get_mut(&id) {
-            surface.live_modifiers.publish(Modifiers::default());
-        }
-        self.events.push_back(HostEvent::KeyboardFocus {
-            id,
-            focus: Focus::Lost,
-        });
     }
 
     fn press_key(
@@ -229,5 +222,42 @@ impl HostState {
             surface.document.handle_event(ui_event);
         }
         self.invalidate(id);
+    }
+
+    /// Surface `id` is being unmapped or closed by the host, possibly holding the keyboard
+    /// focus. If it does, end the stay now, the same way `withdraw_pointer` ends the pointer's
+    /// (FINDINGS F58): an unmap rebuilds the `wl_surface` and a close destroys it, so the
+    /// compositor's later `wl_keyboard.leave` cannot be matched to anything (G210); the host
+    /// resets its own record here instead of waiting for it. A later `enter` on a remapped
+    /// surface proceeds normally and publishes the seat's current modifiers (F66).
+    pub(crate) fn withdraw_keyboard(&mut self, id: SurfaceId) {
+        if self.depart_keyboard(id) == Departure::Lost {
+            self.reset_keyboard_focus(id);
+        }
+    }
+
+    /// Update the keyboard-focus record for surface `id` departing (a `leave`, an unmap or a
+    /// close): shared by `leave` and `withdraw_keyboard` so both take the record through the
+    /// same pure transition.
+    fn depart_keyboard(&mut self, id: SurfaceId) -> Departure {
+        let (after, departure) = focus::depart_keyboard(self.input.keyboard_focus, id);
+        self.input.keyboard_focus = after;
+        departure
+    }
+
+    /// The effects of surface `id` losing the keyboard, once it is confirmed lost: forget when
+    /// it was focused, stop any repeat, reset its published modifiers to the default (F66) and
+    /// tell the shell once.
+    fn reset_keyboard_focus(&mut self, id: SurfaceId) {
+        self.input.focused_at = None;
+        self.input.repeating = None;
+        self.timers.push(TimerRequest::RepeatStop);
+        if let Some(surface) = self.surfaces.get_mut(&id) {
+            surface.live_modifiers.publish(Modifiers::default());
+        }
+        self.events.push_back(HostEvent::KeyboardFocus {
+            id,
+            focus: Focus::Lost,
+        });
     }
 }

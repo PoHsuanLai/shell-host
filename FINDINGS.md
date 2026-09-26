@@ -2119,3 +2119,91 @@ warnings`, `./scripts/check-boundary.sh` and `cargo deny check licenses` all cle
 expected, per F61, to send modifiers only to the keyboard focus — the simpler case, not
 exercised here); Num Lock (same code path as Caps Lock, `LockKey::of`, table-tested only); a
 second seat.
+
+## The keyboard's own withdrawal (branch `keyboard-withdraw`, 2026-09-26)
+
+### F67. G210: an unmapped or closed surface's keyboard focus was never withdrawn; the next opening started from the last one's modifiers
+
+Found by sill (its G210), the keyboard's half of F58. `ctx/ops.rs`'s `unmap` rebuilds the
+`wl_surface` and `close` destroys it; either way the compositor's later `wl_keyboard.leave`
+names a surface `surface_id_for` cannot match (the same shape as F58's pointer leave), so
+nothing ever told the document its keyboard focus had gone. `handlers/keyboard.rs::leave`'s own
+reset (`keyboard_focus = None`, stop repeat, `live_modifiers.publish(default)`,
+`HostEvent::KeyboardFocus{Lost}`) never ran, and `self.input.keyboard_focus` stayed pointed at
+the surface — a lock surface and the exclusive overlay a switcher or a power menu opens are
+built and torn down the same way (map/unmap or lock/unlock), so all three carry the bug. The
+lock path (`ctx/lock.rs::remove_surface`) already reset `keyboard_focus` by hand at a lock
+surface's own removal, but never reset `live_modifiers`, so a lock surface was one call short
+of the same fix in miniature.
+
+**Fix.** `input/focus.rs` gained `depart_keyboard(focus: Option<SurfaceId>, surface: SurfaceId)
+-> (Option<SurfaceId>, Departure)`, the keyboard's analogue of `depart` for the pointer: no
+serial to keep, so the record is a bare `Option<SurfaceId>` rather than its own type, sharing
+`Departure::{Lost, Unaffected}` with the pointer's record. `handlers/keyboard.rs` gained
+`HostState::withdraw_keyboard(id)`, `withdraw_pointer`'s shape exactly: `depart_keyboard` the
+record, and on `Lost` run the same effects `leave` already ran (`reset_keyboard_focus`, factored
+out so both share it) — forget `focused_at`, stop repeat, publish `Modifiers::default()` to the
+surface (a no-op if it already read that), push `HostEvent::KeyboardFocus{Lost}` once. `leave`
+itself now goes through `depart_keyboard`/`reset_keyboard_focus` too (previously it reset
+unconditionally on any matched id; now, like the pointer's `depart`, only when the departure
+actually took the focus), and a `leave` for a surface `surface_id_for` cannot match — the late
+one this fix pre-empts — is ignored with a debug-only print rather than silently, so a run with
+`cfg(debug_assertions)` shows it happened.
+
+`withdraw_keyboard` is called everywhere `withdraw_pointer` already was, before the surface's
+old `wl_surface` goes: `ctx/ops.rs`'s `unmap` and `close`, `handlers/mod.rs`'s
+`close_surface_and_popups` (the compositor's own `closed`/`request_close`/`done`), and
+`ctx/lock.rs`'s `remove_surface`, whose hand-rolled reset is now the same call (fixing its
+missing `live_modifiers` reset as part of the same change, not a separate one). No new
+`HostEvent` variant and no API change, as asked: `Focus::Lost` already existed for `leave`.
+
+**Proof.** `input/focus.rs::tests::keyboard_departures`, table-driven: the surface holding focus
+departing is `Lost`; a different surface or `None` departing is `Unaffected` (unchanged) —
+`cargo test --workspace --all-features` is 329 (328 on master + this one).
+
+**Live, on the headless KWin (F52, never `wayland-0`, no keyboard grab).**
+`examples/demo_switcher` changed shape: `unmap`/`map` now drive `HostCtx::set_visibility` on
+the *same* `SurfaceId` (`Visibility::Hidden`/`Shown`) instead of closing and respawning, so a
+script exercises the real unmap-and-rebuild path rather than a fresh surface; it also prints
+`{"event":"focus","state":"Gained"|"Lost"}` for its own `HostEvent::KeyboardFocus`.
+`scripts/dev/accept-modifiers.sh` gained a third case, `restale`: `key Super_L down`, `map`
+(line 2 confirms `logo` held on enter, as `super` already covers), `unmap` while Super is still
+held, `key Super_L up` while hidden (a hidden surface has no keyboard focus to carry the key
+event to), `map` again with nothing held.
+
+All three cases PASS on this branch:
+
+```
+PASS restale_seen_on_enter: line 2: {...,"logo":"Held",...}
+PASS restale_after_remap: after unmap (Super still held), release while hidden, and remap (nothing held): {...,"logo":"Released",...} (3 lines total)
+PASS restale_lost_between_openings: focus events: Gained,Lost,Gained,
+```
+
+**The `modifiers` value alone does not discriminate the fix, and saying so up front is the
+point of this note.** `restale_after_remap` reads `logo: Released` on both sides of this
+change: the compositor sends the guaranteed `modifiers` event right after the second `enter` in
+the same dispatch as the enter itself, before the document's `use_signal` task is ever polled
+(FINDINGS F66's "one event late"), so any momentarily-stale value `enter` published from a
+still-wrong `held_modifiers` cache is overwritten before it is ever rendered — this held on a
+build with the fix reverted from the five changed `src/` files too (checked directly, below).
+Reverting just those five files (keeping this branch's `demo_switcher` and script) and rerunning
+gave the same `restale_after_remap` PASS, `logo: Released` unchanged — a test that cannot fail
+proves nothing (CONVENTIONS, "an assertion that was already true proves nothing"). The
+discriminating signal is `restale_lost_between_openings`: on the reverted build it read
+`focus events: Gained,Gained,` — **FAIL**, no `Lost` between the two openings, exactly the bug
+G210 names — and on this branch it reads `Gained,Lost,Gained,` — **PASS**. Restoring the five
+files (from a WIP commit taken before the revert, `git checkout <wip> -- <files>`) brought the
+rest of the suite back to green alongside it. Reported honestly: the fix is proven by the focus
+event, not by the modifiers value, which was already correct before the fix existed in this
+single-surface demo (nothing else here ever holds the keyboard for the stale record to
+misdirect a live modifiers change onto) — a shell with more than one keyboard-interactive
+surface at once is where a stale record would misdirect an in-flight modifiers change onto a
+surface that no longer holds the keyboard, not exercised here.
+
+`cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D
+warnings`, `./scripts/check-boundary.sh` and `cargo deny check licenses` all clean.
+
+**Not proven live:** a second keyboard-interactive surface receiving the modifiers change a
+stale record would have misdirected (the mechanism above); a real compositor other than KWin;
+the lock and power-menu surfaces this also fixes, run through their own acceptance rather than
+`demo_switcher`'s.
