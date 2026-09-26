@@ -68,6 +68,25 @@ adds a `DragIcon::Root` document, `--keyboard=none|on-demand` sets its layer's k
 `scripts/dev/accept-drag.sh` runs it on a headless KWin against a foot terminal, and
 `scripts/dev/probe-modifiers.sh` uses it for FINDINGS F61.
 
+`examples/demo_lock/` is the session lock's acceptance (FINDINGS F65): on `lock` it locks with
+`HostCtx::lock_session`, one document per output with a password field; "letmein" + Enter
+unlocks through `use_lock().unlock()`; `stats` prints JSON. It refuses to lock anything but the
+throwaway compositor `scripts/dev/accept-lock.sh` starts (a cosmic-comp inside a headless KWin,
+in a runtime directory of its own); never run it against your session.
+
+## Consuming: the session lock
+
+`HostCtx::lock_session(LockConfig, |output: OutputInfo| -> Root)` returns a `LockId` (or
+`LockError::Unsupported` without `ext-session-lock-v1`, `InProgress` while a lock lasts) and
+makes a lock surface per output, now and for outputs added while locked; `HostEvent::Lock { id,
+state }` reports `Locked`, `Unlocked` or `Finished` (refused, or ended by the compositor). In a
+lock document, `use_lock()` gives the `LockHandle`: call `unlock()` once the shell has
+authenticated the user (PAM is the shell's), after any exit animation; the host tells every lock
+document `Unlocking` (`use_lock_phase()`), then sends `unlock_and_destroy` and removes the
+surfaces. `HostCtx::unlock_session(id)` does the same from outside. The documents focus their own
+field (the compositor gives the surface the keyboard, not the element), and must paint the
+whole surface. If the process dies while locked the session stays locked (FINDINGS F65).
+
 ## Consuming: the window seam (client-decorated frames)
 
 What a design system's window frame (quire's `ds::HostWindow`, implemented in sill's and mailo's

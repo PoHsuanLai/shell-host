@@ -1875,3 +1875,163 @@ frames through the window: every frame's offset equals the palmrest-only run wit
 (through the glide to its end); with the window bypassed, the final offsets differ by more than
 100 px. Not proven: a real palmrest (it does not exist yet), a real compositor's echo timing,
 and `Tap` / `Swipe`, which have no consumer (F63).
+
+## Session lock (branch `session-lock`, 2026-09-26)
+
+### F65. The lock screen's host side: `ext-session-lock-v1`, one document per output
+
+For Milestone 11 (quire design/20 §1.9: a lock surface per output, always keyboard). The API:
+
+```rust
+impl<M> HostCtx<M> {
+    pub fn lock_session(&mut self, config: LockConfig, factory: impl Fn(OutputInfo) -> Root + 'static)
+        -> Result<LockId, LockError>;
+    pub fn unlock_session(&mut self, id: LockId);
+    pub fn lock_surfaces(&self, id: LockId) -> Vec<(OutputId, SurfaceId)>;
+}
+pub struct LockId(pub u64);
+pub struct LockConfig { pub namespace: String }            // default "lock": surfaces "lock/<output>"
+pub enum LockError { Unsupported, InProgress(LockId) }
+pub enum LockState { Locked, Unlocked, Finished }           // HostEvent::Lock { id, state }
+pub enum LockPhase { Requested, Locked, Unlocking, Unlocked, Finished }
+pub fn use_lock() -> LockHandle;                            // in a lock surface's document
+impl LockHandle { pub fn id(&self) -> LockId; pub fn phase(&self) -> LockPhase; pub fn unlock(&self); }
+pub fn use_lock_phase() -> ReadSignal<LockPhase>;
+```
+
+`lock_session` binds nothing new at call time: `ext_session_lock_manager_v1` is bound at start
+(sctk 0.20's `SessionLockState`), and without it the call answers `LockError::Unsupported`. A
+second call while a lock of ours lasts (requested, locked or unlocking) answers `InProgress`.
+Each lock surface is a `Role::Lock` (`RoleKind::Lock`) with its own document built from
+`factory(output)` and a `LockHandle` root context beside the `SurfaceHandle`; it takes the
+configure's exact size, the existing fractional path (or the integer buffer scale), the frame
+machine and the idle rule unchanged, and the first render after the configure is its first
+commit. It is never committed before that configure (no initial commit, the protocol's
+`commit_before_first_ack` / `null_buffer`), never hidden (`SetVisibility` is ignored: a rebuilt
+lock surface could not be mapped the usual way, and its output would fall back to the
+compositor's colour), and can carry no popup. The shell never gets a `SurfaceClosed` for one; the
+`Lock` event covers them.
+
+**State machine (`lock/machine.rs`, pure, table-tested).** `Requested --locked--> Locked
+--unlock--> Unlocking --told--> Unlocked`; `finished` from any live phase ends in `Finished`; an
+unlock before `locked` cancels (`Unlocked`). The request each end sends is the one the protocol
+allows: `destroy` before `locked` (never `unlock_and_destroy`, `invalid_unlock`), and
+`unlock_and_destroy` once locked, also when the compositor ends a lock with `finished` after
+`locked` (never `destroy`, `invalid_destroy`). An output added before the end gets a surface, a
+removed output's surface is destroyed, and every surface made is destroyed at the end, after
+`unlock_and_destroy` so the output never flashes the compositor's colour. The handlers
+(`locked`, `finished`, `wl_output` added or removed) only queue inputs; `ctx::lock::advance` runs
+the machine at the end of the flush's request phase, where it can make surfaces and presenters.
+
+**"Told" before `unlock_and_destroy`.** `LockHandle::unlock` and `HostCtx::unlock_session` queue
+the same `Request::Unlock`. `Unlocking` is published to every lock document (`LockHandle::phase`,
+`use_lock_phase`), and `Told` is fed at the next flush, whose first phase polls the documents
+that publish woke (a ping makes sure that flush happens): the documents have run with
+`Unlocking` before the compositor hears anything. No frame is waited for: a lock screen that
+animates its exit (design/20 §1.9's unlock `fade`) plays it first and calls `unlock()` at its
+end, since after it the surfaces go at once. In the trace below the unlock
+request follows the accepting keypress by 1.1 ms.
+
+**Deviation from the brief: surfaces at the request, not at `locked`.** The protocol says
+"clients should immediately create lock surfaces for all outputs on creation of this object",
+so a compositor can show them in its first locked frame instead of a blank one; they are not
+shown unless the lock succeeds, and a refused lock destroys them. cosmic-comp 1.8 does not wait
+for them: it sent `locked` 0.9 s after the request and the surface's first `configure` right
+after it (below).
+
+**Keyboard.** Which lock surface has the keyboard is compositor policy; the host does nothing
+special, and `wl_keyboard.enter` arrived on the lock surface together with `locked`. A typed key
+reaches a text field only if the document has focused it: Blitz's `autofocus` is a blitz-dom
+feature the pinned block does not enable, so the demo calls `MountedData::set_focus(true)` after
+mount, retried when the renderer holds the document (the reason for quire's `guarded_call`,
+sill FINDINGS Q10 and Q43).
+
+**Opaque documents.** The lock document must paint its whole surface. The demo's first run had
+`body{height:100%}`, which Blitz did not stretch, and the rest of the lock surface showed
+cosmic-comp's lock colour (39,41,42), not the session: a transparent lock surface hides nothing
+less, but looks broken. `html { background }` fixed it.
+
+**If the client dies while locked.** The protocol: "the compositor must not unlock the session
+in response ... It is acceptable for the session to be permanently locked." Dropping the lock
+object after `locked` without `unlock_and_destroy` is `invalid_destroy`, and sctk's `Drop` sends
+`destroy`: a host that exits (or panics) while locked leaves the session locked, which is the
+secure failure. Seen on cosmic-comp 1.8 (`crash` below): after `kill -9` of the locker the
+output shows the compositor's own colour over everything, and a *new* locker's lock is granted
+(`locked`) and its unlock returns the session. What the user must do: let sill's session script
+restart the shell, whose lock screen locks again (sill should lock at start when logind says the
+session is locked, `LockedHint`), or, from a TTY, start another locker (`cosmic-greeter`'s,
+`swaylock`) against the session's socket and unlock with it (whether cosmic-comp also honours
+logind's `Unlock` was not checked). The host's own `exit()` while locked leaves the session locked too;
+the demo's `quit` unlocks first.
+
+**Safety: nothing here may lock the user's session.** The proof runs only on a throwaway stack:
+`scripts/dev/kwin-virtual.sh` gained `KWIN_VIRTUAL_RUNTIME=<dir>` (opt-in): KWin gets its own
+runtime directory (mode 700, the marker `.shell-host-virtual-compositor` in it), `.kwin-env`
+exports it and the socket's absolute path, and `stop` removes it. `stop` used to find the user
+manager through the sourced `XDG_RUNTIME_DIR`; with a private one `systemctl --user stop` failed
+silently and left KWin running (the first run did), so it now uses the caller's own. The
+nested cosmic-comp, a client of that KWin, puts its socket in the same directory. `demo_lock`
+refuses to lock unless, checked before it connects (`examples/demo_lock/guard.rs`, table-tested):
+`SHELL_HOST_ALLOW_LOCK=virtual`; `WAYLAND_SOCKET` unset; `WAYLAND_DISPLAY` an absolute path to a
+socket; `SHELL_HOST_LOCK_RUNTIME` resolves to a directory holding the marker that is neither the
+process's `XDG_RUNTIME_DIR` nor `/run/user/<uid>`; the socket (links resolved) lies directly in
+it; and it is not `wayland-0`. The script checks the socket too, unlocks on every exit path and
+stops both compositors.
+
+**cosmic-comp inside the headless KWin (F52's untested item, now verified).** `COSMIC_BACKEND=
+winit cosmic-comp --no-xwayland` as a client of `kwin-virtual.sh`'s KWin works, and fake input
+reaches its seat: a click on its window gives it KWin's focus and keys typed afterwards arrive
+in the nested client that has cosmic-comp's focus. With `nested.sh`'s Mesa override
+(`__EGL_VENDOR_LIBRARY_FILENAMES=50_mesa.json DRI_PRIME=1`) it drew nothing ("pci id for fd 40:
+10de:2c05, driver (null)", `BAD_SURFACE`): the headless KWin hands it the NVIDIA render node. The
+system EGL vendor (NVIDIA) and `LIBGL_ALWAYS_SOFTWARE=1` both draw; the script uses the system
+vendor. `grim` on the nested socket captures cosmic-comp's output, also while locked.
+
+**Acceptance.** `scripts/dev/accept-lock.sh` (new): `examples/demo_lock` (new: `lock`, `unlock`,
+`stats`, `quit` on stdin; a lock document per output with the output's name and a plain
+`input`; Enter on "letmein" calls `use_lock().unlock()`, anything else is refused and cleared) on
+the headless KWin 6.7.5 and a cosmic-comp 1.8.0 inside it, a maximized `probe_toplevel`
+checkerboard as the session's window, input from `tools/fake-input`. 3 runs, all PASS:
+
+- `unsupported`: on the headless KWin itself (no `ext_session_lock_manager_v1` in KWin 6.7):
+  `lock: error the compositor does not provide ext_session_lock_manager_v1`.
+- `lock`: `event {"id":1,"state":"locked"}`; one lock surface for the one output (`WINIT-0`,
+  1280x800 logical); grim of cosmic-comp: all four corners 24,28,38 (the lock document), 511995
+  of 512000 pixels changed from the checkerboard.
+- `finished`: a second `demo_lock`'s lock while the first holds it answers
+  `{"id":1,"state":"finished"}`; the first stays locked.
+- `typing`: `type abc` with no click after the lock: the field's `oninput` saw 3 characters;
+  `KeyboardFocus{Gained}` on the lock surface.
+- `wrong`: Enter on "abc": `rejected`, the phase still `locked`, grim still the lock's colour, no
+  `unlocked`.
+- `idle`: 0 frames on the lock surface over 3 s while locked (5 before, 5 after).
+- `unlock`: `letmein` + Enter: `accepted`, `event {"id":1,"state":"unlocked"}`, no lock surface
+  left, grim identical to the pre-lock capture (0 pixels differ), the probe window alive.
+- `crash`: a new `demo_lock` locked, `kill -9`: grim shows 39,41,42 everywhere (512000 pixels
+  differ from the session); a third locker's lock: `locked`, its `unlock`: `unlocked`, and the
+  capture is the session again (0 differ).
+
+The wire order (`LOCK_TRACE=1`):
+
+```
+ -> ext_session_lock_manager_v1#22.lock(new id ext_session_lock_v1#19)
+ -> ext_session_lock_v1#19.get_lock_surface(new id ext_session_lock_surface_v1#31, wl_surface#28, wl_output#8)
+ext_session_lock_v1#19.locked()                                          +0.898 s
+ext_session_lock_surface_v1#31.configure(9, 1280, 800)
+wl_keyboard#23.enter(11, wl_surface#28, array[0])
+ -> ext_session_lock_surface_v1#31.ack_configure(9)
+ -> wl_surface#28.commit()                                               first frame, +0.364 s
+...
+lock: accepted on WINIT-0
+ -> ext_session_lock_v1#19.unlock_and_destroy()                          +1.1 ms
+ -> ext_session_lock_surface_v1#31.destroy()
+ -> wl_surface#28.destroy()
+lock: event {"id":1,"state":"unlocked"}
+```
+
+**Not proven live.** More than one output (the winit backend has one): a surface per output and
+focus on "the pointer's output or the first" are the machine's table and the compositor's
+policy, not a run; outputs added or removed while locked (table only); a fractional scale on a
+lock surface (the nested output is 1.0; the path is the layer surfaces' own); `finished` sent
+after `locked` (no compositor here does it); the shm presenter on a lock surface; the lock on a
+real cosmic session, which nothing here may touch (a manual check for sill's queue).

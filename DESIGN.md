@@ -22,8 +22,10 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `ctx/timer.rs` | phase 4: arming and cancelling watchdogs and key repeat from `TimerRequest`s | effects |
 | `ctx/drag.rs` | starting a drag (`Request::StartDrag`: refused up front as `DragOutcome::Unsupported`, else `wl_data_device.start_drag` with the held press's serial), and phase 4's pipe writes: each `send` pipe made non-blocking and written from the loop a chunk per writable wakeup (FINDINGS F60) | effects |
 | `ctx/drag_icon.rs` | `DragIcon::Root`: a `Role::DragIcon` surface rendered through the ordinary presenter path, configured from birth, removed when the drag ends | effects |
+| `ctx/lock.rs` | the session lock's effects (FINDINGS F65): `lock_session` (`LockError::Unsupported` without `ext_session_lock_manager_v1`), `unlock_session`, `lock_surfaces`; `advance`, run at the end of the request phase, feeds the machine what the handlers and requests queued and carries out its actions: a `Role::Lock` surface per output with its document (factory + `LockHandle` context, no commit before the configure), `Unlocking` told to the documents a flush before `unlock_and_destroy`, `HostEvent::Lock` | effects |
 | `host_handle.rs` | `HostHandle<M>`: `send`, `apply`, `close`, `exit` from any thread | effects |
 | `handle.rs` | `SurfaceHandle` + `use_surface`; plan "Ops queue while a doc is borrowed, apply after `poll()`, before paint"; the frame hook's document side: `drive_frames`, `next_frame`, `use_frame_tick` (FINDINGS F31); the scale's: `use_surface_scale`, `current_scale` (FINDINGS F43); the window's: `begin_move`, `begin_resize`, `set_maximized`, `set_minimized`, `set_fullscreen`, `current_toplevel_state`, `use_toplevel_state` (FINDINGS F46); the drag source: `start_drag(DragSpec) -> DragOutcome` (FINDINGS F60) | effects |
+| `lock/handle.rs` | `LockHandle` (`id`, `phase`, `unlock`), `use_lock`, `use_lock_phase`: a lock document's side (FINDINGS F65) | effects |
 | `bridge.rs` | `use_watch` (plan: shared data on `tokio::sync::watch`) | effects |
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
@@ -39,6 +41,8 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | --- | --- | --- |
 | `live.rs` | `Live<T>`: a value the host publishes to a document, waking readers only on a change; carries the scale and the toplevel state | shared cell |
 | `live_scale.rs` | `LiveScale = Live<Scale>` (FINDINGS F43) | shared cell |
+| `lock/machine.rs` | the session lock's state machine: `LockPhase`, `LockState`, `LockInput`, `LockAction`, `start`, `step` (Requested, Locked, Unlocking, Unlocked, Finished; outputs added and removed; the destructor the protocol allows in each phase) | pure |
+| `lock/mod.rs`, `lock/active.rs` | `LockId`, `LockConfig`, `LockError`; `ActiveLock`, the lock in force (the sctk `SessionLock`, the machine, the factory, the surface per output, the inbox) | pure (data) / effects |
 | `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, S1 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
 | `toplevel.rs` | `ToplevelConfig`, `Decorations::{Client(ResizeMargin), Server}`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `TileEdges`, `ToplevelState` and their wire mappings; design/20 "All apps are xdg toplevels" (FINDINGS F46) | pure |
 | `csd.rs` | a client-decorated toplevel's geometry: the resize band (`Inset`, only while floating), surface vs frame, `set_window_geometry`, the document's inset in physical px, band strips, `zone_at` and the resize cursors (FINDINGS F48) | pure |
@@ -52,7 +56,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `blur.rs` | `BlurSpec`; plan "blur (BlurSpec{None,Region})", quire 03-COLOR §17.1 (region is shell-host's) | pure (data) |
 | `scale.rs` | S2: `Scale` in 120ths, `buffer_size`; plan "Scale" | pure |
 | `surface.rs` | `HostSurface` (field order = drop order, S1 finding 6), `AppliedRegions` (two `resolve::Tracked`: input starts unknown, blur starts empty) | effects |
-| `role.rs` | `Role::{Layer,Popup,Toplevel}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" | effects |
+| `role.rs` | `Role::{Layer,Popup,Toplevel,DragIcon,Lock}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" | effects |
 
 ## Frames, time, stats
 
@@ -130,6 +134,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `handlers/compositor.rs` | frame callbacks -> `FrameInput::Callback`; integer scale fallback | effects |
 | `handlers/output.rs` | `HostEvent::Output*` | effects |
 | `handlers/layer.rs` | layer configure/closed; configure records the size and invalidates (regions follow on the render) | effects |
+| `handlers/session_lock.rs` | `locked`/`finished` queued for the lock in force; a lock surface's configure (exact size) through `handlers::layer::follow_configure`, shared with layer surfaces | effects |
 | `handlers/xdg.rs` | toplevel and popup configure/close; `popup_done` (not client-drivable, S2) | effects |
 | `handlers/seat.rs` | capabilities (the first one adopts the seat, FINDINGS F47), `SeatInput` | effects |
 | `handlers/pointer.rs`, `keyboard.rs` | input dispatch; every press and release updates the grab record | effects |
@@ -175,4 +180,6 @@ results are in SPIKE.md "H2 demos". `examples/spike_popup.rs` (bare-shm popup cl
 `examples/demo_window.rs` is a client-decorated toplevel (titlebar drag, resize band, zoom,
 configure state) driven from stdin; its runs are FINDINGS F51. `examples/demo_scroll.rs` is a
 scroll list (`use_scroll`, `data-overscroll="band"`) and a `data-wheel="capture"` element for
-`scripts/dev/accept-scroll.sh` (FINDINGS F63).
+`scripts/dev/accept-scroll.sh` (FINDINGS F63). `examples/demo_lock/` is the session lock's demo (a password
+field per output; `guard.rs` refuses any compositor but the throwaway one) for
+`scripts/dev/accept-lock.sh` (FINDINGS F65).
