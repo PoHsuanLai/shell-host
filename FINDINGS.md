@@ -1721,19 +1721,38 @@ F40's echo rule has nothing to drop. Live: 0 frames and 0 commits in 5 s after a
   ds scroll containers `scrollbar-width: none` as well.
 - Blitz has no keyboard scroll action at this rev (only text inputs handle arrows), and raw
   writes fire no `onscroll`: `use_scroll` is the notification.
+- Blitz's hit test does not clip a scroller's overflow: a point outside a scroll container but
+  under its hidden content hits that content, so a gesture there latches the container. Seen in
+  a test (a banded sheet's 600 x 400 content inside a 200 x 100 box); not fixed here.
 
-**Keyboard (§11.3.10), and one deviation.** The host takes a scroll key (arrows, PgUp/PgDn,
-Space/Shift+Space, Home/End, Ctrl+Up/Down; nothing with Alt or Super) before the document when
-the focus is not an editable, a form control (`input`, `textarea`, `select`, `button`: Space
-presses a button), `contenteditable`, or inside a `data-keys="capture"` element; the press, its
-repeats and its release then never reach the document. design/11 says "not consumed by a
-component", but Blitz's event driver does not return whether a handler called
-`prevent_default`, and asking afterwards would let the document see keys the engine also acts
-on; `data-keys="capture"` is how a component (a ds Menu's arrows, a listbox, a slider) keeps
-its keys. quire should add it to the components that own arrows. Target: the focused scroll
-container, else the last gesture's scroller if still under the pointer, else (added) the
-innermost scroller under the pointer that has content to scroll, else the viewport. The first
-auto-repeat of an arrow starts the held ramp; its release starts the spring.
+**Keyboard (§11.3.10): the host scrolls only where nothing else wants the keys.** A scroll
+key (arrows, PgUp/PgDn, Space/Shift+Space, Home/End, Ctrl+Up/Down; nothing with Alt or Super)
+is taken by the engine, and then its press, repeats and release never reach the document, only
+when:
+- the focus is nowhere (Blitz parks focus on the root element, which counts as nowhere, as does
+  the body, unless a key listener sits on them), and a scroller with content to scroll is under
+  the pointer (the last gesture's, else the innermost; else the viewport if it scrolls); or
+- the focus sits inside a scroller on the key's axis (the innermost on the focus path, else the
+  viewport if it scrolls), and no element on the focus path, the focus included, handles keys.
+
+"Handles keys" is detected, not guessed: dioxus-native-dom records every listener as an
+attribute named for the event whose value is the placeholder `<rust func>`
+(`MutationWriter::create_event_listener`), so an element with a Dioxus `onkeydown`,
+`onkeyup` or `onkeypress` carries `keydown="<rust func>"` and so on (`dom::scroll::
+listens_for_keys`). That is the mechanism; roles and `tabindex` are not consulted (a focusable
+scroller with `tabindex` and no listener should scroll). Also the document's: a focused
+editable or form control (`input`, `textarea`, `select`, `button`, `contenteditable`) and
+anything inside `data-keys="capture"` (kept as an explicit opt-out). Blitz cannot report
+`prevent_default`, so a listener on the path is taken as consuming every scroll key, whether or
+not its handler acts on that key; dioxus-native-dom never removes the attribute when a listener
+goes away, which errs the same safe way (the key goes to the document). Tests
+(`tests/scroll_dom.rs`): a ds-style menu (`role="menu"`, `onkeydown`) inside a scroller keeps
+ArrowDown; sill's notification column shape (a focused scroller with its own `onkeydown`)
+keeps Down; sill's power menu shape (a focused root with `onkeydown` over a
+`data-overscroll="band"` sheet) keeps Left and Right; a plain scroller scrolls 40 px with
+nothing focused and again with focus on it; nothing scrollable under the pointer passes the
+key. Disabling the listener check fails the first three. The first arrow auto-repeat the
+engine took starts the held ramp; its release starts the spring.
 
 **Sources.** A `wl_pointer` frame with `axis_source` wheel or wheel_tilt, or with no source at
 all, is detents (`value120`, else `discrete`, else degrees / 15); Shift or tilt makes it
@@ -1806,24 +1825,27 @@ timer phase (`ctx/palmrest.rs`), which drains every datagram on each wakeup and 
 when the daemon's end closes. An attempt is made at start and again on the next pointer enter
 while unconnected: no timer, no retry loop, and with no daemon nothing happens at all.
 
-**Wire form, proposed back to design/12.** §12.3.10 names the types, not an encoding. The host
-re-declares `ToHost` / `ToDaemon` and their parts (`input/palmrest/wire.rs`; no dependency on
-palmrest's crate, which is still a stub) and reads one message per datagram as serde's default
-(externally tagged) JSON of exactly those declarations: `{"Scroll":{"gesture":7,"phase":
-"Changed","dx_px":0.0,"dy_px":12.5,"fingers":1,"axis":"Y","t_ns":1000}}`, `"DeviceGone"`,
-`{"PointerOver":{"over":"Ours"}}`. `DeviceInfo` (unnamed fields in the doc) is `name`, `vendor`,
-`product`, all defaulted; `Filter` (also unspecified) is `All` and never sent. An unknown or
-truncated datagram is skipped. palmrest must use the same form, or quire should pin another in
-§12.3.10.
+**Wire form: palmrest's.** palmrest now exists (master 5baeb41, `crates/palmrest/src/protocol.rs`)
+and fixes the encoding: one JSON message per packet, at most 4096 bytes, `PROTOCOL_VERSION` 1,
+enums adjacently tagged (`{"kind":"scroll","v":{...}}`, `{"kind":"device_gone"}`), every name
+`snake_case`, `GestureId` a transparent `u32`, `DeviceInfo { name, path, vendor, product }`,
+`Filter::{All, Only(Vec<Topic>)}`. The host re-declares those types with exactly palmrest's
+serde attributes (`input/palmrest/wire.rs`; still no dependency on palmrest's crate). The first
+version of this branch used serde's default external tagging and would never have
+interoperated. Cross-check: the byte strings in `wire.rs`'s tests were printed by palmrest's
+own `protocol::encode` from a throwaway binary depending on the palmrest crate (built outside
+palmrest's tree; palmrest untouched); every one decodes into the host's types and re-encodes
+byte for byte, and every `ToDaemon` the host can send encodes byte-identically to palmrest's
+(`{"kind":"pointer_over","v":{"over":"not_ours"}}`, both `Subscribe` forms). A `Hello` whose
+`version` is not 1 stops the read at once: the host logs it and disconnects (`Stream::
+Incompatible`, tested against the fake daemon); it tries again on the next pointer enter. A
+packet over 4096 bytes is skipped.
 
-**A dependency, flagged.** std has no `SOCK_SEQPACKET` and `unsafe` is confined to the raw
-window handle module, so the socket calls come from `rustix` (`net`), which wayland-backend
-already builds at the same version (1.1.5; `cargo deny check licenses` passes). CONVENTIONS §11
-says a new direct dependency goes into quire's `docs/workspace-deps.toml` first; that file is
-not this repo's, so `rustix` sits in the root `[workspace.dependencies]` outside the pinned
-block, marked proposed (as `rustc-hash` once was, F1). serde_json, previously behind
-`debug-inject`, and peniko, previously a dev-dependency, are now plain dependencies (both
-already pinned).
+**Dependencies.** std has no `SOCK_SEQPACKET` and `unsafe` is confined to the raw window
+handle module, so the socket calls come from `rustix`, now in the pinned block (quire b45282a,
+copied verbatim: `features = ["std", "event", "fs", "net", "time", "process"]`); it was already
+in the build through wayland-backend at 1.1.5. serde_json, previously behind `debug-inject`,
+and peniko, previously a dev-dependency, are now plain dependencies (both pinned).
 
 **Routing (`input/palmrest/route.rs`, pure, the §12.3.11 table).** `Touches{Down}` and
 `MayBegin` stop a glide or rebound where it is (touch to stop) and open the drop window; `Began`
