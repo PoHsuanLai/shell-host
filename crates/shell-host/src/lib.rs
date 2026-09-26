@@ -43,6 +43,7 @@ pub mod resolve;
 pub mod role;
 pub mod root;
 pub mod scale;
+pub mod scroll;
 pub mod state;
 pub mod surface;
 pub mod tick;
@@ -81,6 +82,13 @@ pub use prepaint::{Prepaint, PrepaintFn};
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::Root;
 pub use scale::{Scale, Size};
+pub use scroll::cmd::ScrollCmd;
+pub use scroll::config::{
+    Momentum, MomentumModel, NaturalScroll, RubberBand, ScrollConfig, ScrollSettings,
+    ScrollbarSettings, ScrollbarVisibility, TrackClick,
+};
+pub use scroll::engine::Animate;
+pub use scroll::geom::Axis;
 pub use tick::{FrameDrive, FrameTick, HostInstant};
 pub use toplevel::{
     Activation, Decorations, Fullscreen, Maximize, ResizeEdge, ResizeMargin, Tile, TileEdges,
