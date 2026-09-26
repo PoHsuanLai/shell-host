@@ -7,6 +7,8 @@
 //! release left|right|middle
 //! key KEYSYM down|up    an xkb keysym name (Return, a, Shift_L, F5), in KWin's own keymap
 //! type "text"           each character pressed and released, with Shift when the keymap needs it
+//! axis vertical|horizontal VALUE   one `axis` request: VALUE in wl_pointer axis units (KWin
+//!                       turns it into a wheel event; 15 is one detent on libinput's scale)
 //! sleep MS
 //! ```
 //!
@@ -133,6 +135,7 @@ enum Command {
     Button(u32, Change),
     Key(String, Change),
     Type(String),
+    Axis(u32, f64),
     Sleep(u64),
 }
 
@@ -168,6 +171,15 @@ fn parse(line: &str) -> Result<Command, String> {
         ["press", b] => Ok(Command::Button(button(b)?, Change::Down)),
         ["release", b] => Ok(Command::Button(button(b)?, Change::Up)),
         ["key", sym, c] => Ok(Command::Key((*sym).to_owned(), change(c)?)),
+        ["axis", which, value] => {
+            // wl_pointer.axis: 0 vertical, 1 horizontal.
+            let axis = match *which {
+                "vertical" => 0,
+                "horizontal" => 1,
+                _ => return Err(format!("expected vertical or horizontal, got {which:?}")),
+            };
+            Ok(Command::Axis(axis, num(value)?))
+        }
         ["sleep", ms] => ms
             .parse()
             .map(Command::Sleep)
@@ -240,6 +252,7 @@ impl Driver {
                     self.type_char(c)?;
                 }
             }
+            Command::Axis(axis, value) => self.fake.axis(axis, value),
             Command::Sleep(ms) => std::thread::sleep(std::time::Duration::from_millis(ms)),
         }
         Ok(())
@@ -302,6 +315,8 @@ mod tests {
             ),
             ("type \"Hi there\"", Ok(Command::Type("Hi there".into()))),
             ("sleep 50", Ok(Command::Sleep(50))),
+            ("axis vertical 15", Ok(Command::Axis(0, 15.0))),
+            ("axis horizontal -7.5", Ok(Command::Axis(1, -7.5))),
         ];
         for (line, want) in cases {
             assert_eq!(parse(line), want, "{line}");
@@ -309,5 +324,6 @@ mod tests {
         assert!(parse("press thumb").is_err());
         assert!(parse("key a sideways").is_err());
         assert!(parse("jump").is_err());
+        assert!(parse("axis diagonal 1").is_err());
     }
 }

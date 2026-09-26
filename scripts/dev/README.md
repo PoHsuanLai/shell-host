@@ -63,10 +63,14 @@ clients can be developed and screenshotted without a real COSMIC login.
     `ServiceUnknown` instead of starting anything.
 - `fake-input.sh` — synthetic pointer and keyboard input into that KWin, commands on stdin:
   `move X Y`, `press|release left|right|middle`, `key KEYSYM down|up`, `type "text"`,
-  `sleep MS` (builds `tools/fake-input` on first use; FINDINGS F52).
+  `axis vertical|horizontal VALUE` (KWin delivers it with no `axis_source` and no `value120`,
+  FINDINGS F63), `sleep MS` (builds `tools/fake-input`, a no-op when up to date; FINDINGS F52).
 - `kwin-windows.sh [--class APP_ID]` — every window's frame (window geometry) and buffer
   geometry as JSON lines, through `kwin-windows.js` and KWin's scripting D-Bus API.
 - `accept-hover.sh` — real-input hover acceptance (FINDINGS F57-F59).
+- `accept-scroll.sh` — the scroll engine's real-input acceptance (FINDINGS F63): wheel detents
+  on `demo_scroll`'s list (60 px, then five fast ones), 0 frames in 5 s of idle, and a
+  `data-wheel="capture"` element receiving the raw wheel.
 - `accept-drag.sh` — the drag source's acceptance (FINDINGS F60): `demo_drag` dragged over
   nothing (`Cancelled`) and onto a foot window in the same headless session (`Dropped`, foot's
   side of the trace, and the path foot typed). foot comes from `PATH`, `FOOT=`, or `dnf
