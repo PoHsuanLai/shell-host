@@ -14,7 +14,8 @@ use crate::scroll::keys::{self, ScrollKey};
 use crate::tick::HostInstant;
 
 impl SurfaceScroll {
-    /// A scroll key went down (`Repeat::First`) or repeated. `Passed` when the focus owns keys.
+    /// A scroll key went down (`Repeat::First`) or repeated. `Passed` (the document's) when
+    /// something on the focus path handles keys or nothing around the focus scrolls.
     pub fn key(
         &mut self,
         doc: &mut BaseDocument,
@@ -26,14 +27,14 @@ impl SurfaceScroll {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let axis = key.axis();
-        let focus = dom::key_focus(doc);
+        let focus = dom::key_focus(doc, axis);
         let scroller = match focus {
-            KeyFocus::Owned => return KeyUse::Passed,
+            KeyFocus::Document => return KeyUse::Passed,
             KeyFocus::Scroller(scroller) => Some(scroller),
             KeyFocus::Free => self.key_target(doc, axis, pos),
         };
         let Some(scroller) = scroller else {
-            return KeyUse::Scrolled(Moved::Still);
+            return KeyUse::Passed;
         };
         let latch = Latch { scroller, axis };
         let Some(geom) = dom::geom(doc, scroller, axis) else {
@@ -62,9 +63,9 @@ impl SurfaceScroll {
         KeyUse::Scrolled(self.run(doc, input, env))
     }
 
-    /// The keyboard's scroller when nothing scrollable has focus: the last gesture's scroller
-    /// if it is still under the pointer, else the innermost one under the pointer that scrolls
-    /// on `axis`, else the viewport.
+    /// The keyboard's scroller when nothing has focus: the last gesture's scroller if it is
+    /// still under the pointer, else the innermost one under the pointer with content to scroll
+    /// on `axis`, else the viewport if it has; `None` (the key is the document's) otherwise.
     fn key_target(
         &self,
         doc: &BaseDocument,
@@ -86,7 +87,11 @@ impl SurfaceScroll {
                     .find(|c| c.geom.max.0 > 0.0)
                     .map(|c| c.scroller)
             })
-            .or(Some(Scroller::Viewport))
+            .or_else(|| {
+                dom::geom(doc, Scroller::Viewport, axis)
+                    .filter(|g| g.max.0 > 0.0)
+                    .map(|_| Scroller::Viewport)
+            })
     }
 
     /// A held scroll key was released.

@@ -286,7 +286,10 @@ fn item_11_keys_in_a_text_input_do_not_scroll() {
     let mut bench = Bench::new();
     let field = bench.doc.base().get_element_by_id("field").expect("input");
     bench.doc.base_mut().set_focus_to(field);
-    assert_eq!(dom::key_focus(&bench.doc.base()), KeyFocus::Owned);
+    assert_eq!(
+        dom::key_focus(&bench.doc.base(), Axis::Y),
+        KeyFocus::Document
+    );
     let key = ScrollKey::Page(Dir::Pos);
     let used = {
         let mut base = bench.doc.base_mut();
@@ -388,4 +391,173 @@ fn a_wheel_detent_over_the_list_moves_it_60_px() {
     bench.settle(&[list]);
     assert_eq!(bench.offset(list), 60.0);
     assert_eq!(bench.offset(Scroller::Viewport), 0.0);
+}
+
+/// Shapes of focus that must keep their keys, and ones that must scroll: a ds-style menu
+/// (`role="menu"` with `onkeydown`) inside a scroller; sill's notification column (a focused
+/// scroller with its own `onkeydown`); sill's power menu (a focused root with `onkeydown` over
+/// a banded sheet); a focusable scroller with no listener; and a wheel-reading element that is
+/// not a scroll container.
+fn keyed() -> Element {
+    rsx! {
+        style { "#main{{height:auto}} body{{margin:0}} .box{{position:absolute;width:200px;height:100px;overflow:auto}}" }
+        div { id: "menuwrap", class: "box", style: "left:0;top:0",
+            div { id: "menu", role: "menu", tabindex: "0", onkeydown: |_| {}, style: "height:400px", "items" }
+        }
+        div { id: "column", class: "box", style: "left:0;top:120px", tabindex: "0", onkeydown: |_| {},
+            div { style: "height:400px", "groups" }
+        }
+        div { id: "power", style: "position:absolute;left:0;top:240px;width:200px;height:120px", tabindex: "0", onkeydown: |_| {},
+            div { id: "sheet", class: "box", "data-overscroll": "band", style: "left:0;top:0",
+                div { style: "width:600px;height:400px", "sheet" }
+            }
+        }
+        div { id: "plain", class: "box", style: "left:220px;top:0", tabindex: "0",
+            div { style: "height:400px", "rows" }
+        }
+        div {
+            id: "tray",
+            "data-wheel": "capture",
+            style: "position:absolute;left:220px;top:120px;width:40px;height:40px",
+            onwheel: |event: WheelEvent| {
+                let y = event.delta().strip_units().y;
+                WHEEL_Y.store(y.to_bits(), std::sync::atomic::Ordering::SeqCst);
+            },
+        }
+    }
+}
+
+static WHEEL_Y: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn keyed_bench() -> Bench {
+    Bench {
+        doc: document(keyed),
+        scroll: SurfaceScroll::new(ScrollBoard::default(), Tuning::default()),
+        now: HostInstant(Duration::from_secs(10)),
+    }
+}
+
+impl Bench {
+    fn focus(&mut self, id: &str) {
+        let node = self.doc.base().get_element_by_id(id).expect("element");
+        self.doc.base_mut().set_focus_to(node);
+    }
+
+    fn press(&mut self, key: ScrollKey, at: Option<PointerPos>) -> KeyUse {
+        let mut base = self.doc.base_mut();
+        self.scroll.key(&mut base, key, Repeat::First, at, self.now)
+    }
+}
+
+#[test]
+fn a_menu_that_handles_keys_keeps_arrow_down() {
+    let mut bench = keyed_bench();
+    bench.focus("menu");
+    let wrap = bench.scroller("menuwrap");
+    assert_eq!(
+        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        KeyUse::Passed
+    );
+    bench.settle(&[wrap]);
+    assert_eq!(bench.offset(wrap), 0.0);
+}
+
+#[test]
+fn a_focused_scroller_with_its_own_keydown_keeps_down() {
+    let mut bench = keyed_bench();
+    bench.focus("column");
+    assert_eq!(
+        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        KeyUse::Passed
+    );
+    assert_eq!(bench.offset(bench.scroller("column")), 0.0);
+}
+
+#[test]
+fn a_focused_root_with_keydown_keeps_left_and_right_over_a_banded_sheet() {
+    let mut bench = keyed_bench();
+    bench.focus("power");
+    for dir in [Dir::Pos, Dir::Neg] {
+        assert_eq!(
+            bench.press(ScrollKey::Line(Axis::X, dir), None),
+            KeyUse::Passed
+        );
+    }
+    let sheet = bench.scroller("sheet");
+    assert_eq!(
+        dom::geom(&bench.doc.base(), sheet, Axis::X)
+            .expect("geom")
+            .offset
+            .0,
+        0.0
+    );
+}
+
+#[test]
+fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
+    // Nothing focused (the body): the scroller under the pointer.
+    let mut bench = keyed_bench();
+    let plain = bench.scroller("plain");
+    let over = Some(PointerPos { x: 300.0, y: 50.0 });
+    assert!(matches!(
+        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), over),
+        KeyUse::Scrolled(_)
+    ));
+    bench.settle(&[plain]);
+    assert_eq!(bench.offset(plain), 40.0);
+    // Focused, with no listener on its path: the focused scroller, wherever the pointer is.
+    bench.focus("plain");
+    assert!(matches!(
+        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        KeyUse::Scrolled(_)
+    ));
+    bench.settle(&[plain]);
+    assert_eq!(bench.offset(plain), 80.0);
+    // Nothing focused and nothing scrollable under the pointer: the document's key. (Between
+    // the boxes: Blitz's hit test does not clip a scroller's overflow, so a point under a
+    // scroller's hidden content hits it; FINDINGS F63.)
+    let nowhere = Some(PointerPos { x: 210.0, y: 110.0 });
+    let mut fresh = keyed_bench();
+    assert_eq!(
+        fresh.press(ScrollKey::Line(Axis::Y, Dir::Pos), nowhere),
+        KeyUse::Passed
+    );
+}
+
+#[test]
+fn a_capturing_element_that_is_not_a_scroller_gets_the_wheel_as_before() {
+    use smithay_client_toolkit::seat::pointer::AxisScroll;
+    let mut bench = keyed_bench();
+    let at = PointerPos { x: 240.0, y: 140.0 };
+    assert_eq!(
+        dom::wheel_route(&bench.doc.base(), at.x, at.y),
+        WheelRoute::Capture
+    );
+    // One notch down, as a compositor sends it: the delta Blitz was fed before the engine.
+    let notch = AxisScroll {
+        absolute: 15.0,
+        value120: 120,
+        discrete: 1,
+        ..AxisScroll::default()
+    };
+    let delta =
+        shell_host::input::pointer::wheel_delta(AxisScroll::default(), notch).expect("a delta");
+    let event = shell_host::input::pointer::wheel_event(
+        delta,
+        at,
+        blitz_traits::events::MouseEventButtons::None,
+        keyboard_types::Modifiers::empty(),
+    );
+    // The host always has the pointer there first (an enter or a motion): Blitz targets a
+    // wheel at the hovered element.
+    bench
+        .doc
+        .handle_event(shell_host::input::pointer::move_event(
+            at,
+            blitz_traits::events::MouseEventButtons::None,
+            keyboard_types::Modifiers::empty(),
+        ));
+    bench.doc.handle_event(event);
+    let y = f64::from_bits(WHEEL_Y.load(std::sync::atomic::Ordering::SeqCst));
+    assert_eq!(y, -1.0, "one line, the sign Blitz always had");
 }

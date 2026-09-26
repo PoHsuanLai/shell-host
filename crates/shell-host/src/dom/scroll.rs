@@ -26,13 +26,15 @@ pub enum WheelRoute {
 /// What the keyboard focus means for scroll keys (design/11 §11.3.10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyFocus {
-    /// Nothing focused, or a plain element: keys scroll the default target.
+    /// Nothing focused (or the root or body, where Blitz parks focus): keys scroll the default
+    /// target (the scroller under the pointer).
     Free,
-    /// A focused scroll container: keys scroll it.
+    /// The focus sits in this scroller and nothing on its path handles keys: keys scroll it.
     Scroller(Scroller),
-    /// An editable or form control, or inside a `data-keys="capture"` element: keys are the
-    /// document's.
-    Owned,
+    /// Keys are the document's: an element on the focus path has a Dioxus key listener or
+    /// `data-keys="capture"`, the focus is an editable or a form control, or nothing around the
+    /// focus scrolls on the key's axis.
+    Document,
 }
 
 /// The value of attribute `name` on `node`, if it is an element carrying it.
@@ -213,23 +215,51 @@ pub fn wheel_route(doc: &BaseDocument, x: f64, y: f64) -> WheelRoute {
     }
 }
 
-/// What the focused element means for scroll keys.
-pub fn key_focus(doc: &BaseDocument) -> KeyFocus {
+/// The Dioxus key listeners: dioxus-native-dom records a listener as an attribute named for
+/// the event (`keydown`) whose value is this placeholder (`MutationWriter::
+/// create_event_listener`); Blitz cannot report a handler's `prevent_default`, so a listener on
+/// the focus path is taken as handling keys.
+const KEY_LISTENERS: [&str; 3] = ["keydown", "keyup", "keypress"];
+const LISTENER_PLACEHOLDER: &str = "<rust func>";
+
+/// Whether `node` carries a Dioxus key listener.
+fn listens_for_keys(node: &Node) -> bool {
+    KEY_LISTENERS
+        .iter()
+        .any(|name| attr(node, name) == Some(LISTENER_PLACEHOLDER))
+}
+
+/// What the focused element means for a scroll key on `axis`.
+pub fn key_focus(doc: &BaseDocument, axis: Axis) -> KeyFocus {
     let Some(focus) = doc.get_focussed_node_id() else {
         return KeyFocus::Free;
     };
-    let owned = ancestors(doc, focus).enumerate().any(|(depth, node)| {
-        attr(node, "data-keys") == Some("capture") || (depth == 0 && owns_keys(node))
+    // Blitz focuses the root element when nothing else is: that is "nothing focused" (the
+    // body counts the same), unless a key listener sits there.
+    let unfocused = is_root(doc, focus) || body(doc).is_some_and(|b| b.id == focus);
+    if unfocused {
+        return match ancestors(doc, focus).any(listens_for_keys) {
+            true => KeyFocus::Document,
+            false => KeyFocus::Free,
+        };
+    }
+    let handled = ancestors(doc, focus).enumerate().any(|(depth, node)| {
+        listens_for_keys(node)
+            || attr(node, "data-keys") == Some("capture")
+            || (depth == 0 && owns_keys(node))
     });
-    if owned {
-        return KeyFocus::Owned;
+    if handled {
+        return KeyFocus::Document;
     }
-    match doc.get_node(focus) {
-        Some(node) if scrolls(doc, node, Axis::Y) || scrolls(doc, node, Axis::X) => {
-            KeyFocus::Scroller(Scroller::Node(focus.as_u64()))
-        }
-        _ => KeyFocus::Free,
-    }
+    let scroller = ancestors(doc, focus)
+        .find(|n| n.is_element() && !is_root(doc, n.id) && scrolls(doc, n, axis))
+        .map(|n| Scroller::Node(n.id.as_u64()))
+        .or_else(|| {
+            geom(doc, Scroller::Viewport, axis)
+                .filter(|g| g.max.0 > 0.0)
+                .map(|_| Scroller::Viewport)
+        });
+    scroller.map_or(KeyFocus::Document, KeyFocus::Scroller)
 }
 
 /// Whether a focused `node` takes arrow and space keys itself: text inputs, form controls,
