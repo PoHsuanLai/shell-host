@@ -6,6 +6,7 @@ mod drag_icon;
 pub mod flush;
 mod ops;
 mod paint;
+mod palmrest;
 mod rescale;
 mod spawn;
 mod timer;
@@ -50,6 +51,8 @@ pub struct HostCtx<M> {
     pub(crate) handle: LoopHandle<'static, HostCtx<M>>,
     /// Armed watchdog timers by surface, and the key-repeat timer.
     pub(crate) watchdogs: BTreeMap<SurfaceId, RegistrationToken>,
+    /// Pending scroll-thumb wakes by surface (`TimerRequest::ScrollWake`).
+    pub(crate) scroll_wakes: BTreeMap<SurfaceId, RegistrationToken>,
     pub(crate) repeat: Option<RegistrationToken>,
     pub(crate) running: Running,
     /// The backend in force: `Gpu` until no adapter survives validation, then `Cpu`.
@@ -156,6 +159,14 @@ impl<M: 'static> HostCtx<M> {
             .values()
             .find(|surface| surface.name == *name)
             .map(|surface| surface.id)
+    }
+
+    /// Tune every surface's scrolling (design/22 §3.7 `scroll`, §3.8 `scrollbar`): a shell
+    /// reads its settings and calls this at start and on every change. Nothing animates from
+    /// the change; the next scroll uses it.
+    pub fn set_scroll_config(&mut self, config: crate::scroll::config::ScrollConfig) {
+        self.state
+            .set_scroll_tuning(crate::scroll::tuning::Tuning::new(config));
     }
 
     /// Set every document's `prefers-color-scheme`.

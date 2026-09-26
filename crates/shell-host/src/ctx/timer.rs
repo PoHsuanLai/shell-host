@@ -29,6 +29,7 @@ pub(super) fn arm_requested<M: 'static>(ctx: &mut HostCtx<M>) {
             } => {}
             TimerRequest::RepeatStart { delay, interval } => start_repeat(ctx, delay, interval),
             TimerRequest::RepeatStop => stop_repeat(ctx),
+            TimerRequest::ScrollWake { id, after } => scroll_wake(ctx, id, after),
         }
     }
 }
@@ -97,5 +98,25 @@ fn start_repeat<M: 'static>(ctx: &mut HostCtx<M>, delay: Duration, interval: Dur
 fn stop_repeat<M: 'static>(ctx: &mut HostCtx<M>) {
     if let Some(token) = ctx.repeat.take() {
         ctx.handle.remove(token);
+    }
+}
+
+/// Render surface `id` after `after` (the thumb's hold ends), replacing an earlier wake.
+fn scroll_wake<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, after: Duration) {
+    if let Some(token) = ctx.scroll_wakes.remove(&id) {
+        ctx.handle.remove(token);
+    }
+    let armed = ctx
+        .handle
+        .insert_source(Timer::from_duration(after), move |_, _, ctx| {
+            ctx.scroll_wakes.remove(&id);
+            ctx.state.invalidate(id);
+            TimeoutAction::Drop
+        });
+    match armed {
+        Ok(token) => {
+            ctx.scroll_wakes.insert(id, token);
+        }
+        Err(error) => eprintln!("shell-host: scroll wake for {id:?}: {error}"),
     }
 }

@@ -19,4 +19,7 @@ pub enum TimerRequest {
     RepeatStart { delay: Duration, interval: Duration },
     /// Stop repeating (key released, focus lost, or a new key pressed).
     RepeatStop,
+    /// Render surface `id` after `after`: the scroll thumb's hold ends and its fade begins
+    /// (nothing else animates meanwhile, so no frame is coming). Replaces the surface's last.
+    ScrollWake { id: SurfaceId, after: Duration },
 }

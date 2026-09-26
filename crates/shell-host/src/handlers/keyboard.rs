@@ -14,6 +14,7 @@ use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::input::key::{self, Composing, Repeat};
 use crate::input::modifiers::modifiers_from;
+use crate::scroll::surface::KeyUse;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -83,7 +84,7 @@ impl KeyboardHandler for HostState {
             Repeat::First,
             self.composing(),
         );
-        self.dispatch_key(id, blitz_event);
+        self.key_down(id, blitz_event, event.raw_code);
 
         // Start (or restart, replacing any key already repeating) the repeat timer; the
         // context re-synthesizes `Repeat::Repeated` presses from `self.input.repeating` on
@@ -127,6 +128,10 @@ impl KeyboardHandler for HostState {
         let Some(id) = self.input.keyboard_focus else {
             return;
         };
+        if self.scroll_key_up(id, event.raw_code) != KeyUse::Passed {
+            // Its press went to the scroll engine, so its release does too.
+            return;
+        }
         let blitz_event = key::key_event(
             &event,
             self.input.modifiers,
@@ -178,6 +183,15 @@ impl HostState {
         match self.ime.focus {
             ImeFocus::Enabled { .. } => Composing::Active,
             ImeFocus::Disabled => Composing::Idle,
+        }
+    }
+
+    /// A press or repeat for surface `id`: a scroll key the engine takes (design/11 §11.3.10:
+    /// focus not in an editable, a form control or a `data-keys="capture"` element) never
+    /// reaches the document; anything else is dispatched.
+    pub(crate) fn key_down(&mut self, id: SurfaceId, event: BlitzKeyEvent, raw: u32) {
+        if self.scroll_key_down(id, &event, raw) == KeyUse::Passed {
+            self.dispatch_key(id, event);
         }
     }
 

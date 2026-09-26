@@ -163,10 +163,19 @@ impl SurfaceDocument {
         self.doc.inner_mut().set_viewport(viewport);
     }
 
-    /// Feed one input event, remembering a pointer position for `resolve`'s hover repair.
+    /// Feed one input event, remembering a pointer position for `resolve`'s hover repair. A
+    /// pointer or wheel event's page coordinates are its surface-local ones plus the viewport's
+    /// scroll (the engine scrolls the viewport; Blitz hit-tests page coordinates).
     pub fn handle_event(&mut self, event: UiEvent) {
+        let event = crate::input::pointer::scrolled(event, self.viewport_scroll());
         self.last_move = hover_sync::remember(std::mem::take(&mut self.last_move), &event);
         self.doc.handle_ui_event(event);
+    }
+
+    /// The viewport's scroll offset.
+    fn viewport_scroll(&self) -> (f64, f64) {
+        let scroll = self.doc.inner().viewport_scroll();
+        (scroll.x, scroll.y)
     }
 
     /// The pointer left the surface: the leave move (`input::pointer::leave_event`) first, so
@@ -245,8 +254,9 @@ impl SurfaceDocument {
             }
         }
         if let LastMove::At(event) = &self.last_move {
-            self.doc
-                .handle_ui_event(UiEvent::PointerMove(event.clone()));
+            let again = UiEvent::PointerMove(event.clone());
+            let again = crate::input::pointer::scrolled(again, self.viewport_scroll());
+            self.doc.handle_ui_event(again);
         }
     }
 
@@ -331,6 +341,16 @@ impl SurfaceDocument {
         }
     }
 
+    /// The Blitz document, read (the scroll engine's geometry, `dom::scroll`).
+    pub fn base(&self) -> blitz_dom::DocGuard<'_> {
+        self.doc.inner()
+    }
+
+    /// The Blitz document, written (the scroll engine's raw offsets, `dom::scroll`).
+    pub fn base_mut(&mut self) -> blitz_dom::DocGuardMut<'_> {
+        self.doc.inner_mut()
+    }
+
     /// The underlying Dioxus document, for painting.
     pub fn dioxus(&mut self) -> &mut DioxusDocument {
         &mut self.doc
@@ -355,12 +375,14 @@ fn element_at(doc: &BaseDocument, at: PointerPos) -> Option<NodeId> {
     element_of(doc, doc.nearest_non_anonymous_ancestor(hit.node_id)?)
 }
 
-/// `id`'s current border box, in the coordinates the pointer events use.
+/// `id`'s current border box, in the page coordinates Blitz hit-tests (client plus the
+/// viewport's scroll).
 fn bounds_of(doc: &BaseDocument, id: NodeId) -> Option<Bounds> {
     let rect = doc.get_client_bounding_rect(id)?;
+    let scroll = doc.viewport_scroll();
     Some(Bounds {
-        x: rect.x,
-        y: rect.y,
+        x: rect.x + scroll.x,
+        y: rect.y + scroll.y,
         width: rect.width,
         height: rect.height,
     })

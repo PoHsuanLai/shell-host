@@ -7,4 +7,6 @@ pub mod key;
 pub mod keycode;
 pub mod keysym;
 pub mod modifiers;
+pub mod palmrest;
 pub mod pointer;
+pub mod scroll;

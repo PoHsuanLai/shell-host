@@ -12,22 +12,23 @@ use vello_hybrid::RenderSize;
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
 use crate::gpu::context::{GpuContext, SURFACE_FORMAT};
-use crate::gpu::presenter::FrameTarget;
+use crate::gpu::presenter::{FrameTarget, Overlay};
 use crate::gpu::shm::swap_red_blue;
 use crate::gpu::swapchain::pixel_extent;
 
-/// Paint the already resolved `doc` into `scene`, then render the scene into `view` with
-/// `encoder`. The caller resolved it (`SurfaceDocument::resolve`, which runs the pre-paint hook).
+/// Paint the already resolved `doc` into `scene`, the host's overlay (the scroll thumbs) over
+/// it, then render the scene into `view` with `encoder`. The caller resolved it (`SurfaceDocument::resolve`, which runs the pre-paint hook).
 pub fn render_into(
     gpu: &mut GpuContext,
     doc: &mut SurfaceDocument,
     scene: &mut vello_hybrid::Scene,
     target: FrameTarget,
+    overlay: &Overlay,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
 ) -> Result<()> {
     let mut base = doc.dioxus().inner.borrow_mut();
-    paint_document(gpu, &mut base, scene, target, encoder, view)
+    paint_document(gpu, &mut base, scene, (target, overlay), encoder, view)
 }
 
 /// Paint an already resolved document into `scene` and render it into `view`: [`render_into`]
@@ -37,7 +38,7 @@ pub fn paint_document(
     gpu: &mut GpuContext,
     doc: &mut BaseDocument,
     scene: &mut vello_hybrid::Scene,
-    target: FrameTarget,
+    (target, overlay): (FrameTarget, &Overlay),
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
 ) -> Result<()> {
@@ -71,6 +72,13 @@ pub fn paint_document(
             paint_height,
             x,
             y,
+        );
+        crate::scroll::paint::paint(
+            &mut painter,
+            &overlay.thumbs,
+            overlay.scheme,
+            target.scale.as_f64(),
+            (f64::from(x), f64::from(y)),
         );
     }
     renderer
@@ -136,7 +144,14 @@ pub fn capture_document(
     });
     let mut encoder = device.create_command_encoder(&Default::default());
     let mut scene = vello_hybrid::Scene::new(1, 1);
-    paint_document(gpu, doc, &mut scene, target, &mut encoder, &view)?;
+    paint_document(
+        gpu,
+        doc,
+        &mut scene,
+        (target, &Overlay::default()),
+        &mut encoder,
+        &view,
+    )?;
     encoder.copy_texture_to_buffer(
         texture.as_image_copy(),
         wgpu::TexelCopyBufferInfo {

@@ -38,6 +38,8 @@ use crate::region::{Px, RegionSpec};
 use crate::role::Role;
 use crate::root::Root;
 use crate::scale::{Scale, Size};
+use crate::scroll::surface::SurfaceScroll;
+use crate::scroll::watch::ScrollBoard;
 use crate::state::HostState;
 use crate::surface::{AppliedRegions, Configured, HostSurface};
 use crate::tick::FrameTicks;
@@ -343,6 +345,7 @@ pub(super) fn insert(
     let ticks = FrameTicks::default();
     let live_scale = LiveScale::new(scale);
     let live_toplevel = Live::new(ToplevelState::default());
+    let scrolls = ScrollBoard::default();
     let parts = HandleParts {
         requests: state.requests.clone(),
         ids: state.ids.clone(),
@@ -350,6 +353,7 @@ pub(super) fn insert(
         scale: live_scale.clone(),
         toplevel: live_toplevel.clone(),
         grab: state.input.grab.clone(),
+        scrolls: scrolls.clone(),
     };
     let handle = SurfaceHandle::new(id, role.kind(), parts);
     let env = DocumentEnv {
@@ -385,6 +389,7 @@ pub(super) fn insert(
             live_scale,
             live_toplevel,
             doc_cursor: Some(cursor_icon::CursorIcon::Default),
+            scroll: SurfaceScroll::new(scrolls, state.scroll),
         },
     );
     state.woken.mark(id);
@@ -444,6 +449,7 @@ mod tests {
             scale,
             toplevel: Live::new(ToplevelState::default()),
             grab: GrabRecord::default(),
+            scrolls: crate::scroll::watch::ScrollBoard::default(),
         }
     }
 

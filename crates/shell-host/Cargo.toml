@@ -42,8 +42,14 @@ serde = { workspace = true }
 # Proposed for the pinned block (root Cargo.toml, FINDINGS.md F1): the shared image cache.
 rustc-hash = { workspace = true }
 vello_common = { workspace = true }
-# The debug-inject JSON stats lines.
-serde_json = { workspace = true, optional = true }
+# The debug-inject JSON stats lines, and the palmrest socket's messages (input::palmrest).
+serde_json = { workspace = true }
+# The overlay scroll thumb's shapes and colour (scroll::paint); in the pinned block since S3.
+peniko = { workspace = true }
+# SOCK_SEQPACKET for the palmrest socket (std has no seqpacket, and unsafe is not allowed
+# here). Already in the build through wayland-backend at the same version; proposed for the
+# pinned block (FINDINGS F64).
+rustix = { workspace = true }
 
 [features]
 default = []
@@ -53,7 +59,7 @@ default = []
 headless = []
 # Per-surface debug commands on stdin (`<surface> hover x y`, `stats`, `capture`), the real-API
 # successor of the spike's command language. Off in a shipped shell.
-debug-inject = ["dep:serde_json"]
+debug-inject = []
 
 # The acceptance probe: a plain xdg toplevel (JSON configure lines) the demo items cover.
 [[example]]
@@ -61,8 +67,6 @@ name = "probe_toplevel"
 required-features = ["debug-inject"]
 
 [dev-dependencies]
-# Image paints for custom widgets in the examples (in the pinned block since S3).
-peniko = { workspace = true }
 # The drag outcome's wire form in tests, and demo_drag's JSON lines.
 serde_json = { workspace = true }
 

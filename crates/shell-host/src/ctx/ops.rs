@@ -57,6 +57,7 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
             reply,
         } => request_token(&mut ctx.state, from, app_id, reply),
         Request::StartDrag { from, spec, reply } => super::drag::start(ctx, from, spec, reply),
+        Request::Scroll { id, cmd } => ctx.state.scroll_command(id, &cmd),
     }
 }
 

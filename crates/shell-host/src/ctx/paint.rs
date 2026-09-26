@@ -26,7 +26,7 @@ use crate::error::{HostError, Recovery, Result};
 use crate::event::CloseReason;
 use crate::frame::{FrameInput, RenderCmd};
 use crate::gpu::context::GpuContext;
-use crate::gpu::presenter::{FrameTarget, Presenter};
+use crate::gpu::presenter::{FrameTarget, Overlay, Presenter};
 use crate::gpu::raw_handle::create_surface;
 use crate::gpu::shm::ShmBuffers;
 use crate::gpu::swapchain::Swapchain;
@@ -42,8 +42,10 @@ use crate::region::Rect;
 use crate::resolve::{Change, Resolved, resolve};
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
+use crate::scroll::indicator::Wake;
 use crate::state::HostState;
 use crate::surface::{Configured, Geometry, HostSurface};
+use crate::timers::TimerRequest;
 
 /// Step every surface's frame machine; a surface that fails is closed with `Failed`.
 pub(super) fn step_all<M: 'static>(ctx: &mut HostCtx<M>) {
@@ -207,17 +209,25 @@ fn sync_geometry(state: &mut HostState, id: SurfaceId) {
 fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     let started = Instant::now();
     let time = state.clock.seconds_at(started);
+    let now_host = state.clock.instant_at(started);
     let blur = blur_allowed(state, id);
 
     let (refit, hover) = {
         let Some(surface) = state.surfaces.get_mut(&id) else {
             return Ok(());
         };
+        // The scroll engine first: this frame's raw offsets are written before the resolve,
+        // which hoists positioned descendants with the offsets current then (FINDINGS F63).
+        {
+            let mut doc = surface.document.base_mut();
+            surface.scroll.frame(&mut doc, now_host);
+        }
         // Layout first, so element-following regions land in this frame's commit, and a
         // `FitContent` popup can be measured before anything else this frame reads its size.
         // The only resolve of the frame: it runs the pre-paint hook, and the present paints
         // what it left, so regions, popup fits and pixels all read the same (snapped) layout.
         let resolved = surface.document.resolve(time);
+        surface.scroll.publish(&surface.document.base());
         if resolved.prepainted == Prepainted::Ran {
             surface.stats.prepainted();
         }
@@ -245,10 +255,14 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         scale: surface.scale,
         time,
     };
+    let overlay = Overlay {
+        thumbs: surface.scroll.overlay(&surface.document.base(), now_host),
+        scheme: state.color_scheme,
+    };
     let Some(presenter) = surface.presenter.as_mut() else {
         return Ok(());
     };
-    let presented = presenter.present(state.gpu.as_mut(), &mut surface.document, target);
+    let presented = presenter.present(state.gpu.as_mut(), &mut surface.document, target, &overlay);
     let input = match &presented {
         Ok(()) => {
             let now = Instant::now();
@@ -258,7 +272,7 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             // completed on another thread meanwhile is not dropped: the next flush takes it
             // and dirties the frame in flight (FINDINGS F40).
             surface.shell.drop_echo();
-            FrameInput::Presented(surface.pacing())
+            FrameInput::Presented(surface.pacing(now_host))
         }
         Err(_) => {
             surface.stats.skipped();
@@ -266,6 +280,12 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         }
     };
     state.frame_input(id, input);
+    if let Some(surface) = state.surfaces.get(&id)
+        && let Wake::At(at) = surface.scroll.wake(now_host)
+    {
+        let after = at.0.saturating_sub(now_host.0);
+        state.timers.push(TimerRequest::ScrollWake { id, after });
+    }
     if hover == HoverShift::Moved {
         // The resolve moved the hover (Blitz's `refresh_hover`, and the repair after it,
         // FINDINGS F59): the `:hover` restyle it asked for is the next frame's, and its redraw

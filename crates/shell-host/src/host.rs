@@ -78,6 +78,7 @@ impl<M: Send + 'static> Host<M> {
             app: VecDeque::new(),
             handle,
             watchdogs: BTreeMap::new(),
+            scroll_wakes: BTreeMap::new(),
             repeat: None,
             running: Running::Continue,
             backend: config.backend,

@@ -13,6 +13,7 @@ use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::Root;
+use crate::scroll::cmd::ScrollCmd;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge};
 
 /// A change to one surface. Applied after the documents are polled and before painting, so a
@@ -146,5 +147,10 @@ pub enum Request {
         from: SurfaceId,
         spec: DragSpec,
         reply: oneshot::Sender<DragOutcome>,
+    },
+    /// A programmatic scroll of surface `id` (`SurfaceHandle::scroll`).
+    Scroll {
+        id: SurfaceId,
+        cmd: ScrollCmd,
     },
 }

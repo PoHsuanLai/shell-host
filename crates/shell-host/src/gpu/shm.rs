@@ -12,7 +12,7 @@ use wayland_client::protocol::wl_shm;
 use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::error::{HostError, Result};
-use crate::gpu::presenter::FrameTarget;
+use crate::gpu::presenter::{FrameTarget, Overlay};
 use crate::gpu::swapchain::pixel_extent;
 use crate::scale::Size;
 
@@ -58,12 +58,17 @@ impl ShmBuffers {
 
     /// Paint the resolved `doc` on the CPU, copy it into a free buffer, attach, damage and
     /// commit. The caller has requested the frame callback, so this commit carries it.
-    pub(crate) fn present(&mut self, doc: &mut BaseDocument, target: FrameTarget) -> Result<()> {
+    pub(crate) fn present(
+        &mut self,
+        doc: &mut BaseDocument,
+        target: FrameTarget,
+        overlay: &Overlay,
+    ) -> Result<()> {
         let attached = self
             .target
             .as_mut()
             .ok_or_else(|| HostError::Surface("shm presenter has no wl_surface".into()))?;
-        let rgba = paint_cpu(doc, target);
+        let rgba = paint_cpu(doc, target, overlay);
         let (width, height) = pixel_extent(target.buffer);
         let buffer = free_buffer(&mut self.pool, attached.current.take(), width, height)?;
         let canvas = self.pool.canvas(&buffer).ok_or_else(|| {
@@ -114,13 +119,18 @@ fn frame_len(size: Size) -> usize {
     width as usize * height as usize * 4
 }
 
-/// Paint a resolved document on the CPU at `target.buffer`: premultiplied RGBA8.
-pub(crate) fn paint_cpu(doc: &mut BaseDocument, target: FrameTarget) -> Vec<u8> {
+/// Paint a resolved document and the host's overlay on the CPU at `target.buffer`:
+/// premultiplied RGBA8.
+pub(crate) fn paint_cpu(doc: &mut BaseDocument, target: FrameTarget, overlay: &Overlay) -> Vec<u8> {
     let (width, height) = pixel_extent(target.buffer);
     let (paint_width, paint_height, x, y) = target.paint_area();
     let scale = target.scale.as_f64();
     render_to_buffer::<VelloCpuImageRenderer, _>(
-        |painter| paint_scene(painter, doc, scale, paint_width, paint_height, x, y),
+        |painter| {
+            paint_scene(painter, doc, scale, paint_width, paint_height, x, y);
+            let origin = (f64::from(x), f64::from(y));
+            crate::scroll::paint::paint(painter, &overlay.thumbs, overlay.scheme, scale, origin);
+        },
         width,
         height,
     )

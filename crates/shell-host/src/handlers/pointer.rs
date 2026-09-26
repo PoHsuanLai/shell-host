@@ -1,8 +1,6 @@
 //! Pointer frames -> document events, through `input::pointer`.
 
-use blitz_traits::events::{
-    BlitzWheelEvent, MouseEventButton, MouseEventButtons, Point, PointerCoords, UiEvent,
-};
+use blitz_traits::events::{MouseEventButton, MouseEventButtons};
 use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
 use wayland_client::protocol::wl_pointer::WlPointer;
 use wayland_client::{Connection, QueueHandle};
@@ -10,7 +8,8 @@ use wayland_client::{Connection, QueueHandle};
 use crate::csd::Zone;
 use crate::grab::Press;
 use crate::id::SurfaceId;
-use crate::input::focus::{self, Departure};
+use crate::input::focus::{self, Departure, PointerFocus};
+use crate::input::palmrest::wire::Over;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
@@ -19,8 +18,8 @@ impl PointerHandler for HostState {
     /// Enter: focus, zone, the move to its position (so `:hover` and `mouseenter` hold from the
     /// first frame) and cursor. Leave: `SurfaceDocument::pointer_left` (the leave move,
     /// then `clear_hover()`).
-    /// Motion, press (move-before-down, first-mouse filter), release, axis
-    /// (`input::pointer::wheel_delta`), in the document's coordinates; in a client-decorated
+    /// Motion, press (move-before-down, first-mouse filter), release, axis (the scroll engine,
+    /// `input::scroll`), in the document's coordinates; in a client-decorated
     /// window's resize band (`csd`) the host shows the resize cursor and a press starts the
     /// resize, and the document sees neither. Each changed document is invalidated. Every
     /// press and release updates the seat's grab record (the move/resize serial rule).
@@ -62,6 +61,7 @@ impl PointerHandler for HostState {
                     // force `Cursor::set` past its no-op-when-unchanged check.
                     self.cursor.current = None;
                     self.show_cursor(pointer, id);
+                    self.palmrest.pointer_over(Over::Ours);
                 }
                 PointerEventKind::Leave { serial: _ } => {
                     // A leave the compositor sends is always a leave for the document, even
@@ -69,10 +69,15 @@ impl PointerHandler for HostState {
                     let _ = self.depart(id);
                     self.pointer_off(id);
                     self.invalidate(id);
+                    if self.input.pointer_focus == PointerFocus::Nowhere {
+                        self.palmrest.pointer_over(Over::NotOurs);
+                    }
                 }
                 PointerEventKind::Motion { time: _ } => {
                     self.input.position = pos;
                     self.pointer_moved(id, pos);
+                    let at = self.document_pos(id, pos);
+                    self.scroll_pointer(id, at);
                     self.show_cursor(pointer, id);
                 }
                 PointerEventKind::Press {
@@ -141,31 +146,15 @@ impl PointerHandler for HostState {
                     horizontal,
                     vertical,
                     time: _,
-                    source: _,
+                    source,
                 } => {
-                    let Some(delta) = pointer::wheel_delta(horizontal, vertical) else {
-                        continue;
-                    };
                     if self.input.zone != Zone::Document {
                         continue;
                     }
+                    // The engine's, never Blitz's default scroll action (design/11 §11.3.1),
+                    // except for a `data-wheel="capture"` element (`input::scroll`).
                     let at = self.document_pos(id, pos);
-                    let (x, y) = (at.x as f32, at.y as f32);
-                    let wheel = BlitzWheelEvent {
-                        delta,
-                        coords: PointerCoords {
-                            page_x: x,
-                            page_y: y,
-                            screen_x: x,
-                            screen_y: y,
-                            client_x: x,
-                            client_y: y,
-                        },
-                        buttons: self.input.buttons,
-                        mods: self.input.modifiers,
-                        element: Point::default(),
-                    };
-                    self.deliver(id, [UiEvent::Wheel(wheel)]);
+                    self.scroll_axis(id, (horizontal, vertical), source, at);
                 }
             }
         }

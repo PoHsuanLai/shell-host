@@ -89,6 +89,7 @@ pub use scroll::config::{
 };
 pub use scroll::engine::Animate;
 pub use scroll::geom::Axis;
+pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
 pub use tick::{FrameDrive, FrameTick, HostInstant};
 pub use toplevel::{
     Activation, Decorations, Fullscreen, Maximize, ResizeEdge, ResizeMargin, Tile, TileEdges,

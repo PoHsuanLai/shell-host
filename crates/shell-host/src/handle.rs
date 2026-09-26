@@ -26,6 +26,8 @@ use crate::region::RegionSpec;
 use crate::role::RoleKind;
 use crate::root::Root;
 use crate::scale::Scale;
+use crate::scroll::cmd::ScrollCmd;
+use crate::scroll::watch::ScrollBoard;
 use crate::tick::{FrameDrive, FrameTick, FrameTicks};
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge, ToplevelState};
 
@@ -74,6 +76,7 @@ pub struct SurfaceHandle {
     scale: LiveScale,
     toplevel: Live<ToplevelState>,
     grab: GrabRecord,
+    scrolls: ScrollBoard,
 }
 
 /// The host's shared state a `SurfaceHandle` reads, besides its queue: built by the host when
@@ -86,6 +89,7 @@ pub(crate) struct HandleParts {
     pub(crate) scale: LiveScale,
     pub(crate) toplevel: Live<ToplevelState>,
     pub(crate) grab: GrabRecord,
+    pub(crate) scrolls: ScrollBoard,
 }
 
 impl SurfaceHandle {
@@ -98,6 +102,7 @@ impl SurfaceHandle {
             scale,
             toplevel,
             grab,
+            scrolls,
         } = parts;
         SurfaceHandle {
             id,
@@ -108,6 +113,7 @@ impl SurfaceHandle {
             scale,
             toplevel,
             grab,
+            scrolls,
         }
     }
 
@@ -244,6 +250,18 @@ impl SurfaceHandle {
             return Err(GrabRefused::NotAToplevel);
         }
         self.grab.serial_for(self.id).map(drop)
+    }
+
+    /// Scroll a scroll container of this surface through the host's engine (the smooth rule,
+    /// or at once): the way to scroll from code, since Blitz's own `scroll_to` would fight the
+    /// engine (design/11 §11.3.11).
+    pub fn scroll(&self, cmd: ScrollCmd) {
+        self.requests.push(Request::Scroll { id: self.id, cmd });
+    }
+
+    /// The scrollers this surface's components watch (`use_scroll`).
+    pub(crate) fn scroll_board(&self) -> ScrollBoard {
+        self.scrolls.clone()
     }
 
     /// Close this surface (and, for a parent, its popups).

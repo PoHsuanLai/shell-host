@@ -12,8 +12,9 @@
 //! 3. **Step frames.** Per configured, visible surface: create the presenter on first use,
 //!    follow size and scale changes, take the document's redraw request, then render iff the
 //!    machine says so (`wl_surface.frame()`, then present, then clear the redraw flag).
-//! 4. **Arm timers.** The watchdog and key-repeat changes the handlers and phase 3 asked for,
-//!    and the loop sources for pipes a drag target asked us to fill (`ctx::drag`).
+//! 4. **Arm timers.** The watchdog, key-repeat and scroll-thumb changes the handlers and phase
+//!    3 asked for, the loop sources for pipes a drag target asked us to fill (`ctx::drag`), and
+//!    the palmrest socket's source when a connection attempt is due (`ctx::palmrest`).
 //! 5. **Flush the connection**, and stop on a protocol error (SPIKE.md S1 finding 7).
 
 use std::task::Context;
@@ -98,6 +99,7 @@ impl<M: 'static> Flush for HostCtx<M> {
     fn arm_timers(&mut self) {
         super::timer::arm_requested(self);
         super::drag::register_writes(self);
+        super::palmrest::connect_if_due(self);
     }
 
     fn flush_connection(&mut self) -> Result<()> {

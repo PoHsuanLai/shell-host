@@ -1,6 +1,8 @@
 //! How a surface's pixels reach the compositor: a wgpu swapchain on the shared device, or
 //! `wl_shm` buffers painted on the CPU. A closed pair, so an enum rather than a trait.
 
+use blitz_traits::shell::ColorScheme;
+
 use crate::debug::{AlphaMode, PresentMode};
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
@@ -10,6 +12,14 @@ use crate::gpu::shm::{ShmBuffers, paint_cpu};
 use crate::gpu::swapchain::{Swapchain, alpha_mode_of, pixel_extent, present_mode_of};
 use crate::region::Rect;
 use crate::scale::{Scale, Size};
+use crate::scroll::indicator::ThumbPaint;
+
+/// What the host paints over the document: the scroll thumbs (design/11 §11.3.12).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Overlay {
+    pub thumbs: Vec<ThumbPaint>,
+    pub scheme: ColorScheme,
+}
 
 /// A surface's presenter.
 #[derive(Debug)]
@@ -80,12 +90,15 @@ impl Presenter {
         gpu: Option<&mut GpuContext>,
         doc: &mut SurfaceDocument,
         target: FrameTarget,
+        overlay: &Overlay,
     ) -> Result<()> {
         match self {
-            Presenter::Wgpu(swapchain) => present_wgpu(swapchain, need_gpu(gpu)?, doc, target),
+            Presenter::Wgpu(swapchain) => {
+                present_wgpu(swapchain, need_gpu(gpu)?, doc, target, overlay)
+            }
             Presenter::Shm(buffers) => {
                 let mut base = doc.dioxus().inner.borrow_mut();
-                buffers.present(&mut base, target)
+                buffers.present(&mut base, target, overlay)
             }
         }
     }
@@ -105,7 +118,8 @@ impl Presenter {
             Presenter::Wgpu(_) => capture_document(need_gpu(gpu)?, &mut base, target),
             Presenter::Shm(_) => {
                 let (width, height) = pixel_extent(target.buffer);
-                image::RgbaImage::from_raw(width, height, paint_cpu(&mut base, target))
+                let pixels = paint_cpu(&mut base, target, &Overlay::default());
+                image::RgbaImage::from_raw(width, height, pixels)
                     .ok_or_else(|| HostError::Render("CPU capture size mismatch".into()))
             }
         }
@@ -146,6 +160,7 @@ fn present_wgpu(
     gpu: &mut GpuContext,
     doc: &mut SurfaceDocument,
     target: FrameTarget,
+    overlay: &Overlay,
 ) -> Result<()> {
     let frame = swapchain.acquire(gpu, target.buffer)?;
     let view = frame.texture.create_view(&Default::default());
@@ -155,7 +170,15 @@ fn present_wgpu(
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("shell-host frame"),
         });
-    render_into(gpu, doc, &mut swapchain.scene, target, &mut encoder, &view)?;
+    render_into(
+        gpu,
+        doc,
+        &mut swapchain.scene,
+        target,
+        overlay,
+        &mut encoder,
+        &view,
+    )?;
     gpu.device.queue.submit([encoder.finish()]);
     frame.present();
     Ok(())

@@ -20,6 +20,7 @@ use crate::region::{Px, Rect, RegionSpec};
 use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
+use crate::scroll::surface::SurfaceScroll;
 use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
 use crate::toplevel::ToplevelState;
 
@@ -96,6 +97,8 @@ pub struct HostSurface {
     /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
     /// the document rather than in the resize band.
     pub(crate) doc_cursor: Option<CursorIcon>,
+    /// The scroll engine, thumb and source trackers for this surface's document.
+    pub(crate) scroll: SurfaceScroll,
 }
 
 impl HostSurface {
@@ -122,19 +125,24 @@ impl HostSurface {
     }
 
     /// What the frame machine is told about this surface's motion: its document's animation,
-    /// or running while a `FrameDrive` is held (`tick::pacing`).
-    pub fn pacing(&self) -> Animation {
-        pacing(self.document.animation(), self.ticks.drive())
+    /// running while a `FrameDrive` is held (`tick::pacing`), or while the scroll engine or its
+    /// thumb animates. Scrolling does not tick `use_frame_tick`: its frames are the host's.
+    pub fn pacing(&self, now: HostInstant) -> Animation {
+        with_scroll(
+            pacing(self.document.animation(), self.ticks.drive()),
+            self.scroll.animation(now),
+        )
     }
 
     /// A frame is due at `at` (a callback, or the watchdog standing in for one): publish a
-    /// tick if the surface is animating or driven, and return what the machine is told.
+    /// tick if the surface is animating or driven, and return what the machine is told (the
+    /// scroll engine's motion included).
     pub fn frame_due(&mut self, at: HostInstant) -> Animation {
         let (animation, ticked) = self.ticks.frame_due(self.document.animation(), at);
         if ticked == Ticked::Ticked {
             self.stats.ticked();
         }
-        animation
+        with_scroll(animation, self.scroll.animation(at))
     }
 
     /// Record a configure: the new logical size (0 on an axis keeps the requested size).
@@ -273,6 +281,14 @@ pub fn visibility_change(from: Visibility, to: Visibility) -> VisibilityChange {
         (Visibility::Shown, Visibility::Shown) | (Visibility::Hidden, Visibility::Hidden) => {
             VisibilityChange::Unchanged
         }
+    }
+}
+
+/// The frame machine's view of a surface: running if its document or its scrolling is.
+fn with_scroll(document: Animation, scroll: Animation) -> Animation {
+    match (document, scroll) {
+        (Animation::Running, _) | (_, Animation::Running) => Animation::Running,
+        (Animation::Stopped, Animation::Stopped) => Animation::Stopped,
     }
 }
 

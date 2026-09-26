@@ -64,8 +64,11 @@ use crate::id::{SurfaceId, SurfaceIds};
 use crate::ime::{Ime, ImeFocus, PendingIme};
 use crate::input::focus::PointerFocus;
 use crate::input::key::{Repeat, key_event};
+use crate::input::palmrest::Palmrest;
 use crate::input::pointer::PointerPos;
 use crate::prepaint::Prepaint;
+use crate::scroll::suppress::Suppress;
+use crate::scroll::tuning::Tuning;
 use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
@@ -119,6 +122,14 @@ pub struct HostState {
     pub(crate) events: VecDeque<ShellEvent>,
     /// Timers the handlers want armed or cancelled.
     pub(crate) timers: Vec<TimerRequest>,
+    /// The scroll configuration and physics every surface uses (`HostCtx::set_scroll_config`).
+    pub(crate) scroll: Tuning,
+    /// The double-scroll window palmrest's fingers open (design/11 §11.3.14).
+    pub(crate) suppress: Suppress,
+    /// The evdev code of a scroll key the engine took, so its repeats and release are too.
+    pub(crate) scroll_key: Option<u32>,
+    /// The palmrest socket, when the daemon runs.
+    pub(crate) palmrest: Palmrest,
     pub(crate) qh: QueueHandle<HostState>,
     pub(crate) conn: Connection,
 }
@@ -196,6 +207,10 @@ impl HostState {
             woken: WokenSet::default(),
             events: VecDeque::new(),
             timers: Vec::new(),
+            scroll: Tuning::default(),
+            suppress: Suppress::default(),
+            scroll_key: None,
+            palmrest: Palmrest::from_env(),
             qh,
             conn,
         })
@@ -255,6 +270,7 @@ impl HostState {
         else {
             return;
         };
+        let raw = held.raw_code;
         let event = key_event(
             held,
             self.input.modifiers,
@@ -262,7 +278,7 @@ impl HostState {
             Repeat::Repeated,
             self.composing(),
         );
-        self.dispatch_key(id, event);
+        self.key_down(id, event, raw);
     }
 
     /// The adapter label every stats line carries; empty on the CPU backend.

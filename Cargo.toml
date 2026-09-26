@@ -94,6 +94,10 @@ clap = { version = "4", features = ["derive"] }
 latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "e8344176ffcc0455c585dafd722c05c911ddc5c4" }
 # ---- END PINNED BLOCK ----
 
+# Proposed for the pinned block (FINDINGS F64): SOCK_SEQPACKET for the palmrest socket. The
+# version wayland-backend already resolves, so no new crate enters the build.
+rustix = { version = "1.1", default-features = false, features = ["std", "net"] }
+
 
 # `deny`, not `forbid`: exactly one module (gpu/raw_handle) may opt back in with an `allow`.
 [workspace.lints.rust]

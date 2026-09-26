@@ -10,9 +10,11 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# shell-host is portable to any Wayland compositor: nothing COSMIC, D-Bus or PulseAudio.
+# shell-host is portable to any Wayland compositor: nothing COSMIC, D-Bus or PulseAudio. It
+# also stands below the design system and the gesture daemon: nothing of quire's or palmrest's
+# (the palmrest socket's messages are re-declared in input/palmrest/wire.rs, FINDINGS F64).
 RULES=(
-  "shell-host: cosmic-client-toolkit cosmic-protocols zbus libpulse-binding"
+  "shell-host: cosmic-client-toolkit cosmic-protocols zbus libpulse-binding ds-native ds-settings ds-core palmrest"
 )
 fail=0
 
@@ -38,5 +40,15 @@ for rule in "${RULES[@]}"; do
     echo "boundary holds: $crate reaches none of ${forbidden[*]}"
   fi
 done
+
+# The host paints the scroll thumb itself (design/11 §11.3.12, FINDINGS F63): Blitz's own overlay
+# scrollbars (the `scrollbars` feature of blitz-paint / blitz-dom) must stay off, or both would
+# paint and Blitz's thumb drag would write clamped offsets under the engine.
+if cargo tree -p shell-host -e features -i blitz-dom 2>/dev/null | grep -q 'blitz-dom feature "scrollbars"'; then
+  echo "LEAK: blitz-dom's scrollbars feature is enabled"
+  fail=1
+else
+  echo "blitz scrollbars feature off: the host's thumb is the only one"
+fi
 
 exit "$fail"
