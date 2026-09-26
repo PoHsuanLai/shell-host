@@ -2035,3 +2035,87 @@ policy, not a run; outputs added or removed while locked (table only); a fractio
 lock surface (the nested output is 1.0; the path is the layer surfaces' own); `finished` sent
 after `locked` (no compositor here does it); the shm presenter on a lock surface; the lock on a
 real cosmic session, which nothing here may touch (a manual check for sill's queue).
+
+## `use_modifiers`: a surface's held/locked keys, live (branch `use-modifiers`, 2026-09-26)
+
+### F66. G180: modifiers reach a document only through a key press; enter and lock-key state did not
+
+Before this branch, `SeatInput::modifiers` (`keyboard_types::Modifiers`) was seat-wide and fed
+only `key::key_event`'s `BlitzKeyEvent`s at `press_key`/`release_key`. Nothing published it to a
+surface's own document, so a surface learned the modifiers only by receiving an actual key
+event on itself. Two cases had none: gaining keyboard focus (`wl_keyboard.enter`) with a
+modifier already held (an app switcher's `KeyboardMode::Exclusive` overlay mapped while Super is
+down, to catch a quick Cmd+Tab release), and a lock key toggled with no key event at all
+(`wl_keyboard.modifiers` alone, the initial Caps Lock state on a lock screen).
+
+The fix is a second, typed cache and a `Live<Modifiers>` per surface, not a change to the
+existing path. `crates/shell-host/src/modifiers.rs` (new, top-level so it can be part of the
+public surface alongside `toplevel`, `lock`): `Modifier::{Held,Released}` for shift/ctrl/alt/logo,
+`LockKey::{Locked,Unlocked}` for caps_lock/num_lock (named `LockKey`, not `Lock`: `lock::machine`
+already has a `LockState` for the session lock, and a bare `Lock` next to a `lock` module reads
+as the wrong feature), and `Modifiers::from_sctk`, a pure conversion off sctk's own
+already-keymap-resolved booleans (`smithay_client_toolkit::seat::keyboard::Modifiers`). No
+`bool` anywhere in the public struct, per CONVENTIONS §11.
+
+`handlers/seat.rs`'s `SeatInput` gained `held_modifiers: Modifiers` (aliased `HeldModifiers` at
+the import to keep the file's existing `keyboard_types::Modifiers` import as `Modifiers`
+unchanged), written in `update_modifiers` from the same `SctkModifiers` argument that already
+feeds `modifiers_from` for Blitz's events — two conversions of one value, not a shared
+intermediate, so the existing path is untouched line for line. `surface.rs`'s `HostSurface`
+gained `live_modifiers: Live<Modifiers>`, threaded through `HandleParts`/`SurfaceHandle` exactly
+like `live_toplevel`. `handle.rs`'s new `use_modifiers() -> ReadSignal<Modifiers>` is the same
+shape as `use_toplevel_state`/`use_surface_scale`: a `use_signal` seeded from `live.get()`, a
+background task awaiting `live.changed_after`. Not delivered through `HostEvent` (told not to:
+its match is exhaustive by design); the hook is the only way to it.
+
+`handlers/keyboard.rs`: `enter` now publishes `self.input.held_modifiers` (the seat's
+already-current cache) to the newly-focused surface before anything else runs — belt and
+suspenders, since `wl_keyboard.enter` "must" be followed by a `modifiers` event per the protocol
+(`wayland.xml`), and the protocol also allows a compositor to send `modifiers` "without a surface
+of the client having keyboard focus, for example to tie modifier information to pointer focus
+instead" (verbatim; this is F61's KWin path), which is exactly why the cache can already be
+correct at `enter` time rather than empty. `update_modifiers` now also writes
+`held_modifiers` and, `if let Some(id) = self.input.keyboard_focus`, publishes it to that
+surface. `leave` publishes `Modifiers::default()` (empty) to the surface losing focus; the
+seat-wide cache is untouched, since it stays valid for whoever is focused next.
+
+**A surface's very first `use_modifiers()` read is always the default, before its first
+configure — like `use_toplevel_state`, this is documented, not a bug.** `insert()` builds the
+`VirtualDom` synchronously while handling the spawn request, strictly before any Wayland
+round-trip for the new surface, so the first render always sees `Live::new(Modifiers::default())`.
+The real state (from the cache at `enter`, confirmed or corrected by the guaranteed `modifiers`
+event beside it) lands a `Live::publish` later, in the same event-loop pass, well before the
+surface's first frame is visible on screen — proven below.
+
+**Live, on the headless KWin (`scripts/dev/kwin-virtual.sh`, `tools/fake-input`, F52), never
+`wayland-0`, no keyboard grab.** `examples/demo_switcher` (new): a `160x100`
+`KeyboardMode::Exclusive` layer surface, centred, spawned only on a `map` stdin command so a
+script can hold a modifier or toggle a lock key before the surface (and its
+`wl_keyboard.enter`) exists at all; its document reads `use_modifiers()` and prints
+`{"event":"modifiers",..}` on every render. `scripts/dev/accept-modifiers.sh` (new), two cases,
+each its own kwin-virtual.sh instance so neither's modifier state leaks into the other. Both
+PASS:
+
+- `super`: pointer over the panel's future position, `key Super_L down`, then `map`. Wire order
+  (`WAYLAND_DEBUG=1`): `wl_pointer#19.enter` immediately followed by `wl_keyboard#22.modifiers(7,
+  64, 0, 0, 0)` (F61's pointer-tied path — the cache is already correct before `enter` even
+  runs), then `wl_keyboard#22.enter(8, wl_surface#26, ..)`, then `wl_keyboard#22.modifiers(7, 64,
+  0, 0, 0)` again (the protocol's guaranteed one, unchanged, `Live::publish` a no-op). The
+  panel's line 1 (its first render, pre-configure): `"logo":"Released"` (the documented
+  default). Line 2 (published from `enter`): `"logo":"Held"`. `key Super_L up` while the panel
+  is still mapped and focused (no key event on the panel itself, a bare modifiers change): line
+  3, `"logo":"Released"`.
+- `caps_lock`: `key Caps_Lock down` then `up` (a tap, toggling the lock) before `map`. Line 1:
+  the default (`"caps_lock":"Unlocked"`). Line 2, from the same enter/modifiers pair as above:
+  `"caps_lock":"Locked"` — the initial Caps Lock state, seen before any key ever reaches the
+  surface.
+
+`cargo test --workspace --all-features`: 328 (326 on master + 2 in `modifiers::tests`, table-driven,
+covering every field and the Caps-Lock-is-not-a-held-modifier distinction the two enums exist
+for). `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D
+warnings`, `./scripts/check-boundary.sh` and `cargo deny check licenses` all clean.
+
+**Not proven live:** a real compositor other than KWin (cosmic-comp's smithay backend is
+expected, per F61, to send modifiers only to the keyboard focus — the simpler case, not
+exercised here); Num Lock (same code path as Caps Lock, `LockKey::of`, table-tested only); a
+second seat.

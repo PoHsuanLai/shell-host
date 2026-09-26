@@ -15,6 +15,7 @@ use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
 use crate::live::Live;
 use crate::live_scale::LiveScale;
+use crate::modifiers::Modifiers;
 use crate::msg::{SurfaceOp, Visibility};
 use crate::region::{Px, Rect, RegionSpec};
 use crate::resolve::Tracked;
@@ -94,6 +95,9 @@ pub struct HostSurface {
     /// A toplevel's configure state, published to its document (`use_toplevel_state`); the
     /// default forever on any other surface.
     pub(crate) live_toplevel: Live<ToplevelState>,
+    /// The modifiers held while this surface has keyboard focus, published to its document
+    /// (`use_modifiers`, FINDINGS F66); reset to `Modifiers::default()` on `wl_keyboard.leave`.
+    pub(crate) live_modifiers: Live<Modifiers>,
     /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
     /// the document rather than in the resize band.
     pub(crate) doc_cursor: Option<CursorIcon>,

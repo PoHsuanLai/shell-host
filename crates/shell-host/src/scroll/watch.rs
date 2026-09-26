@@ -176,6 +176,7 @@ mod tests {
             toplevel: Live::new(ToplevelState::default()),
             grab: GrabRecord::default(),
             scrolls: board.clone(),
+            modifiers: Live::new(crate::modifiers::Modifiers::default()),
         };
         let handle = SurfaceHandle::new(SurfaceId(3), RoleKind::Toplevel, parts);
         let env = DocumentEnv {

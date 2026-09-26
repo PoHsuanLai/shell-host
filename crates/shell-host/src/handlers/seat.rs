@@ -19,6 +19,7 @@ use crate::id::SurfaceId;
 use crate::input::capability::{Announcement, Held, capability_change};
 use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
+use crate::modifiers::Modifiers as HeldModifiers;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -36,6 +37,12 @@ pub struct SeatInput {
     /// When the keyboard focus last arrived, for the first-mouse filter.
     pub(crate) focused_at: Option<Instant>,
     pub(crate) modifiers: Modifiers,
+    /// The seat's modifiers in `use_modifiers`' typed, no-`bool` shape (FINDINGS F66): kept
+    /// alongside `modifiers` because `wl_keyboard.modifiers` may arrive with no surface of ours
+    /// focused (the protocol's own escape hatch for tying modifiers to pointer focus instead,
+    /// F61), so a surface that only just gained keyboard focus can be handed the seat's
+    /// already-current state rather than starting from nothing.
+    pub(crate) held_modifiers: HeldModifiers,
     /// The serial of the last press, for popup grabs, selections and activation tokens.
     pub(crate) last_serial: u32,
     /// The pointer's surface and held press, for the move/resize serial rule; shared with

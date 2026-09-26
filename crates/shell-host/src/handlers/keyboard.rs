@@ -14,6 +14,7 @@ use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::input::key::{self, Composing, Repeat};
 use crate::input::modifiers::modifiers_from;
+use crate::modifiers::Modifiers;
 use crate::scroll::surface::KeyUse;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
@@ -35,6 +36,13 @@ impl KeyboardHandler for HostState {
         };
         self.input.keyboard_focus = Some(id);
         self.input.focused_at = Some(Instant::now());
+        // The seat's already-current modifiers (F66): a compositor sends a `modifiers` event
+        // right after this one, but a surface that reads `use_modifiers` on its very first
+        // render (an Exclusive overlay mapped while Super is held, a lock screen's initial Caps
+        // Lock state) must not see empty in the meantime.
+        if let Some(surface) = self.surfaces.get_mut(&id) {
+            surface.live_modifiers.publish(self.input.held_modifiers);
+        }
         self.events.push_back(HostEvent::KeyboardFocus {
             id,
             focus: Focus::Gained,
@@ -59,6 +67,12 @@ impl KeyboardHandler for HostState {
         }
         self.input.repeating = None;
         self.timers.push(TimerRequest::RepeatStop);
+        // Reset to empty on `leave` (F66): the modifiers a surface saw were true only while it
+        // held keyboard focus, and the seat's own `held_modifiers` cache lives on for whoever's
+        // next, unaffected.
+        if let Some(surface) = self.surfaces.get_mut(&id) {
+            surface.live_modifiers.publish(Modifiers::default());
+        }
         self.events.push_back(HostEvent::KeyboardFocus {
             id,
             focus: Focus::Lost,
@@ -153,7 +167,17 @@ impl KeyboardHandler for HostState {
         _layout: u32,
     ) {
         self.input.last_serial = serial;
+        // Blitz's own key events (unchanged path): `key::key_event` reads `self.input.modifiers`.
         self.input.modifiers = modifiers_from(modifiers);
+        // `use_modifiers` (F66): the seat-wide cache, and the focused surface's live copy of it.
+        // The compositor may send this with no surface of ours focused (F61), so only the
+        // second write is conditional.
+        self.input.held_modifiers = Modifiers::from_sctk(modifiers);
+        if let Some(id) = self.input.keyboard_focus
+            && let Some(surface) = self.surfaces.get_mut(&id)
+        {
+            surface.live_modifiers.publish(self.input.held_modifiers);
+        }
     }
 
     fn update_repeat_info(

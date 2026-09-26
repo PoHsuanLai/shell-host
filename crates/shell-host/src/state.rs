@@ -176,6 +176,7 @@ impl HostState {
                 keyboard_focus: None,
                 focused_at: None,
                 modifiers: Modifiers::empty(),
+                held_modifiers: crate::modifiers::Modifiers::default(),
                 last_serial: 0,
                 grab: GrabRecord::default(),
                 zone: Zone::Document,

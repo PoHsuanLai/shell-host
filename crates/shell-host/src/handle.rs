@@ -19,6 +19,7 @@ use crate::id::{SurfaceId, SurfaceIds};
 use crate::layer::{ExclusiveZone, KeyboardMode, LayerSize};
 use crate::live::Live;
 use crate::live_scale::LiveScale;
+use crate::modifiers::Modifiers;
 use crate::msg::{Request, SurfaceOp};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
@@ -77,6 +78,7 @@ pub struct SurfaceHandle {
     toplevel: Live<ToplevelState>,
     grab: GrabRecord,
     scrolls: ScrollBoard,
+    modifiers: Live<Modifiers>,
 }
 
 /// The host's shared state a `SurfaceHandle` reads, besides its queue: built by the host when
@@ -90,6 +92,7 @@ pub(crate) struct HandleParts {
     pub(crate) toplevel: Live<ToplevelState>,
     pub(crate) grab: GrabRecord,
     pub(crate) scrolls: ScrollBoard,
+    pub(crate) modifiers: Live<Modifiers>,
 }
 
 impl SurfaceHandle {
@@ -103,6 +106,7 @@ impl SurfaceHandle {
             toplevel,
             grab,
             scrolls,
+            modifiers,
         } = parts;
         SurfaceHandle {
             id,
@@ -114,6 +118,7 @@ impl SurfaceHandle {
             toplevel,
             grab,
             scrolls,
+            modifiers,
         }
     }
 
@@ -375,6 +380,34 @@ pub fn use_toplevel_state() -> ReadSignal<ToplevelState> {
                 let (count, state) = live.changed_after(seen).await;
                 seen = count;
                 latest.set(state);
+            }
+        });
+    });
+    ReadSignal::from(latest)
+}
+
+/// The modifier keys held by the seat's keyboard while this surface has keyboard focus, as live
+/// state (FINDINGS F66): the component re-renders on every `wl_keyboard.modifiers`, including
+/// the one a compositor sends right after this surface's `wl_keyboard.enter` — so a surface
+/// that gains focus with Super already down (an app switcher's `KeyboardMode::Exclusive`
+/// overlay catching a quick Cmd+Tab release) or with Caps Lock already toggled (a lock screen's
+/// first render) sees it from its first read, not only from the next key press. Reset to
+/// `Modifiers::default()` (nothing held or locked) on `wl_keyboard.leave`, and default for a
+/// surface that has never had keyboard focus.
+///
+/// Not delivered through `HostEvent`, whose match stays exhaustive for the shell: this hook is
+/// the only way to it. Blitz's own key events keep their modifiers unchanged, from the same
+/// `wl_keyboard.modifiers` through a separate, pre-existing path.
+pub fn use_modifiers() -> ReadSignal<Modifiers> {
+    let live = use_surface().modifiers;
+    let mut latest = use_signal(|| live.get());
+    use_hook(move || {
+        let mut seen = live.changes();
+        spawn(async move {
+            loop {
+                let (count, modifiers) = live.changed_after(seen).await;
+                seen = count;
+                latest.set(modifiers);
             }
         });
     });

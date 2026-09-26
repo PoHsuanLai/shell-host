@@ -28,6 +28,7 @@ use crate::layer::{
 };
 use crate::live::Live;
 use crate::live_scale::LiveScale;
+use crate::modifiers::Modifiers;
 use crate::msg::Visibility;
 use crate::placement::PopupPlacement;
 use crate::popup::{
@@ -356,6 +357,7 @@ pub(super) fn insert(
     let ticks = FrameTicks::default();
     let live_scale = LiveScale::new(scale);
     let live_toplevel = Live::new(ToplevelState::default());
+    let live_modifiers = Live::new(Modifiers::default());
     let scrolls = ScrollBoard::default();
     let parts = HandleParts {
         requests: state.requests.clone(),
@@ -365,6 +367,7 @@ pub(super) fn insert(
         toplevel: live_toplevel.clone(),
         grab: state.input.grab.clone(),
         scrolls: scrolls.clone(),
+        modifiers: live_modifiers.clone(),
     };
     let handle = SurfaceHandle::new(id, role.kind(), parts);
     let env = DocumentEnv {
@@ -399,6 +402,7 @@ pub(super) fn insert(
             ticks,
             live_scale,
             live_toplevel,
+            live_modifiers,
             doc_cursor: Some(cursor_icon::CursorIcon::Default),
             scroll: SurfaceScroll::new(scrolls, state.scroll),
         },
@@ -461,6 +465,7 @@ mod tests {
             toplevel: Live::new(ToplevelState::default()),
             grab: GrabRecord::default(),
             scrolls: crate::scroll::watch::ScrollBoard::default(),
+            modifiers: Live::new(crate::modifiers::Modifiers::default()),
         }
     }
 
