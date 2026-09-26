@@ -114,6 +114,38 @@ are in the same coordinates. Every call is also a `SurfaceOp` (`BeginMove`,
 `BeginResize(edge)`, `SetMaximized`, `Minimize`, `SetFullscreen`) for `HostCtx::apply` or
 `HostHandle::apply` from outside the document.
 
+## Consuming: fonts
+
+shell-host bundles no faces of its own (it never depends on a design system,
+`scripts/check-boundary.sh`) and its `FontContext` is built from `SharedFonts::system()` alone:
+fontconfig's system fonts, plus Blitz's own list-bullet glyph. A shell's design-system faces
+(quire's Inter, Inter Display, Space Mono, Bricolage Grotesque, Karla, Noto Serif) reach every
+document only through `HostConfig::fonts: FontFaces`, a `Vec<&'static [u8]>` of each face's raw
+TTF/OTF bytes, `#[serde(skip)]` — code, not settings, same as `HostConfig::prepaint`.
+`Host::connect` registers each one into the host's one shared `FontContext` right after `bind`,
+so every surface's, popup's and toplevel's document (`state.fonts.for_document()`,
+`ctx/spawn.rs`) resolves them from that point on. Leave `fonts` at its default (empty) and a
+`font-family` naming one of those faces silently falls back past it to `system-ui`
+(FINDINGS F68) — this bit sill once (Q342).
+
+A shell passes its own faces' bytes, e.g.:
+
+```rust
+HostConfig {
+    fonts: FontFaces(ds::FACES.iter().map(|face| face.bytes).collect()),
+    ..HostConfig::default()
+}
+```
+
+`shell_host::registered_families(&HostConfig) -> Vec<String>` resolves `HostConfig::fonts` on a
+throwaway context with no Wayland connection, so a shell can assert its own faces survive a
+dependency bump (e.g. that `"Inter"` is still present) as a plain unit test.
+
+`headless::HeadlessConfig`'s `Fonts::Bundled(FontFaces)` takes the same type: a snapshot test
+gets the shell's real faces by passing the same `FontFaces` value its `HostConfig` does, rather
+than shell-host guessing at a font on disk. `headless::bundled_faces()` is a fallback for
+shell-host's own examples and tests, which bundle no design system of their own.
+
 ## Acceptance
 
 `scripts/spike-accept.sh demo [<compositor>] <a|b|c|f|g>` re-runs the Milestone 0 items with

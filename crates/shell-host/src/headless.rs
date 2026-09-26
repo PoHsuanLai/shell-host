@@ -25,6 +25,7 @@ use dioxus_native_dom::DioxusDocument;
 use image::RgbaImage;
 use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
 
+use crate::config::FontFaces;
 use crate::dom::document::BODY_RESET;
 
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
@@ -49,13 +50,15 @@ impl PixelSize {
 pub use crate::scale::Scale;
 
 /// Which fonts a headless render has available. `Bundled` is the reproducible choice for a
-/// snapshot test: it registers exactly one known face and turns system font discovery off, so
-/// a render does not vary with whatever happens to be installed on the machine that runs it
-/// (other than the one fallback path documented on [`bundled_font`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// snapshot test: it registers exactly the given faces and turns system font discovery off, so
+/// a render does not vary with whatever happens to be installed on the machine that runs it, and
+/// (unlike the old single-arbitrary-TTF path this replaced) uses the same face list a real
+/// surface would get from `HostConfig::fonts` — see [`bundled_faces`] for shell-host's own
+/// fixtures, which have no design system of their own to point at.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fonts {
-    /// Register a single bundled TTF and disable system font discovery.
-    Bundled,
+    /// Register these faces and disable system font discovery.
+    Bundled(FontFaces),
     /// Discover system fonts normally (matches what a real on-screen surface sees).
     System,
 }
@@ -164,39 +167,37 @@ fn build_font_context(fonts: Fonts) -> FontContext {
         .collection
         .register_fonts(Blob::new(Arc::new(BULLET_FONT) as _), None);
 
-    if let Fonts::Bundled = fonts {
-        let (path, bytes) = bundled_font();
-        eprintln!(
-            "shell-host::headless: Fonts::Bundled registered {}",
-            path.display()
-        );
-        font_ctx
-            .collection
-            .register_fonts(Blob::new(Arc::new(bytes) as _), None);
+    if let Fonts::Bundled(faces) = fonts {
+        for bytes in faces.0 {
+            font_ctx
+                .collection
+                .register_fonts(Blob::new(Arc::new(bytes) as _), None);
+        }
     }
 
     font_ctx
 }
 
-/// The one bundled TTF a `Fonts::Bundled` render registers.
+/// A `Fonts::Bundled` face list for shell-host's own examples and tests, which (unlike a real
+/// shell) bundle no design system of their own to pass through `HostConfig::fonts`.
 ///
-/// Prefers `~/quire/crates/ds/assets/fonts` (the design system's own bundled faces, once
-/// quire ships one); as of this spike quire has no `assets/` directory at all, so this falls
-/// back to the first TTF under `/usr/share/fonts` in sorted path order, which is
-/// deterministic on a given machine but not portable across machines with a different font
-/// package set. Panics if neither location has a usable font — a render with no glyphs at
-/// all is a broken environment, not a value this function can return.
-fn bundled_font() -> (PathBuf, Vec<u8>) {
+/// Prefers `~/quire/crates/ds/assets/fonts` (quire's own bundled faces); falls back to the first
+/// TTF under `/usr/share/fonts` in sorted path order, deterministic on a given machine but not
+/// portable across machines with a different font package set. Panics if neither location has a
+/// usable font — a render with no glyphs at all is a broken environment, not a value this
+/// function can return. Leaks the bytes to get `&'static [u8]` (`FontFaces`' bound): fine for a
+/// one-time test/example fixture, not something a real host's hot path does.
+pub fn bundled_faces() -> FontFaces {
     let quire_fonts = home_dir().join("quire/crates/ds/assets/fonts");
-    if let Some(path) = first_ttf_sorted(&quire_fonts) {
-        let bytes = std::fs::read(&path).expect("bundled font file is readable");
-        return (path, bytes);
-    }
-
-    let path = first_ttf_sorted(Path::new("/usr/share/fonts"))
+    let path = first_ttf_sorted(&quire_fonts)
+        .or_else(|| first_ttf_sorted(Path::new("/usr/share/fonts")))
         .expect("at least one system TTF font is installed at /usr/share/fonts");
-    let bytes = std::fs::read(&path).expect("system fallback font file is readable");
-    (path, bytes)
+    let bytes = std::fs::read(&path).expect("bundled font file is readable");
+    eprintln!(
+        "shell-host::headless: bundled_faces registered {}",
+        path.display()
+    );
+    FontFaces(vec![Box::leak(bytes.into_boxed_slice())])
 }
 
 fn home_dir() -> PathBuf {

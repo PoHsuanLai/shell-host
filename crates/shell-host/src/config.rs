@@ -26,6 +26,15 @@ pub struct HostConfig {
     /// settings, so it is never serialized.
     #[serde(skip)]
     pub prepaint: Prepaint,
+    /// The faces a shell's design system bundles, registered into the shared `FontContext` once
+    /// at startup (`Host::connect`) so every surface, popup and toplevel document resolves them —
+    /// otherwise a `font-family` naming one falls back past every real face to `system-ui`
+    /// (FINDINGS "Colour emoji"; sill Q342). A shell passes its own faces, e.g. quire's
+    /// `ds::FACES` bytes; shell-host bundles none of its own, so the default is empty. Code, not
+    /// settings — a face is compiled into the shell binary, not read from a settings file — so
+    /// it is never serialized, exactly like `prepaint`.
+    #[serde(skip)]
+    pub fonts: FontFaces,
 }
 
 impl Default for HostConfig {
@@ -35,9 +44,17 @@ impl Default for HostConfig {
             adapter: AdapterPref::default(),
             first_mouse_window_ms: Ms::first_mouse_window(),
             prepaint: Prepaint::None,
+            fonts: FontFaces::default(),
         }
     }
 }
+
+/// The face files a shell's design system bundles, as `&'static` TTF/OTF bytes (typically
+/// `include_bytes!` in the design-system crate). `HostState` registers each one with
+/// [`crate::dom::fonts::SharedFonts`] once, so a clone handed to any document resolves the same
+/// families without re-registering them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FontFaces(pub Vec<&'static [u8]>);
 
 /// A configured duration in whole milliseconds, as settings keys spell them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -139,6 +156,7 @@ mod tests {
                 adapter: AdapterPref::Auto,
                 first_mouse_window_ms: Ms(100),
                 prepaint: Prepaint::None,
+                fonts: FontFaces::default(),
             }
         );
     }

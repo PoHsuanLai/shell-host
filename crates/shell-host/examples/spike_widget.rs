@@ -38,7 +38,7 @@ use dioxus_native_dom::CustomWidgetAttr;
 use image::RgbaImage;
 use peniko::kurbo::{Affine, Rect};
 use peniko::{Fill, ImageBrush, ImageSampler};
-use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, Scale, render_png};
+use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png};
 
 const STAGE_SIZE: (u32, u32) = (240, 180);
 const AT_SECONDS: [f64; 4] = [0.0, 0.5, 1.0, 3.0];
@@ -76,7 +76,7 @@ fn run_cpu_headless_path(out_dir: &Path) {
             scale: Scale::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: AT_SECONDS.to_vec(),
-            fonts: Fonts::Bundled,
+            fonts: Fonts::Bundled(bundled_faces()),
         },
     );
 
