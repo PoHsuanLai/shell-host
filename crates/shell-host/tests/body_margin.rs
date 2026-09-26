@@ -101,7 +101,9 @@ fn a_documents_own_body_margin_still_wins() {
 #[cfg(feature = "headless")]
 #[test]
 fn a_headless_bare_document_paints_its_corner() {
-    use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, Scale, render_png};
+    use shell_host::headless::{
+        Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png,
+    };
 
     fn red() -> Element {
         rsx! {
@@ -115,7 +117,7 @@ fn a_headless_bare_document_paints_its_corner() {
             scale: Scale::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0],
-            fonts: Fonts::Bundled,
+            fonts: Fonts::Bundled(bundled_faces()),
         },
     );
     let image = &images[0];

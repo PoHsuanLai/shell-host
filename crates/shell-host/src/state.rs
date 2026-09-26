@@ -114,6 +114,9 @@ pub struct HostState {
     /// The session lock in force, from its request until it ends.
     pub(crate) lock: Option<ActiveLock>,
     pub(crate) lock_ids: LockIds,
+    /// `SharedFonts::system()` alone until `Host::connect` registers `HostConfig::fonts` into
+    /// it, right after `bind`; every document built after that point (`state.fonts.for_document()`
+    /// at `ctx/spawn.rs`) sees the shell's bundled faces.
     pub(crate) fonts: SharedFonts,
     pub(crate) clock: HostClock,
     pub(crate) ids: SurfaceIds,

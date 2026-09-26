@@ -2207,3 +2207,68 @@ warnings`, `./scripts/check-boundary.sh` and `cargo deny check licenses` all cle
 stale record would have misdirected (the mechanism above); a real compositor other than KWin;
 the lock and power-menu surfaces this also fixes, run through their own acceptance rather than
 `demo_switcher`'s.
+
+## Fonts (branch `host-fonts`, 2026-09-27)
+
+### F68. Every document fell back to `system-ui`: `SharedFonts::register` had no caller, and `HostConfig` had nowhere to carry a shell's faces
+
+Root cause of sill Q342 (quire FINDINGS "Colour emoji"; the gate branch's
+`crates/ds-native/tests/text_stack_fonts.rs` pins it from quire's side): `HostState::bind` built
+`fonts: SharedFonts::system()` — fontconfig plus Blitz's bullet glyph — and nothing ever called
+`SharedFonts::register`. Inter is not a system font here, so a stack naming it
+(`"Inter","Noto Color Emoji",system-ui,sans-serif`) laid out as if Inter were never named at
+all: the first face the context actually had was Noto Color Emoji, whose cmap covers U+0020 and
+0-9 (the keycap bases), so ordinary spaces and digits came from the emoji face, wide, in every
+document sill ever drew. `HostConfig` had no field to carry a shell's design-system bytes in the
+first place, so there was no way to close this short of a shell depending on shell-host's font
+internals directly.
+
+**Fix.** `HostConfig::fonts: FontFaces` (`config.rs`), a `Vec<&'static [u8]>` of face bytes,
+`#[serde(skip)]` exactly like `prepaint` (code, not settings — a face is compiled into the shell
+binary). `Host::connect` registers each one into `state.fonts` right after `bind` (`host.rs`),
+so `state.fonts.for_document()` (`ctx/spawn.rs:375`, the one real call site) hands every surface,
+popup and toplevel document a `FontContext` carrying them from that point on.
+`SharedFonts::register` now takes `&'static [u8]` (no allocation to register a compiled-in face)
+and returns the family name(s) it registered under, read back from `fontique::Collection` itself
+rather than trusted from the caller — `dom/fonts.rs`.
+
+**The three other `SharedFonts::system()` construction sites named in the brief**
+(`ctx/spawn.rs:497`, `scroll/paint.rs:109`, `scroll/watch.rs:188`) are all inside `#[cfg(test)]
+mod tests` — `test_env`, `pixel`'s harness and `use_scroll_follows_what_the_host_publishes`'s
+env respectively — not real paths a document ever ships through. Left as they are: they test
+scroll/paint/handle plumbing that does not depend on which faces are registered, and a real
+host never reaches them.
+
+**Pure test hook.** `shell_host::registered_families(&HostConfig) -> Vec<String>` builds a
+throwaway `SharedFonts::system()`, registers `config.fonts` into it, and returns the family
+names `fontique` actually reports back — no Wayland connection, so a shell can assert its own
+faces survive a dependency bump (e.g. that `"Inter"` is still present) as a plain `#[test]`.
+
+**Headless.** `headless::Fonts::Bundled` went from a unit variant that searched
+`~/quire/crates/ds/assets/fonts` (or `/usr/share/fonts`) for a single arbitrary TTF — in
+practice always `bricolage-grotesque-normal-500-800-latin-ext.ttf`, alphabetically first, not
+representative of anything a real document ships with — to `Bundled(FontFaces)`, the same type
+`HostConfig::fonts` carries, so a snapshot test uses the exact faces a real host would. shell-host's
+own examples/tests (`spike_widget.rs`, `tests/body_margin.rs`, `tests/headless.rs`) have no
+design system of their own to point at, so they keep the old discovery through a new
+`headless::bundled_faces()` (same file, now leaked to `'static` and wrapped in `FontFaces`); the
+committed snapshot goldens (`tests/snapshots/drift_t0*.png`) are unchanged byte-for-byte —
+`cargo test -p shell-host --test headless --features headless` passes without
+`UPDATE_SNAPSHOTS`.
+
+**Test.** `tests/host_fonts.rs` reads Inter's real bytes from `~/quire/crates/ds/assets/fonts`
+(skipped, not failed, if this checkout has no quire beside it — a file read, never a crate
+dependency, so `scripts/check-boundary.sh` stays clean), registers them through
+`HostConfig::fonts`, and asserts `registered_families` reports `"Inter"` and that a document
+naming `"Inter"` measures differently from one naming only `system-ui` once it is registered
+(and skips, with a message, if Inter happens to already be a system font on the machine running
+the test — the same guard quire's own `text_stack_fonts.rs` uses).
+
+**What a shell must change.** sill builds its `HostConfig` and must add one field:
+`fonts: FontFaces(ds::FACES.iter().map(|face| face.bytes).collect())` (quire
+`crates/ds/src/fonts.rs`'s `Face::bytes: &'static [u8]`). Not done here — sill is a separate
+repo and the brief for this branch was shell-host only.
+
+`cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` (and again
+with `--features shell-host/headless`), `cargo test --workspace` (and again with
+`--features shell-host/headless`), and `./scripts/check-boundary.sh` all clean.

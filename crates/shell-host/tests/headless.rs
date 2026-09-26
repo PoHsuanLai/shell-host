@@ -27,7 +27,7 @@ use blitz_traits::shell::ColorScheme;
 use dioxus::core::Element;
 use dioxus::prelude::*;
 use image::RgbaImage;
-use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, Scale, render_png};
+use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png};
 
 const SIZE: (u32, u32) = (240, 160);
 
@@ -81,7 +81,7 @@ fn keyframe_animation_mid_flight_matches_snapshots() {
             scale: Scale::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0, 0.1],
-            fonts: Fonts::Bundled,
+            fonts: Fonts::Bundled(bundled_faces()),
         },
     );
 
@@ -193,7 +193,7 @@ fn inject_capture_writes_a_png_and_returns_its_size() {
             scale: Scale::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0],
-            fonts: Fonts::Bundled,
+            fonts: Fonts::Bundled(bundled_faces()),
         },
     )
     .remove(0);

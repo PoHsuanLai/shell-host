@@ -61,6 +61,11 @@ impl<M: Send + 'static> Host<M> {
             first_mouse,
         )?;
         state.prepaint = config.prepaint;
+        // The shell's bundled faces (e.g. quire's `ds::FACES`), registered once so every
+        // surface's, popup's and toplevel's document resolves them (FINDINGS "Colour emoji").
+        for bytes in &config.fonts.0 {
+            state.fonts.register(bytes);
+        }
         // The initial outputs (and seats), so `HostEvent::Started` can see them.
         queue
             .roundtrip(&mut state)
