@@ -75,6 +75,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | Module | Implements | State |
 | --- | --- | --- |
 | `dom/document.rs` | `SurfaceDocument`; `UA_STYLESHEET` (S1 finding 2); `StyleThreading::Sequential`; element rects for `RegionSpec::Element` and `PopupAnchor::Element`; `data-first-mouse` lookup (design/13 §13.3.8) | effects |
+| `dom/stacking.rs` | `rehoist`: gather z-indexed boxes again after every resolve, from the fresh layout (FINDINGS F69) | effects |
 | `dom/head.rs` | `HeadDocument` shim (plan: `DioxusDocument` ignores `document::Style/Link/Title`) | effects |
 | `dom/shell_provider.rs` | `ShellProvider`: redraw flag (cleared after present, S1 finding 4), cursor, IME; paste answers from the seat's `clipboard::SharedSelection`, copy queues for `ctx::ops::claim_copied` | effects |
 | `dom/fonts.rs` | one `FontContext` cloned into every document (plan "Fonts") | effects |

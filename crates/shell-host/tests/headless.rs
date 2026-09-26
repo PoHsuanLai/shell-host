@@ -219,3 +219,48 @@ fn inject_capture_writes_a_png_and_returns_its_size() {
     assert_eq!(read, frame, "the file holds the rendered pixels");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+fn raised_tiles() -> Element {
+    rsx! {
+        style { "{RAISED_STYLES}" }
+        div { id: "col",
+            div { class: "tile", div { class: "body" } }
+            div { class: "tile", div { class: "body" } }
+        }
+    }
+}
+
+/// quire's `.ds-widget-body` shape: a `position: relative; z-index` box inside each tile.
+const RAISED_STYLES: &str = "
+#col { display: flex; flex-direction: column; }
+.tile { height: 60px; background: rgb(0, 0, 255); }
+.body { position: relative; z-index: 1; margin-top: 20px; height: 20px; background: rgb(255, 0, 0); }
+";
+
+/// A document's very first resolve paints its z-indexed boxes in place: Blitz gathers them
+/// before laying out, when every location is still zero (FINDINGS F69), so without the
+/// re-hoist the second tile's body painted over the first tile's.
+#[test]
+fn the_first_frame_paints_raised_boxes_where_layout_put_them() {
+    let frames = render_png(
+        raised_tiles,
+        HeadlessConfig {
+            size: PixelSize::new(100, 120),
+            scale: Scale::ONE,
+            color_scheme: ColorScheme::Light,
+            at_seconds: vec![0.0],
+            fonts: Fonts::System,
+        },
+    );
+    let frame = &frames[0];
+    const RED: [u8; 4] = [255, 0, 0, 255];
+    const BLUE: [u8; 4] = [0, 0, 255, 255];
+    for (y, want, what) in [
+        (10, BLUE, "tile 0 above its body"),
+        (30, RED, "tile 0's body"),
+        (70, BLUE, "tile 1 above its body"),
+        (90, RED, "tile 1's body"),
+    ] {
+        assert_eq!(frame.get_pixel(50, y).0, want, "{what}");
+    }
+}

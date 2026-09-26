@@ -2272,3 +2272,59 @@ repo and the brief for this branch was shell-host only.
 `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` (and again
 with `--features shell-host/headless`), `cargo test --workspace` (and again with
 `--features shell-host/headless`), and `./scripts/check-boundary.sh` all clean.
+
+## Hoisted boxes (branch `g290`, 2026-09-27)
+
+### F69. Z-indexed boxes painted at the previous layout's position: Blitz gathers them before it lays out
+
+Root cause of sill G290. With all five widgets in the widget centre, the frame on screen drew
+Now Playing's and World Clock's title and body over the Calendar tile and left tiles 4 and 5
+as empty plates, while `sill debug capture` of the same surface drew every tile in place.
+
+**Cause (Blitz, e99fbdbd).** `BaseDocument::resolve` runs `flush_styles_to_layout`
+(`blitz-dom/src/resolve.rs:111`) *before* `resolve_layout` (`:115`). That walk moves every
+child with a non-zero `z-index` (positioned, or a flex/grid item) out of its parent's paint
+children into its stacking context's `HoistedPaintChildren`, and records its offset as the sum
+of the intermediate ancestors' `final_layout().location` minus their scroll offsets
+(`layout/damage.rs:698-705`). Those locations are the *previous* layout's. The paint
+(`blitz-paint/src/render.rs:990-1025`) and the hit test (`node/node.rs:1377-1450`) both use the
+recorded offset. So whenever a z-indexed box's ancestors move in a resolve, that resolve paints
+it where they were: a node inserted since the last layout still has location (0, 0), so its
+raised children paint at the stacking context's origin. quire's `.ds-widget-title` and
+`.ds-widget-body` are `position: relative; z-index: var(--z-raise)`, so the bodies of tiles
+added to the widget centre painted at the column's top, over the first tile.
+
+**Why only on screen.** The host resolves exactly once per rendered frame (`ctx/paint.rs`), then
+the surface goes idle, so the stale hoist stays on screen indefinitely. A debug capture
+(`Presenter::capture`) resolves again before painting; that second resolve reads the first one's
+layout and draws everything in place. The two presenters paint with identical code
+(`gpu/render.rs::paint_document`); scale, scene reuse, clip/layer order and damage were not
+involved. The same lag is also why a document's *first* frame (every location still zero) put
+all its raised boxes at the origin, and why the headless `render_png` did the same.
+
+**Fix (workaround in shell-host, no Blitz change).** `dom/stacking.rs::rehoist` calls Blitz's
+public `BaseDocument::flush_styles_to_layout(<html>)` again after the resolve, so the hoisted
+offsets come from the layout just computed. The walk rebuilds only paint order and the hoisted
+lists (no style, no taffy input, no damage), so repeating it is idempotent. `SurfaceDocument::
+resolve` runs it after Blitz's resolve (before the hover repair, whose hit test reads the same
+lists) and again after the pre-paint hook when one ran (snapping may move boxes);
+`headless::render_frame` runs it after its resolve. The scroll offsets it reads are the ones
+the engine wrote before the resolve (F63), unchanged. Remaining lag: Blitz's own
+`refresh_hover` inside `resolve` still hit-tests the stale lists; the host's hover repair
+(F59) runs after the re-hoist and corrects a hover that lands wrong.
+
+**Minimal repro** (`tests/hoisted.rs`, no Wayland, no GPU): a flex column of 60 px tiles, each
+holding a `position: relative; z-index: 1` body 20 px down; lay out one tile, grow to three,
+resolve once, paint on the CPU. Before the fix tiles 1 and 2 showed their tile colour where
+the body belongs, a second resolve (the capture path) differed from the first in 4000 pixels
+(two 100 x 20 bodies), and `element_from_point` over tile 2's body hit the tile. All three are
+assertions now. `tests/headless.rs::the_first_frame_paints_raised_boxes_where_layout_put_them`
+covers the first-resolve case through `render_png`; it fails without the re-hoist.
+
+**Upstream.** The Blitz fix is to gather the hoisted children after `resolve_layout` (or to
+record ancestor chains and sum locations at paint time). Not filed from here; once a Blitz rev
+with it is pinned, `rehoist` can go.
+
+**Public API.** None changed: `dom::stacking` is `pub(crate)`, and `SurfaceDocument::resolve`
+and `render_png` keep their signatures. Not checked on screen from this branch (sill reads
+shell-host master by path); the sill widget centre should be re-shot after this lands.

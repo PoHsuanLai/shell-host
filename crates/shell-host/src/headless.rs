@@ -123,6 +123,8 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
 fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale) -> RgbaImage {
     let mut inner = doc.inner.borrow_mut();
     inner.resolve(t);
+    // The same re-hoist the live path does after every resolve (FINDINGS F69).
+    crate::dom::stacking::rehoist(&mut inner);
 
     let buffer = render_to_buffer::<VelloCpuImageRenderer, _>(
         |painter| {
