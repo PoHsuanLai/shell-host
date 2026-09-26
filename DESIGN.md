@@ -97,7 +97,9 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `input/pointer.rs` | plan "Input": buttons 272..276, move before down, leave at (-1,-1), value120 -> Lines / continuous -> Pixels; first-mouse window (design/13 §13.3.8, setting `menus.first_mouse_window_ms`) | pure |
+| `input/pointer.rs` | plan "Input": buttons 272..276, move before down, leave at (-1,-1); the axis frame for the scroll engine (`axis_frame`), the raw wheel event for a `data-wheel="capture"` element; page coordinates follow the viewport's scroll (`scrolled`); first-mouse window (design/13 §13.3.8, setting `menus.first_mouse_window_ms`) | pure |
+| `input/scroll.rs` | scroll input routed to the surface's engine: axis frames (double-scroll window, capture exception first), scroll keys, palmrest messages, `ScrollCmd` (FINDINGS F63, F64) | effects |
+| `input/palmrest.rs`, `palmrest/{wire,route}.rs` | the palmrest client: `SOCK_SEQPACKET` connect, `PointerOver`, reading; the re-declared design/12 §12.3.10 messages (JSON per datagram); what each message means for the engine (F64) | effects / pure |
 | `input/keysym.rs` | xkb keysym -> `Key`, `Location` (winit table, Apache-2.0, FINDINGS F5) | pure |
 | `input/keycode.rs` | evdev -> `Code` (winit table, Apache-2.0) | pure |
 | `input/modifiers.rs` | sctk modifiers -> `Modifiers` | pure |
@@ -106,6 +108,19 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `clipboard.rs` | own-selection cache; every selection event reads the offer on a helper thread (200 ms timeout, plan "Clipboard") and publishes into `SharedSelection` (generation-checked, so a slow old read never wins) | effects |
 | `cursor.rs` | `wp_cursor_shape_v1` | effects |
 | `drag/*.rs` | the drag source's pure parts: `spec` (`DragSpec`, `DragPayload`, `Mime`, `DragActions`, `DragIcon`), `offer` (mime types and bytes per payload), `serial` (the held press a drag starts from), `pipe` (bytes a pipe still owes, what a write result means), `outcome` (`DragOutcome`, `DragAction`, `DragRefused`, the end-to-outcome mapping) | pure |
+
+## Scrolling (`scroll/`, design/11)
+
+| Module | Implements | State |
+| --- | --- | --- |
+| `scroll/config.rs` | `ScrollConfig`: every design/22 §3.7 `scroll` and §3.8 `scrollbar` key with its default | pure |
+| `scroll/geom.rs`, `latch.rs` | scrollers, axes, geometry; the latch at a gesture's start, the touchpad axis lock, the wheel burst (§11.3.3, §11.3.9, §11.3.11) | pure |
+| `scroll/engine.rs`, `animate.rs` | the §11.4 state machine and its closed-form phases (glide, rebound, smooth step, held arrow, spring) | pure |
+| `scroll/momentum.rs`, `velocity.rs`, `rubber.rs`, `smooth.rs`, `keys.rs` | the §11.5 formulas: drag model, least-squares release, bounded/linear stretch and snap-back, `--e-out` step, keyboard steps and spring | pure |
+| `scroll/indicator.rs`, `paint.rs` | the overlay thumb's geometry and fade (§11.3.12, §11.5.6); painting it after the document | pure / effects |
+| `scroll/source.rs`, `suppress.rs`, `cmd.rs` | axis frames to detents or phased pans, natural direction; the double-scroll window (§11.3.14); `ScrollCmd` | pure |
+| `scroll/surface.rs` (+ `surface/*`), `tuning.rs`, `watch.rs` | one surface's engine, thumb and trackers applied to its document; `use_scroll` (§11.3.15) | effects |
+| `dom/scroll.rs` | the engine's view of Blitz: scroller chain under a point, geometry, raw offset writes, `data-wheel` / `data-overscroll` / `data-keys` | effects |
 
 ## Wayland plumbing
 
@@ -129,8 +144,6 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Design paragraph | Where it will live | Why not now |
 | --- | --- | --- |
-| design/11 §11.3.1, §11.4, §11.7: scroll engine, latching, rubber band, keyboard scroll, overlay thumb | `scroll/{engine,latch,rubber,keys,indicator}.rs` (design/11 §11.7) | not in the plan's H1/H2 lists; a later scroll wave adds the modules. `input/pointer.rs` forwards wheels to Blitz until then (FINDINGS F7) |
-| design/12 §12.7, design/11 §11.7: palmrest client | `input/palmrest.rs` | same wave as scroll |
 | design/10 (dock machine, `magnify`), design/13 menus, switcher, launcher | sill (`sill-surfaces`), quire (`overlay/menu_track.rs`) | not shell-host's; shell-host supplies `layer`, `resolve`, `blur`, `popup`, `frame` |
 | design/13 §13.7 hover-switch between menus | `SurfaceOp::Reposition` (`xdg_popup.reposition`) | in H1 as a signature |
 
@@ -144,9 +157,11 @@ After every dispatch of the calloop loop, in this order and no other:
    by step 1's polls), then text a document copied through its shell provider. An op lands
    after the poll that caused it and before the paint that shows it.
 3. `StepFrames`: per configured, visible surface: presenter on first use, follow size and
-   scale, take the redraw request, and on `Render`: resolve, send changed regions,
+   scale, take the redraw request, and on `Render`: the scroll engine's frame (raw offsets
+   written before the resolve), resolve, publish `use_scroll`, send changed regions,
    `wl_surface.frame()`, present (its commit carries all of it), clear the redraw flag.
-4. `ArmTimers`: watchdog and key-repeat requests from the handlers and step 3.
+4. `ArmTimers`: watchdog, key-repeat and scroll-thumb requests from the handlers and step 3;
+   the palmrest socket's source when a connection attempt is due.
 5. `FlushConnection`: flush, and stop on a protocol error (S1 finding 7).
 
 ## Examples and acceptance
@@ -158,4 +173,6 @@ checkerboard window) the acceptance items measure against. `scripts/spike-accept
 results are in SPIKE.md "H2 demos". `examples/spike_popup.rs` (bare-shm popup client, S2) and
 `spike_widget.rs` (custom widget, S3) are kept until a demo covers popups and widgets.
 `examples/demo_window.rs` is a client-decorated toplevel (titlebar drag, resize band, zoom,
-configure state) driven from stdin; its runs are FINDINGS F51.
+configure state) driven from stdin; its runs are FINDINGS F51. `examples/demo_scroll.rs` is a
+scroll list (`use_scroll`, `data-overscroll="band"`) and a `data-wheel="capture"` element for
+`scripts/dev/accept-scroll.sh` (FINDINGS F63).

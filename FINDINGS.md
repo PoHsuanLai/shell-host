@@ -79,7 +79,7 @@ design/11 §11.3.1 says the host never forwards wheel input to Blitz and runs it
 `scroll/{engine,latch,rubber,keys,indicator}.rs`, with a palmrest client in `input/palmrest.rs`
 (design/12 §12.7). Neither is in the plan's H1/H2 file lists, so the freeze does not create them;
 until a scroll wave does, `input::pointer::wheel_delta` produces a Blitz `Wheel` event and Blitz
-scrolls. DESIGN.md lists where they will go.
+scrolls. DESIGN.md lists where they will go. (Done on branch `scroll-engine`: F63, F64.)
 
 ### F8. Modules added to the plan's layout
 
@@ -1641,3 +1641,215 @@ The headless snapshot scene (`tests/headless.rs`) had no body reset of its own, 
 had baked in the 8 px margin (the 240 x 160 card drawn from (8, 8), its right and bottom 8 px
 cut off, a transparent frame at the top and left). `drift_t0.png` and `drift_t0_1.png` were
 regenerated: the card now fills the frame from (0, 0), the drifting box moved up and left by 8 px.
+
+## Host-side scroll physics (branch `scroll-engine`, 2026-09-26)
+
+### F63. The scroll engine: shell-host owns every scroll of a Blitz document
+
+design/11 §11.3.1, done (F7 closed). Wheel, touchpad, trackpoint, palmrest and keyboard input
+no longer reach Blitz's default scroll action; `scroll/` runs the §11.4 machine and writes raw
+offsets each frame; the host paints its own overlay thumb.
+
+**Shape.** Pure and table-tested: `scroll/config.rs` (`ScrollConfig { scroll, scrollbar }`, one
+field per design/22 §3.7 / §3.8 key with its default, serde in the keys' own spelling),
+`geom`, `latch` (§11.3.3 latch, touchpad axis lock at 10 px, the 300 ms wheel burst),
+`engine` + `animate` (Idle, Pending, Tracking, Momentum, Rebound, Smooth, Held, Spring; each
+phase a closed form of the time since it began, so tests advance `now` by hand), `momentum`
+(the Mac Mouse Fix drag `v' = -a v^b` and the iOS alternative, with an exact inverse for the
+time and speed at which a glide reaches an edge), `velocity` (least squares over the last
+80 ms, held-still 50 ms, 3 samples), `rubber` (bounded / linear stretch, its inverse for a
+gesture that catches a stretched scroller, the Chromium snap-back and its end rule), `smooth`
+(`--e-out` step, 1000 px/s capped at 200 ms), `keys` (line 40, page, held ramp, spring
+m 1 k 175 c 20), `indicator` (§11.5.6 geometry, 500 ms hold, 240 ms fade, hover expansion),
+`source` (axis frames to detents or phased pans; natural direction for palmrest), `suppress`
+(§11.3.14), `cmd` (`ScrollCmd`, `into_view`). Settled values without a design/22 key (R18's
+keyboard numbers, the rebound's 1 px / 24 ms end) are constants beside their formulas.
+Blitz-facing: `dom/scroll.rs` (the scroller chain under a point, geometry, raw writes, the
+markers); `scroll/surface.rs` (+ `surface/{pointer_input,key_input,thumb}.rs`) applies the
+engine to one surface's document; `scroll/paint.rs` paints the thumb after the document on both
+presenters; `input/scroll.rs` routes Wayland input to the right surface.
+
+**Public API.**
+- `HostCtx::set_scroll_config(ScrollConfig)`: a shell reads its settings (sill owns
+  `sill/settings.toml`) and calls it at start and on every change. Not in `HostConfig`, which is
+  `Eq` and serializable while the physics keys are `f32`.
+- `use_scroll(ElementId) -> ReadSignal<ScrollState { offset: ScrollPoint, extent: ScrollExtent,
+  phase: ScrollPhase }>`, published after every frame's resolve for each watched element (the
+  offset raw, so out of range while stretched). design/11 §11.7 named it
+  `ds-native::use_scroll`; it lives here, beside the engine that feeds it, since ds-native has
+  no view of the host's engine (quire is updating the doc). The viewport has no element id, so
+  it is not watchable; watched entries live as long as their surface.
+- `SurfaceHandle::scroll(ScrollCmd::{To, By, IntoView})` with `Animate::{Smooth, Instant}`.
+- Markers: `data-wheel="capture"` (the raw `BlitzWheelEvent` goes to the document through
+  `handle_ui_event`; its handler must `prevent_default`), `data-overscroll="band"` (the only
+  way a scroller becomes elastic: vertical always, horizontal when it has content to scroll;
+  the dock, menus and the launcher list simply do not carry it, §11.8 item 8), and, new,
+  `data-keys="capture"` (see below).
+
+**Frames.** A scroll input that writes an offset or starts an animation invalidates the
+surface; the engine or a fading/expanding thumb makes the frame machine's pacing `Running`
+(combined with the document's own animation, so `use_frame_tick` does not tick for scrolling),
+so frames continue on callbacks and stop when both settle. The thumb's 500 ms hold is not
+rendered: the render arms a one-shot `TimerRequest::ScrollWake` for its end, then the fade
+runs on frames. The engine's requests never go through the shell provider's redraw flag, so
+F40's echo rule has nothing to drop. Live: 0 frames and 0 commits in 5 s after a settle.
+
+**Blitz, verified at e99fbdbd (no Blitz change needed).**
+- Raw offsets survive `resolve`: nothing in it clamps `viewport_scroll` or a node's
+  `scroll_offset` (`tests/scroll_dom.rs::raw_offsets_survive_blitz_resolve_even_out_of_range`,
+  -40 and 740 on a 700 px range, 1450 on the viewport, two resolves each).
+- `scroll_animation` does not interfere: `resolve_scroll_animation` acts only on a `Fling` (from
+  a touch pan, which the host never sends) or a `ScrollTo` (Blitz's `scroll_to` with smooth
+  behaviour, or CSS `scroll-behavior: smooth` on a programmatic scroll). Neither starts here;
+  a document that calls Blitz's own `scroll_to` smoothly would fight the engine, which is why
+  `scroll-behavior: smooth` is quire's lint (`lint::Rule::BlitzUnsupported`) and programmatic
+  scrolls go through `ScrollCmd`.
+- The offsets are written before the resolve: `flush_styles_to_layout` hoists positioned
+  (z-indexed) descendants of a scroller with the scroll offset current at that moment, so a
+  write after the resolve would leave them one frame behind.
+- Blitz hit-tests page coordinates and the host's pointer events carried surface-local ones as
+  both; with the viewport scrolled they differ, so `SurfaceDocument::handle_event` now sets page
+  = client + viewport scroll (`input::pointer::scrolled`), and F59's hover repair probes in page
+  coordinates too.
+- `get_client_bounding_rect` of an element subtracts the element's own scroll offset along with
+  its ancestors' (`unrounded_absolute_position`), so a scrolled container's box moves with its
+  own content. `dom::scroll::area` adds it back for the thumb. `SurfaceDocument::element_rect`
+  (regions, popup anchors) still has it: a region element that is itself a scrolled container
+  would shift. Not fixed here.
+- Blitz's overlay scrollbars are the `scrollbars` feature of blitz-paint / blitz-dom, off in
+  this build; `scripts/check-boundary.sh` now fails if it is ever enabled. quire's reset gives
+  ds scroll containers `scrollbar-width: none` as well.
+- Blitz has no keyboard scroll action at this rev (only text inputs handle arrows), and raw
+  writes fire no `onscroll`: `use_scroll` is the notification.
+
+**Keyboard (§11.3.10), and one deviation.** The host takes a scroll key (arrows, PgUp/PgDn,
+Space/Shift+Space, Home/End, Ctrl+Up/Down; nothing with Alt or Super) before the document when
+the focus is not an editable, a form control (`input`, `textarea`, `select`, `button`: Space
+presses a button), `contenteditable`, or inside a `data-keys="capture"` element; the press, its
+repeats and its release then never reach the document. design/11 says "not consumed by a
+component", but Blitz's event driver does not return whether a handler called
+`prevent_default`, and asking afterwards would let the document see keys the engine also acts
+on; `data-keys="capture"` is how a component (a ds Menu's arrows, a listbox, a slider) keeps
+its keys. quire should add it to the components that own arrows. Target: the focused scroll
+container, else the last gesture's scroller if still under the pointer, else (added) the
+innermost scroller under the pointer that has content to scroll, else the viewport. The first
+auto-repeat of an arrow starts the held ramp; its release starts the spring.
+
+**Sources.** A `wl_pointer` frame with `axis_source` wheel or wheel_tilt, or with no source at
+all, is detents (`value120`, else `discrete`, else degrees / 15); Shift or tilt makes it
+horizontal. A frame with no source is a wheel because such a compositor sends no `axis_stop`
+either, so a pan from it could never end; and KWin's fake input sends exactly that (`axis 0
+15.0`, nothing else, traced), so the live check exercises this path, not `wheel` +
+`value120` (unit-tested). `finger` is a phased gesture with momentum and band; `continuous`
+tracks without either. `axis_relative_direction` is read but never applied: compositor values
+already carry the compositor's natural setting, so it is not inverted twice (§11.8 item 15).
+
+**Proof.** `tests/scroll_engine.rs` (pure, 120 Hz, `now` by hand): item 1 (2000 px/s for 100 ms:
+travel within 476..527, MomentumEnded at 0.976 s +- 1 frame), 2 (60 ms pause: no glide), 3
+(boost to 3000 +- 2 % same direction, -2000 opposite; also a touchpad Began during the glide),
+4 (touch to stop: unchanged over two frames), 5 (52.1 / 354.8 bounded, 5 / 50 linear, the
+first 10 px from the edge), 6 (100 px back to exactly 0 by 400 ms, < 1 px at 368 ms +- 1
+frame, monotonic), 7 (peak 18.3 +- 1 px at 80 ms +- 1 frame, settled by 460 ms; again from a
+real 3000 px/s flick), 8 (rigid: 500 px of pull, 0 on every frame), 11 (Down 40 px in 40 ms,
+PgDn 860 px in 200 ms on 900, End within 200 ms, held arrow 1000 px/s at 0.2 s and the spring
+within 1 px of `target - 100 e^(-10t) cos(8.66t)`, settled within 600 ms), 12 (a detent 60 px
+in 60 ms, five in 50 ms reach +300 by 250 ms, no stretch at an edge), 14 (still after the
+settle). Mutating `b` to 0.6 and the snap rate by 10 % fails six of them. `tests/scroll_dom.rs`
+(a laid-out `SurfaceDocument`, no compositor): raw offsets through resolve, only the opted-in
+list is elastic, item 8 on a menu-like list, item 9 (a: inner list at its bottom, the page
+scrolls and the list never moves; b: inner list mid-way takes the whole gesture, stretches
+past its bottom, the page stays at 0 through gesture and rebound), item 10's thumb on the
+list's edge (visible, falling after 500 ms, gone at 741 ms), item 11 (focused text input:
+`Passed`, nothing moves; PgDn over the page: 560 px on a 600 px view), item 15 through the
+palmrest path (Natural: +y finger decreases the offset by exactly 50 px; Traditional
+increases it), `data-wheel="capture"` routing, a wheel detent over the list. Item 10's
+length rule (75 % at s = 250 on 1000) and the fade are in `indicator`'s tests;
+`scroll::paint`'s test renders a thumb through the CPU presenter (0.4 black over white, at 1x
+and 2x). `scroll::watch`'s test renders `use_scroll` in a real document.
+
+Live, `scripts/dev/accept-scroll.sh` (new; `examples/demo_scroll`, headless KWin 6.7.5 via
+`kwin-virtual.sh`, wheel from `fake-input.sh`'s new `axis` command; nothing on wayland-0, no
+keyboard grab):
+
+```
+PASS start: {"frames":5,"commits":5,"offset":0,"captured":0}
+PASS one_detent: {"frames":11,"commits":11,"offset":60,"captured":0}
+PASS five_detents: {"frames":41,"commits":41,"offset":360,"captured":0}
+PASS idle: 5 s idle: {"frames":55,"commits":55,"offset":360,...} -> {"frames":55,"commits":55,...}
+PASS capture: {"frames":58,"commits":58,"offset":360,"captured":2}
+```
+
+(The offset is what `use_scroll` reported to the component.) The first run, before source-less
+frames were detents, gave 15 px per event (a pan that never ended); that is what showed KWin's
+fake input carries no source.
+
+**Not done, or not proven.**
+- Thumb drag and track click: `indicator::drag_offset` is the pure formula, not wired to the
+  pointer. `scroll.scrollbars = Always` keeps the thumb (legacy 15 px) but still shows only the
+  last-scrolled scroller's; one thumb at a time, so the other-axis shortening never applies.
+- The thumb's colour follows the host's colour scheme (0.4 black / white); quire's
+  `--scroll-thumb` token is not readable from the host.
+- The viewport is rigid unless `html` or `body` carries `data-overscroll="band"`, which a
+  Dioxus document cannot set: design/11 §11.3.7's "vertical axis of the document viewport" is
+  not elastic here, per the opt-in rule.
+- Live: no touchpad (fake input has no finger source), no keyboard (no grab), no palmrest
+  (no daemon exists yet), no hover expansion, no visual check of the thumb on screen.
+- The one-finger page swipe (12 §12.3.6) and `Tap{One}` SmartZoom have no consumer yet;
+  `HostEvent` is exhaustive, so a new event for them is an API change to agree with sill.
+
+### F64. The palmrest client and the double-scroll window
+
+`input/palmrest.rs` (design/12 §12.3.10-11, design/11 §11.7). The host connects to
+`$XDG_RUNTIME_DIR/palmrest/events.sock` when it exists, as a non-blocking close-on-exec
+`SOCK_SEQPACKET` socket; the reading side is a calloop `Generic` source registered in the flush's
+timer phase (`ctx/palmrest.rs`), which drains every datagram on each wakeup and removes itself
+when the daemon's end closes. An attempt is made at start and again on the next pointer enter
+while unconnected: no timer, no retry loop, and with no daemon nothing happens at all.
+
+**Wire form, proposed back to design/12.** §12.3.10 names the types, not an encoding. The host
+re-declares `ToHost` / `ToDaemon` and their parts (`input/palmrest/wire.rs`; no dependency on
+palmrest's crate, which is still a stub) and reads one message per datagram as serde's default
+(externally tagged) JSON of exactly those declarations: `{"Scroll":{"gesture":7,"phase":
+"Changed","dx_px":0.0,"dy_px":12.5,"fingers":1,"axis":"Y","t_ns":1000}}`, `"DeviceGone"`,
+`{"PointerOver":{"over":"Ours"}}`. `DeviceInfo` (unnamed fields in the doc) is `name`, `vendor`,
+`product`, all defaulted; `Filter` (also unspecified) is `All` and never sent. An unknown or
+truncated datagram is skipped. palmrest must use the same form, or quire should pin another in
+§12.3.10.
+
+**A dependency, flagged.** std has no `SOCK_SEQPACKET` and `unsafe` is confined to the raw
+window handle module, so the socket calls come from `rustix` (`net`), which wayland-backend
+already builds at the same version (1.1.5; `cargo deny check licenses` passes). CONVENTIONS §11
+says a new direct dependency goes into quire's `docs/workspace-deps.toml` first; that file is
+not this repo's, so `rustix` sits in the root `[workspace.dependencies]` outside the pinned
+block, marked proposed (as `rustc-hash` once was, F1). serde_json, previously behind
+`debug-inject`, and peniko, previously a dev-dependency, are now plain dependencies (both
+already pinned).
+
+**Routing (`input/palmrest/route.rs`, pure, the §12.3.11 table).** `Touches{Down}` and
+`MayBegin` stop a glide or rebound where it is (touch to stop) and open the drop window; `Began`
+records the locked axis, and the first `Changed` with a non-zero delta latches (§11.3.3) in its
+direction, since palmrest drops the first delta at Began; `Changed` applies `scroll.natural` to
+the finger-direction px; `Ended` releases with the host's own samples on palmrest's `t_ns`
+timeline (only differences are taken, so it never has to agree with the host clock);
+`Cancelled` rebounds with no glide. Events go to the surface holding pointer focus; the pointer
+elsewhere, they are ignored. `PointerOver{Ours}` is sent on `wl_pointer.enter` of any of our
+surfaces and `NotOurs` when a leave leaves the pointer on none of them; only changes are sent,
+and the current state again right after each connect.
+
+**The window (`scroll/suppress.rs`, §11.3.14 rule 2).** A compositor axis frame whose source is
+`finger`, `wheel` or absent is dropped while palmrest reports fingers down, while a glide or
+rebound palmrest started is running on any surface, or for `scroll.double_scroll_grace_ms`
+(150) after palmrest's fingers lift, unless an `axis_stop` arrives first (which is itself
+dropped). `continuous` and `wheel_tilt` pass. A real wheel used during the window is ignored,
+as the doc accepts.
+
+**Proof.** `input::palmrest::tests` against a fake daemon (a listening `SOCK_SEQPACKET` socket
+in a temp directory): no socket is a no-op with no retry until an enter; connecting sends the
+current `PointerOver`, only changes follow; `Touches`, a junk datagram and a `Scroll` arrive as
+two messages; the daemon closing reads as `Closed`. `route`'s table test and `wire`'s round
+trips. Item 13, `tests/scroll_palmrest.rs`: a flick sent by the fake daemon over the socket,
+read and routed as the host does, with the same stroke also arriving as compositor finger
+frames through the window: every frame's offset equals the palmrest-only run within 1 px
+(through the glide to its end); with the window bypassed, the final offsets differ by more than
+100 px. Not proven: a real palmrest (it does not exist yet), a real compositor's echo timing,
+and `Tap` / `Swipe`, which have no consumer (F63).
