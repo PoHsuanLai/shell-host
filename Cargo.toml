@@ -63,6 +63,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Safe syscalls where std has none: SOCK_SEQPACKET for the palmrest socket (shell-host
+# input/palmrest.rs, palmrest), hidraw/uinput ioctls (palmrest). Already in every tree through
+# wayland-backend at 1.1.x; the features are the union of both users.
+rustix = { version = "1.1", default-features = false, features = ["std", "event", "fs", "net", "time", "process"] }
 futures-timer = "3"
 cssparser = "0.37"
 notify = "8.2"
@@ -93,10 +97,6 @@ clap = { version = "4", features = ["derive"] }
 # latchkey lives in mailo until it is split into its own repo; cargo finds crates/latchkey itself.
 latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "e8344176ffcc0455c585dafd722c05c911ddc5c4" }
 # ---- END PINNED BLOCK ----
-
-# Proposed for the pinned block (FINDINGS F64): SOCK_SEQPACKET for the palmrest socket. The
-# version wayland-backend already resolves, so no new crate enters the build.
-rustix = { version = "1.1", default-features = false, features = ["std", "net"] }
 
 
 # `deny`, not `forbid`: exactly one module (gpu/raw_handle) may opt back in with an `allow`.

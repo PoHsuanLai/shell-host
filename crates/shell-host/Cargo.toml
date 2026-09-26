@@ -47,8 +47,7 @@ serde_json = { workspace = true }
 # The overlay scroll thumb's shapes and colour (scroll::paint); in the pinned block since S3.
 peniko = { workspace = true }
 # SOCK_SEQPACKET for the palmrest socket (std has no seqpacket, and unsafe is not allowed
-# here). Already in the build through wayland-backend at the same version; proposed for the
-# pinned block (FINDINGS F64).
+# here); in the pinned block since quire b45282a.
 rustix = { workspace = true }
 
 [features]
