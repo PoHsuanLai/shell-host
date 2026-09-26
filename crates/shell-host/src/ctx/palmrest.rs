@@ -30,6 +30,14 @@ pub(super) fn connect_if_due<M: 'static>(ctx: &mut HostCtx<M>) {
                 ctx.state.palmrest.disconnected();
                 Ok(PostAction::Remove)
             }
+            Stream::Incompatible { version } => {
+                eprintln!(
+                    "shell-host: palmrest speaks protocol {version}, this host {}; disconnecting",
+                    crate::input::palmrest::wire::PROTOCOL_VERSION
+                );
+                ctx.state.palmrest.disconnected();
+                Ok(PostAction::Remove)
+            }
         }
     });
     if let Err(error) = inserted {

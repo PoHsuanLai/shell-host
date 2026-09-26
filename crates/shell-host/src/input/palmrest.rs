@@ -19,10 +19,7 @@ use rustix::net::{
     send, socket_with,
 };
 
-use crate::input::palmrest::wire::{Over, ToDaemon, ToHost};
-
-/// The largest message the host reads; a longer datagram is truncated and skipped.
-const MAX_MESSAGE: usize = 4096;
+use crate::input::palmrest::wire::{Compat, Over, ToDaemon, ToHost};
 
 /// Whether the host should try to connect at the next flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,11 +28,16 @@ pub enum Retry {
     Waiting,
 }
 
-/// Whether the daemon's end is still open after a read.
+/// Whether the host goes on reading after a read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stream {
     Open,
+    /// The daemon's end closed.
     Closed,
+    /// The daemon said `Hello` with another protocol version: the host disconnects.
+    Incompatible {
+        version: u16,
+    },
 }
 
 #[derive(Debug)]
@@ -153,15 +155,25 @@ pub fn open(path: &Path) -> io::Result<OwnedFd> {
     Ok(fd)
 }
 
-/// Every message waiting on `fd`, and whether the daemon's end is still open.
+/// Every message waiting on `fd`, and whether to go on reading. A `Hello` of another protocol
+/// version ends the read there (nothing after it is understood); a packet over
+/// `wire::MAX_PACKET` is truncated by the kernel and skipped.
 pub fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
     let mut messages = Vec::new();
-    let mut buf = vec![0u8; MAX_MESSAGE];
+    let mut buf = vec![0u8; wire::MAX_PACKET];
     loop {
         match recv(fd.as_fd(), &mut buf[..], RecvFlags::DONTWAIT) {
             Ok((_, 0)) => return (messages, Stream::Closed),
-            Ok((len, full)) if full <= len => messages.extend(wire::decode(&buf[..len])),
-            // Truncated: not a message we can read.
+            Ok((len, full)) if full <= len => {
+                let Some(message) = wire::decode(&buf[..len]) else {
+                    continue;
+                };
+                if let Compat::Incompatible { version } = wire::compat(&message) {
+                    return (messages, Stream::Incompatible { version });
+                }
+                messages.push(message);
+            }
+            // Truncated: not a message of the protocol.
             Ok(_) => {}
             Err(e) if e == rustix::io::Errno::AGAIN => return (messages, Stream::Open),
             Err(e) if e == rustix::io::Errno::INTR => {}
@@ -248,36 +260,39 @@ mod tests {
         let peer = accept(&listener).expect("accept");
         assert_eq!(
             received(&peer),
-            r#"{"PointerOver":{"over":"Ours"}}"#,
+            r#"{"kind":"pointer_over","v":{"over":"ours"}}"#,
             "state on connect"
         );
         client.pointer_over(Over::Ours);
         client.pointer_over(Over::NotOurs);
         assert_eq!(
             received(&peer),
-            r#"{"PointerOver":{"over":"NotOurs"}}"#,
+            r#"{"kind":"pointer_over","v":{"over":"not_ours"}}"#,
             "only changes"
         );
 
-        let scroll = r#"{"Scroll":{"gesture":1,"phase":"Began","dx_px":0.0,"dy_px":0.0,"fingers":1,"axis":"Y","t_ns":5}}"#;
-        for datagram in [r#"{"Touches":{"active":"Down"}}"#, "not json", scroll] {
+        let hello = r#"{"kind":"hello","v":{"version":1,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
+        let scroll = r#"{"kind":"scroll","v":{"gesture":1,"phase":"began","dx_px":0.0,"dy_px":0.0,"fingers":1,"axis":"y","t_ns":5}}"#;
+        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
+        for datagram in [hello, touches, "not json", scroll] {
             send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
         }
         let (messages, stream) = read_all(&reader);
         assert_eq!(stream, Stream::Open);
         assert_eq!(
             messages.len(),
-            2,
+            3,
             "the junk datagram is skipped: {messages:?}"
         );
+        assert!(matches!(messages[0], ToHost::Hello { version: 1, .. }));
         assert_eq!(
-            messages[0],
+            messages[1],
             ToHost::Touches {
                 active: ActiveTouch::Down
             }
         );
         assert!(matches!(
-            messages[1],
+            messages[2],
             ToHost::Scroll {
                 phase: Phase::Began,
                 ..
@@ -287,5 +302,24 @@ mod tests {
         drop(peer);
         let (messages, stream) = read_all(&reader);
         assert_eq!((messages.len(), stream), (0, Stream::Closed));
+    }
+
+    #[test]
+    fn a_hello_of_another_version_stops_the_read() {
+        let (dir, listener) = daemon();
+        let mut client = Palmrest::at(socket_path(Some(dir.path())));
+        let reader = client.connect().expect("connects");
+        let peer = accept(&listener).expect("accept");
+        let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
+        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
+        for datagram in [hello, touches] {
+            send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
+        }
+        let (messages, stream) = read_all(&reader);
+        assert_eq!(stream, Stream::Incompatible { version: 2 });
+        assert!(
+            messages.is_empty(),
+            "nothing after it is read: {messages:?}"
+        );
     }
 }
