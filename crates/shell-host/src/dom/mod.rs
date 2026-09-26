@@ -8,3 +8,4 @@ pub mod hover_sync;
 pub mod net;
 pub mod scroll;
 pub mod shell_provider;
+pub(crate) mod stacking;

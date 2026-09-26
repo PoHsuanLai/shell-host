@@ -17,6 +17,7 @@ use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
 use crate::dom::hover_sync::{self, Bounds, HoverSync, LastMove, Shift};
 use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
+use crate::dom::stacking;
 use crate::frame::Animation;
 use crate::geometry::enclosing_rect;
 use crate::input::pointer::PointerPos;
@@ -204,8 +205,10 @@ impl SurfaceDocument {
         }
     }
 
-    /// Resolve style and layout at document time `t` (seconds on the host clock), repair the
-    /// hover the resolve moved, then run the pre-paint hook on the result. Resolve and hook are
+    /// Resolve style and layout at document time `t` (seconds on the host clock), hoist the
+    /// z-indexed boxes again from the fresh layout (Blitz gathers them from the previous one,
+    /// FINDINGS F69), repair the hover the resolve moved, then run the pre-paint hook on the
+    /// result (and hoist once more after it). Resolve and hook are
     /// one call because Blitz re-rounds the layout on every resolve: a hook that snapped it must
     /// follow each one, or the paint shows the unsnapped layout. So a frame resolves exactly
     /// once, here, and paints what this left. The hover repair (FINDINGS F59) touches hover
@@ -214,9 +217,14 @@ impl SurfaceDocument {
     pub fn resolve(&mut self, t: f64) -> Resolved {
         let before = self.hovered();
         self.doc.inner_mut().resolve(t);
+        stacking::rehoist(&mut self.doc.inner_mut());
         let after = self.hovered();
         self.sync_hover(Shift { before, after });
         let prepainted = self.prepaint.run(&mut self.doc.inner_mut());
+        if prepainted == Prepainted::Ran {
+            // The hook may have moved boxes (snapping); hoist from where it left them.
+            stacking::rehoist(&mut self.doc.inner_mut());
+        }
         let hover = if before == after {
             HoverShift::Kept
         } else {
