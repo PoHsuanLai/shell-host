@@ -61,6 +61,10 @@ clients can be developed and screenshotted without a real COSMIC login.
     bus is activatable; verified with `busctl --address "$DBUS_SESSION_BUS_ADDRESS" list
     --activatable` (only `org.freedesktop.DBus` itself) and a `Notify` call, which fails
     `ServiceUnknown` instead of starting anything.
+  - `KWIN_VIRTUAL_RUNTIME=<dir>` (opt-in, `accept-lock.sh`): KWin runs with its own runtime
+    directory `<dir>` (made mode 700, must not exist, marked `.shell-host-virtual-compositor`);
+    `.kwin-env` exports it and the socket's absolute path as `WAYLAND_DISPLAY`, and `stop`
+    removes it (FINDINGS F65).
 - `fake-input.sh` — synthetic pointer and keyboard input into that KWin, commands on stdin:
   `move X Y`, `press|release left|right|middle`, `key KEYSYM down|up`, `type "text"`,
   `axis vertical|horizontal VALUE` (KWin delivers it with no `axis_source` and no `value120`,
@@ -75,6 +79,13 @@ clients can be developed and screenshotted without a real COSMIC login.
   nothing (`Cancelled`) and onto a foot window in the same headless session (`Dropped`, foot's
   side of the trace, and the path foot typed). foot comes from `PATH`, `FOOT=`, or `dnf
   download` unpacked into `out/foot` (no root). `DRAG_ICON=root` adds the icon.
+- `accept-lock.sh` — the session lock's acceptance (FINDINGS F65): a cosmic-comp (winit backend,
+  system EGL) inside the headless KWin, both sockets in a private runtime directory, a
+  `probe_toplevel` as the session's window, and `demo_lock`, whose guard refuses any other
+  socket: `Unsupported` on KWin itself, lock, a second locker `Finished`, typing without a click,
+  a wrong password, 0 idle frames, "letmein" unlocks, and a locker killed while locked.
+  `LOCK_TRACE=1` adds `WAYLAND_DEBUG` on the demo. Every exit path unlocks and stops both
+  compositors; never point `demo_lock` at your session.
 - `probe-modifiers.sh` — which `wl_keyboard.modifiers` a keyboard-less layer surface gets while
   Super is held (FINDINGS F61); prints, does not judge.
 

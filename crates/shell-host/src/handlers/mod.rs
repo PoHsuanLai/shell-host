@@ -17,6 +17,7 @@ pub mod output;
 pub mod pointer;
 pub mod render_device;
 pub mod seat;
+pub mod session_lock;
 pub mod text_input;
 pub mod xdg;
 

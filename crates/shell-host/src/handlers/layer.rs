@@ -4,6 +4,7 @@ use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::{
     LayerShellHandler, LayerSurface, LayerSurfaceConfigure,
 };
+use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{Connection, QueueHandle};
 
 use crate::event::CloseReason;
@@ -44,33 +45,45 @@ impl LayerShellHandler for HostState {
         let Some((logical, surface_scale)) = record_configure(self, id, &configure) else {
             return;
         };
-        let buffer = scale::buffer_size(logical, surface_scale);
+        follow_configure(self, id, layer.wl_surface(), logical, surface_scale);
+    }
+}
 
-        match &self.fractional {
-            Some(fractional) if fractional.preferred_scale(layer.wl_surface()).is_some() => {
-                fractional.set_destination(layer.wl_surface(), logical.width, logical.height);
-            }
-            _ => {
-                let integer_scale = surface_scale.as_f64().round().max(1.0) as i32;
-                layer.wl_surface().set_buffer_scale(integer_scale);
-            }
+/// After a configure recorded `logical` on surface `id` (at `surface_scale`): the viewport
+/// destination (or the integer buffer scale), the presenter's size, and an invalidation whose
+/// render sends the regions. Shared by layer and lock surfaces.
+pub(crate) fn follow_configure(
+    state: &mut HostState,
+    id: SurfaceId,
+    wl_surface: &WlSurface,
+    logical: Size,
+    surface_scale: Scale,
+) {
+    let buffer = scale::buffer_size(logical, surface_scale);
+    match &state.fractional {
+        Some(fractional) if fractional.preferred_scale(wl_surface).is_some() => {
+            fractional.set_destination(wl_surface, logical.width, logical.height);
         }
+        _ => {
+            let integer_scale = surface_scale.as_f64().round().max(1.0) as i32;
+            wl_surface.set_buffer_scale(integer_scale);
+        }
+    }
 
-        if let Some(host_surface) = self.surfaces.get_mut(&id)
-            && let Some(presenter) = &mut host_surface.presenter
-        {
-            presenter.resize(self.gpu.as_ref(), buffer);
-        }
+    if let Some(host_surface) = state.surfaces.get_mut(&id)
+        && let Some(presenter) = &mut host_surface.presenter
+    {
+        presenter.resize(state.gpu.as_ref(), buffer);
+    }
 
-        // Regions are not sent here: the invalidate below renders, and the render resolves
-        // them after layout and sends whichever changed (`ctx::paint::send_regions`).
-        if let Some(host_surface) = self.surfaces.get_mut(&id) {
-            let action = host_surface.step(FrameInput::Invalidate);
-            self.timers.push(TimerRequest::Watchdog {
-                id,
-                cmd: action.timer,
-            });
-        }
+    // Regions are not sent here: the invalidate below renders, and the render resolves
+    // them after layout and sends whichever changed (`ctx::paint::send_regions`).
+    if let Some(host_surface) = state.surfaces.get_mut(&id) {
+        let action = host_surface.step(FrameInput::Invalidate);
+        state.timers.push(TimerRequest::Watchdog {
+            id,
+            cmd: action.timer,
+        });
     }
 }
 

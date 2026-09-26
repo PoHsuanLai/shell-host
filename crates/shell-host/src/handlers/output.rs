@@ -6,6 +6,7 @@ use wayland_client::{Connection, QueueHandle};
 
 use crate::event::HostEvent;
 use crate::id::OutputId;
+use crate::lock::machine::LockInput;
 use crate::output::OutputInfo;
 use crate::region::Rect;
 use crate::scale::Scale;
@@ -25,6 +26,7 @@ impl OutputHandler for HostState {
         let Some(sctk_info) = self.outputs.info(&output) else {
             return;
         };
+        self.lock_input(LockInput::OutputAdded(OutputId(sctk_info.id)));
         self.events.push_back(HostEvent::OutputAdded(output_info(
             sctk_info.id,
             &sctk_info,
@@ -57,6 +59,7 @@ impl OutputHandler for HostState {
         let Some(sctk_info) = self.outputs.info(&output) else {
             return;
         };
+        self.lock_input(LockInput::OutputRemoved(OutputId(sctk_info.id)));
         self.events
             .push_back(HostEvent::OutputRemoved(OutputId(sctk_info.id)));
     }

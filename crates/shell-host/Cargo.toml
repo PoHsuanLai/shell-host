@@ -99,6 +99,12 @@ required-features = ["debug-inject"]
 name = "demo_window"
 required-features = ["debug-inject"]
 
+# The session lock's acceptance (FINDINGS F65); its guard against locking a real session is
+# table-tested.
+[[example]]
+name = "demo_lock"
+test = true
+
 [[example]]
 name = "spike_widget"
 required-features = ["headless"]

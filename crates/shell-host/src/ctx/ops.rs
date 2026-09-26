@@ -58,6 +58,7 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
         } => request_token(&mut ctx.state, from, app_id, reply),
         Request::StartDrag { from, spec, reply } => super::drag::start(ctx, from, spec, reply),
         Request::Scroll { id, cmd } => ctx.state.scroll_command(id, &cmd),
+        Request::Unlock(lock) => super::lock::ask_unlock(&mut ctx.state, lock),
     }
 }
 
@@ -133,7 +134,7 @@ fn send(state: &HostState, id: SurfaceId, op: &SurfaceOp) {
             }
         }
         (Role::Toplevel { window, .. }, op) => super::window::send(state, id, window, op),
-        (Role::Popup { .. } | Role::DragIcon { .. }, _) => {}
+        (Role::Popup { .. } | Role::DragIcon { .. } | Role::Lock { .. }, _) => {}
     }
 }
 
@@ -161,11 +162,14 @@ fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op
 }
 
 /// Hide or show surface `id` (`surface::visibility_change`). Hiding closes its popups.
+/// A lock surface is never hidden: its output would fall back to the compositor's solid colour,
+/// and a re-made lock surface may not be committed before its configure.
 pub(super) fn set_visibility<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, to: Visibility) {
     let Some(from) = ctx
         .state
         .surfaces
         .get(&id)
+        .filter(|surface| !matches!(surface.role, Role::Lock { .. }))
         .map(|surface| surface.visibility)
     else {
         return;
@@ -234,9 +238,11 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     };
     let lifted = match &surface.role {
         Role::Popup { parent, config, .. } if config.grab == Grab::Grabbed => Some(*parent),
-        Role::Popup { .. } | Role::Layer { .. } | Role::Toplevel { .. } | Role::DragIcon { .. } => {
-            None
-        }
+        Role::Popup { .. }
+        | Role::Layer { .. }
+        | Role::Toplevel { .. }
+        | Role::DragIcon { .. }
+        | Role::Lock { .. } => None,
     };
     drop(surface);
     if let Some(parent) = lifted {

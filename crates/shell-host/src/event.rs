@@ -1,6 +1,8 @@
 //! What the host tells the shell.
 
 use crate::id::{OutputId, SurfaceId};
+use crate::lock::LockId;
+use crate::lock::machine::LockState;
 use crate::output::OutputInfo;
 
 /// An event delivered to the closure given to `Host::run`.
@@ -21,6 +23,13 @@ pub enum HostEvent<M> {
     KeyboardFocus {
         id: SurfaceId,
         focus: Focus,
+    },
+    /// A session lock from `HostCtx::lock_session` changed state: `Locked` once the compositor
+    /// locked, `Unlocked` after the unlock, `Finished` when the compositor refused the lock
+    /// (another locker holds it) or ended it itself.
+    Lock {
+        id: LockId,
+        state: LockState,
     },
     /// A message sent through a `HostHandle`.
     App(M),
@@ -65,6 +74,7 @@ pub fn widen<M>(event: ShellEvent) -> HostEvent<M> {
         HostEvent::OutputRemoved(id) => HostEvent::OutputRemoved(id),
         HostEvent::SurfaceClosed { id, reason } => HostEvent::SurfaceClosed { id, reason },
         HostEvent::KeyboardFocus { id, focus } => HostEvent::KeyboardFocus { id, focus },
+        HostEvent::Lock { id, state } => HostEvent::Lock { id, state },
         HostEvent::App(never) => match never {},
     }
 }
@@ -99,6 +109,16 @@ mod tests {
                 HostEvent::KeyboardFocus {
                     id: SurfaceId(1),
                     focus: Focus::Gained,
+                },
+            ),
+            (
+                HostEvent::Lock {
+                    id: LockId(4),
+                    state: LockState::Finished,
+                },
+                HostEvent::Lock {
+                    id: LockId(4),
+                    state: LockState::Finished,
                 },
             ),
         ];

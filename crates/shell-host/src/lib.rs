@@ -33,6 +33,7 @@ pub mod input;
 pub mod layer;
 pub mod live;
 pub mod live_scale;
+pub mod lock;
 pub mod msg;
 pub mod output;
 pub mod placement;
@@ -74,6 +75,9 @@ pub use inject::{Inject, Injected};
 pub use layer::{
     Anchor, ExclusiveZone, Extent, KeyboardMode, Layer, LayerConfig, LayerSize, OutputTarget,
 };
+pub use lock::handle::{LockHandle, use_lock, use_lock_phase};
+pub use lock::machine::{LockPhase, LockState};
+pub use lock::{LockConfig, LockError, LockId};
 pub use msg::{SurfaceOp, Visibility};
 pub use output::OutputInfo;
 pub use placement::PopupPlacement;

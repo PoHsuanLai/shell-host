@@ -11,13 +11,15 @@ use smithay_client_toolkit::data_device_manager::DataDeviceManagerState;
 use smithay_client_toolkit::output::OutputState;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::SeatState;
+use smithay_client_toolkit::session_lock::SessionLockState;
 use smithay_client_toolkit::shell::wlr_layer::LayerShell;
 use smithay_client_toolkit::shell::xdg::XdgShell;
 use smithay_client_toolkit::shm::Shm;
 use smithay_client_toolkit::{
     delegate_activation, delegate_compositor, delegate_data_device, delegate_keyboard,
     delegate_layer, delegate_output, delegate_pointer, delegate_registry, delegate_seat,
-    delegate_shm, delegate_xdg_popup, delegate_xdg_shell, delegate_xdg_window, registry_handlers,
+    delegate_session_lock, delegate_shm, delegate_xdg_popup, delegate_xdg_shell,
+    delegate_xdg_window, registry_handlers,
 };
 use wayland_client::{Connection, QueueHandle, delegate_dispatch};
 use wayland_protocols::ext::background_effect::v1::client::ext_background_effect_manager_v1::ExtBackgroundEffectManagerV1;
@@ -66,6 +68,7 @@ use crate::input::focus::PointerFocus;
 use crate::input::key::{Repeat, key_event};
 use crate::input::palmrest::Palmrest;
 use crate::input::pointer::PointerPos;
+use crate::lock::active::{ActiveLock, LockIds};
 use crate::prepaint::Prepaint;
 use crate::scroll::suppress::Suppress;
 use crate::scroll::tuning::Tuning;
@@ -106,6 +109,11 @@ pub struct HostState {
     pub(crate) clipboard: Clipboard,
     /// The drag out of one of our surfaces, while one is under way.
     pub(crate) drag: Dragging,
+    /// `ext_session_lock_manager_v1`; `lock` fails with `LockError::Unsupported` without it.
+    pub(crate) session_lock: SessionLockState,
+    /// The session lock in force, from its request until it ends.
+    pub(crate) lock: Option<ActiveLock>,
+    pub(crate) lock_ids: LockIds,
     pub(crate) fonts: SharedFonts,
     pub(crate) clock: HostClock,
     pub(crate) ids: SurfaceIds,
@@ -197,6 +205,9 @@ impl HostState {
             },
             clipboard: Clipboard::default(),
             drag: Dragging::default(),
+            session_lock: SessionLockState::new(globals, &qh),
+            lock: None,
+            lock_ids: LockIds::default(),
             fonts: SharedFonts::system(),
             clock: HostClock::starting_at(Instant::now()),
             ids: SurfaceIds::new(),
@@ -347,6 +358,7 @@ delegate_pointer!(HostState);
 delegate_keyboard!(HostState);
 delegate_data_device!(HostState);
 delegate_activation!(HostState, ActivationRequest);
+delegate_session_lock!(HostState);
 
 delegate_dispatch!(HostState: [WpFractionalScaleManagerV1: ()] => Fractional);
 delegate_dispatch!(HostState: [WpFractionalScaleV1: ()] => Fractional);

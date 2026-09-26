@@ -1,14 +1,16 @@
 //! What kind of surface a `HostSurface` is, with the sctk object that owns its `wl_surface`.
 
 use smithay_client_toolkit::compositor::Surface;
+use smithay_client_toolkit::session_lock::SessionLockSurface;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use smithay_client_toolkit::shell::xdg::popup::Popup;
 use smithay_client_toolkit::shell::xdg::window::Window;
 use wayland_client::protocol::wl_surface::WlSurface;
 
-use crate::id::SurfaceId;
+use crate::id::{OutputId, SurfaceId};
 use crate::layer::{KeyboardMode, LayerConfig};
+use crate::lock::LockId;
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::toplevel::{ToplevelConfig, ToplevelState};
@@ -38,6 +40,14 @@ pub enum Role {
     /// A drag's icon (`wl_data_device.start_drag`'s `icon`, the `dnd_icon` role). Never
     /// configured and never given input; it lives as long as the drag from `origin`.
     DragIcon { surface: Surface, origin: SurfaceId },
+    /// A session lock surface (`ext_session_lock_surface_v1`) on `output`: made and destroyed
+    /// by the lock's machine only, never hidden, never committed before its configure, always
+    /// given the keyboard by the compositor while the session is locked.
+    Lock {
+        surface: SessionLockSurface,
+        output: OutputId,
+        lock: LockId,
+    },
 }
 
 /// Which role a surface has, without its objects: what a `SurfaceHandle` knows of its surface.
@@ -47,6 +57,7 @@ pub enum RoleKind {
     Popup,
     Toplevel,
     DragIcon,
+    Lock,
 }
 
 impl Role {
@@ -57,6 +68,7 @@ impl Role {
             Role::Popup { .. } => RoleKind::Popup,
             Role::Toplevel { .. } => RoleKind::Toplevel,
             Role::DragIcon { .. } => RoleKind::DragIcon,
+            Role::Lock { .. } => RoleKind::Lock,
         }
     }
 
@@ -67,6 +79,7 @@ impl Role {
             Role::Popup { popup, .. } => popup.wl_surface(),
             Role::Toplevel { window, .. } => window.wl_surface(),
             Role::DragIcon { surface, .. } => surface.wl_surface(),
+            Role::Lock { surface, .. } => surface.wl_surface(),
         }
     }
 
@@ -74,7 +87,10 @@ impl Role {
     pub fn parent(&self) -> Option<SurfaceId> {
         match self {
             Role::Popup { parent, .. } => Some(*parent),
-            Role::Layer { .. } | Role::Toplevel { .. } | Role::DragIcon { .. } => None,
+            Role::Layer { .. }
+            | Role::Toplevel { .. }
+            | Role::DragIcon { .. }
+            | Role::Lock { .. } => None,
         }
     }
 }

@@ -4,6 +4,7 @@
 mod drag;
 mod drag_icon;
 pub mod flush;
+mod lock;
 mod ops;
 mod paint;
 mod palmrest;

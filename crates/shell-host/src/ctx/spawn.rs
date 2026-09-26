@@ -151,6 +151,11 @@ pub(super) fn rebuild(state: &mut HostState, old: Role) -> Result<Role> {
                 origin,
             })
         }
+        // Never hidden (`ops::set_visibility`), so never rebuilt.
+        Role::Lock { .. } => Err(HostError::Unsupported {
+            global: "ext_session_lock_v1",
+            feature: "hiding a lock surface",
+        }),
     }
 }
 
@@ -255,6 +260,12 @@ fn popup_role(
             return Err(HostError::Unsupported {
                 global: "xdg_popup",
                 feature: "a popup on a drag icon",
+            });
+        }
+        Role::Lock { .. } => {
+            return Err(HostError::Unsupported {
+                global: "xdg_popup",
+                feature: "a popup on a lock surface",
             });
         }
     };

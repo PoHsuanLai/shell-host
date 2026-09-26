@@ -153,4 +153,6 @@ pub enum Request {
         id: SurfaceId,
         cmd: ScrollCmd,
     },
+    /// Unlock session lock `LockId` (`LockHandle::unlock`, `HostCtx::unlock_session`).
+    Unlock(crate::lock::LockId),
 }

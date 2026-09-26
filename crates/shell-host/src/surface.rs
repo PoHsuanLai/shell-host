@@ -176,9 +176,15 @@ impl HostSurface {
                     config, keyboard, ..
                 },
             ) => record_layer(op, config, keyboard),
-            // A layer op on a popup, a toplevel or an icon, or a reposition of a non-popup:
-            // ignored.
-            (_, Role::Popup { .. } | Role::Toplevel { .. } | Role::DragIcon { .. }) => {}
+            // A layer op on a popup, a toplevel, an icon or a lock surface, or a reposition of a
+            // non-popup: ignored.
+            (
+                _,
+                Role::Popup { .. }
+                | Role::Toplevel { .. }
+                | Role::DragIcon { .. }
+                | Role::Lock { .. },
+            ) => {}
         }
     }
 
