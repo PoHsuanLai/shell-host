@@ -37,6 +37,12 @@ mkdir -p "$OUT_DIR"
 
 cmd="${1:-start}"
 
+# The wayland socket (basename) a process is listening on, if any.
+socket_of_pid() {
+  ss -xlp 2>/dev/null | awk -v pid="pid=$1," '
+    index($0, pid) { for (i = 1; i <= NF; i++) if ($i ~ /\/wayland-[^ ]*$/ && $i !~ /\.lock$/) { n = split($i, p, "/"); print p[n]; exit } }'
+}
+
 list_wayland_sockets() {
   # Only real sockets (type S), never the *.lock files next to them.
   local f
@@ -156,8 +162,13 @@ start_nested() {
       cat "$LOG_FILE" >&2
       exit 1
     fi
-    after="$(list_wayland_sockets | sort)"
-    new_socket="$(comm -13 <(echo "$before") <(echo "$after") | head -n1)"
+    # The socket cosmic-comp itself listens on: a diff of the socket list alone also picks up a
+    # headless KWin (wayland-kwinvirt-*) that another script started in the same window.
+    new_socket="$(socket_of_pid "$comp_pid")"
+    if [ -z "$new_socket" ] && ! command -v ss >/dev/null 2>&1; then
+      after="$(list_wayland_sockets | sort)"
+      new_socket="$(comm -13 <(echo "$before") <(echo "$after") | grep -v '^wayland-kwinvirt-' | head -n1)"
+    fi
     if [ -n "$new_socket" ]; then
       break
     fi
