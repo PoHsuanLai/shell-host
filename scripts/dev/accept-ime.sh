@@ -208,7 +208,7 @@ field() {
     sleep 0.05
   done
   grep '"focused"' "$OUT/ime-launcher.out" | tail -1 \
-    | python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print(f"{d.get(\"typed\")}|{d.get(\"shown\")}|{d.get(\"ime\")}")'
+    | python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print("|".join(str(d.get(k)) for k in ("typed", "shown", "ime")))'
 }
 
 compose || exit 1
