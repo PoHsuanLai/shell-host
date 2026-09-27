@@ -2418,3 +2418,61 @@ The protocol resets the preedit on every `done`, so `on_done` now clears it firs
 new preedit replaces it. With both, the trace reads enable, preedit ㄋ … 你好, commit 你好.
 Chewing commits with Return; Space opens the candidate list. The new debug-inject verb
 `<surface> focused` reads a field back (`typed`, `shown`, `ime`).
+
+## A bar menu's keyboard on KWin (branch `popup-keyboard`, 2026-09-28)
+
+### F72. On KWin the lifted bar took the keyboard and kept it after its menu closed
+
+Report (sill manual checks 04 and 07, KDE Plasma 6): the control center (a grabbing popup of
+the bar) and the notification center (an `OnDemand` layer) seemed to take no keys. Reproduced on
+the headless KWin 6.7.5 (never `wayland-0`) with sill's own daemon, a real fake-input click on
+the bar item and `WAYLAND_DEBUG=1`, five ways: bare; with a focused toplevel; with fcitx5 as
+KWin's input method; with a copy of the user's kwinrc and KWin scripts; with global shortcuts on
+(`KWIN_VIRTUAL_GLOBAL_SHORTCUTS=1`, new). The keys reached the popup every time:
+
+    wl_pointer.button(17, .., 272, 1)                       press on the item
+    -> zwlr_layer_surface_v1#30.set_keyboard_interactivity(2)   the lift (OnDemand)
+    -> xdg_popup#242.grab(wl_seat#12, 17)                   the press's own serial
+    wl_keyboard.enter(19, wl_surface#27)                    KWin activates the BAR
+    wl_keyboard.leave(23, wl_surface#27); enter(23, wl_surface#251)   then the popup
+    wl_keyboard.key(.., 15, 1) ... key(.., 1, 1)            Tab, Right, Escape: delivered
+    -> xdg_popup#242.destroy(); set_keyboard_interactivity(0)
+    wl_keyboard.leave(43, nil); enter(43, wl_surface#27)    the bar takes it back, and keeps it
+
+The serial is not the problem (KWin's `xdg_popup_grab` never checks it, `hasPopupGrab` is set
+unconditionally), nor the focus: `PopupInputFilter::focus` hands the keyboard to the topmost
+grabbing popup itself. The host's lift is what misbehaves on KWin:
+`LayerShellV1Window::handleAcceptsFocusChanged` *activates* a Top/Overlay layer whose
+interactivity becomes non-None, so the bar becomes KWin's active window; dropping it back to
+`None` deactivates nothing, and when the popup closes `PopupInputFilter` returns the keyboard to
+the active window: the bar, which takes no keys. The app the user was typing in (demo_window in
+the trace: one `leave`, never another `enter`) is left without the keyboard until clicked, every
+time a bar menu has been open. The activation also fires `Workspace::windowActivated`, on which
+KWin cancels every open grabbing popup.
+
+Fix: `popup_keyboard::parent_keyboard` (pure, table-tested) keeps the parent as it is on KWin
+(`CompositorKind::Kwin`, recognised by `org_kde_plasma_shell`; wlroots offers some
+`org_kde_kwin_*` globals but never that one) and lifts as before elsewhere (cosmic-comp needs the
+parent to take keyboard input). The popup_done path's restore now commits the layer (it set
+`None` without a commit, so it applied only at the bar's next repaint). With the fix, sill built
+against this branch: the popup is entered directly (no bar enter, no `set_keyboard_interactivity`
+at all), Tab/Right/Escape reach it, and the toplevel gets `wl_keyboard.enter` back when the
+control center closes. `scripts/dev/accept-popup-keyboard.sh` (new; `examples/demo_popup_keys`):
+6/6 PASS; with the fix stashed, `bar_never_keyed` (3 enters, one lift) and `app_gets_it_back`
+(no enter, no key) FAIL.
+
+A second bar item clicked while a menu is open: KWin sends no `popup_done` (the press is on the
+popup's own client, `belongToSameApplication`), so dismissing is the shell's. Headless, sill
+closes the open menu on that press and does not open the clicked one (sill's choice, not the
+host's).
+
+Not reproduced headlessly: keys that never reach the popup at all. Two leads for the real
+session, neither the host's: (1) the user's KWin script `window-corner-overview` invokes the
+Overview when the pointer enters the screen's top-right 40x40 px; sill's clock is inked at
+x 1786-1900 of 1920 on its 32 px bar, so pointing at the clock's right end opens the Overview.
+The journal shows the Overview opening once during check 04 and five times during check 07.
+Reproduced with the user's kwinrc: the notification center and the control center lose the
+keyboard while it is up, and after Escape the popup's first key press is swallowed. (2) In
+sill's control center a real Tab changes nothing on screen (captures after open, Tab, Tab are
+pixel-identical) although the keys are delivered (Right opens the Wi-Fi pane), so "Tab moves the
+ring" cannot pass whatever the keyboard does; that is sill's (or quire's) focus order.

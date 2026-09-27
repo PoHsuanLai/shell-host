@@ -86,6 +86,11 @@ clients can be developed and screenshotted without a real COSMIC login.
   a wrong password, 0 idle frames, "letmein" unlocks, and a locker killed while locked.
   `LOCK_TRACE=1` adds `WAYLAND_DEBUG` on the demo. Every exit path unlocks and stops both
   compositors; never point `demo_lock` at your session.
+- `accept-popup-keyboard.sh` — a bar menu's keyboard (FINDINGS F72): `demo_popup_keys` (a
+  `KeyboardMode::None` bar whose button opens a grabbing popup on its press) beside a focused
+  `demo_window`. A real click opens the popup; real Tab, Down and x reach it with no click inside;
+  Escape closes it; the bar never holds the keyboard; the window gets the keyboard back and a key
+  typed after the close reaches it.
 - `probe-modifiers.sh` — which `wl_keyboard.modifiers` a keyboard-less layer surface gets while
   Super is held (FINDINGS F61); prints, does not judge.
 

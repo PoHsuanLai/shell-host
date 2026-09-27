@@ -103,7 +103,8 @@ pub enum ExclusiveZone {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyboardMode {
     /// Never (bar, dock). A grabbing popup opened from such a surface switches it to `OnDemand`
-    /// until the popup closes (plan: shell-host input rule; design/13 §13.3.8).
+    /// until the popup closes (plan: shell-host input rule; design/13 §13.3.8), except on KWin,
+    /// which focuses the popup itself (`popup_keyboard`, FINDINGS F72).
     None,
     /// Takes all keyboard input while mapped (launcher, switcher).
     Exclusive,

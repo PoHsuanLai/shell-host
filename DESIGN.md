@@ -49,6 +49,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `grab.rs` | the move/resize serial rule: `PointerFacts`, `grab_serial`, `GrabRefused`, the shared `GrabRecord` (FINDINGS F49) | pure + shared cell |
 | `prepaint.rs` | `Prepaint::{None, Hook}`: the consumer's pass between the frame's one `resolve` and its paint, for device-pixel snapping (FINDINGS F43) | pure |
 | `popup.rs` | S2: `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
+| `popup_keyboard.rs` | Whether a popup lifts its `KeyboardMode::None` parent layer to `OnDemand`: a grabbing one does, never on KWin (FINDINGS F72) | pure |
 | `placement.rs` | `PopupPlacement` (anchor rect and size S2's config does not carry, FINDINGS F4) | pure (data) |
 | `region.rs` | S2: `RegionSpec`, `rounded_strips`; design/10 §10.3.12 | pure |
 | `resolve.rs` | `RegionSpec` -> strips after layout; `Tracked`, what was last sent, so only a changed region is recommitted; design/10 §10.3.12 "recomputed on every frame whose pill rect changed" | pure |
@@ -56,7 +57,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `blur.rs` | `BlurSpec`; plan "blur (BlurSpec{None,Region})", quire 03-COLOR §17.1 (region is shell-host's) | pure (data) |
 | `scale.rs` | S2: `Scale` in 120ths, `buffer_size`; plan "Scale" | pure |
 | `surface.rs` | `HostSurface` (field order = drop order, S1 finding 6), `AppliedRegions` (two `resolve::Tracked`: input starts unknown, blur starts empty) | effects |
-| `role.rs` | `Role::{Layer,Popup,Toplevel,DragIcon,Lock}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" | effects |
+| `role.rs` | `Role::{Layer,Popup,Toplevel,DragIcon,Lock}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" (not on KWin: `popup_keyboard.rs`, F72) | effects |
 
 ## Frames, time, stats
 

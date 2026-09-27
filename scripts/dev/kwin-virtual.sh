@@ -39,6 +39,10 @@
 # KWIN_VIRTUAL_CONFIG_SEED=<dir> is copied into the empty XDG_CONFIG_HOME first (an fcitx5
 # profile, say).
 #
+# KWIN_VIRTUAL_GLOBAL_SHORTCUTS=1 (opt-in, diagnosis only; FINDINGS F72) drops
+# --no-global-shortcuts, so a seeded kwinrc's KWin scripts can invoke kglobalaccel shortcuts
+# (the Overview) inside this KWin; its shortcuts act only on this KWin's (fake) input.
+#
 # KWIN_VIRTUAL_RUNTIME=<dir> (opt-in; accept-lock.sh uses it, FINDINGS F65) gives the headless
 # KWin its own runtime directory: start makes <dir> (mode 700, it must not exist yet), runs KWin
 # with XDG_RUNTIME_DIR=<dir> so its socket is <dir>/wayland-kwinvirt-<pid>, writes the marker
@@ -139,7 +143,9 @@ inside() {
     export XDG_DATA_HOME="$config/.data" XDG_CACHE_HOME="$config/.cache" XDG_STATE_HOME="$config/.state"
     im=(--inputmethod "$KWIN_VIRTUAL_INPUTMETHOD")
   fi
-  exec setsid kwin_wayland --virtual --no-lockscreen --no-global-shortcuts \
+  local shortcuts=(--no-global-shortcuts)
+  [ "${KWIN_VIRTUAL_GLOBAL_SHORTCUTS:-0}" = 1 ] && shortcuts=()
+  exec setsid kwin_wayland --virtual --no-lockscreen "${shortcuts[@]}" \
       --width "${size%x*}" --height "${size#*x}" --socket "$sock" "${im[@]}"
 }
 

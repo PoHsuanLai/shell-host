@@ -35,6 +35,7 @@ use crate::popup::{
     Grab, PopupAnchor, PopupConfig, PositionerParams, positioner_params, to_wire_anchor as edge,
     to_wire_constraint_adjustment, to_wire_gravity,
 };
+use crate::popup_keyboard::{ParentKeyboard, parent_keyboard};
 use crate::region::{Px, RegionSpec};
 use crate::role::Role;
 use crate::root::Root;
@@ -84,7 +85,7 @@ pub(super) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelCon
 }
 
 /// Create and map popup `id` on `parent`. A grabbing popup lifts a `KeyboardMode::None` parent
-/// layer to `OnDemand` until it closes.
+/// layer to `OnDemand` until it closes, except on KWin (`popup_keyboard`, F72).
 pub(super) fn popup(
     state: &mut HostState,
     parent: SurfaceId,
@@ -107,9 +108,7 @@ pub(super) fn popup(
         .get(&parent)
         .map_or(Scale::ONE, |surface| surface.scale);
     let role = popup_role(state, parent, config, placement)?;
-    if grab == Grab::Grabbed {
-        lift_keyboard(state, parent);
-    }
+    lift_keyboard(state, parent, grab);
     map(state, &role);
     let name = SurfaceName(format!("{parent_name}/popup"));
     let regions = (BlurSpec::None, RegionSpec::Whole);
@@ -302,15 +301,16 @@ pub(super) fn positioner(state: &HostState, params: &PositionerParams) -> Result
 }
 
 /// Switch a `KeyboardMode::None` layer to `OnDemand`, so the grabbing popup opened from it can
-/// take keyboard focus (plan "Opening a grabbing popup ...").
-fn lift_keyboard(state: &mut HostState, parent: SurfaceId) {
+/// take keyboard focus (plan "Opening a grabbing popup ..."), where `parent_keyboard` says so.
+fn lift_keyboard(state: &mut HostState, parent: SurfaceId, grab: Grab) {
+    let kind = state.compositor_kind;
     if let Some(HostSurface {
         role: Role::Layer {
             surface, keyboard, ..
         },
         ..
     }) = state.surfaces.get_mut(&parent)
-        && *keyboard == KeyboardMode::None
+        && parent_keyboard(kind, grab, *keyboard) == ParentKeyboard::Lift
     {
         *keyboard = KeyboardMode::OnDemand;
         surface.set_keyboard_interactivity(to_wire_keyboard(KeyboardMode::OnDemand));

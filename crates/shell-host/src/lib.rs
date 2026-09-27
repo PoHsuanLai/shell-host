@@ -39,6 +39,7 @@ pub mod msg;
 pub mod output;
 pub mod placement;
 pub mod popup;
+pub mod popup_keyboard;
 pub mod prepaint;
 pub mod region;
 pub mod resolve;

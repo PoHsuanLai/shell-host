@@ -11,10 +11,12 @@
 //!
 //! Pure: the facts are gathered by `handlers::render_device` and `HostState`.
 
-/// Which compositor this is, as far as blur is concerned.
+/// Which compositor this is, where its behaviour differs: blur (cosmic-comp, F29) and a
+/// grabbing popup's keyboard (KWin, F72, `popup_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompositorKind {
     Cosmic,
+    Kwin,
     Other,
 }
 
@@ -64,14 +66,24 @@ pub fn blur_health(facts: CompositorFacts) -> BlurHealth {
     }
 }
 
-/// cosmic-comp, recognised by any of its private globals (`zcosmic_*`, `cosmic_*`).
+/// cosmic-comp, recognised by any of its private globals (`zcosmic_*`, `cosmic_*`); KWin by
+/// `org_kde_plasma_shell` (wlroots compositors offer some `org_kde_kwin_*` globals, never this
+/// one).
 pub fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> CompositorKind {
     let cosmic = |name: &str| name.starts_with("zcosmic_") || name.starts_with("cosmic_");
-    if interfaces.into_iter().any(cosmic) {
-        CompositorKind::Cosmic
-    } else {
-        CompositorKind::Other
-    }
+    let kwin = |name: &str| name == "org_kde_plasma_shell";
+    interfaces
+        .into_iter()
+        .find_map(|name| {
+            if cosmic(name) {
+                Some(CompositorKind::Cosmic)
+            } else if kwin(name) {
+                Some(CompositorKind::Kwin)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(CompositorKind::Other)
 }
 
 /// The winit backend, recognised by an output named `WINIT-n` (`wl_output.name`, v4).
@@ -129,6 +141,7 @@ mod tests {
         use RenderVendor as V;
         let cases = [
             (K::Cosmic, B::Winit, V::Nvidia, BlurHealth::Breaks),
+            (K::Kwin, B::Winit, V::Nvidia, BlurHealth::Renders),
             (K::Cosmic, B::Winit, V::Other, BlurHealth::Renders),
             (K::Cosmic, B::Winit, V::Unknown, BlurHealth::Renders),
             (K::Cosmic, B::Other, V::Nvidia, BlurHealth::Renders),
@@ -146,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn cosmic_is_recognised_by_its_private_globals() {
+    fn cosmic_and_kwin_are_recognised_by_their_private_globals() {
         let cases: &[(&[&str], CompositorKind)] = &[
             (
                 &["wl_compositor", "zcosmic_output_manager_v1"],
@@ -156,6 +169,18 @@ mod tests {
             (
                 &["wl_compositor", "org_kde_kwin_blur_manager"],
                 CompositorKind::Other,
+            ),
+            (
+                &["wl_compositor", "org_kde_kwin_server_decoration_manager"],
+                CompositorKind::Other,
+            ),
+            (
+                &[
+                    "wl_compositor",
+                    "org_kde_plasma_shell",
+                    "org_kde_kwin_blur_manager",
+                ],
+                CompositorKind::Kwin,
             ),
             (&[], CompositorKind::Other),
         ];

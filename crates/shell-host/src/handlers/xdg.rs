@@ -234,6 +234,9 @@ fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
     if config.keyboard == KeyboardMode::None && *keyboard != KeyboardMode::None {
         *keyboard = KeyboardMode::None;
         surface.set_keyboard_interactivity(to_wire_keyboard(KeyboardMode::None));
+        // Layer state is double-buffered: without a commit the bar stayed `OnDemand` until its
+        // next repaint.
+        surface.commit();
     }
 }
 

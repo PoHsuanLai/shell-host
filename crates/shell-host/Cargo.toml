@@ -116,3 +116,7 @@ required-features = ["headless"]
 # The IME acceptance (FINDINGS F71): a plain `<input>` on an exclusive-keyboard Overlay layer.
 [[example]]
 name = "demo_ime"
+
+# The popup keyboard acceptance (FINDINGS F72): a None bar and a grabbing popup that prints its keys.
+[[example]]
+name = "demo_popup_keys"
