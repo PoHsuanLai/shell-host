@@ -21,6 +21,15 @@ driven by commands on stdin (`bar stats`, `dock hover 300 64`, `dock leave`, `ba
 cargo run --release -p shell-host --features debug-inject --example demo_bar -- --with-dock
 ```
 
+The stdin protocol (`debug::parse_command`) also has `<surface> press X Y [button]` and
+`<surface> release X Y [button]` (`button` is `primary`, `secondary` or `middle`, primary when
+omitted, same as `click`): a `press`, one or more `hover`s at the points in between (still with
+the button down, so each moves like a real drag step) and a `release` script a drag through the
+exact code path a real `wl_pointer` press, motion and release use (`HostCtx::inject`,
+`HostState::deliver`), which a whole `click` cannot — there is no move in between it. `click`
+itself is unchanged: a `press` immediately followed by a `release` at the same point (FINDINGS
+F70, sill's G330).
+
 `demo_bar` takes `--with-dock` (both surfaces in one process) and `--exclusive=N`, and
 `DEMO_BLUR=1` blurs behind the bar; `demo_dock` takes `--mode=transform|width|tick` and
 `--layer=bottom`. `--mode=tick` magnifies from the component itself, once per compositor frame,

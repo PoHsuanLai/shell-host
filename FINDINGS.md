@@ -2328,3 +2328,76 @@ with it is pinned, `rehoist` can go.
 **Public API.** None changed: `dom::stacking` is `pub(crate)`, and `SurfaceDocument::resolve`
 and `render_png` keep their signatures. Not checked on screen from this branch (sill reads
 shell-host master by path); the sill widget centre should be re-shot after this lands.
+
+## Scripting a drag through `debug-inject` (branch `inject-drag`, 2026-09-27)
+
+### F70. G330: `Inject` only offered a whole click; a drag has no move to script it with, and its delivery skipped the real path anyway
+
+Sill's G330: a drag on a widget (reordering a dock icon, dragging a titlebar) can't be scripted
+through a real `wl_pointer` on the nested test compositor — there is no protocol request for
+"pretend the user moved the mouse here with a button down" (the same gap SPIKE.md already notes
+for "pretend the user clicked here" outside a surface). `Inject` was `Pointer` (a bare hover),
+`Click` (move, press, release, all at one point) and `Leave`: no way to press, move away with
+the button still down, and only then release — a whole `Click` never gives the DOM a
+`PointerMove` with `buttons` set, so nothing that reads it (a drag's own distance-from-mousedown
+threshold, Blitz's built-in 2px text-selection threshold) ever sees one.
+
+**A second gap, underneath.** `HostCtx::inject` fed every event straight to
+`SurfaceDocument::handle_event` through a `feed` helper local to `inject.rs`, not through
+`HostState::deliver` (`handlers/band.rs`) — the function a real press, motion or release
+actually goes through. `deliver` does two things `feed` skipped: it reads back the document's
+cursor request (`surface.doc_cursor`, what `show_cursor` paints from) and it invalidates the
+surface unconditionally. So an injected move never updated the cursor a real one would have, and
+relied on the document's own waker to ask for a redraw instead of always asking, unlike real
+input. Separately, `Inject::Click` never touched `HostState`'s `SeatInput::buttons` at all: two
+clicks in a row were each a harmless None → Primary → None round trip, but there was nowhere to
+carry "still held" from one `HostCtx::inject` call to the next, which a scripted drag needs.
+
+**Fix.** `Inject` gained `PointerDown { at, button }` and `PointerUp { at, button }`; `Pointer`
+(the hover/move primitive) is unchanged in name but now carries whatever `SeatInput::buttons`
+currently holds, instead of a hardcoded `MouseEventButtons::None` — the same thing a real
+`Motion` reads off `self.input.buttons` (`handlers/pointer.rs`). `PointerDown` and `PointerUp`
+update `SeatInput::buttons` with the same `input::pointer::buttons_after` a real press or release
+uses, so a `Pointer` move fed between them carries the held button (`inject::moved`), matching
+`handlers/pointer.rs`'s `Motion` arm exactly; `Click` is now `PointerDown` immediately followed
+by `PointerUp` at the same point, sharing the same `pressed`/`released` helpers. `Leave` clears
+`SeatInput::buttons` too (`HostState::forget_buttons`'s own reasoning: a real leave with a button
+down means the compositor took the pointer, so nothing of ours is still held). Every branch of
+`HostCtx::inject` now calls `HostState::deliver`, not the old local `feed`, so an injected press,
+move or release updates the cursor and invalidates exactly as a real one would — `deliver` is
+what `handlers/pointer.rs` itself calls, so this is the same code path, not a parallel one that
+happens to build the same `UiEvent`s.
+
+A press, one or more `Pointer` moves with the button held and a `PointerUp` now scripts a drag
+end to end: `sill debug pointer press|move|release` (naming TBD on sill's side) can drive it
+once sill picks this up; the wire verb here is `press`/`release` alongside the existing
+`hover`/`click` (`debug::parse_action`, `<surface> press X Y [button]`, `<surface> release X Y
+[button]`).
+
+**Tests.** `inject.rs`'s own tests thread the held-buttons state by hand through `pressed`,
+`moved` and `released` (the private helpers `HostCtx::inject` calls) and check the emitted
+`UiEvent`s field for field: a press's move-before-down still carries no buttons, its down carries
+the pressed one, a move fed with that held set carries it too (what a real `Motion` mid-drag
+would produce), and a release drops it back to none.
+`tests/pointer.rs::a_move_past_the_threshold_between_press_and_release_suppresses_the_click`
+builds a real `SurfaceDocument` and feeds it the same press/held-move/release sequence built from
+the identical `input::pointer` functions `handlers/pointer.rs` calls (there is no way to drive a
+real `wl_pointer` in a unit test either, so this is the same proof by construction the existing
+click/context-menu tests already use): a move that stays within Blitz's own 2px drag threshold
+(`blitz-dom`'s `handle_pointermove`, checked against `mousedown_position`) still fires `onclick`
+on release, and a move past it does not — `blitz-dom`'s `handle_pointerup` only dispatches
+`Click` when `drag_mode == DragMode::None`, and crossing the threshold with a button held sets
+`DragMode::Selecting` (both the icon and its dock ancestor compute the default `user-select:
+auto`; `blitz-dom`'s stylesheet has no `user-select` rule for `div`). That split depends on the
+held move's `buttons` field being `Primary`, not `None` — exactly what the old hardcoded-`None`
+`Pointer` could never produce mid-drag.
+
+**Public API.** `Inject` gained two variants (`PointerDown`, `PointerUp`); `Pointer`, `Click`,
+`Leave` and `Capture` keep their shapes. Non-breaking for sill: `daemon.rs`'s `to_inject`
+constructs `shell_host::Inject` values but never matches on the type exhaustively, so it compiles
+unchanged. `debug::DebugAction` (the stdin protocol's parse result) gained `Press`/`Release`
+alongside `Hover`/`Click`/`Leave`/`Stats`/`Capture`, also additive. Nothing in `HostState` is
+public; `SeatInput::buttons` now doubles as injection's held-buttons record, which only this
+crate can see. Not checked on screen from this branch (sill reads shell-host master by path);
+sill's own `sill debug pointer press|move|release` (or whatever it ends up naming the wire verbs)
+is follow-up work on sill's side.
