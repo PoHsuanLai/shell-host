@@ -67,7 +67,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `timers.rs` | `TimerRequest`: watchdog and key-repeat timers asked for by handlers, armed by `HostCtx` | pure (data) |
 | `clock.rs` | `HostClock` (plan "one HostClock for `resolve(t)`") | pure |
 | `debug.rs` | `FrameStats` (work time apart from interval, S1 "API changes"), `StatsWindow`, `percentiles`, `vm_rss_kib`, per-surface `DebugCommand` grammar | pure |
-| `inject.rs` | feature `debug-inject`: `HostCtx::inject(SurfaceId, Inject) -> Result<Injected>` (pointer, click, leave, capture), returning results, printing nothing (FINDINGS F29) | effects |
+| `inject.rs` | feature `debug-inject`: `HostCtx::inject(SurfaceId, Inject) -> Result<Injected>` (pointer move, press, release, click, leave, capture — a press, moves and a release script a drag through `HostState::deliver`, the same code path real `wl_pointer` input uses, FINDINGS F70), returning results, printing nothing (FINDINGS F29) | effects |
 | `inject/stdin.rs` | the demos' stdin protocol (whole logical px) mapped onto `inject` and `take_stats`, one JSON line per result | effects |
 
 ## Documents (`dom/`)

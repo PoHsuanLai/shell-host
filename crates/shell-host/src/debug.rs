@@ -235,11 +235,22 @@ pub enum PointerButton {
 }
 
 /// What a debug command does to its surface. Coordinates are surface-local logical pixels.
+///
+/// `Press`, `Hover` (as a held move) and `Release` script a drag: `Press` at the start point,
+/// `Hover` at each point in between (still with the button down, so it moves like one), then
+/// `Release` at the end point. `Click` is `Press` immediately followed by `Release` at the same
+/// point, with no move between (FINDINGS F70; a real drag cannot be scripted through `Click`,
+/// sill's G330).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DebugAction {
-    /// A pointer motion to the point.
+    /// A pointer motion to the point (a plain hover with nothing pressed, or a held move
+    /// between a `Press` and a `Release`).
     Hover(Point),
-    /// Move, press and release `button` at the point.
+    /// `button` presses at the point.
+    Press(Point, PointerButton),
+    /// `button` releases at the point.
+    Release(Point, PointerButton),
+    /// Move, press and release `button` at the point, with no move in between.
     Click(Point, PointerButton),
     /// The pointer leaves the surface.
     Leave,
@@ -267,10 +278,11 @@ pub enum CommandError {
     NotAButton(String),
 }
 
-/// Parse one line: `stats`, `quit`, or `<surface> hover X Y`, `<surface> click X Y [button]`
-/// (`button` is `primary`, `secondary` or `middle`; primary when omitted), `<surface> leave`,
-/// `<surface> stats`, `<surface> capture PATH`. Global verbs win, so no surface may be named
-/// `stats` or `quit`.
+/// Parse one line: `stats`, `quit`, or `<surface> hover X Y`, `<surface> press X Y [button]`,
+/// `<surface> release X Y [button]`, `<surface> click X Y [button]` (`button` is `primary`,
+/// `secondary` or `middle`; primary when omitted — a press, one or more `hover`s and a release
+/// script a drag, FINDINGS F70), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`.
+/// Global verbs win, so no surface may be named `stats` or `quit`.
 pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
     let words: Vec<&str> = line.split_whitespace().collect();
     match words.as_slice() {
@@ -288,7 +300,15 @@ pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
 fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> {
     match (verb, args) {
         ("hover", _) => point("hover", args).map(DebugAction::Hover),
-        ("click", _) => click(args),
+        ("press", _) => {
+            button_at("press", args).map(|(point, button)| DebugAction::Press(point, button))
+        }
+        ("release", _) => {
+            button_at("release", args).map(|(point, button)| DebugAction::Release(point, button))
+        }
+        ("click", _) => {
+            button_at("click", args).map(|(point, button)| DebugAction::Click(point, button))
+        }
         ("leave", []) => Ok(DebugAction::Leave),
         ("stats", []) => Ok(DebugAction::Stats),
         ("capture", [path]) => Ok(DebugAction::Capture(PathBuf::from(path))),
@@ -317,19 +337,14 @@ fn point(verb: &'static str, args: &[&str]) -> Result<Point, CommandError> {
     })
 }
 
-/// `click X Y` (primary) or `click X Y <button>`.
-fn click(args: &[&str]) -> Result<DebugAction, CommandError> {
+/// `<verb> X Y` (primary) or `<verb> X Y <button>`: the grammar `press`, `release` and `click`
+/// share.
+fn button_at(verb: &'static str, args: &[&str]) -> Result<(Point, PointerButton), CommandError> {
     match args {
-        [x, y] => Ok(DebugAction::Click(
-            point("click", &[x, y])?,
-            PointerButton::Primary,
-        )),
-        [x, y, button] => Ok(DebugAction::Click(
-            point("click", &[x, y])?,
-            parse_button(button)?,
-        )),
+        [x, y] => Ok((point(verb, &[x, y])?, PointerButton::Primary)),
+        [x, y, button] => Ok((point(verb, &[x, y])?, parse_button(button)?)),
         _ => Err(CommandError::Missing {
-            verb: "click",
+            verb,
             needs: "X and Y, optionally a button",
         }),
     }
@@ -477,6 +492,34 @@ mod tests {
                     DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Middle),
                 )),
             ),
+            (
+                "dock press 60 40",
+                Ok(on(
+                    "dock",
+                    DebugAction::Press(Point { x: 60, y: 40 }, PointerButton::Primary),
+                )),
+            ),
+            (
+                "dock press 60 40 secondary",
+                Ok(on(
+                    "dock",
+                    DebugAction::Press(Point { x: 60, y: 40 }, PointerButton::Secondary),
+                )),
+            ),
+            (
+                "dock release 70 50",
+                Ok(on(
+                    "dock",
+                    DebugAction::Release(Point { x: 70, y: 50 }, PointerButton::Primary),
+                )),
+            ),
+            (
+                "dock release 70 50 middle",
+                Ok(on(
+                    "dock",
+                    DebugAction::Release(Point { x: 70, y: 50 }, PointerButton::Middle),
+                )),
+            ),
             ("dock leave", Ok(on("dock", DebugAction::Leave))),
             ("bar stats", Ok(on("bar", DebugAction::Stats))),
             (
@@ -504,6 +547,24 @@ mod tests {
                 "dock click 1",
                 Err(CommandError::Missing {
                     verb: "click",
+                    needs: "X and Y, optionally a button",
+                }),
+            ),
+            (
+                "dock press 1",
+                Err(CommandError::Missing {
+                    verb: "press",
+                    needs: "X and Y, optionally a button",
+                }),
+            ),
+            (
+                "dock press 1 2 sideways",
+                Err(CommandError::NotAButton("sideways".into())),
+            ),
+            (
+                "dock release 1",
+                Err(CommandError::Missing {
+                    verb: "release",
                     needs: "X and Y, optionally a button",
                 }),
             ),

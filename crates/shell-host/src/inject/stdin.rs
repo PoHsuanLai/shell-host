@@ -82,6 +82,8 @@ fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugActi
     let inject = match action {
         DebugAction::Stats => return print_stats(ctx, id),
         DebugAction::Hover(at) => Inject::Pointer { at },
+        DebugAction::Press(at, button) => Inject::PointerDown { at, button },
+        DebugAction::Release(at, button) => Inject::PointerUp { at, button },
         DebugAction::Click(at, button) => Inject::Click { at, button },
         DebugAction::Leave => Inject::Leave,
         DebugAction::Capture(path) => {

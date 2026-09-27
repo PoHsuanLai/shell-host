@@ -355,10 +355,10 @@ fn context_menu_probe() -> Element {
     }
 }
 
-/// `Inject::Click { button: PointerButton::Secondary }` (`inject::clicked`, built from the same
-/// `press_events`/`release_event` this test drives directly) reaches the document as Blitz's
-/// own `contextmenu` event, not a `click` (`blitz-dom` `handle_pointerup`: a release of
-/// `MouseEventButton::Secondary` dispatches `DomEventData::ContextMenu` instead of `Click`),
+/// `Inject::Click { button: PointerButton::Secondary }` (`inject::pressed`/`released`, built
+/// from the same `press_events`/`release_event` this test drives directly) reaches the document
+/// as Blitz's own `contextmenu` event, not a `click` (`blitz-dom` `handle_pointerup`: a release
+/// of `MouseEventButton::Secondary` dispatches `DomEventData::ContextMenu` instead of `Click`),
 /// which Dioxus delivers to `oncontextmenu`. A primary release is the reverse: `onclick` only.
 #[test]
 fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick() {
@@ -422,5 +422,89 @@ fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick()
         text_of(&mut doc, "#menus"),
         "menus 1",
         "unchanged by the primary click"
+    );
+}
+
+/// A press, a held `PointerMove` and a release: the sequence a scripted drag needs
+/// (`Inject::PointerDown`, one or more `Inject::Pointer` while the button stays down, then
+/// `Inject::PointerUp` — FINDINGS F70, sill's G330: a whole `Inject::Click` has no move in
+/// between to give it) built from the exact same `input::pointer` functions `handlers/pointer.rs`
+/// calls for a real press, motion and release. A move that stays within Blitz's own 2px drag
+/// threshold (`blitz-dom`'s `handle_pointermove`, checked against `mousedown_position`) still
+/// fires `onclick` on release; a move past it does not — `blitz-dom`'s `handle_pointerup` only
+/// dispatches `Click` when `drag_mode == DragMode::None`, and crossing the threshold with a
+/// button held sets `DragMode::Selecting` (the icon and its dock ancestor both compute
+/// `user-select: auto`, the default; `blitz-dom`'s stylesheet has no rule for `div`). This is
+/// the drag/no-drag split a scripted drag must reach, and it depends on the held `PointerMove`
+/// carrying `buttons: Primary` (a plain hover, `MouseEventButtons::None`, could never trip it).
+#[test]
+fn a_move_past_the_threshold_between_press_and_release_suppresses_the_click() {
+    let press_move_release = |dx: f64, dy: f64| -> String {
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let env = DocumentEnv {
+            shell: Arc::new(HostShellProvider::new(
+                SurfaceId(1),
+                ping,
+                SharedSelection::default(),
+            )),
+            fonts: SharedFonts::system().for_document(),
+            net: Arc::new(LocalNet),
+            viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
+            prepaint: shell_host::Prepaint::None,
+        };
+        let mut doc = SurfaceDocument::build(Root::new(context_menu_probe), env);
+        doc.resolve(0.0);
+        let icon = node_id(&mut doc, "#icon0");
+        let start = center(&mut doc, icon);
+        let moved_to = PointerPos {
+            x: start.x + dx,
+            y: start.y + dy,
+        };
+
+        // The press: a move-before-down (no buttons yet) then the down (the pointer's own
+        // `Inject::PointerDown`/`inject::pressed`).
+        feed(
+            &mut doc,
+            pointer::press_events(
+                start,
+                MouseEventButton::Main,
+                MouseEventButtons::None,
+                Modifiers::empty(),
+            ),
+        );
+        // The held move: `Inject::Pointer`/`inject::moved` between the press and the release,
+        // carrying the button a real `Motion` would still see held.
+        feed(
+            &mut doc,
+            [pointer::move_event(
+                moved_to,
+                MouseEventButtons::Primary,
+                Modifiers::empty(),
+            )],
+        );
+        // The release: `Inject::PointerUp`/`inject::released`.
+        feed(
+            &mut doc,
+            [pointer::release_event(
+                moved_to,
+                MouseEventButton::Main,
+                MouseEventButtons::Primary,
+                Modifiers::empty(),
+            )],
+        );
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        doc.poll(&mut cx);
+        text_of(&mut doc, "#clicks")
+    };
+
+    assert_eq!(
+        press_move_release(1.0, 0.0),
+        "clicks 1",
+        "a move within the 2px threshold still clicks on release"
+    );
+    assert_eq!(
+        press_move_release(10.0, 0.0),
+        "clicks 0",
+        "a move past the threshold starts a drag, so the release no longer clicks"
     );
 }
