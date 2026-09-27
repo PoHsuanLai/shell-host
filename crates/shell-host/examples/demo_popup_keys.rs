@@ -3,8 +3,11 @@
 //! its press (as sill's bar items do, so the grab carries the press's serial). The popup's panel
 //! focuses itself when it mounts and prints every key that reaches it; Escape closes it.
 //!
-//! Lines on stdout, one JSON object each: `{"event":"opened"}`, `{"event":"key","key":..}` and
-//! `{"event":"closed"}`. stdin: `quit`.
+//! The panel also prints the seat's input modality whenever it changes (`use_input_modality`,
+//! FINDINGS F74): `pointer` when it opens from the click, `keyboard` from the first key.
+//!
+//! Lines on stdout, one JSON object each: `{"event":"opened"}`, `{"event":"key","key":..}`,
+//! `{"event":"modality","value":..}` and `{"event":"closed"}`. stdin: `quit`.
 
 use std::io::{BufRead, Write};
 
@@ -14,7 +17,7 @@ use shell_host::popup::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, Po
 use shell_host::{
     Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
     LayerConfig, LayerSize, Margin, OutputTarget, PopupPlacement, Rect, RegionSpec, Root, Size,
-    use_surface,
+    use_input_modality, use_surface,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -92,6 +95,8 @@ fn bar() -> Element {
 
 fn panel() -> Element {
     let surface = use_surface();
+    let modality = use_input_modality();
+    use_effect(move || print(json!({"event": "modality", "value": modality().slug()})));
     rsx! {
         style { "{CSS}" }
         div {

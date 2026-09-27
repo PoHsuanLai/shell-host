@@ -2,10 +2,10 @@
 
 Runs Blitz / Dioxus Native documents on Wayland: layer-shell surfaces (bars, docks,
 overlays), xdg popups and xdg toplevels, all sharing one GPU device and one renderer, with
-blur (`ext-background-effect-v1`), fractional scale, input regions that follow DOM elements,
-IME, clipboard and a frame machine that is idle at zero wakeups. It is portable to any
-Wayland compositor with layer-shell; it never depends on COSMIC-specific crates
-(`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
+blur (`ext-background-effect-v1`), fractional scale, input regions that follow DOM elements
+(where they paint, transforms included), IME, clipboard and a frame machine that is idle at zero
+wakeups. It is portable to any Wayland compositor with layer-shell; it never depends on
+COSMIC-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
 
 `DESIGN.md` maps the design to the code, `FINDINGS.md` records every deviation and seam,
 `CONVENTIONS.md` and `ORCHESTRATION.md` say how the code is written and divided, and
@@ -77,6 +77,11 @@ adds a `DragIcon::Root` document, `--keyboard=none|on-demand` sets its layer's k
 `scripts/dev/accept-drag.sh` runs it on a headless KWin against a foot terminal, and
 `scripts/dev/probe-modifiers.sh` uses it for FINDINGS F61.
 
+`examples/demo_swipe.rs` is element regions' acceptance under a transform (FINDINGS F73): a
+banner whose blur and input regions follow `#card` while a drag moves it (`translateX` on its
+wrapper) and an exit animation carries it off; `scripts/dev/accept-swipe.sh` drags it on a
+headless KWin and reads the regions from its `WAYLAND_DEBUG` trace.
+
 `examples/demo_lock/` is the session lock's acceptance (FINDINGS F65): on `lock` it locks with
 `HostCtx::lock_session`, one document per output with a password field; "letmein" + Enter
 unlocks through `use_lock().unlock()`; `stats` prints JSON. It refuses to lock anything but the
@@ -122,6 +127,46 @@ origin is the frame's corner, its viewport the frame's size, and region specs an
 are in the same coordinates. Every call is also a `SurfaceOp` (`BeginMove`,
 `BeginResize(edge)`, `SetMaximized`, `Minimize`, `SetFullscreen`) for `HostCtx::apply` or
 `HostHandle::apply` from outside the document.
+
+## Consuming: input modality (focus rings)
+
+`use_input_modality() -> ReadSignal<InputModality>` (`Pointer` or `Keyboard`) says how the person
+last drove the seat: a key press other than a lone modifier makes it `Keyboard`, a pointer button
+press makes it `Pointer`; motion, scrolls, releases and auto-repeats leave it (FINDINGS F74).
+Every surface, popup, toplevel and lock surface has it, all reading one value per seat, so a
+Tab in one surface and a popup opened by a key both show the ring. `SurfaceHandle::
+current_input_modality()` reads it without subscribing. It is what a `:focus-visible`-like ring
+follows (Blitz never matches `:focus-visible`).
+
+shell-host cannot name quire's `ds::HostModality` (`scripts/check-boundary.sh`), so the shell
+bridges it once in each surface's root component, above its `Ds`:
+
+```rust
+#[component]
+fn HostModalityBridge(children: Element) -> Element {
+    let host = shell_host::use_input_modality();
+    let to_ds = |m: shell_host::InputModality| match m {
+        shell_host::InputModality::Pointer => ds::InputModality::Pointer,
+        shell_host::InputModality::Keyboard => ds::InputModality::Keyboard,
+    };
+    let ds::HostModality(mut provided) =
+        use_context_provider(|| ds::HostModality(Signal::new(to_ds(*host.peek()))));
+    use_effect(move || {
+        let next = to_ds(host());
+        if *provided.peek() != next {
+            provided.set(next);
+        }
+    });
+    rsx! { {children} }
+}
+```
+
+A consumer that wrapped a popup in its own modality frame (sill's `bar/modality.rs`
+`ModalityFrame`, which provided `ds::HostModality` from the frame's own `onkeydown` /
+`onpointerdown`) drops it: put the bridge in the shared root every surface renders through (or
+in each surface's root), replace `ModalityFrame { style, .. }` with a plain `div { class:
+"sill-popup-frame", style, .. }`, and delete `modality.rs`. The frame only saw keys that reached
+its own subtree; the bridge sees every key the seat delivers to any surface.
 
 ## Consuming: fonts
 

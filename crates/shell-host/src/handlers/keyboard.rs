@@ -15,6 +15,7 @@ use crate::ime::ImeFocus;
 use crate::input::focus::{self, Departure};
 use crate::input::key::{self, Composing, Repeat};
 use crate::input::modifiers::modifiers_from;
+use crate::modality::{Stroke, key_kind};
 use crate::modifiers::Modifiers;
 use crate::scroll::surface::KeyUse;
 use crate::state::HostState;
@@ -84,6 +85,7 @@ impl KeyboardHandler for HostState {
         let Some(id) = self.input.keyboard_focus else {
             return;
         };
+        self.note_stroke(Stroke::KeyPress(key_kind(event.keysym)));
         let blitz_event = key::key_event(
             &event,
             self.input.modifiers,

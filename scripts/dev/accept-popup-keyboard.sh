@@ -11,6 +11,9 @@
 #   popup_opens      a real click on the bar's button opens the popup
 #   keys_reach_popup real Tab, Down and x reach the popup's document (its onkeydown), with no
 #                    click inside it first
+#   modality         the popup's use_input_modality (FINDINGS F74) reads pointer as it opens
+#                    from the click, keyboard after the Tab, pointer again after a click inside
+#                    it
 #   escape_closes    real Escape closes it
 #   bar_never_keyed  the bar never held the keyboard: the demo's only wl_keyboard.enter is the
 #                    popup's. Before F72 the host lifted the bar to OnDemand, KWin activated it,
@@ -129,6 +132,14 @@ wait_for "$KEYS" '"event":"key"' 3 \
   && grep -q '"key":"Tab"' "$KEYS" && grep -q '"key":"ArrowDown"' "$KEYS" \
   && grep -q '"key":"x"' "$KEYS" && ok=1
 check keys_reach_popup $ok "$(grep '"event":"key"' "$KEYS" | tr '\n' ' ')"
+
+click 100 90
+modalities=$(sed -n 's/.*"event":"modality","value":"\([a-z]*\)".*/\1/p' "$KEYS" | tr '\n' ' ')
+ok=0; [ "$modalities" = "pointer keyboard pointer " ] && ok=1
+check modality $ok "modality lines: $modalities"
+# The click left no element focused (Blitz focuses nothing on a click); Tab puts it back on the
+# panel, whose onkeydown hears the Escape.
+key Tab
 
 key Escape
 ok=0; wait_for "$KEYS" '"event":"closed"' 1 && ok=1

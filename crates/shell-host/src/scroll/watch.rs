@@ -177,6 +177,7 @@ mod tests {
             grab: GrabRecord::default(),
             scrolls: board.clone(),
             modifiers: Live::new(crate::modifiers::Modifiers::default()),
+            modality: Live::new(crate::modality::InputModality::default()),
         };
         let handle = SurfaceHandle::new(SurfaceId(3), RoleKind::Toplevel, parts);
         let env = DocumentEnv {

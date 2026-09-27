@@ -7,6 +7,7 @@ pub mod head;
 pub mod hover_sync;
 pub mod ime_focus;
 pub mod net;
+pub mod painted;
 pub mod scroll;
 pub mod shell_provider;
 pub(crate) mod stacking;

@@ -21,6 +21,7 @@ use crate::id::SurfaceId;
 use crate::input::pointer::{
     ButtonChange, PointerPos, buttons_after, move_event, press_events, release_event,
 };
+use crate::modality::Stroke;
 use crate::region::Px;
 use crate::scale::Size;
 use crate::state::HostState;
@@ -84,6 +85,7 @@ impl<M: 'static> HostCtx<M> {
                 self.state.deliver(id, [event]);
             }
             Inject::PointerDown { at, button } => {
+                self.state.note_stroke(Stroke::PointerPress);
                 let (events, held) = pressed(at, button, self.state.input.buttons);
                 self.state.input.buttons = held;
                 self.state.deliver(id, events);
@@ -94,6 +96,7 @@ impl<M: 'static> HostCtx<M> {
                 self.state.deliver(id, [event]);
             }
             Inject::Click { at, button } => {
+                self.state.note_stroke(Stroke::PointerPress);
                 let (down, held) = pressed(at, button, self.state.input.buttons);
                 let (up, held) = released(at, button, held);
                 self.state.input.buttons = held;

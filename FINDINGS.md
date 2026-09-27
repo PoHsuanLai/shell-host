@@ -2476,3 +2476,105 @@ keyboard while it is up, and after Escape the popup's first key press is swallow
 sill's control center a real Tab changes nothing on screen (captures after open, Tab, Tab are
 pixel-identical) although the keys are delivered (Right opens the Wi-Fi pane), so "Tab moves the
 ring" cannot pass whatever the keyboard does; that is sill's (or quire's) focus order.
+
+## Regions under transforms, and the input modality (branch `region-transform-modality`, 2026-09-28)
+
+### F73. G410: element regions ignored CSS transforms; a swiped banner left its blur behind
+
+Report (sill G410, F1010): swiping a notification banner, or watching one leave, left a grey
+rectangle at the banner's original place. The banner's blur and input regions are
+`RegionSpec::Element(s)` on the card, and `SurfaceDocument::element_rect` read Blitz's
+`get_client_bounding_rect`, which is the layout box (`unrounded_absolute_position`: the sum of
+layout locations less scroll offsets). Layout never sees `transform`, so a card moved by quire's
+swipe (`translateX(var(--swipe-dx))` on the card's wrapper) or its `banner-out` keyframes painted
+in one place while its regions stayed at the other. `PopupAnchor::Element` had the same flaw.
+
+**Fix.** `element_rect` now carries the layout box through every transform on its layout-parent
+chain, the chain `blitz-paint`'s `render_element` composes (`parent * translate(location) *
+node.transform()`). Written in page coordinates that is, innermost first, each transformed box's
+transform about its own untransformed origin, `F_a(p) = O_a + T_a (p - O_a)`; the pure
+`dom::painted::painted_bounds` maps the rect's four corners through the chain and returns their
+bounding box. `dom/document.rs::transform_chain` gathers it: each element ancestor (and the
+element) with a `Node::transform()` (Blitz resolves it in `resolve_transforms` after layout, with
+`transform-origin`, `translate`, `rotate` and `scale` folded in, in device px: its translation is
+divided back by the viewport scale, `Affine2::from_device`), at the origin
+`get_client_bounding_rect` gives it plus its own scroll offset (which that function subtracts at
+every level, the box's own included). Handled: translation and scale exactly, composed through any
+number of ancestors; rotation and skew as the axis-aligned bounding box of the turned quad (a
+`wl_region` is a union of rectangles). Not handled: 3-D transforms (Blitz drops a non-2-D matrix
+and paints the box untransformed, so the region agrees), an ancestor's `overflow` clip, and
+`opacity` (a faded-out card keeps its region until it is removed; use `RegionSpec::Elements`, where
+a removed element contributes nothing, since `Element` keeps the last region while its element is
+missing).
+
+**Per frame.** Nothing new was needed: `ctx/paint.rs::render` resolves the document at the frame's
+time and then `send_regions` resolves both regions from `element_rect`, every rendered frame, and
+sends a region only when it changed (`Tracked`). A running animation keeps frames coming
+(`is_animating`), and a drag re-renders on each move, so the regions now move with the card frame
+by frame and follow it off the surface as it leaves.
+
+**Tests.** `dom/painted.rs` (table: none, identity, own and a parent's translation (the G410
+repro), both added, scale about the corner and the centre, a parent's scale moving the child,
+90-degree rotation, an exit off the surface, `scale(0)`; and `from_device` at 1x and 1.5x).
+`tests/region_transform.rs`: sill's repro (a `translateX(60px)` parent: `#card` at x 60, was 0), a
+scaled parent over a translated child (40, 5, 50x20), and a 1 s `translateX(0 -> 200px)` animation
+resolved at 0, 0.25, 0.5, 1 and 2 s (x rises monotonically from 0 to 200, size unchanged).
+`scripts/dev/accept-swipe.sh` (new; `examples/demo_swipe`, a 400x120 top-right Overlay whose blur
+and input regions follow `#card`) drags the card 80 px with real fake-input motion on the headless
+KWin and reads the regions from the client's `WAYLAND_DEBUG` trace: 4/4 PASS (input x 30, 40, ...
+100 while held; after the release 24 steps from 106 to 520 over the 400 ms exit; 33 blur regions,
+each equal to the input region). With the fix stashed, `follows_drag`, `follows_exit` and
+`blur_follows` FAIL (the regions are sent once, at rest, and never again).
+
+**What sill must change.** Nothing for the fix itself (sill reads master by path). Worth checking:
+a banner region that should vanish when its card is removed must be `RegionSpec::Elements`; a
+single `Element` keeps its last rect while the element is missing (by contract,
+`Resolved::Pending`).
+
+### F74. G390: shell-host surfaces never provided an input modality, so quire's focus ring never showed
+
+quire draws its focus ring only under `.ds[data-modality=keyboard]`, because Blitz never matches
+`:focus-visible` (quire spike S12); `Ds` stamps `data-modality` from a `ds::HostModality` root
+context the host is meant to provide from raw input (`ds-native`'s `Host` does: `modality_after`).
+shell-host provided nothing, so every surface stayed `pointer`; sill worked around it for bar
+popups only (`bar/modality.rs`'s `ModalityFrame`, which updated its own `HostModality` from its
+div's `onkeydown`/`onpointerdown`), and not in the notification center (sill F992, F995).
+
+**Fix.** `shell_host::InputModality` (`Pointer`, the default, or `Keyboard`) and
+`use_input_modality() -> ReadSignal<InputModality>`, plus `SurfaceHandle::
+current_input_modality()`. One `Live<InputModality>` lives in `SeatInput` and every
+`SurfaceHandle` (surfaces, popups, toplevels, lock surfaces: all built in `ctx/spawn.rs::insert`)
+holds a clone, so the value is the seat's: a Tab in the launcher and a popup opened from a key
+agree, and a new surface starts from the current value. The pure rule is `modality::after`: a
+key press that is not a lone modifier (xkb's `is_modifier_key`: Shift, Ctrl, Alt, Super, Hyper,
+level shifts, lock keys) makes it `Keyboard`; a pointer button press makes it `Pointer`; releases,
+auto-repeats, scrolls and pointer motion change nothing. `handlers/keyboard.rs::press_key` and
+`handlers/pointer.rs`'s `Press` arm (before the band and first-mouse filters: the person reached
+for the pointer either way) call `HostState::note_stroke`, and so do injected `PointerDown` and
+`Click` (`inject.rs`). Publishing an unchanged value wakes nobody (`Live::publish`).
+
+**Deviation from the brief: motion does not switch to `Pointer`.** The brief asked for pointer
+button *or motion*. quire's own reference host switches on a press only, and so do browsers for
+`:focus-visible`; with motion in the rule a hand brushing the mouse, or a palm on the touchpad,
+mid-way through a Tab walk hides the ring the person is following. It is one arm of the table in
+`modality::after` (`Stroke::PointerMotion`) if sill wants it the other way.
+
+**Not provided as `ds::HostModality` directly**: shell-host never depends on quire
+(`scripts/check-boundary.sh`). The shell bridges it once in its root (README, "Consuming: input
+modality": a component providing `ds::HostModality(Signal)` and copying `use_input_modality()`
+into it in a `use_effect`).
+
+**Tests.** `modality.rs`: the transition table (11 rows) and the modifier-key table.
+`ctx/spawn.rs::use_input_modality_is_the_seats_across_surfaces`: two documents on one seat value;
+motion wakes neither, a key re-renders both to `keyboard`, a second key wakes nobody, a press
+turns both back to `pointer`. On the headless KWin, `accept-popup-keyboard.sh` gained a
+`modality` step (`demo_popup_keys`' panel prints `use_input_modality` on each change): real
+input gives `pointer` (opened by a click), `keyboard` (after Tab), `pointer` (after a click in
+the panel); 7/7 PASS.
+
+**What sill must change.** Bridge `use_input_modality()` into `ds::HostModality` in the root every
+surface renders through (the README's snippet), then drop `bar/modality.rs`: `menu_popup.rs`'s
+`ModalityFrame { style, .. }` becomes a plain `div { class: "sill-popup-frame", style, .. }`, and
+its Harness test moves to the bridge (or goes: `modality::after` and the spawn test cover the
+host's side). The notification center and every other surface then get the ring with no further
+change.

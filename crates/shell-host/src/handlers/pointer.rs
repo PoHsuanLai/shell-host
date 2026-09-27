@@ -11,6 +11,7 @@ use crate::id::SurfaceId;
 use crate::input::focus::{self, Departure, PointerFocus};
 use crate::input::palmrest::wire::Over;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
+use crate::modality::Stroke;
 use crate::role::Role;
 use crate::state::HostState;
 
@@ -86,6 +87,9 @@ impl PointerHandler for HostState {
                     time: _,
                 } => {
                     self.input.last_serial = serial;
+                    // Any press, the band's and a swallowed first mouse's too: the person
+                    // reached for the pointer (FINDINGS F74).
+                    self.note_stroke(Stroke::PointerPress);
                     let Some(btn) = pointer::button_from_evdev(button) else {
                         continue;
                     };

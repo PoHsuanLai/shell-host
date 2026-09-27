@@ -120,3 +120,8 @@ name = "demo_ime"
 # The popup keyboard acceptance (FINDINGS F72): a None bar and a grabbing popup that prints its keys.
 [[example]]
 name = "demo_popup_keys"
+
+# The swipe acceptance (FINDINGS F73): a banner whose blur and input regions follow a card as a
+# drag and an exit animation transform it.
+[[example]]
+name = "demo_swipe"

@@ -17,6 +17,7 @@ use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
 use crate::dom::hover_sync::{self, Bounds, HoverSync, LastMove, Shift};
 use crate::dom::ime_focus::{self, FieldText, Repair};
 use crate::dom::net::LocalNet;
+use crate::dom::painted::{Affine2, Placed, Point2, painted_bounds};
 use crate::dom::shell_provider::HostShellProvider;
 use crate::dom::stacking;
 use crate::frame::Animation;
@@ -302,13 +303,25 @@ impl SurfaceDocument {
         }
     }
 
-    /// The laid-out rectangle of the element `id` names, in surface-local logical pixels
-    /// (`get_element_by_id`, `get_client_bounding_rect`, `geometry::enclosing_rect`); `None`
-    /// before layout or when absent.
+    /// Where the element `id` names paints, in surface-local logical pixels: its layout box
+    /// (`get_client_bounding_rect`) carried through its own and its ancestors' CSS transforms
+    /// (`dom::painted`, FINDINGS F73), rounded outward (`geometry::enclosing_rect`); `None`
+    /// before layout or when absent. What `RegionSpec::Element(s)` and `PopupAnchor::Element`
+    /// resolve against, once per rendered frame, so a region follows a transform as it
+    /// animates.
     pub fn element_rect(&self, id: ElementId) -> Option<Rect> {
         let inner = self.doc.inner();
         let node_id = inner.get_element_by_id(id.as_str())?;
-        let bounds = inner.get_client_bounding_rect(node_id)?;
+        let laid_out = inner.get_client_bounding_rect(node_id)?;
+        let bounds = painted_bounds(
+            Bounds {
+                x: laid_out.x,
+                y: laid_out.y,
+                width: laid_out.width,
+                height: laid_out.height,
+            },
+            &transform_chain(&inner, node_id),
+        );
         Some(enclosing_rect(
             bounds.x,
             bounds.y,
@@ -406,6 +419,33 @@ fn element_of(doc: &BaseDocument, id: NodeId) -> Option<NodeId> {
 fn element_at(doc: &BaseDocument, at: PointerPos) -> Option<NodeId> {
     let hit = doc.hit(at.x as f32, at.y as f32)?;
     element_of(doc, doc.nearest_non_anonymous_ancestor(hit.node_id)?)
+}
+
+/// The transformed boxes from `id` up its layout parents (the chain Blitz's paint composes),
+/// innermost first, each at its untransformed border-box origin in client coordinates: the
+/// origin `get_client_bounding_rect` gives, less the box's own scroll offset, which Blitz's
+/// `unrounded_absolute_position` subtracts at every level including the box itself.
+fn transform_chain(doc: &BaseDocument, id: NodeId) -> Vec<Placed> {
+    let scale = doc.viewport().scale_f64();
+    std::iter::successors(Some(id), |&at| doc.get_node(at)?.layout_parent.get())
+        .filter_map(|at| {
+            let node = doc.get_node(at)?;
+            // `Node::transform` panics on a text or comment node; only elements carry one.
+            if !node.is_element() {
+                return None;
+            }
+            let transform = node.transform().as_deref()?.as_coeffs();
+            let rect = doc.get_client_bounding_rect(at)?;
+            let scroll = node.scroll_offset();
+            Some(Placed {
+                origin: Point2 {
+                    x: rect.x + scroll.x,
+                    y: rect.y + scroll.y,
+                },
+                transform: Affine2::from_device(transform, scale),
+            })
+        })
+        .collect()
 }
 
 /// `id`'s current border box, in the page coordinates Blitz hit-tests (client plus the

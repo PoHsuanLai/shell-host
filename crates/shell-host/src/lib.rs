@@ -34,6 +34,7 @@ pub mod layer;
 pub mod live;
 pub mod live_scale;
 pub mod lock;
+pub mod modality;
 pub mod modifiers;
 pub mod msg;
 pub mod output;
@@ -68,8 +69,8 @@ pub use event::{CloseReason, Focus, HostEvent};
 pub use geometry::{Margin, Point};
 pub use grab::GrabRefused;
 pub use handle::{
-    SurfaceHandle, use_frame_tick, use_modifiers, use_surface, use_surface_scale,
-    use_toplevel_state,
+    SurfaceHandle, use_frame_tick, use_input_modality, use_modifiers, use_surface,
+    use_surface_scale, use_toplevel_state,
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
@@ -82,6 +83,7 @@ pub use layer::{
 pub use lock::handle::{LockHandle, use_lock, use_lock_phase};
 pub use lock::machine::{LockPhase, LockState};
 pub use lock::{LockConfig, LockError, LockId};
+pub use modality::InputModality;
 pub use modifiers::{LockKey, Modifier, Modifiers};
 pub use msg::{SurfaceOp, Visibility};
 pub use output::OutputInfo;

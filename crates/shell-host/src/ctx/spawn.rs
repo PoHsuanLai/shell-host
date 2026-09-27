@@ -368,6 +368,7 @@ pub(super) fn insert(
         grab: state.input.grab.clone(),
         scrolls: scrolls.clone(),
         modifiers: live_modifiers.clone(),
+        modality: state.input.modality.clone(),
     };
     let handle = SurfaceHandle::new(id, role.kind(), parts);
     let env = DocumentEnv {
@@ -466,6 +467,7 @@ mod tests {
             grab: GrabRecord::default(),
             scrolls: crate::scroll::watch::ScrollBoard::default(),
             modifiers: Live::new(crate::modifiers::Modifiers::default()),
+            modality: Live::new(crate::modality::InputModality::default()),
         }
     }
 
@@ -758,6 +760,65 @@ mod tests {
         assert_eq!(document.poll(&mut cx), Polled::Changed);
         assert_eq!(text(&mut document), "Set");
         assert_eq!(handle.current_toplevel_state(), zoomed);
+    }
+
+    fn modality_text() -> Element {
+        let modality = crate::handle::use_input_modality();
+        rsx! { div { "{modality().slug()}" } }
+    }
+
+    /// One seat modality, two surfaces: a key press the host notes re-renders both documents,
+    /// a repeated value wakes neither, and a pointer press turns both back (FINDINGS F74).
+    #[test]
+    fn use_input_modality_is_the_seats_across_surfaces() {
+        use crate::modality::{self, InputModality, KeyKind, Stroke};
+        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+        let seat = Live::new(InputModality::default());
+        let mut documents: Vec<SurfaceDocument> = [SurfaceId(21), SurfaceId(22)]
+            .into_iter()
+            .map(|id| {
+                let handle = SurfaceHandle::new(
+                    id,
+                    RoleKind::Layer,
+                    HandleParts {
+                        modality: seat.clone(),
+                        ..parts(
+                            RequestQueue::new(ping.clone()),
+                            FrameTicks::default(),
+                            LiveScale::new(Scale::ONE),
+                        )
+                    },
+                );
+                let env = test_env(id, ping.clone(), Prepaint::None);
+                surface_document(Root::new(modality_text), handle, env)
+            })
+            .collect();
+        let wakes = Arc::new(Wakes::default());
+        let waker = std::task::Waker::from(Arc::clone(&wakes));
+        let mut cx = std::task::Context::from_waker(&waker);
+        for document in &mut documents {
+            document.poll(&mut cx);
+            assert_eq!(text(document), "pointer");
+        }
+        wakes.take();
+        let note = |stroke| {
+            let _ = seat.publish(modality::after(seat.get(), stroke));
+        };
+        note(Stroke::PointerMotion);
+        assert_eq!(wakes.take(), 0, "motion changes nothing");
+        note(Stroke::KeyPress(KeyKind::Other));
+        assert!(wakes.take() > 0, "the surfaces wake");
+        for document in &mut documents {
+            assert_eq!(document.poll(&mut cx), Polled::Changed);
+            assert_eq!(text(document), "keyboard");
+        }
+        note(Stroke::KeyPress(KeyKind::Other));
+        assert_eq!(wakes.take(), 0, "a second key wakes nobody");
+        note(Stroke::PointerPress);
+        for document in &mut documents {
+            assert_eq!(document.poll(&mut cx), Polled::Changed);
+            assert_eq!(text(document), "pointer");
+        }
     }
 
     /// `begin_move` and `begin_resize` queue their op only under the serial rule, and say why

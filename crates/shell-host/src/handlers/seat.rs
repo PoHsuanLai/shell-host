@@ -19,6 +19,8 @@ use crate::id::SurfaceId;
 use crate::input::capability::{Announcement, Held, capability_change};
 use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
+use crate::live::Live;
+use crate::modality::{self, InputModality, Stroke};
 use crate::modifiers::Modifiers as HeldModifiers;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
@@ -43,6 +45,9 @@ pub struct SeatInput {
     /// F61), so a surface that only just gained keyboard focus can be handed the seat's
     /// already-current state rather than starting from nothing.
     pub(crate) held_modifiers: HeldModifiers,
+    /// Pointer or keyboard, whichever last drove the seat (`modality`, FINDINGS F74): one value
+    /// for the seat, shared by every surface's `SurfaceHandle` (`use_input_modality`).
+    pub(crate) modality: Live<InputModality>,
     /// The serial of the last press, for popup grabs, selections and activation tokens.
     pub(crate) last_serial: u32,
     /// The pointer's surface and held press, for the move/resize serial rule; shared with
@@ -186,5 +191,14 @@ impl HostState {
                 cmd: action.timer,
             });
         }
+    }
+}
+
+impl HostState {
+    /// The seat saw `stroke`: publish the modality it leaves (`modality::after`) to every
+    /// surface; an unchanged modality wakes nobody (`Live::publish`).
+    pub(crate) fn note_stroke(&mut self, stroke: Stroke) {
+        let next = modality::after(self.input.modality.get(), stroke);
+        let _ = self.input.modality.publish(next);
     }
 }

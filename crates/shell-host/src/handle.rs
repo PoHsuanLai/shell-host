@@ -19,6 +19,7 @@ use crate::id::{SurfaceId, SurfaceIds};
 use crate::layer::{ExclusiveZone, KeyboardMode, LayerSize};
 use crate::live::Live;
 use crate::live_scale::LiveScale;
+use crate::modality::InputModality;
 use crate::modifiers::Modifiers;
 use crate::msg::{Request, SurfaceOp};
 use crate::placement::PopupPlacement;
@@ -79,6 +80,7 @@ pub struct SurfaceHandle {
     grab: GrabRecord,
     scrolls: ScrollBoard,
     modifiers: Live<Modifiers>,
+    modality: Live<InputModality>,
 }
 
 /// The host's shared state a `SurfaceHandle` reads, besides its queue: built by the host when
@@ -93,6 +95,8 @@ pub(crate) struct HandleParts {
     pub(crate) grab: GrabRecord,
     pub(crate) scrolls: ScrollBoard,
     pub(crate) modifiers: Live<Modifiers>,
+    /// The seat's, shared by every surface (not a per-surface copy like `modifiers`).
+    pub(crate) modality: Live<InputModality>,
 }
 
 impl SurfaceHandle {
@@ -107,6 +111,7 @@ impl SurfaceHandle {
             grab,
             scrolls,
             modifiers,
+            modality,
         } = parts;
         SurfaceHandle {
             id,
@@ -119,6 +124,7 @@ impl SurfaceHandle {
             grab,
             scrolls,
             modifiers,
+            modality,
         }
     }
 
@@ -251,6 +257,12 @@ impl SurfaceHandle {
     /// [`use_toplevel_state`]. The default for any other surface.
     pub fn current_toplevel_state(&self) -> ToplevelState {
         self.toplevel.get()
+    }
+
+    /// The seat's input modality right now, without subscribing: for an event handler. A
+    /// component that draws from it reads [`use_input_modality`].
+    pub fn current_input_modality(&self) -> InputModality {
+        self.modality.get()
     }
 
     fn grab_check(&self) -> Result<(), GrabRefused> {
@@ -411,6 +423,32 @@ pub fn use_modifiers() -> ReadSignal<Modifiers> {
                 let (count, modifiers) = live.changed_after(seen).await;
                 seen = count;
                 latest.set(modifiers);
+            }
+        });
+    });
+    ReadSignal::from(latest)
+}
+
+/// Pointer or keyboard, whichever last drove the seat, as live state (FINDINGS F74): the
+/// component re-renders when it changes. A key press other than a lone modifier makes it
+/// `Keyboard`, a pointer button press makes it `Pointer`; motion, scrolls, releases and
+/// auto-repeats leave it (`modality::after`). One value for the seat, shared by every surface,
+/// so a surface mapped from a key press (a popup opened with Enter) starts at `Keyboard`.
+/// `Pointer` before any input.
+///
+/// What a design system's `:focus-visible`-like focus ring follows (Blitz never matches
+/// `:focus-visible`): quire's `ds::HostModality`, bridged in the shell's root (README,
+/// "Consuming: input modality").
+pub fn use_input_modality() -> ReadSignal<InputModality> {
+    let live = use_surface().modality;
+    let mut latest = use_signal(|| live.get());
+    use_hook(move || {
+        let mut seen = live.changes();
+        spawn(async move {
+            loop {
+                let (count, modality) = live.changed_after(seen).await;
+                seen = count;
+                latest.set(modality);
             }
         });
     });

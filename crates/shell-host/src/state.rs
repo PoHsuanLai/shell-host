@@ -180,6 +180,7 @@ impl HostState {
                 focused_at: None,
                 modifiers: Modifiers::empty(),
                 held_modifiers: crate::modifiers::Modifiers::default(),
+                modality: crate::live::Live::new(crate::modality::InputModality::default()),
                 last_serial: 0,
                 grab: GrabRecord::default(),
                 zone: Zone::Document,
