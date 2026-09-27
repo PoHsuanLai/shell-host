@@ -15,6 +15,7 @@ use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
 
 use crate::dom::shell_provider::ImeRequest;
 use crate::ime::{self, DeleteSurrounding, ImeFocus, Preedit};
+use crate::region::Rect;
 use crate::state::HostState;
 
 /// The bound manager and the seat's text input.
@@ -71,10 +72,18 @@ impl Dispatch<ZwpTextInputV3, ()> for HostState {
         _qh: &QueueHandle<Self>,
     ) {
         match event {
-            zwp_text_input_v3::Event::Enter { surface: _ }
-            | zwp_text_input_v3::Event::Leave { surface: _ } => {
-                // Nothing composed on the surface we are leaving belongs to the next one, and a
-                // fresh focus starts with nothing pending either.
+            zwp_text_input_v3::Event::Enter { surface: _ } => {
+                // A fresh focus starts with nothing pending. The compositor ignores `enable`
+                // sent while we had no text-input focus and resets it on `leave`, so what the
+                // document asked for is sent again now (a field focused before the keyboard
+                // arrived, as the launcher's is, would otherwise never reach the IME).
+                state.ime.pending = Default::default();
+                if let ImeFocus::Enabled { cursor_area } = state.ime.focus {
+                    send_enabled(state, cursor_area, Resend::Enable);
+                }
+            }
+            zwp_text_input_v3::Event::Leave { surface: _ } => {
+                // Nothing composed on the surface we are leaving belongs to the next one.
                 state.ime.pending = Default::default();
             }
             zwp_text_input_v3::Event::PreeditString {
@@ -146,25 +155,44 @@ pub(crate) fn apply_ime_request(state: &mut HostState, request: ImeRequest) {
             state.ime.focus = ImeFocus::Disabled;
         }
         ImeRequest::Enabled { cursor_area } => {
-            if matches!(state.ime.focus, ImeFocus::Disabled) {
-                input.enable();
-                input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
-            }
-            // The document's rectangle, in the surface's coordinates (past any resize band).
-            let inset = state
-                .input
-                .keyboard_focus
-                .and_then(|id| state.surfaces.get(&id))
-                .map_or(0, |surface| surface.inset.0);
-            input.set_cursor_rectangle(
-                cursor_area.x + inset,
-                cursor_area.y + inset,
-                cursor_area.width,
-                cursor_area.height,
-            );
-            input.commit();
-            state.ime.serial += 1;
-            state.ime.focus = ImeFocus::Enabled { cursor_area };
+            let resend = match state.ime.focus {
+                ImeFocus::Disabled => Resend::Enable,
+                ImeFocus::Enabled { .. } => Resend::CursorOnly,
+            };
+            send_enabled(state, cursor_area, resend);
         }
     }
+}
+
+/// Whether `send_enabled` also sends `enable` and the content type, or only the caret.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Resend {
+    Enable,
+    CursorOnly,
+}
+
+/// `enable` + content type when asked, then the caret rectangle and `commit`.
+fn send_enabled(state: &mut HostState, cursor_area: Rect, resend: Resend) {
+    let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
+        return;
+    };
+    if resend == Resend::Enable {
+        input.enable();
+        input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
+    }
+    // The document's rectangle, in the surface's coordinates (past any resize band).
+    let inset = state
+        .input
+        .keyboard_focus
+        .and_then(|id| state.surfaces.get(&id))
+        .map_or(0, |surface| surface.inset.0);
+    input.set_cursor_rectangle(
+        cursor_area.x + inset,
+        cursor_area.y + inset,
+        cursor_area.width,
+        cursor_area.height,
+    );
+    input.commit();
+    state.ime.serial += 1;
+    state.ime.focus = ImeFocus::Enabled { cursor_area };
 }
