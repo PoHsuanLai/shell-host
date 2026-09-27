@@ -258,6 +258,9 @@ pub enum DebugAction {
     Stats,
     /// Render offscreen at the buffer size and write a PNG.
     Capture(PathBuf),
+    /// Print the focused text field's text, as typed and as shown (with any composition), and
+    /// what the IME was last asked for (FINDINGS F71).
+    Focused,
 }
 
 /// Why a debug line was not understood.
@@ -281,7 +284,8 @@ pub enum CommandError {
 /// Parse one line: `stats`, `quit`, or `<surface> hover X Y`, `<surface> press X Y [button]`,
 /// `<surface> release X Y [button]`, `<surface> click X Y [button]` (`button` is `primary`,
 /// `secondary` or `middle`; primary when omitted — a press, one or more `hover`s and a release
-/// script a drag, FINDINGS F70), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`.
+/// script a drag, FINDINGS F70), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`,
+/// `<surface> focused`.
 /// Global verbs win, so no surface may be named `stats` or `quit`.
 pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
     let words: Vec<&str> = line.split_whitespace().collect();
@@ -311,6 +315,7 @@ fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> 
         }
         ("leave", []) => Ok(DebugAction::Leave),
         ("stats", []) => Ok(DebugAction::Stats),
+        ("focused", []) => Ok(DebugAction::Focused),
         ("capture", [path]) => Ok(DebugAction::Capture(PathBuf::from(path))),
         ("capture", _) => Err(CommandError::Missing {
             verb: "capture",
@@ -522,6 +527,10 @@ mod tests {
             ),
             ("dock leave", Ok(on("dock", DebugAction::Leave))),
             ("bar stats", Ok(on("bar", DebugAction::Stats))),
+            (
+                "sill-launcher-Virtual-1 focused",
+                Ok(on("sill-launcher-Virtual-1", DebugAction::Focused)),
+            ),
             (
                 "bar capture /tmp/a.png",
                 Ok(on("bar", DebugAction::Capture("/tmp/a.png".into()))),

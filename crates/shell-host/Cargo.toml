@@ -112,3 +112,7 @@ required-features = ["headless"]
 [[test]]
 name = "headless"
 required-features = ["headless"]
+
+# The IME acceptance (FINDINGS F71): a plain `<input>` on an exclusive-keyboard Overlay layer.
+[[example]]
+name = "demo_ime"

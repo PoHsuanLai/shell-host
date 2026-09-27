@@ -4,7 +4,9 @@
 //!
 //! Output: a `FrameStats` per surface for `stats` (the global `stats` first prints one
 //! `{"host": ..}` line with the compositor facts), and `{"capture": path, "ok": .., "err": ..}`
-//! for `capture`. Pointer commands print nothing; a failed line is reported on stderr.
+//! for `capture`, `{"focused": name, "typed": .., "shown": .., "ime": ..}` for `focused` (`typed`
+//! and `shown` null without a focused text field). Pointer commands print nothing; a failed line
+//! is reported on stderr.
 
 use std::io::{Read, Write};
 use std::os::fd::{AsFd, OwnedFd};
@@ -17,6 +19,7 @@ use super::{Inject, Injected};
 use crate::blur_health::BlurHealth;
 use crate::ctx::HostCtx;
 use crate::debug::{DebugAction, DebugCommand, parse_command};
+use crate::dom::shell_provider::ImeRequest;
 use crate::error::{HostError, Result};
 use crate::handlers::background_effect::Support;
 use crate::id::SurfaceId;
@@ -81,6 +84,7 @@ fn run_line<M: 'static>(ctx: &mut HostCtx<M>, line: &str) {
 fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugAction) -> Result<()> {
     let inject = match action {
         DebugAction::Stats => return print_stats(ctx, id),
+        DebugAction::Focused => return print_line(&focused_line(&ctx.state, id)),
         DebugAction::Hover(at) => Inject::Pointer { at },
         DebugAction::Press(at, button) => Inject::PointerDown { at, button },
         DebugAction::Release(at, button) => Inject::PointerUp { at, button },
@@ -98,6 +102,25 @@ fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugActi
 fn capture_line(path: &std::path::Path, written: &Result<Injected>) -> serde_json::Value {
     let err = written.as_ref().err().map(ToString::to_string);
     json!({"capture": path, "ok": written.is_ok(), "err": err})
+}
+
+/// `{"focused": name, "typed": .., "shown": .., "ime": ..}`: surface `id`'s focused text field
+/// and the IME request its document last made (FINDINGS F71).
+fn focused_line(state: &HostState, id: SurfaceId) -> serde_json::Value {
+    let Some(surface) = state.surfaces.get(&id) else {
+        return json!({"focused": null});
+    };
+    let text = surface.document.focused_text();
+    let ime = match surface.shell.ime() {
+        ImeRequest::Disabled => "disabled",
+        ImeRequest::Enabled { .. } => "enabled",
+    };
+    json!({
+        "focused": surface.name.0,
+        "typed": text.as_ref().map(|t| &t.typed),
+        "shown": text.as_ref().map(|t| &t.shown),
+        "ime": ime,
+    })
 }
 
 /// Print surface `id`'s stats and start a new window, so each printed line covers the time

@@ -2401,3 +2401,20 @@ public; `SeatInput::buttons` now doubles as injection's held-buttons record, whi
 crate can see. Not checked on screen from this branch (sill reads shell-host master by path);
 sill's own `sill debug pointer press|move|release` (or whatever it ends up naming the wire verbs)
 is follow-up work on sill's side.
+
+### F71. Chewing typed raw letters into sill's launcher; once enabled, a commit doubled (你好你好)
+
+Two causes, both traced on a private headless KWin running fcitx5 + Chewing as its input
+method (`scripts/dev/accept-ime.sh`). (1) Blitz asks the shell for the IME in `Node::focus`
+only once the node has its `TextInputData`, which layout builds on the first `resolve`. The
+launcher's field is focused on mount, before that, so `set_ime_enabled` was never called:
+`zwp_text_input_v3.enter` arrived, no `enable` was ever sent, and 14 `wl_keyboard.key` events
+reached the client ("su3cl3" in the field). After each resolve the host now asks what Blitz
+would have: a focused text field whose request is still Disabled is enabled at its content box
+(`dom/ime_focus.rs`, table-tested). 30b5ad3's resend-on-`enter` covers the other order (enable
+before the compositor's enter). (2) fcitx5 commits with `preedit_string(nil) + commit_string +
+done`; `on_done` emitted only the commit, and Blitz inserted it beside the live composition.
+The protocol resets the preedit on every `done`, so `on_done` now clears it first unless a lone
+new preedit replaces it. With both, the trace reads enable, preedit ㄋ … 你好, commit 你好.
+Chewing commits with Return; Space opens the candidate list. The new debug-inject verb
+`<surface> focused` reads a field back (`typed`, `shown`, `ime`).

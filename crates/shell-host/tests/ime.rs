@@ -8,13 +8,18 @@ use blitz_traits::events::BlitzImeEvent;
 use shell_host::ime::{DeleteSurrounding, Preedit, on_done};
 
 /// One step in a wire sequence: which buffered field it sets (`PendingIme` is double-buffered,
-/// so later events of the same kind in one cycle replace earlier ones, and a `done` with
-/// nothing buffered produces no events).
+/// so later events of the same kind in one cycle replace earlier ones; every `done` resets the
+/// shown preedit, so anything but a lone new preedit starts with a clear, FINDINGS F71).
 #[derive(Debug, Clone, Default)]
 struct Pending {
     preedit: Option<Preedit>,
     commit: Option<&'static str>,
     delete: Option<(u32, u32)>,
+}
+
+/// The preedit reset every `done` starts with unless a new preedit replaces it.
+fn clear() -> BlitzImeEvent {
+    BlitzImeEvent::Preedit(String::new(), None)
 }
 
 fn pending(steps: Pending) -> shell_host::ime::PendingIme {
@@ -28,11 +33,11 @@ fn pending(steps: Pending) -> shell_host::ime::PendingIme {
 }
 
 /// A `done` with nothing buffered (no preedit_string, commit_string or delete_surrounding_text
-/// since the last `done`) produces no events and leaves the pending state empty.
+/// since the last `done`) only clears the shown preedit and leaves the pending state empty.
 #[test]
-fn done_with_nothing_pending_is_a_no_op() {
+fn done_with_nothing_pending_only_clears_the_preedit() {
     let (events, rest) = on_done(pending(Pending::default()));
-    assert!(events.is_empty());
+    assert_eq!(events, vec![clear()]);
     assert_eq!(rest, shell_host::ime::PendingIme::default());
 }
 
@@ -73,7 +78,10 @@ fn a_single_commit_produces_one_event() {
         commit: Some("你"),
         ..Pending::default()
     }));
-    assert_eq!(events, vec![BlitzImeEvent::Commit("你".to_owned())]);
+    assert_eq!(
+        events,
+        vec![clear(), BlitzImeEvent::Commit("你".to_owned())]
+    );
     assert_eq!(rest, shell_host::ime::PendingIme::default());
 }
 
@@ -85,7 +93,7 @@ fn an_empty_commit_string_is_still_a_commit_event() {
         commit: Some(""),
         ..Pending::default()
     }));
-    assert_eq!(events, vec![BlitzImeEvent::Commit(String::new())]);
+    assert_eq!(events, vec![clear(), BlitzImeEvent::Commit(String::new())]);
 }
 
 /// `delete_surrounding_text(1, 0)` then `done`: one `DeleteSurrounding` event.
@@ -97,17 +105,20 @@ fn a_single_delete_produces_one_event() {
     }));
     assert_eq!(
         events,
-        vec![BlitzImeEvent::DeleteSurrounding {
-            before_bytes: 1,
-            after_bytes: 0,
-        }]
+        vec![
+            clear(),
+            BlitzImeEvent::DeleteSurrounding {
+                before_bytes: 1,
+                after_bytes: 0,
+            }
+        ]
     );
     assert_eq!(rest, shell_host::ime::PendingIme::default());
 }
 
 /// A full compose-then-commit cycle: `delete_surrounding_text`, `commit_string` and
 /// `preedit_string` all buffered before one `done` apply in the protocol's fixed order —
-/// delete, commit, preedit — regardless of the order the wire events themselves arrived.
+/// clear the old preedit, delete, commit, new preedit — regardless of the order the wire events themselves arrived.
 #[test]
 fn a_full_cycle_applies_delete_then_commit_then_preedit() {
     let (events, rest) = on_done(pending(Pending {
@@ -121,6 +132,7 @@ fn a_full_cycle_applies_delete_then_commit_then_preedit() {
     assert_eq!(
         events,
         vec![
+            clear(),
             BlitzImeEvent::DeleteSurrounding {
                 before_bytes: 1,
                 after_bytes: 0,
@@ -140,9 +152,12 @@ fn a_second_done_only_sees_what_was_buffered_since_the_first() {
         commit: Some("a"),
         ..Pending::default()
     }));
-    assert_eq!(first_events, vec![BlitzImeEvent::Commit("a".to_owned())]);
+    assert_eq!(
+        first_events,
+        vec![clear(), BlitzImeEvent::Commit("a".to_owned())]
+    );
 
-    // Nothing new buffered before the next `done`: it is a no-op, not a repeat of "a".
+    // Nothing new buffered before the next `done`: only a clear, not a repeat of "a".
     let (second_events, _) = on_done(after_first);
-    assert!(second_events.is_empty());
+    assert_eq!(second_events, vec![clear()]);
 }

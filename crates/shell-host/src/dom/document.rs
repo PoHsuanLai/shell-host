@@ -15,6 +15,7 @@ use dioxus_native_dom::DioxusDocument;
 
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
 use crate::dom::hover_sync::{self, Bounds, HoverSync, LastMove, Shift};
+use crate::dom::ime_focus::{self, FieldText, Repair};
 use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::dom::stacking;
@@ -77,6 +78,8 @@ pub struct SurfaceDocument {
     prepaint: Prepaint,
     /// The last real pointer position the surface fed, for `resolve`'s hover repair.
     last_move: LastMove,
+    /// The document's shell provider, for `resolve`'s IME repair (FINDINGS F71).
+    shell: Arc<HostShellProvider>,
 }
 
 /// Whether a resolve moved the hover: the restyle it needs lands on a later frame, and the
@@ -107,7 +110,7 @@ impl SurfaceDocument {
         let config = DocumentConfig {
             viewport: Some(env.viewport),
             net_provider: Some(env.net as Arc<dyn NetProvider>),
-            shell_provider: Some(env.shell as Arc<dyn ShellProvider>),
+            shell_provider: Some(Arc::clone(&env.shell) as Arc<dyn ShellProvider>),
             font_ctx: Some(env.fonts),
             style_threading: StyleThreading::Sequential,
             ..Default::default()
@@ -124,6 +127,7 @@ impl SurfaceDocument {
             head,
             prepaint: env.prepaint,
             last_move: LastMove::Unknown,
+            shell: env.shell,
         }
     }
 
@@ -207,7 +211,8 @@ impl SurfaceDocument {
 
     /// Resolve style and layout at document time `t` (seconds on the host clock), hoist the
     /// z-indexed boxes again from the fresh layout (Blitz gathers them from the previous one,
-    /// FINDINGS F69), repair the hover the resolve moved, then run the pre-paint hook on the
+    /// FINDINGS F69), enable the IME for a text field focused before it had a layout (F71),
+    /// repair the hover the resolve moved, then run the pre-paint hook on the
     /// result (and hoist once more after it). Resolve and hook are
     /// one call because Blitz re-rounds the layout on every resolve: a hook that snapped it must
     /// follow each one, or the paint shows the unsnapped layout. So a frame resolves exactly
@@ -218,6 +223,7 @@ impl SurfaceDocument {
         let before = self.hovered();
         self.doc.inner_mut().resolve(t);
         stacking::rehoist(&mut self.doc.inner_mut());
+        self.repair_ime();
         let after = self.hovered();
         self.sync_hover(Shift { before, after });
         let prepainted = self.prepaint.run(&mut self.doc.inner_mut());
@@ -231,6 +237,25 @@ impl SurfaceDocument {
             HoverShift::Moved
         };
         Resolved { prepainted, hover }
+    }
+
+    /// Ask for the IME a text field focused before its first layout could not ask for itself
+    /// (`dom::ime_focus`, FINDINGS F71).
+    fn repair_ime(&self) {
+        let focused = ime_focus::focused_field(&self.doc.inner());
+        if let Repair::Enable { cursor_area } = ime_focus::repair(self.shell.ime(), focused) {
+            self.shell.set_ime_cursor_area(
+                cursor_area.x as f32,
+                cursor_area.y as f32,
+                cursor_area.width as f32,
+                cursor_area.height as f32,
+            );
+        }
+    }
+
+    /// The focused text field's text (`debug-inject`'s `focused`).
+    pub fn focused_text(&self) -> Option<FieldText> {
+        ime_focus::focused_text(&self.doc.inner())
     }
 
     /// The hovered element (a hovered text node counts as its element).

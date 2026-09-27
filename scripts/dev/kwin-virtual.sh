@@ -33,6 +33,12 @@
 # A process that merely names the private bus in its environment (a script that sourced
 # .kwin-env, a client it started) is not the helper's to kill: the caller ends its own clients.
 #
+# KWIN_VIRTUAL_INPUTMETHOD=<program> (opt-in; accept-ime.sh, FINDINGS F71) starts KWin with
+# `--inputmethod <program>` (fcitx5 over zwp_input_method_v1); the program inherits the private
+# bus and config, and gets private XDG_DATA_HOME, XDG_CACHE_HOME and XDG_STATE_HOME under it.
+# KWIN_VIRTUAL_CONFIG_SEED=<dir> is copied into the empty XDG_CONFIG_HOME first (an fcitx5
+# profile, say).
+#
 # KWIN_VIRTUAL_RUNTIME=<dir> (opt-in; accept-lock.sh uses it, FINDINGS F65) gives the headless
 # KWin its own runtime directory: start makes <dir> (mode 700, it must not exist yet), runs KWin
 # with XDG_RUNTIME_DIR=<dir> so its socket is <dir>/wayland-kwinvirt-<pid>, writes the marker
@@ -126,8 +132,15 @@ inside() {
   export DBUS_SESSION_BUS_ADDRESS="$address" KWIN_WAYLAND_NO_PERMISSION_CHECKS=1
   export XDG_CONFIG_HOME="$config" QT_FORCE_STDERR_LOGGING=1 XDG_RUNTIME_DIR="$runtime"
   export QT_LOGGING_RULES="js=true;kwin_scripting=true"
+  local im=()
+  if [ -n "${KWIN_VIRTUAL_INPUTMETHOD:-}" ]; then
+    # The input method KWin starts reads the private config, and keeps its data and cache
+    # (Chewing's user dictionary) out of the user's home too.
+    export XDG_DATA_HOME="$config/.data" XDG_CACHE_HOME="$config/.cache" XDG_STATE_HOME="$config/.state"
+    im=(--inputmethod "$KWIN_VIRTUAL_INPUTMETHOD")
+  fi
   exec setsid kwin_wayland --virtual --no-lockscreen --no-global-shortcuts \
-      --width "${size%x*}" --height "${size#*x}" --socket "$sock"
+      --width "${size%x*}" --height "${size#*x}" --socket "$sock" "${im[@]}"
 }
 
 start() {
@@ -161,6 +174,9 @@ start() {
   local mode
   mode="$(containment)"
   rm -rf "$config" && mkdir -p "$config"
+  if [ -n "${KWIN_VIRTUAL_CONFIG_SEED:-}" ]; then
+    cp -r "$KWIN_VIRTUAL_CONFIG_SEED/." "$config/"
+  fi
   rm -f "$BUS_FILE"
   case "$mode" in
     scope)

@@ -1,6 +1,7 @@
 //! IME over `zwp_text_input_v3`. The protocol is double-buffered: `preedit_string`,
 //! `commit_string` and `delete_surrounding_text` accumulate until `done`, which applies them in
-//! the protocol's order (delete, commit, preedit). Only then are Blitz IME events produced.
+//! the protocol's order: remove the current preedit, delete, commit, insert the new preedit
+//! (empty unless one was sent). Only then are Blitz IME events produced.
 
 use blitz_traits::events::BlitzImeEvent;
 
@@ -48,9 +49,16 @@ pub struct Ime {
 }
 
 /// Apply `done`: the Blitz events for everything pending, in protocol order, and an empty
-/// pending state. Pure.
+/// pending state. The current preedit goes first whenever something other than a new preedit
+/// is pending (an empty `Preedit`, which Blitz takes as "clear the composition"): Blitz inserts
+/// a commit next to a live composition rather than over it, so a commit of the composed text
+/// with the composition still shown doubled it (FINDINGS F71). A lone new preedit replaces
+/// the old one by itself. Pure.
 pub fn on_done(pending: PendingIme) -> (Vec<BlitzImeEvent>, PendingIme) {
     let mut events = Vec::new();
+    if pending.commit.is_some() || pending.delete.is_some() || pending.preedit.is_none() {
+        events.push(BlitzImeEvent::Preedit(String::new(), None));
+    }
     if let Some(delete) = pending.delete {
         events.push(BlitzImeEvent::DeleteSurrounding {
             before_bytes: delete.before as usize,
@@ -71,10 +79,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nothing_pending_produces_nothing() {
+    fn nothing_pending_only_clears_the_preedit() {
+        // The protocol resets the preedit on every `done`; one that sends none leaves it empty.
         let (events, rest) = on_done(PendingIme::default());
-        assert!(events.is_empty());
+        assert_eq!(events, vec![clear()]);
         assert_eq!(rest, PendingIme::default());
+    }
+
+    fn clear() -> BlitzImeEvent {
+        BlitzImeEvent::Preedit(String::new(), None)
+    }
+
+    #[test]
+    fn a_commit_of_the_composed_text_clears_the_composition_first() {
+        // Chewing's `s u 3 c l 3` then Return, as fcitx5 sends it: the preedit 你好 is replaced
+        // by nothing and 你好 is committed in one `done`. Committing with the composition still
+        // shown doubled it (你好你好).
+        let pending = PendingIme {
+            preedit: Some(Preedit {
+                text: String::new(),
+                cursor: Some((0, 0)),
+            }),
+            commit: Some("你好".to_owned()),
+            delete: None,
+        };
+        let (events, _) = on_done(pending);
+        assert_eq!(
+            events,
+            vec![
+                clear(),
+                BlitzImeEvent::Commit("你好".to_owned()),
+                BlitzImeEvent::Preedit(String::new(), Some((0, 0))),
+            ]
+        );
     }
 
     #[test]
@@ -84,7 +121,10 @@ mod tests {
             ..PendingIme::default()
         };
         let (events, rest) = on_done(pending);
-        assert_eq!(events, vec![BlitzImeEvent::Commit("hello".to_owned())]);
+        assert_eq!(
+            events,
+            vec![clear(), BlitzImeEvent::Commit("hello".to_owned())]
+        );
         assert_eq!(rest, PendingIme::default());
     }
 
@@ -121,6 +161,7 @@ mod tests {
         assert_eq!(
             events,
             vec![
+                clear(),
                 BlitzImeEvent::DeleteSurrounding {
                     before_bytes: 1,
                     after_bytes: 0,
@@ -141,6 +182,6 @@ mod tests {
             ..PendingIme::default()
         };
         let (events, _) = on_done(pending);
-        assert_eq!(events, vec![BlitzImeEvent::Commit(String::new())]);
+        assert_eq!(events, vec![clear(), BlitzImeEvent::Commit(String::new())]);
     }
 }
