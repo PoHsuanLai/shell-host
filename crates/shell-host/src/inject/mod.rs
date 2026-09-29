@@ -13,4 +13,5 @@ pub mod stdin;
 
 pub use command::{CommandError, DebugAction, DebugCommand, parse_command};
 pub use deliver::write_capture;
+pub use key_spec::parse_key;
 pub use request::{Inject, Injected, KeyAction, KeyStroke, PointerButton};

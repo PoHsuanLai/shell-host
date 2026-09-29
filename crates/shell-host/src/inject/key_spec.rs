@@ -9,8 +9,8 @@ use keyboard_types::{Code, Key, Modifiers};
 use super::KeyStroke;
 use super::command::CommandError;
 
-/// The keystroke `spec` names.
-pub(super) fn parse_stroke(spec: &str) -> Result<KeyStroke, CommandError> {
+/// The keystroke `spec` names (`Tab`, `k+ctrl`, `Tab+shift`): the `key` verb's spelling.
+pub fn parse_key(spec: &str) -> Result<KeyStroke, CommandError> {
     let mut parts = spec.split('+');
     let name = parts.next().unwrap_or_default();
     let key = key_named(name).ok_or_else(|| CommandError::NotAKey(name.to_owned()))?;
@@ -145,7 +145,7 @@ mod tests {
             ("Tab+hyper", Err(CommandError::NotAModifier("hyper".into()))),
         ];
         for (spec, want) in cases {
-            assert_eq!(parse_stroke(spec), want, "{spec:?}");
+            assert_eq!(parse_key(spec), want, "{spec:?}");
         }
     }
 }

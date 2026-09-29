@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use super::key_spec::parse_stroke;
+use super::key_spec::parse_key;
 use super::{KeyAction, KeyStroke, PointerButton};
 use crate::geometry::Point;
 use crate::id::SurfaceName;
@@ -110,8 +110,8 @@ fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> 
         ("click", _) => {
             button_at("click", args).map(|(point, button)| DebugAction::Click(point, button))
         }
-        ("key", [spec]) => Ok(DebugAction::Key(parse_stroke(spec)?, KeyAction::Tap)),
-        ("key", [spec, action]) => Ok(DebugAction::Key(parse_stroke(spec)?, key_action(action)?)),
+        ("key", [spec]) => Ok(DebugAction::Key(parse_key(spec)?, KeyAction::Tap)),
+        ("key", [spec, action]) => Ok(DebugAction::Key(parse_key(spec)?, key_action(action)?)),
         ("key", _) => Err(CommandError::Missing {
             verb: "key",
             needs: "a key name, optionally down or up",
