@@ -1,6 +1,8 @@
 //! Keyboard focus, keys and modifiers -> document events, through `input::key`.
 
-use std::time::{Duration, Instant};
+mod decide;
+
+use std::time::Instant;
 
 use blitz_traits::events::{BlitzKeyEvent, KeyState, UiEvent};
 use smithay_client_toolkit::seat::keyboard::{
@@ -20,6 +22,7 @@ use crate::modifiers::Modifiers;
 use crate::scroll::surface::KeyUse;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
+use decide::{RepeatAfter, RepeatTiming};
 
 impl KeyboardHandler for HostState {
     /// `HostEvent::KeyboardFocus{Gained}`, remember the time for first-mouse.
@@ -125,12 +128,8 @@ impl KeyboardHandler for HostState {
         _serial: u32,
         event: KeyEvent,
     ) {
-        let is_repeating = self
-            .input
-            .repeating
-            .as_ref()
-            .is_some_and(|held| held.raw_code == event.raw_code);
-        if is_repeating {
+        let repeating = self.input.repeating.as_ref().map(|held| held.raw_code);
+        if decide::repeat_after_release(repeating, event.raw_code) == RepeatAfter::Stop {
             self.input.repeating = None;
             self.timers.push(TimerRequest::RepeatStop);
         }
@@ -182,12 +181,12 @@ impl KeyboardHandler for HostState {
         _keyboard: &wl_keyboard::WlKeyboard,
         info: RepeatInfo,
     ) {
-        match info {
-            RepeatInfo::Repeat { rate, delay } => {
-                self.input.repeat_delay = Duration::from_millis(u64::from(delay));
-                self.input.repeat_interval = Duration::from_secs_f64(1.0 / f64::from(rate.get()));
+        match decide::repeat_timing(info) {
+            RepeatTiming::Every { delay, interval } => {
+                self.input.repeat_delay = delay;
+                self.input.repeat_interval = interval;
             }
-            RepeatInfo::Disable => {
+            RepeatTiming::Off => {
                 self.input.repeating = None;
                 self.timers.push(TimerRequest::RepeatStop);
             }
