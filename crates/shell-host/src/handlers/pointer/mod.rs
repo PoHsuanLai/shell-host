@@ -1,6 +1,8 @@
 //! Pointer frames -> document events, through `input::pointer`.
 
-use blitz_traits::events::{MouseEventButton, MouseEventButtons};
+mod decide;
+
+use blitz_traits::events::MouseEventButtons;
 use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
 use wayland_client::protocol::wl_pointer::WlPointer;
 use wayland_client::{Connection, QueueHandle};
@@ -12,8 +14,8 @@ use crate::input::focus::{self, Departure, PointerFocus};
 use crate::input::palmrest::wire::Over;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::modality::Stroke;
-use crate::role::Role;
 use crate::state::HostState;
+use decide::{Delivery, Focused, PressRoute};
 
 impl PointerHandler for HostState {
     /// Enter: focus, zone, the move to its position (so `:hover` and `mouseenter` hold from the
@@ -95,9 +97,7 @@ impl PointerHandler for HostState {
                     };
                     self.input.position = pos;
                     let held_before = self.input.buttons;
-                    if held_before == MouseEventButtons::None {
-                        self.input.zone = self.zone_of(id, pos);
-                    }
+                    self.input.zone = self.zone_while_held(id, pos);
                     self.input.buttons =
                         pointer::buttons_after(held_before, btn, ButtonChange::Pressed);
                     self.input.grab.update(|facts| {
@@ -106,23 +106,22 @@ impl PointerHandler for HostState {
                             serial,
                         });
                     });
-                    if let Zone::Edge(edge) = self.input.zone {
+                    let route = decide::press_route(self.input.zone, btn, self.first_mouse(id));
+                    match route {
                         // The band is the host's: the press starts the resize, whether or not
                         // the window is active, and the document never hears of it.
-                        if btn == MouseEventButton::Main {
-                            self.resize_from_band(id, edge);
+                        PressRoute::Resize(edge) => self.resize_from_band(id, edge),
+                        // Absorbed: the band's. Swallowed: this is the click that activates the
+                        // window, not a click on anything in it; the press still counts as
+                        // having happened (buttons updated above).
+                        PressRoute::Absorbed | PressRoute::Swallowed => {}
+                        PressRoute::Deliver => {
+                            let at = self.document_pos(id, pos);
+                            let events =
+                                pointer::press_events(at, btn, held_before, self.input.modifiers);
+                            self.deliver(id, events);
                         }
-                        continue;
                     }
-                    if self.first_mouse(id) == FirstMouse::Swallow {
-                        // The press still counts as having happened (buttons updated above), it
-                        // just never reaches the document: this is the click that activates the
-                        // window, not a click on anything in it.
-                        continue;
-                    }
-                    let at = self.document_pos(id, pos);
-                    let events = pointer::press_events(at, btn, held_before, self.input.modifiers);
-                    self.deliver(id, events);
                 }
                 PointerEventKind::Release {
                     button,
@@ -139,7 +138,7 @@ impl PointerHandler for HostState {
                     if self.input.buttons == MouseEventButtons::None {
                         self.input.grab.update(|facts| facts.press = None);
                     }
-                    if self.input.zone == Zone::Document {
+                    if decide::delivery(self.input.zone) == Delivery::ToDocument {
                         let at = self.document_pos(id, pos);
                         let event =
                             pointer::release_event(at, btn, held_before, self.input.modifiers);
@@ -152,7 +151,7 @@ impl PointerHandler for HostState {
                     time: _,
                     source,
                 } => {
-                    if self.input.zone != Zone::Document {
+                    if decide::delivery(self.input.zone) == Delivery::Withheld {
                         continue;
                     }
                     // The engine's, never Blitz's default scroll action (design/11 §11.3.1),
@@ -171,15 +170,13 @@ impl HostState {
     /// has keyboard focus, and only within the first-mouse window (`HostConfig::first_mouse_window_ms`,
     /// the settings key `menus.first_mouse_window_ms`) of that focus arriving.
     fn first_mouse(&self, id: SurfaceId) -> FirstMouse {
-        let is_toplevel = self
-            .surfaces
-            .get(&id)
-            .is_some_and(|surface| matches!(surface.role, Role::Toplevel { .. }));
-        if !is_toplevel || self.input.keyboard_focus != Some(id) {
-            return FirstMouse::Deliver;
-        }
+        let role = self.surfaces.get(&id).map(|surface| surface.role.kind());
+        let focus = match self.input.keyboard_focus {
+            Some(focused) if focused == id => Focused::Yes,
+            Some(_) | None => Focused::No,
+        };
         let since_activation = self.input.focused_at.map(|at| at.elapsed());
-        pointer::first_mouse(since_activation, self.first_mouse_window)
+        decide::first_mouse_verdict(role, focus, since_activation, self.first_mouse_window)
     }
 
     /// Surface `id` is being unmapped or closed by the host. If the pointer is on it, end the
