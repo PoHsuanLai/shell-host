@@ -105,10 +105,6 @@ required-features = ["debug-inject"]
 name = "demo_lock"
 test = true
 
-[[example]]
-name = "spike_widget"
-required-features = ["headless"]
-
 [[test]]
 name = "headless"
 required-features = ["headless"]

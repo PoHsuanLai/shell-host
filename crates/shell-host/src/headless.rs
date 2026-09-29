@@ -84,7 +84,7 @@ pub struct HeadlessConfig {
 ///
 /// A custom [`blitz_dom::Widget`] on this path receives a CPU
 /// [`anyrender::RenderContext`], whose `renderer_specific_context` is `None` (no wgpu
-/// device) — a widget written against the wgpu texture pattern (see `examples/spike_widget.rs`)
+/// device) — a widget written against the wgpu texture pattern (see `tests/gpu.rs`'s `Swatch`)
 /// will render as fully transparent here. That is expected: this function exists to snapshot
 /// ordinary document content and CSS motion, not to exercise a widget's GPU path.
 pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImage> {
