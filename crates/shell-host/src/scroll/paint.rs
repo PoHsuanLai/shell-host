@@ -77,8 +77,6 @@ mod tests {
     use super::*;
     use crate::clipboard::SharedSelection;
     use crate::dom::document::{DocumentEnv, SurfaceDocument};
-    use crate::dom::fonts::SharedFonts;
-    use crate::dom::net::LocalNet;
     use crate::dom::shell_provider::HostShellProvider;
     use crate::gpu::presenter::{FrameTarget, Overlay};
     use crate::gpu::shm::paint_cpu;
@@ -86,6 +84,8 @@ mod tests {
     use crate::prepaint::Prepaint;
     use crate::root::Root;
     use crate::scale::{Scale, Size};
+    use blitz_kit::fonts::SharedFonts;
+    use blitz_kit::net::LocalNet;
 
     fn white() -> Element {
         rsx! { div { style: "width:100vw;height:100vh;background:white" } }

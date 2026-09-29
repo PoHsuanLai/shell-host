@@ -56,12 +56,13 @@ pub mod timers;
 pub mod toplevel;
 pub mod wake;
 
+pub use blitz_kit::adapter::AdapterPref;
+pub use blitz_kit::fonts::FontFaces;
 pub use blitz_traits::shell::ColorScheme;
 pub use blur::BlurSpec;
 pub use bridge::use_watch;
-pub use config::{AdapterPref, Backend, FontFaces, HostConfig};
+pub use config::{Backend, HostConfig, registered_families};
 pub use ctx::HostCtx;
-pub use dom::fonts::registered_families;
 pub use drag::outcome::{DragAction, DragOutcome, DragRefused};
 pub use drag::spec::{BadMime, DragActions, DragIcon, DragPayload, DragSpec, Mime};
 pub use error::{HostError, Recovery, Result};

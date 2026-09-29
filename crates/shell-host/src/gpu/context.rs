@@ -3,15 +3,16 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use blitz_kit::adapter::{AdapterFacts, AdapterPref, rank};
 use rustc_hash::FxHashMap;
 use vello_common::paint::ImageId;
 use vello_hybrid::{RenderTargetConfig, Renderer, Resources};
 use wayland_client::Connection;
 use wgpu_context::DeviceHandle;
 
-use crate::config::{ADAPTER_ENV, AdapterPref};
+use crate::config::ADAPTER_ENV;
 use crate::error::{HostError, Result};
-use crate::gpu::adapter::{self, AdapterFacts};
+use crate::gpu::adapter;
 use crate::gpu::block_on::block_on;
 use crate::gpu::context_proxy::ContextProxy;
 use crate::gpu::raw_handle::WaylandDisplay;
@@ -121,7 +122,7 @@ fn ranked(adapters: Vec<wgpu::Adapter>, pref: &AdapterPref) -> Vec<wgpu::Adapter
         .clone()
         .with_env(std::env::var(ADAPTER_ENV).ok().as_deref());
     let facts: Vec<AdapterFacts> = adapters.iter().map(AdapterFacts::of).collect();
-    let order = adapter::rank(&pref, &facts);
+    let order = rank(&pref, &facts);
     let mut slots: Vec<Option<wgpu::Adapter>> = adapters.into_iter().map(Some).collect();
     order.into_iter().filter_map(|i| slots[i].take()).collect()
 }

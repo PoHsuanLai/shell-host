@@ -1,6 +1,8 @@
 //! What a host is asked to use: which rendering backend and which GPU adapter, and the pass
 //! it runs over every document before painting it.
 
+use blitz_kit::adapter::AdapterPref;
+use blitz_kit::fonts::{FontFaces, SharedFonts};
 use serde::{Deserialize, Serialize};
 
 use crate::prepaint::Prepaint;
@@ -49,12 +51,19 @@ impl Default for HostConfig {
     }
 }
 
-/// The face files a shell's design system bundles, as `&'static` TTF/OTF bytes (typically
-/// `include_bytes!` in the design-system crate). `HostState` registers each one with
-/// [`crate::dom::fonts::SharedFonts`] once, so a clone handed to any document resolves the same
-/// families without re-registering them.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FontFaces(pub Vec<&'static [u8]>);
+/// The family names `config.fonts` actually resolves to once registered — built with no Wayland
+/// connection, so a shell can assert its own faces survive registration (e.g. that `"Inter"` is
+/// still present after a dependency bump) without connecting a host. Mirrors exactly what
+/// `Host::connect` does with `HostConfig::fonts` at startup, on a throwaway `SharedFonts::system`.
+pub fn registered_families(config: &HostConfig) -> Vec<String> {
+    let mut fonts = SharedFonts::system();
+    config
+        .fonts
+        .0
+        .iter()
+        .flat_map(|bytes| fonts.register(bytes))
+        .collect()
+}
 
 /// A configured duration in whole milliseconds, as settings keys spell them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -84,67 +93,14 @@ pub enum Backend {
     Cpu,
 }
 
-/// Which adapter the GPU backend prefers. A preference, not a guarantee: every candidate is
-/// validated by a first present on a probe surface over a throwaway connection, because a
-/// cross-GPU adapter can pass `is_surface_supported` and still have its first buffer rejected
-/// with a fatal protocol error (RADV on this machine, `zwp_linux_dmabuf` error 7).
-/// A candidate that fails is dropped and the next one is tried.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "v", rename_all = "snake_case")]
-pub enum AdapterPref {
-    /// wgpu's default order for the surface (high performance first).
-    #[default]
-    Auto,
-    /// The first adapter whose name contains this text, case-insensitively.
-    Named(String),
-    /// Discrete GPUs first.
-    Discrete,
-    /// Integrated GPUs first.
-    Integrated,
-}
-
-impl AdapterPref {
-    /// The preference in force once the environment is read: a non-empty `WGPU_ADAPTER_NAME`
-    /// wins over whatever was configured.
-    pub fn with_env(self, env_value: Option<&str>) -> AdapterPref {
-        match env_value.map(str::trim) {
-            Some(name) if !name.is_empty() => AdapterPref::Named(name.to_owned()),
-            _ => self,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn the_environment_overrides_only_when_it_names_something() {
-        let cases: &[(&str, AdapterPref, Option<&str>, AdapterPref)] = &[
-            ("unset", AdapterPref::Discrete, None, AdapterPref::Discrete),
-            (
-                "empty",
-                AdapterPref::Integrated,
-                Some(""),
-                AdapterPref::Integrated,
-            ),
-            ("blank", AdapterPref::Auto, Some("  "), AdapterPref::Auto),
-            (
-                "named",
-                AdapterPref::Discrete,
-                Some("NVIDIA"),
-                AdapterPref::Named("NVIDIA".into()),
-            ),
-            (
-                "trimmed",
-                AdapterPref::Auto,
-                Some(" AMD "),
-                AdapterPref::Named("AMD".into()),
-            ),
-        ];
-        for (name, configured, env, want) in cases {
-            assert_eq!(configured.clone().with_env(*env), *want, "{name}");
-        }
+    fn no_faces_resolves_no_families() {
+        let config = HostConfig::default();
+        assert_eq!(registered_families(&config), Vec::<String>::new());
     }
 
     #[test]

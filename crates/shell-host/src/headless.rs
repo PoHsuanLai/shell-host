@@ -24,8 +24,8 @@ use dioxus_native_dom::DioxusDocument;
 use image::RgbaImage;
 use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
 
-use crate::config::FontFaces;
 use crate::dom::document::BODY_RESET;
+use blitz_kit::fonts::FontFaces;
 
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
 /// component whose effects never settle (a bug, not a feature) cannot hang a render.

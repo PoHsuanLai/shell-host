@@ -128,8 +128,6 @@ mod tests {
     use super::*;
     use crate::clipboard::SharedSelection;
     use crate::dom::document::{DocumentEnv, SurfaceDocument};
-    use crate::dom::fonts::SharedFonts;
-    use crate::dom::net::LocalNet;
     use crate::dom::scroll as dom;
     use crate::dom::shell_provider::HostShellProvider;
     use crate::grab::GrabRecord;
@@ -145,6 +143,8 @@ mod tests {
     use crate::scroll::tuning::Tuning;
     use crate::tick::FrameTicks;
     use crate::toplevel::ToplevelState;
+    use blitz_kit::fonts::SharedFonts;
+    use blitz_kit::net::LocalNet;
 
     /// Shows a scroll box's offset as text, through `use_scroll`.
     fn watcher() -> Element {

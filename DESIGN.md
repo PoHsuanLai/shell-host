@@ -78,15 +78,15 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `dom/stacking.rs` | `rehoist`: gather z-indexed boxes again after every resolve, from the fresh layout (FINDINGS F69) | effects |
 | `dom/head.rs` | `HeadDocument` shim (plan: `DioxusDocument` ignores `document::Style/Link/Title`) | effects |
 | `dom/shell_provider.rs` | `ShellProvider`: redraw flag (cleared after present, a load from another thread kept, FINDINGS F75, F40), cursor, IME; paste answers from the seat's `clipboard::SharedSelection`, copy queues for `ctx::ops::claim_copied` | effects |
-| `dom/fonts.rs` | one `FontContext` cloned into every document (plan "Fonts") | effects |
-| `dom/net.rs` | `LocalNet`: `data:` decoded and `file:` (absolute paths, empty or `localhost` host) read, both on the host runtime's blocking pool; nothing from the network (quire FINDINGS S7, S8; the wallpaper is `url(file://…)`) | effects |
+| `blitz-kit::fonts` | one `FontContext` cloned into every document (plan "Fonts"); `HostState::fonts` holds it | effects |
+| `blitz-kit::net` | `LocalNet`: `data:` decoded and `file:` (absolute paths, empty or `localhost` host) read, both on the host runtime's blocking pool; nothing from the network (quire FINDINGS S7, S8; the wallpaper is `url(file://…)`) | effects |
 | `wake.rs` | per-surface wakers on one shared ping (plan "Event loop") | effects |
 
 ## GPU (`gpu/`)
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `gpu/adapter.rs` | adapter ranking and validation by first present on a throwaway connection (FINDINGS F16) | effects |
+| `gpu/adapter.rs` | validation of an adapter by first present on a throwaway connection (FINDINGS F16); the ranking is `blitz-kit::adapter` | effects |
 | `gpu/probe.rs` | the throwaway connection and surface the first-present validation uses; probe instances live for the process (NVIDIA teardown crash, FINDINGS F16) | effects |
 | `gpu/block_on.rs` | the minimal executor for wgpu's adapter and device futures | effects |
 | `gpu/context.rs` | one device, one `vello_hybrid::Renderer` + `Resources`, the per-device image cache (FINDINGS F1), `devices_created` | effects |

@@ -1,11 +1,10 @@
 //! Hover: the shift a resolve causes and the repair that puts Blitz's dispatch back in step.
 
-use blitz_dom::{BaseDocument, Document as _, NodeId};
-use blitz_traits::events::UiEvent;
+use blitz_dom::{Document as _, NodeId};
+use blitz_kit::hit::element_of;
+use blitz_kit::hover::{LastMove, Shift, repair};
 
 use super::{Polled, SurfaceDocument};
-use crate::dom::hover_sync::{self, Bounds, HoverSync, LastMove, Shift};
-use crate::input::pointer::PointerPos;
 
 /// Whether a resolve moved the hover: the restyle it needs lands on a later frame, and the
 /// resolve's own redraw request is dropped as the render's echo (`ctx::paint`).
@@ -48,63 +47,10 @@ impl SurfaceDocument {
         element_of(&inner, inner.get_hover_node_id()?)
     }
 
-    /// Blitz's `refresh_hover` moved the hover without dispatching (its TODO): put the old
-    /// hover back without dispatch, then feed the last move again, so the driver dispatches the
-    /// leave/enter diff itself. At most once per resolve.
+    /// Blitz's `refresh_hover` moved the hover without dispatching (its TODO): `blitz_kit::hover`
+    /// puts the old hover back and feeds the last move again through this document's driver, so
+    /// the leave/enter diff reaches the components. At most once per resolve.
     pub(super) fn sync_hover(&mut self, shift: Shift<NodeId>) {
-        let sync = {
-            let inner = self.doc.inner();
-            hover_sync::decide(
-                shift,
-                &self.last_move,
-                |id| bounds_of(&inner, id),
-                |at| element_at(&inner, at),
-            )
-        };
-        match sync {
-            HoverSync::Unchanged => return,
-            HoverSync::Restore(at) => {
-                self.doc.inner_mut().set_hover_to(at.x as f32, at.y as f32);
-            }
-            HoverSync::Clear => {
-                self.doc.inner_mut().clear_hover();
-            }
-        }
-        if let LastMove::At(event) = &self.last_move {
-            let again = UiEvent::PointerMove(event.clone());
-            let again = crate::input::pointer::scrolled(again, self.viewport_scroll());
-            self.doc.handle_ui_event(again);
-        }
+        repair(&mut self.doc, &self.last_move, shift);
     }
-}
-
-/// `id` if it is an element, else its nearest element ancestor: the node whose listeners a
-/// hover change reaches.
-fn element_of(doc: &BaseDocument, id: NodeId) -> Option<NodeId> {
-    let node = doc.get_node(id)?;
-    if node.is_element() {
-        Some(id)
-    } else {
-        element_of(doc, node.parent?)
-    }
-}
-
-/// The element Blitz would hover at `at`: the hit, lifted out of anonymous boxes as
-/// `set_hover_to` lifts it, then to its element.
-fn element_at(doc: &BaseDocument, at: PointerPos) -> Option<NodeId> {
-    let hit = doc.hit(at.x as f32, at.y as f32)?;
-    element_of(doc, doc.nearest_non_anonymous_ancestor(hit.node_id)?)
-}
-
-/// `id`'s current border box, in the page coordinates Blitz hit-tests (client plus the
-/// viewport's scroll).
-fn bounds_of(doc: &BaseDocument, id: NodeId) -> Option<Bounds> {
-    let rect = doc.get_client_bounding_rect(id)?;
-    let scroll = doc.viewport_scroll();
-    Some(Bounds {
-        x: rect.x + scroll.x,
-        y: rect.y + scroll.y,
-        width: rect.width,
-        height: rect.height,
-    })
 }

@@ -23,7 +23,7 @@ use blitz_traits::shell::ColorScheme;
 use calloop::{LoopHandle, RegistrationToken};
 use tokio::sync::oneshot;
 
-use crate::config::{AdapterPref, Backend};
+use crate::config::Backend;
 use crate::error::Result;
 use crate::frame::FrameInput;
 use crate::handlers::activation::ActivationRequest;
@@ -37,6 +37,7 @@ use crate::root::Root;
 use crate::state::HostState;
 use crate::stats::FrameStats;
 use crate::toplevel::ToplevelConfig;
+use blitz_kit::adapter::AdapterPref;
 
 /// Whether `Host::run` should return after this iteration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

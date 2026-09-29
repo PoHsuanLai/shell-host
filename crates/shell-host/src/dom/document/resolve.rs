@@ -1,11 +1,11 @@
 //! One resolve: layout, hoisting, the IME and hover repairs, and the pre-paint hook.
 
 use blitz_dom::Document as _;
+use blitz_kit::hover::Shift;
 use blitz_traits::shell::ShellProvider as _;
 
 use super::SurfaceDocument;
 use super::hover::HoverShift;
-use crate::dom::hover_sync::Shift;
 use crate::dom::ime_focus::{self, FieldText, Repair};
 use crate::dom::stacking;
 use crate::frame::Animation;

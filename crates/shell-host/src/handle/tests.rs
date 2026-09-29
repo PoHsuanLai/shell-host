@@ -11,8 +11,6 @@ use super::*;
 use crate::clipboard::SharedSelection;
 use crate::dom::document::Polled;
 use crate::dom::document::{DocumentEnv, SurfaceDocument};
-use crate::dom::fonts::SharedFonts;
-use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::grab::{GrabRecord, GrabRefused, PointerFacts, Press};
 use crate::handle::{
@@ -25,6 +23,8 @@ use crate::prepaint::{Prepaint, Prepainted};
 use crate::role::RoleKind;
 use crate::tick::{FrameTick, HostInstant};
 use crate::toplevel::{Maximize, ResizeEdge, ToplevelState};
+use blitz_kit::fonts::SharedFonts;
+use blitz_kit::net::LocalNet;
 
 fn parts(requests: RequestQueue, ticks: FrameTicks, scale: LiveScale) -> HandleParts {
     HandleParts {

@@ -11,10 +11,10 @@ use std::time::Duration;
 use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 
+use blitz_kit::fonts::SharedFonts;
+use blitz_kit::net::LocalNet;
 use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
-use shell_host::dom::fonts::SharedFonts;
-use shell_host::dom::net::LocalNet;
 use shell_host::dom::scroll::{self as dom, KeyFocus, WheelRoute};
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;

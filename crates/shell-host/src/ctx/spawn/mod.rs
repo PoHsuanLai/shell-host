@@ -18,7 +18,6 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use crate::blur::BlurSpec;
 use crate::csd::Inset;
 use crate::dom::document::DocumentEnv;
-use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::FrameState;
 use crate::handle::{HandleParts, SurfaceHandle};
@@ -39,6 +38,7 @@ use crate::stats::StatsWindow;
 use crate::surface::{AppliedRegions, Configured, HostSurface};
 use crate::tick::FrameTicks;
 use crate::toplevel::ToplevelState;
+use blitz_kit::net::LocalNet;
 
 pub(super) use layer::layer;
 pub(super) use popup::{popup, positioner};

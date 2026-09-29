@@ -48,7 +48,6 @@ use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
 use crate::csd::Zone;
 use crate::cursor::Cursor;
-use crate::dom::fonts::SharedFonts;
 use crate::error::{HostError, Result};
 use crate::event::ShellEvent;
 use crate::frame::{FrameInput, TimerCmd};
@@ -75,6 +74,7 @@ use crate::scroll::tuning::Tuning;
 use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
+use blitz_kit::fonts::SharedFonts;
 
 /// `wl_keyboard.repeat_info` values until the compositor sends its own (X's defaults).
 const DEFAULT_REPEAT_DELAY: Duration = Duration::from_millis(600);

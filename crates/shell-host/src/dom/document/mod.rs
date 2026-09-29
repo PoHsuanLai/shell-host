@@ -15,14 +15,14 @@ use std::sync::Arc;
 use std::task::Context;
 
 use blitz_dom::{Document as _, DocumentConfig, FontContext, StyleThreading};
+use blitz_kit::hover::{LastMove, remember};
+use blitz_kit::net::LocalNet;
 use blitz_traits::events::UiEvent;
 use blitz_traits::net::NetProvider;
 use blitz_traits::shell::{ShellProvider, Viewport};
 use dioxus_native_dom::DioxusDocument;
 
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
-use crate::dom::hover_sync::{self, LastMove};
-use crate::dom::net::LocalNet;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::prepaint::Prepaint;
 use crate::root::Root;
@@ -158,7 +158,7 @@ impl SurfaceDocument {
     /// scroll (the engine scrolls the viewport; Blitz hit-tests page coordinates).
     pub fn handle_event(&mut self, event: UiEvent) {
         let event = crate::input::pointer::scrolled(event, self.viewport_scroll());
-        self.last_move = hover_sync::remember(std::mem::take(&mut self.last_move), &event);
+        self.last_move = remember(std::mem::take(&mut self.last_move), &event);
         self.doc.handle_ui_event(event);
     }
 

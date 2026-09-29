@@ -14,10 +14,10 @@ use calloop::EventLoop;
 use dioxus::prelude::*;
 use tokio::sync::watch;
 
+use blitz_kit::fonts::SharedFonts;
+use blitz_kit::net::LocalNet;
 use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
-use shell_host::dom::fonts::SharedFonts;
-use shell_host::dom::net::LocalNet;
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::root::Root;

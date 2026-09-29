@@ -322,7 +322,7 @@ removed, never blanks the others. A region that should vanish with its element i
 `SurfaceDocument::element_rect` (regions, `PopupAnchor::Element`) carries the layout box through
 every transform on its layout-parent chain, the chain `blitz-paint` composes; Blitz's
 `get_client_bounding_rect` is the layout box, and layout never sees `transform`.
-`dom::painted::painted_bounds` (pure) maps the rect's corners through the chain; each transform
+`blitz_kit::paint_rect::painted_bounds` (pure) maps the rect's corners through the chain; each transform
 is Blitz's resolved `Node::transform()` in device px (`Affine2::from_device` divides the
 translation by the scale), about the box's untransformed origin plus its own scroll offset.
 Translation and scale are exact; rotation and skew give the axis-aligned bounding box. Not
@@ -491,15 +491,15 @@ so). The event driver diffs the next move against that already-moved hover, so a
 arrives under a resting pointer is never entered and the one it covered never left, and the
 `:hover` restyle it asks for would be dropped as the render's own redraw.
 
-`SurfaceDocument` remembers the last real pointer move (`dom::hover_sync::LastMove`, forgotten in
-`clear_hover`). When the hovered element changed across a resolve, `hover_sync::decide` (pure)
+`SurfaceDocument` remembers the last real pointer move (`blitz_kit::hover::LastMove`, forgotten in
+`clear_hover`). When the hovered element changed across a resolve, `blitz_kit::hover::decide` (pure)
 restores the old hover without dispatch (probing the old element's box: centre, then corners
 1 px inside) or clears it, and the remembered move is fed again so Blitz's driver dispatches
 exactly the leave/enter diff. It runs after the resolve and the re-hoist, before the pre-paint
 hook, and `ctx::paint` invalidates after the present when the hover moved. Limits: an old
 element that cannot be restored makes the new chain's shared ancestors get a second
 `pointerenter`; windows run through `dioxus-native`'s own shell are not covered.
-`tests/hover_sync.rs`, `scripts/dev/accept-hover.sh`.
+`blitz-kit`'s `tests/hover_sync.rs`, `scripts/dev/accept-hover.sh`.
 
 ### F14. Wheel pixels are logical
 
