@@ -6,9 +6,7 @@
 use smithay_client_toolkit::data_device_manager::WritePipe;
 use smithay_client_toolkit::data_device_manager::data_source::DragSource;
 use tokio::sync::oneshot;
-use wayland_client::Proxy;
 use wayland_client::protocol::wl_data_device_manager::DndAction;
-use wayland_client::protocol::wl_data_source::WlDataSource;
 
 use crate::drag::offer::{Offered, bytes_for};
 use crate::drag::outcome::{DragAction, DragEnd, DragOutcome, outcome};
@@ -46,14 +44,6 @@ pub struct PendingWrite {
 }
 
 impl HostState {
-    /// Whether `source` is the current drag's.
-    pub(crate) fn drags(&self, source: &WlDataSource) -> bool {
-        self.drag
-            .active
-            .as_ref()
-            .is_some_and(|drag| drag.source.inner().id() == source.id())
-    }
-
     /// A target asked for the payload as `mime`: queue the write. A type we never offered gets
     /// the pipe closed at once (an empty read), which is all a source can say.
     pub(crate) fn drag_send(&mut self, mime: &str, pipe: WritePipe) {

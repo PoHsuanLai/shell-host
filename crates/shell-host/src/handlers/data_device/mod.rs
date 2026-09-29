@@ -2,6 +2,8 @@
 //! (`handlers::drag_source`, which the source events are routed to). Drag and drop *into*
 //! shell surfaces is not supported in v1; the device's drag callbacks do nothing.
 
+mod decide;
+
 use std::io::Write;
 
 use smithay_client_toolkit::data_device_manager::WritePipe;
@@ -18,6 +20,7 @@ use wayland_client::{Connection, QueueHandle};
 use crate::clipboard::TEXT_MIME;
 use crate::drag::outcome::DragEnd;
 use crate::state::HostState;
+use decide::{SourceOwner, source_owner};
 
 impl DataDeviceHandler for HostState {
     /// Drag-and-drop into a shell surface is not supported in v1 (module doc); no-op.
@@ -112,12 +115,13 @@ impl DataSourceHandler for HostState {
         mime: String,
         mut fd: WritePipe,
     ) {
-        if self.drags(source) {
-            self.drag_send(&mime, fd);
-            return;
-        }
-        if let Some(text) = &self.clipboard.own {
-            let _ = fd.write_all(text.as_bytes());
+        match self.source_owner(source) {
+            SourceOwner::Drag => self.drag_send(&mime, fd),
+            SourceOwner::Selection | SourceOwner::Unknown => {
+                if let Some(text) = &self.clipboard.own {
+                    let _ = fd.write_all(text.as_bytes());
+                }
+            }
         }
     }
 
@@ -125,18 +129,13 @@ impl DataSourceHandler for HostState {
     /// someone else took the selection, so forget our copy and let the source (no longer ours
     /// to keep alive) be destroyed.
     fn cancelled(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
-        if self.drags(source) {
-            self.drag_end(DragEnd::Cancelled);
-            return;
-        }
-        if self
-            .clipboard
-            .source
-            .as_ref()
-            .is_some_and(|owned| owned.inner().id() == source.id())
-        {
-            self.clipboard.own = None;
-            self.clipboard.source = None;
+        match self.source_owner(source) {
+            SourceOwner::Drag => self.drag_end(DragEnd::Cancelled),
+            SourceOwner::Selection => {
+                self.clipboard.own = None;
+                self.clipboard.source = None;
+            }
+            SourceOwner::Unknown => {}
         }
     }
 
@@ -148,7 +147,7 @@ impl DataSourceHandler for HostState {
 
     /// The target is done with our drag's payload (`DragOutcome::Dropped`).
     fn dnd_finished(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
-        if self.drags(source) {
+        if self.source_owner(source) == SourceOwner::Drag {
             self.drag_end(DragEnd::Finished);
         }
     }
@@ -161,7 +160,7 @@ impl DataSourceHandler for HostState {
         source: &WlDataSource,
         action: DndAction,
     ) {
-        if self.drags(source) {
+        if self.source_owner(source) == SourceOwner::Drag {
             self.drag_action(action);
         }
     }
@@ -180,4 +179,21 @@ pub(crate) fn claim_selection(state: &mut HostState, qh: &QueueHandle<HostState>
     let source = manager.create_copy_paste_source(qh, TEXT_MIME.iter().copied());
     source.set_selection(device, state.input.last_serial);
     state.clipboard.source = Some(source);
+}
+
+impl HostState {
+    /// Whose `wl_data_source` `source` is: the drag in progress's, our selection's, or neither.
+    fn source_owner(&self, source: &WlDataSource) -> SourceOwner {
+        let drag = self
+            .drag
+            .active
+            .as_ref()
+            .map(|drag| drag.source.inner().id());
+        let selection = self
+            .clipboard
+            .source
+            .as_ref()
+            .map(|owned| owned.inner().id());
+        source_owner(&source.id(), drag.as_ref(), selection.as_ref())
+    }
 }
