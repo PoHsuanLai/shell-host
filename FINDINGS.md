@@ -572,17 +572,6 @@ expression). Two deliberate changes from winit and blitz-shell: the Super keys a
 `Code::MetaLeft/Right` and `Modifiers::META` (the W3C names `metaKey` reads), and `space` is
 `Key::Character(" ")` (keyboard-types 0.7 has no named Space).
 
-### F17. The first-mouse window is a setting
-
-`input::pointer::first_mouse` takes the window as a parameter; the caller reads the settings key
-`menus.first_mouse_window_ms` (default 100), which design/22 marks proposed.
-
-**Open.** The `data-first-mouse` opt-in (design/13 §13.3.8; quire's window frame and traffic
-lights carry it) is not honoured: `handlers/pointer` swallows every press inside the window, and
-the document-side check that would let an opted-in element through was cut as dead code. To wire
-it, `press_route` needs the verdict of a document lookup (the element at the point, or an
-ancestor, has the attribute) before it answers `Swallowed`.
-
 ## Drag source
 
 ### F60. `SurfaceHandle::start_drag`
