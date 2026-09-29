@@ -1,16 +1,14 @@
-//! The spike's bar on the real API: a 32 px top bar with a translucent tint over a 2-logical-px
-//! checkerboard, reserving its height, blurred behind when `DEMO_BLUR=1`. Driven by the
-//! `debug-inject` commands on stdin (`bar hover X Y`, `bar stats`, `bar capture PATH`, `quit`).
-//! Re-passes spike items (a) bar, (b) blur, (f) fractional scale, and with `--with-dock`, (g)
-//! two surfaces on one device (`scripts/spike-accept.sh demo <item>`).
+//! A 32 px top bar with a translucent tint over a 2-logical-px checkerboard, reserving its
+//! height, blurred behind when `DEMO_BLUR=1`. Driven by the `debug-inject` commands on stdin
+//! (`bar hover X Y`, `bar stats`, `bar capture PATH`, `quit`). Render acceptance items (a) bar,
+//! (b) blur, (f) fractional scale, and with `--with-dock`, (g) two surfaces on one device
+//! (`scripts/accept-demo.sh demo <item>`).
 //!
 //! Flags: `--with-dock` (bar and dock in one process; the dock takes `--mode`, `--cards` and
 //! `--layer` as in `demo_dock`), `--exclusive=N` (reserve N px instead of 32; item b uses 0 so
 //! a window can sit behind the bar).
 
-// Only the dock's document and config are used here; its `main` is demo_dock's own.
-#[allow(dead_code)]
-#[path = "demo_dock.rs"]
+#[path = "shared/dock.rs"]
 mod dock;
 
 use std::sync::atomic::{AtomicU32, Ordering};
