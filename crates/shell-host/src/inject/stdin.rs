@@ -134,7 +134,6 @@ fn print_stats<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
 
 /// What the compositor offers, for the acceptance script's blur and scale checks.
 fn host_facts(state: &HostState) -> serde_json::Value {
-    let bound = |present: bool| if present { "bound" } else { "unbound" };
     let advertised = state
         .background_effect
         .as_ref()
@@ -148,10 +147,15 @@ fn host_facts(state: &HostState) -> serde_json::Value {
     };
     json!({"host": {
         "blur": blur,
-        "fractional_scale": bound(state.fractional.is_some()),
-        "layer_shell": bound(state.layer_shell.is_some()),
+        "fractional_scale": bound(state.fractional.as_ref()),
+        "layer_shell": bound(state.layer_shell.as_ref()),
         "adapter": state.adapter_label(),
     }})
+}
+
+/// Whether the compositor's global was bound, as the acceptance script reads it.
+fn bound<T>(global: Option<&T>) -> &'static str {
+    global.map_or("unbound", |_| "bound")
 }
 
 fn print_line(value: &impl serde::Serialize) -> Result<()> {
