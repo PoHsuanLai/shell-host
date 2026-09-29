@@ -52,8 +52,8 @@ A headless `kwin_wayland --virtual` on its own D-Bus session, torn down afterwar
 the real session is locked. `kwin-virtual@1.7` sets the nested output's scale:
 
 ```sh
-scripts/spike-accept.sh demo kwin-virtual a      # or b, c, f, g
-scripts/spike-accept.sh demo kwin-virtual@1.7 f
+scripts/accept-demo.sh demo kwin-virtual a      # or b, c, f, g
+scripts/accept-demo.sh demo kwin-virtual@1.7 f
 ```
 
 ### On a nested cosmic-comp
@@ -202,13 +202,13 @@ shell-host's own examples and tests, which bundle no design system of their own.
 
 ## Acceptance
 
-`scripts/spike-accept.sh demo [<compositor>] <a|b|c|f|g>` re-runs the Milestone 0 items with
+`scripts/accept-demo.sh demo [<compositor>] <a|b|c|f|g>` runs the render acceptance items with
 their thresholds against the demos: a (the bar reserves 32 px), b (blur), c (dock sweep once
 per frame callback in the transform, width and tick modes, one tick per callback in tick mode, zero idle
 wakeups, no blocking when covered), f (fractional scale maps 1:1),
 g (two surfaces, one device). `<compositor>` is `kwin-virtual` (default, nested),
 `kwin-virtual@<scale>`, or `kwin` (the live session; surfaces show for a few seconds). Results
-land in `spike/out/demo/<compositor>/<item>.{log,json,png}`; exit 0 means the item passed.
+land in `scripts/dev/out/accept-demo/<compositor>/<item>.{log,json,png}`; exit 0 means the item passed.
 
 ## Checks
 

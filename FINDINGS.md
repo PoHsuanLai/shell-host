@@ -441,7 +441,7 @@ part of G4.
 
 ### F29. Nested cosmic-comp on NVIDIA EGL loses every layer surface that has a blur region
 
-**Symptom.** `scripts/spike-accept.sh demo cosmic b` with blur on: the grim capture shows the
+**Symptom.** `scripts/accept-demo.sh demo cosmic b` with blur on: the grim capture shows the
 maximized checkerboard and no bar (an earlier run with no window behind showed only the flat
 grey background). Blur off, the magenta bar is there. KWin and kwin-virtual pass.
 
@@ -506,7 +506,7 @@ drawn on winit backend with NVIDIA EGL") with blur_probe as the repro; not filed
 
 ### F36. The tick dock's motion stalled at cosmic-comp's frame rate and held its drive
 
-**Symptom.** `scripts/spike-accept.sh demo cosmic c`: `transform` and `width` idle at 0, `tick`
+**Symptom.** `scripts/accept-demo.sh demo cosmic c`: `transform` and `width` idle at 0, `tick`
 had 548 frames / 548 commits / 1479 main-thread wakeups in the 5 s idle after the leave (993 /
 993 / 2512 on a rerun). `demo kwin-virtual c` passed, 0 idle.
 
@@ -627,7 +627,7 @@ clamp on each axis independently); `tests/dom.rs::content_size_measures_the_firs
 160x144 — 300ms later with no further command), driven on a nested `kwin_wayland --virtual`:
 `bar/popup stats` 150ms after `bar click 20 16` reports `"logical":{"width":160,"height":48}`;
 the same command 500ms later (after the growth) reports `"logical":{"width":160,"height":144}`
-— the fit lands, and re-fits, exactly as designed. `scripts/spike-accept.sh demo kwin-virtual a`
+— the fit lands, and re-fits, exactly as designed. `scripts/accept-demo.sh demo kwin-virtual a`
 and `c` still pass unchanged (`"pass": true` in both `spike/out/demo/kwin-virtual/{a,c}.json`).
 
 - **F39 A nested cosmic-comp whose EGL surface is lost runs away.** The instance the M1–M4 waves
@@ -751,7 +751,7 @@ the_present_drops_the_renders_own_request, a_load_completing_on_another_thread_s
 The traced `css` run after the fix: the worker's request at 739.7 ms, present at 740.9 ms,
 `Invalidate: InFlight → InFlightDirty, Arm(50ms)` at 741.0 ms, callback at 741.6 ms (`→ Dirty`,
 watchdog cancelled), the third frame presented at 743.8 ms, callback at 746.8 ms `→ Idle`. The
-count stops moving 5 ms after the swap and stays put through the 5 s idle. `scripts/spike-accept.sh
+count stops moving 5 ms after the swap and stays put through the 5 s idle. `scripts/accept-demo.sh
 demo cosmic c` (the shared nested cosmic-comp, reused, not started): all four runs pass, 5 s
 idle 0 frames / 0 commits / 0 main-thread wakeups each.
 
@@ -823,15 +823,15 @@ and `wp_viewporter` are bound; `wl_output.scale(1)`; for the layer's surface the
 dispatch as the first configure, and the phase-1 publish means the first frame's tree has it. At
 this output's 1.0 that is also the default, so the run proves the counts and the idle, not a
 scale change; the change path is covered by the unit test above. Not run at 1.25/1.5/1.75: the
-compositor is shared, and `spike-accept.sh demo cosmic@1.5` would change its output scale for
+compositor is shared, and `accept-demo.sh demo cosmic@1.5` would change its output scale for
 everyone.
 
-`scripts/spike-accept.sh demo cosmic c` on this branch (same compositor, reused): all four runs
+`scripts/accept-demo.sh demo cosmic c` on this branch (same compositor, reused): all four runs
 pass (transform, width, tick, fifo), 5 s idle 0 frames / 0 commits / 0 main-thread wakeups each.
 
 ## Milestone 0 on the live KWin session (2026-09-25)
 
-### F45. `spike-accept.sh demo kwin` on the user's unlocked Plasma 6 session at scale 2.0
+### F45. `accept-demo.sh demo kwin` on the user's unlocked Plasma 6 session at scale 2.0
 
 Run once the KDE session was unlocked (KWin 6.7.5, one 3840x2160 output at scale 2.0, NVIDIA
 RTX 5070 Ti over Vulkan, blur supported, fractional-scale and layer-shell bound). The first run
@@ -1066,7 +1066,7 @@ once, no prompt.
 **Isolation.** `kwin-virtual.sh` gives KWin an empty `XDG_CONFIG_HOME`
 (`scripts/dev/out/kwin-virtual-config`): with the user's own config it loaded the user's KWin
 scripts (its log showed `macspaces: loaded (maximize trigger on)`, `reveal-window-titlebar`,
-`window-corner-overview`), which act on the windows under test. `spike-accept.sh`'s own
+`window-corner-overview`), which act on the windows under test. `accept-demo.sh`'s own
 kwin-virtual does not isolate this yet, and F51's runs had those scripts loaded (maximize still
 gave the expected geometry).
 
@@ -1179,7 +1179,7 @@ the caller's to end. `.kwin-env` gains `KWIN_CONTAINMENT` and `KWIN_SCOPE`.
 **Verified** (headless KWin 6.7.5): with the scope, the caller and the `bash -c` that ran `stop`
 survive, KWin, the bus and the portals on it are gone, and no process naming the bus is left;
 the same with `KWIN_VIRTUAL_CONTAINMENT=tree`. F53's reproduction runs unchanged on the new
-script (fake input still authorised). `spike-accept.sh`'s own `kwin-virtual` mode still scans
+script (fake input still authorised). `accept-demo.sh`'s own `kwin-virtual` mode still scans
 environments, but from outside the `dbus-run-session` it started, so its caller never names the
 bus; not changed here.
 

@@ -268,13 +268,13 @@ animated by `@keyframes` at t=0 and t=0.1s, compares each frame to a committed P
 
 
 The timeboxed go/no-go on embedding Blitz in a custom Wayland host. Each agent appends its own
-section; results are produced by `scripts/spike-accept.sh <compositor> <item>` and land in
+section; results are produced by `scripts/accept-demo.sh <compositor> <item>` and land in
 `spike/out/<compositor>/` (gitignored).
 
 ## S1: render (items a, b, c, f, g)
 
 Code: `crates/shell-host/src/spike/**` (feature `spike`), `examples/spike_bar.rs`,
-`examples/probe_toplevel.rs`, `scripts/spike-accept.sh`. Verdict for render: **go**.
+`examples/probe_toplevel.rs`, `scripts/accept-demo.sh`. Verdict for render: **go**.
 
 ### Where it ran
 
@@ -283,7 +283,7 @@ kscreenlocker_greet up) for the whole run, so on-screen results would have measu
 screen. Every item therefore ran on `kwin-virtual`: a nested `kwin_wayland --virtual`
 (1920x1080@60, OpenGL compositing on the same RTX 5070 Ti, KWin 6.7.5, own D-Bus session, blur
 effect loaded) that the script starts and tears down itself. Same compositor build and
-protocol versions as the live session. `scripts/spike-accept.sh kwin <item>` targets the live
+protocol versions as the live session. `scripts/accept-demo.sh kwin <item>` targets the live
 session unchanged and should be re-run once it is unlocked. Scale 1.5 is set on the nested
 output with `kscreen-doctor`; `kwin-virtual@1.7` reproduces the live display's scale.
 
@@ -370,7 +370,7 @@ No fallback was needed for any item.
 
 ### Not done / open
 
-- Not run on the live session (locked). Re-run `scripts/spike-accept.sh kwin <a|b|c|f|g>`
+- Not run on the live session (locked). Re-run `scripts/accept-demo.sh kwin <a|b|c|f|g>`
   when unlocked; item a on the live display will see the Plasma panel, which is why a
   compares the maximized height with and without the bar (delta must be 32) rather than
   trusting `output_h - 32` alone.
@@ -378,7 +378,7 @@ No fallback was needed for any item.
 
 ## H2 demos: the S1 items on the real host
 
-Branch `h2-integration`, 2026-09-24. `scripts/spike-accept.sh demo <compositor> <item>` with the
+Branch `h2-integration`, 2026-09-24. `scripts/accept-demo.sh demo <compositor> <item>` with the
 thresholds of S1 above, against `examples/demo_bar.rs` / `demo_dock.rs` (feature
 `debug-inject`) built on the real API, plus the plain-client `probe_toplevel`. The spike code
 (`src/spike/**`, `spike_bar`, the `spike` feature and the script's spike mode) was retired after
@@ -413,7 +413,7 @@ blur bound and supported; f: preferred_scale 204 = kscreen's 1.7, buffer 3840x54
 g: one device, same adapter, +1 012 KiB for the second surface); every visual or
 callback-counting check failed (a pixels black, b variance, c/g frames: the watchdog carried
 each surface at 100 → 400 ms backoff, 4 fires per sweep). The display was not woken on the
-user's behalf. Re-run `scripts/spike-accept.sh demo kwin a|b|c|f|g` with the screen on. Logs:
+user's behalf. Re-run `scripts/accept-demo.sh demo kwin a|b|c|f|g` with the screen on. Logs:
 `spike/out/demo/kwin/`.
 
 ## Demos on nested cosmic-comp
@@ -482,7 +482,7 @@ none of this run produced).
 `/home/pohsuanlai/quire/tools/progress/shots/m0-cosmic/`. None of these can be produced without
 fabricating numbers, so they are left undone rather than guessed. **To resume**: unlock the
 `seat0` session (and leave DPMS on, or `scripts/dev/nested.sh` will hit the same wall), then run
-`scripts/dev/nested.sh start && scripts/dev/globals.sh` and `scripts/spike-accept.sh demo cosmic
+`scripts/dev/nested.sh start && scripts/dev/globals.sh` and `scripts/accept-demo.sh demo cosmic
 a|b|c|f|g` from this branch — the harness changes below should carry the rest through without
 further fixes, but were themselves never exercised against a live nested compositor and should
 be watched on the first real run.
@@ -496,7 +496,7 @@ be watched on the first real run.
   non-zero". Non-fatal either way — matches the previous behavior of leaving the compositor
   running and `.nested-env` written even when `wayland-info` fails, so a caller can still
   inspect it.
-- `scripts/spike-accept.sh`: added a `cosmic[@<scale>]` compositor mode alongside `kwin-virtual`
+- `scripts/accept-demo.sh`: added a `cosmic[@<scale>]` compositor mode alongside `kwin-virtual`
   and `kwin`. It reuses an already-running nested compositor if `scripts/dev/.nested-env` names a
   live pid, otherwise runs `scripts/dev/nested.sh start` itself and `scripts/dev/nested.sh stop`
   at exit (`trap ... EXIT`) — never touching a compositor it did not start. `cosmic@1.5` best-

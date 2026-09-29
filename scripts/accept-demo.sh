@@ -1,36 +1,35 @@
 #!/usr/bin/env bash
-# Milestone 0 acceptance on the real host: `scripts/spike-accept.sh demo [<compositor>] <item>`,
-# item in a b c f g, with the thresholds of SPIKE.md S1, against the real-API examples
+# The render acceptance: `scripts/accept-demo.sh demo [<compositor>] <item>`, item in a b c f g
+# (FINDINGS "Render acceptance" has the items and thresholds), against the real-API examples
 # (examples/demo_bar.rs, demo_dock.rs, and the plain-client probe_toplevel, built with
 # `debug-inject`). The compositor defaults to $DEMO_COMPOSITOR, else kwin-virtual; `kwin` is the
 # LIVE session in $WAYLAND_DISPLAY (surfaces appear on screen for a few seconds and are
 # destroyed on exit); `cosmic[@scale]` is scripts/dev/nested.sh's nested cosmic-comp (the real
 # compositor the shell runs on), started if not already running and stopped again only if this
-# script started it. Results: spike/out/demo/<compositor>/<item>.{log,json,png}. Exit 0 = the
-# item's acceptance holds. (The M0 `spike` mode and its examples were retired in H2; SPIKE.md
-# keeps their results.)
+# script started it. Results: scripts/dev/out/accept-demo/<compositor>/<item>.{log,json,png}.
+# Exit 0 = the item's acceptance holds.
 set -euo pipefail
 self="$(realpath "$0")"
 cd "$(dirname "$0")/.."
 orig=("$@")
-usage="usage: spike-accept.sh demo [<compositor>] <a|b|c|f|g>"
+usage="usage: accept-demo.sh demo [<compositor>] <a|b|c|f|g>"
 if [[ "${1:-}" != demo ]]; then echo "$usage" >&2; exit 2; fi
 shift
 if [[ $# -eq 1 ]]; then set -- "${DEMO_COMPOSITOR:-kwin-virtual}" "$1"; fi
 comp="${1:?$usage}"
 item="${2:?$usage}"
-out="spike/out/demo/$comp"
+out="scripts/dev/out/accept-demo/$comp"
 mkdir -p "$out"
 build() { cargo build --release -p shell-host --features debug-inject --examples >&2; }
 # `kwin-virtual[@scale]`: a nested headless KWin (virtual output, OpenGL compositing, own D-Bus
-# session) at scale $SPIKE_SCALE (default 1.5). Used when the live session is locked, and for
+# session) at scale $ACCEPT_SCALE (default 1.5). Used when the live session is locked, and for
 # item f at exactly 1.5 without touching the user's display.
 # `kwin-virtual@1.7` picks the nested output scale from the name.
-if [[ "$comp" == kwin-virtual@* ]]; then export SPIKE_SCALE="${comp#kwin-virtual@}"; fi
-if [[ "$comp" == kwin-virtual* && -z "${SPIKE_NESTED:-}" ]]; then
+if [[ "$comp" == kwin-virtual@* ]]; then export ACCEPT_SCALE="${comp#kwin-virtual@}"; fi
+if [[ "$comp" == kwin-virtual* && -z "${ACCEPT_NESTED:-}" ]]; then
   build
   rc=0
-  SPIKE_NESTED=1 dbus-run-session -- "$self" "${orig[@]}" </dev/null || rc=$?
+  ACCEPT_NESTED=1 dbus-run-session -- "$self" "${orig[@]}" </dev/null || rc=$?
   # D-Bus activation starts daemons (portals, fcitx5, ksecretd) on the nested bus under
   # systemd --user, some of them while KWin shuts down; they outlive dbus-run-session and
   # hold our stdout open unless killed here.
@@ -83,16 +82,16 @@ if [[ "$comp" == cosmic* ]]; then
     w="${dims%x*}"; h="${dims#*x}"
     if [[ -n "$outname" && -n "$w" && -n "$h" ]] \
        && cosmic-randr mode "$outname" "$w" "$h" --scale "$cscale" >"$out/cosmic-randr-scale-$item.log" 2>&1; then
-      echo "spike-accept: cosmic-randr mode $outname ${w}x${h} --scale $cscale applied" >&2
+      echo "accept-demo: cosmic-randr mode $outname ${w}x${h} --scale $cscale applied" >&2
     else
-      { echo "spike-accept: could not set the nested output's scale via cosmic-randr (parsed"
+      { echo "accept-demo: could not set the nested output's scale via cosmic-randr (parsed"
         echo "  output='$outname' dims='$dims' from: $list_out"
       } >"$out/cosmic-randr-scale-$item.log"
-      echo "spike-accept: cosmic-randr scale not applied; continuing at the nested output's default scale (see $out/cosmic-randr-scale-$item.log)" >&2
+      echo "accept-demo: cosmic-randr scale not applied; continuing at the nested output's default scale (see $out/cosmic-randr-scale-$item.log)" >&2
     fi
   fi
-elif [[ -n "${SPIKE_NESTED:-}" ]]; then
-  sock="wayland-spike-$$"
+elif [[ -n "${ACCEPT_NESTED:-}" ]]; then
+  sock="wayland-accept-$$"
   echo "$DBUS_SESSION_BUS_ADDRESS" >"$out/.nested-bus-$item"
   kwin_wayland --virtual --no-lockscreen --no-global-shortcuts --width 1920 --height 1080 \
     --socket "$sock" >"$out/kwin-virtual-$item.log" 2>&1 &
@@ -102,21 +101,21 @@ elif [[ -n "${SPIKE_NESTED:-}" ]]; then
   sleep 1.5
   export WAYLAND_DISPLAY="$sock"
   vout=$(kscreen-doctor -o 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | awk '/^Output/{print $3; exit}')
-  kscreen-doctor "output.$vout.scale.${SPIKE_SCALE:-1.5}" >/dev/null 2>&1
+  kscreen-doctor "output.$vout.scale.${ACCEPT_SCALE:-1.5}" >/dev/null 2>&1
   sleep 1
 else
   build
 fi
-export SPIKE_BIN="target/release/examples"
-export SPIKE_OUT="$out" SPIKE_ITEM="$item"
-export SPIKE_COMP_KIND="$([[ "$comp" == cosmic* ]] && echo cosmic || echo kwin)"
+export ACCEPT_BIN="target/release/examples"
+export ACCEPT_OUT="$out" ACCEPT_ITEM="$item"
+export ACCEPT_COMP_KIND="$([[ "$comp" == cosmic* ]] && echo cosmic || echo kwin)"
 python3 - <<'PY'
 import json, os, queue, re, subprocess, sys, threading, time
 from PIL import Image
 import numpy as np
 
-OUT, ITEM, BIN = os.environ["SPIKE_OUT"], os.environ["SPIKE_ITEM"], os.environ["SPIKE_BIN"]
-COMP = os.environ.get("SPIKE_COMP_KIND", "kwin")  # "kwin" or "cosmic"
+OUT, ITEM, BIN = os.environ["ACCEPT_OUT"], os.environ["ACCEPT_ITEM"], os.environ["ACCEPT_BIN"]
+COMP = os.environ.get("ACCEPT_COMP_KIND", "kwin")  # "kwin" or "cosmic"
 LOG = open(f"{OUT}/{ITEM}.log", "w")
 PROCS = []
 
@@ -172,7 +171,7 @@ class Proc:
             except subprocess.TimeoutExpired: self.p.kill()
 
 def demo_row(v, host):
-    """A demo `FrameStats` line in the flat shape every check reads (the M0 spike's)."""
+    """A demo `FrameStats` line in the flat shape every check reads."""
     c, w, i = v["counters"], v["work"], v["interval"]
     ms = lambda us: us / 1000.0
     dims = lambda d: [d["width"], d["height"]]
@@ -188,10 +187,9 @@ def demo_row(v, host):
                 vm_rss_kb=v["vm_rss_kib"], blur=host["blur"], host=host)
 
 def surfaces(kind, args=(), env=None):
-    """Start the demo for `kind` ("bar", "dock" or "bar+dock"); SPIKE_BLUR in `env` becomes
-    DEMO_BLUR, `args` pass through (--exclusive, --mode, --layer)."""
+    """Start the demo for `kind` ("bar", "dock" or "bar+dock"); `env` is added to the demo's
+    environment, `args` pass through (--exclusive, --mode, --layer)."""
     args, env = list(args), dict(env or {})
-    if "SPIKE_BLUR" in env: env["DEMO_BLUR"] = env.pop("SPIKE_BLUR")
     name = "demo_dock" if kind == "dock" else "demo_bar"
     extra = ["--with-dock"] if kind == "bar+dock" else []
     return Proc(name, extra + args, env, prefix=("dock " if kind == "dock" else "bar "))
@@ -213,7 +211,7 @@ def output_info():
 def screenshot(path):
     if os.path.exists(path): os.remove(path)
     if COMP == "cosmic":
-        # grim shoots whatever WAYLAND_DISPLAY points at (the nested cosmic-comp; spike-accept.sh
+        # grim shoots whatever WAYLAND_DISPLAY points at (the nested cosmic-comp; accept-demo.sh
         # already exported it), matching scripts/dev/shot.sh.
         with open(path, "wb") as f:
             subprocess.run(["grim", "-"], check=True, timeout=20, stdout=f)
@@ -263,7 +261,7 @@ def blur_setting():
 def item_a():
     info = output_info()
     base, v0 = probe_maximized(); time.sleep(0.3); base.quit()
-    bar = surfaces("bar", [], {"SPIKE_BLUR": "0"}); st = bar_ready(bar)["bar"]
+    bar = surfaces("bar", [], {"DEMO_BLUR": "0"}); st = bar_ready(bar)["bar"]
     time.sleep(0.3)
     probe, v1 = probe_maximized(); time.sleep(1.5)
     img = screenshot(f"{OUT}/a.png")
@@ -284,7 +282,7 @@ def item_a():
                 screenshot_scale=s, checks=checks, pass_=all(checks.values()))
 
 def bar_variance(blur):
-    bar = surfaces("bar", ["--exclusive=0"], {"SPIKE_BLUR": blur}); st = bar_ready(bar)["bar"]
+    bar = surfaces("bar", ["--exclusive=0"], {"DEMO_BLUR": blur}); st = bar_ready(bar)["bar"]
     probe, _ = probe_maximized(); time.sleep(1.5)
     img = screenshot(f"{OUT}/b_blur{blur}.png")
     probe.quit(); bar.quit(); time.sleep(0.3)
@@ -317,7 +315,7 @@ def dock_run(mode, refresh, present="mailbox"):
     # Bottom layer so an ordinary toplevel really covers it (KWin keeps top-layer surfaces
     # above fullscreen windows); the occluder must stop our frame callbacks to mean anything.
     d = surfaces("dock", [f"--mode={mode}", "--layer=bottom"],
-                 {"SPIKE_PRESENT": present}); bar_ready(d)
+                 {"ACCEPT_PRESENT": present}); bar_ready(d)
     s0, _ = d.stats()
     sweep(d); d.send(f"{d.prefix}leave"); time.sleep(0.4)
     s1, _ = d.stats(); a, b = s0["dock"], s1["dock"]

@@ -175,7 +175,7 @@ After every dispatch of the calloop loop, in this order and no other:
 
 `examples/demo_bar.rs` and `demo_dock.rs` are the spike's bar and dock on the real API
 (feature `debug-inject`); `examples/probe_toplevel.rs` is a plain sctk client (a maximized
-checkerboard window) the acceptance items measure against. `scripts/spike-accept.sh demo
+checkerboard window) the acceptance items measure against. `scripts/accept-demo.sh demo
 [kwin-virtual|kwin-virtual@1.7|kwin] <a|b|c|f|g>` runs SPIKE.md S1's items with S1's thresholds;
 results are in SPIKE.md "H2 demos". `examples/spike_popup.rs` (bare-shm popup client, S2) and
 `spike_widget.rs` (custom widget, S3) are kept until a demo covers popups and widgets.
