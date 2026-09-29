@@ -11,11 +11,11 @@ use crate::csd::Zone;
 use crate::grab::Press;
 use crate::id::SurfaceId;
 use crate::input::focus::{self, Departure, PointerFocus};
-use crate::input::palmrest::wire::Over;
 use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
 use crate::modality::Stroke;
 use crate::state::HostState;
 use decide::{Delivery, Focused, PressRoute};
+use palmrest_protocol::Over;
 
 impl PointerHandler for HostState {
     /// Enter: focus, zone, the move to its position (so `:hover` and `mouseenter` hold from the

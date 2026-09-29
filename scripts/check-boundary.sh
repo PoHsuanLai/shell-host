@@ -12,7 +12,8 @@ cd "$(dirname "$0")/.."
 
 # shell-host is portable to any Wayland compositor: nothing COSMIC, D-Bus or PulseAudio. It
 # also stands below the design system and the gesture daemon: nothing of quire's or palmrest's
-# (the palmrest socket's messages are re-declared in input/palmrest/wire.rs).
+# daemon. The palmrest socket's messages come from the `palmrest-protocol` crate, which is not the
+# daemon (`palmrest`, forbidden below) and depends on serde and thiserror only.
 RULES=(
   "shell-host: cosmic-client-toolkit cosmic-protocols zbus libpulse-binding ds-native ds-settings ds-core palmrest"
 )

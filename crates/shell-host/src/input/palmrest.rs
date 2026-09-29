@@ -8,7 +8,6 @@
 //! (`ctx::palmrest`), since the loop belongs to `HostCtx`.
 
 pub mod route;
-pub mod wire;
 
 use std::io;
 use std::os::fd::{AsFd, OwnedFd};
@@ -19,7 +18,7 @@ use rustix::net::{
     send, socket_with,
 };
 
-use crate::input::palmrest::wire::{Compat, Over, ToDaemon, ToHost};
+use palmrest_protocol::{Compat, MAX_PACKET, Over, ToDaemon, ToHost, compat, decode, encode};
 
 /// Whether the host should try to connect at the next flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,7 +131,7 @@ impl Palmrest {
         };
         match send(
             fd,
-            &wire::encode(message),
+            &encode(message),
             SendFlags::NOSIGNAL | SendFlags::DONTWAIT,
         ) {
             Ok(_) => {}
@@ -157,18 +156,18 @@ pub fn open(path: &Path) -> io::Result<OwnedFd> {
 
 /// Every message waiting on `fd`, and whether to go on reading. A `Hello` of another protocol
 /// version ends the read there (nothing after it is understood); a packet over
-/// `wire::MAX_PACKET` is truncated by the kernel and skipped.
+/// `MAX_PACKET` is truncated by the kernel and skipped.
 pub fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
     let mut messages = Vec::new();
-    let mut buf = vec![0u8; wire::MAX_PACKET];
+    let mut buf = vec![0u8; MAX_PACKET];
     loop {
         match recv(fd.as_fd(), &mut buf[..], RecvFlags::DONTWAIT) {
             Ok((_, 0)) => return (messages, Stream::Closed),
             Ok((len, full)) if full <= len => {
-                let Some(message) = wire::decode(&buf[..len]) else {
+                let Ok(message) = decode::<ToHost>(&buf[..len]) else {
                     continue;
                 };
-                if let Compat::Incompatible { version } = wire::compat(&message) {
+                if let Compat::Incompatible { version } = compat(&message) {
                     return (messages, Stream::Incompatible { version });
                 }
                 messages.push(message);
@@ -185,7 +184,7 @@ pub fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::palmrest::wire::{ActiveTouch, Phase};
+    use palmrest_protocol::{ActiveTouch, Phase};
     use rustix::net::{accept, bind, listen};
 
     /// A fake daemon: a listening `SOCK_SEQPACKET` socket at a temp path.

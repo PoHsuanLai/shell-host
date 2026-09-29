@@ -19,13 +19,13 @@ use rustix::net::{
 
 use blitz_kit::fonts::SharedFonts;
 use blitz_kit::net::LocalNet;
+use palmrest_protocol::{ActiveTouch, Axis as WireAxis, GestureId, Phase, ToHost};
 use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
 use shell_host::dom::scroll as dom;
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::input::palmrest::route::route;
-use shell_host::input::palmrest::wire::{ActiveTouch, Axis as WireAxis, GestureId, Phase, ToHost};
 use shell_host::input::palmrest::{Palmrest, read_all, socket_path};
 use shell_host::input::pointer::PointerPos;
 use shell_host::root::Root;
@@ -138,7 +138,7 @@ impl Host {
     /// the compositor's copy of the stroke (`echo`: finger px and stop) arrives, if any.
     fn step(&mut self, message: Option<ToHost>, echo: Option<(f64, Stop)>) {
         if let Some(message) = message {
-            let bytes = serde_json::to_vec(&message).expect("encodes");
+            let bytes = palmrest_protocol::encode(&message);
             send(&self.peer, &bytes, SendFlags::empty()).expect("send");
         }
         let (messages, _) = read_all(&self.reader);

@@ -3,11 +3,11 @@
 
 use std::time::Duration;
 
-use crate::input::palmrest::wire::{ActiveTouch, Axis as WireAxis, Phase, ToHost};
 use crate::scroll::geom::Axis;
 use crate::scroll::suppress::Fingers;
 use crate::scroll::surface::PalmScroll;
 use crate::scroll::velocity::SampleTime;
+use palmrest_protocol::{ActiveTouch, Axis as WireAxis, Phase, ToHost};
 
 /// A message's effects.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -79,7 +79,7 @@ fn scroll(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::palmrest::wire::{GestureId, TapKind};
+    use palmrest_protocol::{GestureId, TapKind};
 
     fn scroll_msg(phase: Phase, dy: f32) -> ToHost {
         ToHost::Scroll {

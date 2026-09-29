@@ -43,8 +43,10 @@ serde = { workspace = true }
 # The per-device image cache (`gpu::context`).
 rustc-hash = { workspace = true }
 vello_common = { workspace = true }
-# The debug-inject JSON stats lines, and the palmrest socket's messages (input::palmrest).
+# The debug-inject JSON stats lines.
 serde_json = { workspace = true }
+# The palmrest socket's messages (`input::palmrest`).
+palmrest-protocol = { workspace = true }
 # The overlay scroll thumb's shapes and colour (scroll::paint).
 peniko = { workspace = true }
 # SOCK_SEQPACKET for the palmrest socket (std has no seqpacket, and unsafe is not allowed

@@ -15,6 +15,8 @@ publish = false
 shell-host = { path = "crates/shell-host" }
 # Sibling repo (portable Blitz repairs); checked out next to this one.
 blitz-kit = { path = "../blitz-kit/crates/blitz-kit" }
+# Sibling repo (the palmrest socket's messages); checked out next to this one.
+palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 
 # ---- BEGIN PINNED BLOCK (source of truth: quire/docs/workspace-deps.toml) ----
 # Copied verbatim into [workspace.dependencies] of quire, shell-host and sill. Bumped only by a

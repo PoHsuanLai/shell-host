@@ -16,7 +16,6 @@ use crate::id::SurfaceId;
 use crate::input::focus::PointerFocus;
 use crate::input::key::Repeat;
 use crate::input::palmrest::route::{Route, route};
-use crate::input::palmrest::wire::ToHost;
 use crate::input::pointer::{self, PointerPos};
 use crate::scroll::cmd::ScrollCmd;
 use crate::scroll::keys::scroll_key;
@@ -26,6 +25,7 @@ use crate::scroll::surface::{KeyUse, Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
 use crate::state::HostState;
 use crate::tick::HostInstant;
+use palmrest_protocol::ToHost;
 
 impl HostState {
     /// Now, on the host clock.

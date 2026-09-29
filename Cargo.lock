@@ -2297,6 +2297,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "palmrest-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2922,6 +2931,7 @@ dependencies = [
  "dioxus-native-dom",
  "image",
  "keyboard-types",
+ "palmrest-protocol",
  "parley",
  "peniko",
  "raw-window-handle",
