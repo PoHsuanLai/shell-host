@@ -26,6 +26,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use crate::event::{CloseReason, HostEvent};
 use crate::frame::TimerCmd;
 use crate::id::SurfaceId;
+use crate::scale::{BufferMapping, Scale, Size, buffer_mapping};
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -77,5 +78,24 @@ pub(crate) fn close_surface_and_popups(state: &mut HostState, id: SurfaceId, rea
         state
             .events
             .push_back(HostEvent::SurfaceClosed { id, reason });
+    }
+}
+
+/// Tie `wl_surface`'s buffer to its `logical` size at `scale`, as `buffer_mapping` decides:
+/// through the viewport once the compositor prefers a fractional scale, else the buffer scale.
+pub(crate) fn follow_buffer_scale(
+    state: &HostState,
+    wl_surface: &WlSurface,
+    logical: Size,
+    scale: Scale,
+) {
+    let fractional = state.fractional.as_ref();
+    let preferred = fractional.and_then(|fractional| fractional.preferred_scale(wl_surface));
+    match (buffer_mapping(preferred, logical, scale), fractional) {
+        (BufferMapping::Viewport(size), Some(fractional)) => {
+            fractional.set_destination(wl_surface, size.width, size.height);
+        }
+        (BufferMapping::Viewport(_), None) => {}
+        (BufferMapping::Integer(factor), _) => wl_surface.set_buffer_scale(factor),
     }
 }

@@ -1,6 +1,6 @@
 //! Toplevel and popup configure, close and dismissal.
 
-use std::num::NonZeroU32;
+mod decide;
 
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgSurface;
@@ -8,10 +8,9 @@ use smithay_client_toolkit::shell::xdg::popup::{Popup, PopupConfigure, PopupHand
 use smithay_client_toolkit::shell::xdg::window::{Window, WindowConfigure, WindowHandler};
 use wayland_client::{Connection, QueueHandle};
 
-use crate::csd::{inset_for, surface_of, window_geometry};
 use crate::event::CloseReason;
 use crate::frame::FrameInput;
-use crate::handlers::{close_surface_and_popups, surface_id_by_wl};
+use crate::handlers::{close_surface_and_popups, follow_buffer_scale, surface_id_by_wl};
 use crate::id::SurfaceId;
 use crate::layer::{KeyboardMode, to_wire_keyboard};
 use crate::popup::Grab;
@@ -21,7 +20,10 @@ use crate::scale::{self, Size};
 use crate::state::HostState;
 use crate::surface::Configured;
 use crate::timers::TimerRequest;
-use crate::toplevel::{Decorations, state_of};
+use crate::toplevel::state_of;
+use decide::{
+    FrameGeometry, GrabbingPopups, KeyboardRestore, keyboard_restore, popup_size, toplevel_layout,
+};
 
 impl WindowHandler for HostState {
     /// `HostEvent::SurfaceClosed{reason: UserClose}`.
@@ -49,16 +51,7 @@ impl WindowHandler for HostState {
             return;
         };
         let buffer = scale::buffer_size(logical, surface_scale);
-
-        match &self.fractional {
-            Some(fractional) if fractional.preferred_scale(window.wl_surface()).is_some() => {
-                fractional.set_destination(window.wl_surface(), logical.width, logical.height);
-            }
-            _ => {
-                let integer_scale = surface_scale.as_f64().round().max(1.0) as i32;
-                window.wl_surface().set_buffer_scale(integer_scale);
-            }
-        }
+        follow_buffer_scale(self, window.wl_surface(), logical, surface_scale);
 
         if let Some(host_surface) = self.surfaces.get_mut(&id) {
             if let Some(presenter) = &mut host_surface.presenter {
@@ -88,16 +81,7 @@ impl PopupHandler for HostState {
             return;
         };
         let buffer = scale::buffer_size(logical, surface_scale);
-
-        match &self.fractional {
-            Some(fractional) if fractional.preferred_scale(popup.wl_surface()).is_some() => {
-                fractional.set_destination(popup.wl_surface(), logical.width, logical.height);
-            }
-            _ => {
-                let integer_scale = surface_scale.as_f64().round().max(1.0) as i32;
-                popup.wl_surface().set_buffer_scale(integer_scale);
-            }
-        }
+        follow_buffer_scale(self, popup.wl_surface(), logical, surface_scale);
 
         if let Some(host_surface) = self.surfaces.get_mut(&id) {
             if let Some(presenter) = &mut host_surface.presenter {
@@ -148,11 +132,8 @@ fn record_toplevel_configure(
         return None;
     };
     let next = state_of(configure);
-    let inset = inset_for(config.decorations, next);
-    let frame = toplevel_configured_size(frame_now, configure.new_size);
-    let surface = surface_of(frame, inset);
-    if let Decorations::Client(_) = config.decorations {
-        let geometry = window_geometry(surface, inset);
+    let layout = toplevel_layout(frame_now, config.decorations, next, configure.new_size);
+    if let FrameGeometry::Set(geometry) = layout.geometry {
         let px = |v: Px| u32::try_from(v).unwrap_or(0);
         window.set_window_geometry(
             px(geometry.x),
@@ -162,24 +143,11 @@ fn record_toplevel_configure(
         );
     }
     *current = next;
-    host_surface.inset = inset;
-    host_surface.configure(surface);
+    host_surface.inset = layout.inset;
+    host_surface.configure(layout.surface);
     host_surface.configured = Configured::Done;
     host_surface.live_toplevel.publish(next);
-    Some((surface, host_surface.scale))
-}
-
-/// The frame size to record from an `xdg_toplevel.configure`: the compositor's value on an
-/// axis it constrains, or `current` (the last-known frame, initially `ToplevelConfig::size`)
-/// on an axis it leaves to the client (`new_size`'s `None`). Configure sizes are window
-/// geometry, so they never include the resize band.
-fn toplevel_configured_size(current: Size, wire: (Option<NonZeroU32>, Option<NonZeroU32>)) -> Size {
-    let axis =
-        |got: Option<NonZeroU32>, fallback: Px| -> Px { got.map_or(fallback, |v| v.get() as Px) };
-    Size {
-        width: axis(wire.0, current.width),
-        height: axis(wire.1, current.height),
-    }
+    Some((layout.surface, host_surface.scale))
 }
 
 /// Records the configured logical size on `id`'s popup and marks it configured. Returns the
@@ -197,10 +165,7 @@ fn record_popup_configure(
     if !matches!(host_surface.role, Role::Popup { .. }) {
         return None;
     }
-    let logical = Size {
-        width: config.width.max(1),
-        height: config.height.max(1),
-    };
+    let logical = popup_size(config.width, config.height);
     host_surface.configure(logical);
     host_surface.configured = Configured::Done;
     Some((logical, host_surface.scale))
@@ -210,16 +175,17 @@ fn record_popup_configure(
 /// layer was spawned with and no other grabbing popup of that parent is still open (plan: opening
 /// a grabbing popup from a `KeyboardMode::None` layer switches it to `OnDemand` until close).
 fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
-    let still_grabbing = state.surfaces.values().any(|s| {
-        matches!(
-            &s.role,
-            Role::Popup { parent, config, .. }
-                if *parent == layer_id && config.grab == Grab::Grabbed
-        )
-    });
-    if still_grabbing {
-        return;
-    }
+    let grabs = state
+        .surfaces
+        .values()
+        .find(|s| {
+            matches!(
+                &s.role,
+                Role::Popup { parent, config, .. }
+                    if *parent == layer_id && config.grab == Grab::Grabbed
+            )
+        })
+        .map_or(GrabbingPopups::None, |_| GrabbingPopups::Open);
     let Some(host_surface) = state.surfaces.get_mut(&layer_id) else {
         return;
     };
@@ -231,52 +197,11 @@ fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
     else {
         return;
     };
-    if config.keyboard == KeyboardMode::None && *keyboard != KeyboardMode::None {
+    if keyboard_restore(config.keyboard, *keyboard, grabs) == KeyboardRestore::Restore {
         *keyboard = KeyboardMode::None;
         surface.set_keyboard_interactivity(to_wire_keyboard(KeyboardMode::None));
         // Layer state is double-buffered: without a commit the bar stayed `OnDemand` until its
         // next repaint.
         surface.commit();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn toplevel_configured_size_falls_back_per_axis() {
-        let current = Size {
-            width: 640,
-            height: 480,
-        };
-        type Wire = (Option<NonZeroU32>, Option<NonZeroU32>);
-        let nz = |v: u32| NonZeroU32::new(v);
-        let cases: &[(&str, Wire, Size)] = &[
-            (
-                "both axes left to the client keep the current size",
-                (None, None),
-                current,
-            ),
-            (
-                "the compositor constrains both axes",
-                (nz(800), nz(600)),
-                Size {
-                    width: 800,
-                    height: 600,
-                },
-            ),
-            (
-                "only one axis is constrained",
-                (nz(800), None),
-                Size {
-                    width: 800,
-                    height: 480,
-                },
-            ),
-        ];
-        for (name, wire, want) in cases {
-            assert_eq!(toplevel_configured_size(current, *wire), *want, "{name}");
-        }
     }
 }

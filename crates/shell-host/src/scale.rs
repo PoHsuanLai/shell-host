@@ -48,6 +48,29 @@ pub fn logical_to_physical(value: Px, scale: Scale) -> Px {
     round_half_away_from_zero(f64::from(value) * scale.as_f64())
 }
 
+/// How a surface's buffer is tied to its logical size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BufferMapping {
+    /// `wp_viewport.set_destination`: the buffer, whatever its pixel size, fills this logical size.
+    Viewport(Size),
+    /// `wl_surface.set_buffer_scale`: whole numbers only.
+    Integer(i32),
+}
+
+/// The mapping for a surface of `logical` size at `scale`, given the fractional scale the
+/// compositor last preferred for it: the viewport once it has said one, else the rounded
+/// integer scale (a compositor without fractional-scale, or one that has not sent it yet).
+pub(crate) fn buffer_mapping(
+    preferred: Option<Scale>,
+    logical: Size,
+    scale: Scale,
+) -> BufferMapping {
+    match preferred {
+        Some(_) => BufferMapping::Viewport(logical),
+        None => BufferMapping::Integer(scale.as_f64().round().max(1.0) as i32),
+    }
+}
+
 fn round_half_away_from_zero(value: f64) -> Px {
     // `f64::round` already rounds halves away from zero, matching the protocol's rule.
     value.round() as Px
@@ -115,5 +138,42 @@ mod tests {
         // The acceptance check from render acceptance item (f): a 2-logical-px checkerboard
         // must land on exactly 3 physical pixels at scale 1.5.
         assert_eq!(logical_to_physical(2, Scale::from_wire(180)), 3);
+    }
+
+    #[test]
+    fn the_buffer_is_mapped_by_viewport_once_a_fractional_scale_is_preferred() {
+        let logical = Size {
+            width: 200,
+            height: 32,
+        };
+        let cases: &[(&str, Option<Scale>, Scale, BufferMapping)] = &[
+            (
+                "a preferred fractional scale uses the viewport",
+                Some(Scale(180)),
+                Scale(180),
+                BufferMapping::Viewport(logical),
+            ),
+            (
+                "no fractional scale yet rounds the scale up to whole",
+                None,
+                Scale(180),
+                BufferMapping::Integer(2),
+            ),
+            (
+                "no fractional scale at 1x is 1",
+                None,
+                Scale::ONE,
+                BufferMapping::Integer(1),
+            ),
+            (
+                "a scale under 1x never maps to 0",
+                None,
+                Scale(30),
+                BufferMapping::Integer(1),
+            ),
+        ];
+        for (name, preferred, scale, want) in cases {
+            assert_eq!(buffer_mapping(*preferred, logical, *scale), *want, "{name}");
+        }
     }
 }
