@@ -8,8 +8,9 @@ wakeups. It is portable to any Wayland compositor with layer-shell; it never dep
 COSMIC-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
 
 `DESIGN.md` maps the design to the code, `FINDINGS.md` records the standing facts about Blitz,
-the compositors and the protocols that the code relies on and the items still open, and
-`CONVENTIONS.md` says how the code is written.
+the compositors and the protocols that the code relies on and the items still open,
+`ARCHITECTURE.md` gives the crate map and the repo rules, and `CONVENTIONS.md` says how the code
+is written.
 
 ## Demos
 

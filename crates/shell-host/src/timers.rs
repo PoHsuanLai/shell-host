@@ -1,7 +1,7 @@
 //! Timers the Wayland handlers need but cannot arm themselves. The handlers run on the
 //! non-generic `HostState`; the calloop loop and its timers belong to the generic `HostCtx<M>`.
 //! So a handler records what it wants here, and the context arms or cancels it after the
-//! dispatch that produced it (effects as data, CONVENTIONS §0).
+//! dispatch that produced it (effects as data, CONVENTIONS §6).
 
 use std::time::Duration;
 

@@ -18,7 +18,7 @@ impl Scale {
     }
 
     /// The scale as a floating-point multiplier, for the one place arithmetic needs it: sizing
-    /// a buffer. Never stored — see `CONVENTIONS.md` §2 on floats in domain types.
+    /// a buffer. Never stored — see `CONVENTIONS.md` §12 on floats in data.
     pub fn as_f64(self) -> f64 {
         f64::from(self.0) / 120.0
     }

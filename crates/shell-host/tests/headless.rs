@@ -91,8 +91,8 @@ fn keyframe_animation_mid_flight_matches_snapshots() {
     assert_snapshot("drift_t0_1", &t0_1);
 
     // The animation actually moved: the two frames must not be identical, or this test would
-    // pass just as well with the animation deleted (see CONVENTIONS.md, "an assertion that
-    // was already true proves nothing").
+    // pass just as well with the animation deleted (CONVENTIONS.md §8, "an assertion must be
+    // able to fail").
     assert_ne!(
         t0.as_raw(),
         t0_1.as_raw(),

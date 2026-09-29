@@ -35,7 +35,7 @@ fn print(value: serde_json::Value) {
 }
 
 /// `{:?}` of every field: `Modifier::{Held,Released}` and `LockKey::{Locked,Unlocked}` already
-/// read as values (CONVENTIONS §7), so this is JSON-shaped without a manual mapping.
+/// read as values (CONVENTIONS §13), so this is JSON-shaped without a manual mapping.
 fn panel() -> Element {
     let modifiers = use_modifiers();
     use_effect(move || {
