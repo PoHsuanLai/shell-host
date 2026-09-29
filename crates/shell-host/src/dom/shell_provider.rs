@@ -103,13 +103,13 @@ impl HostShellProvider {
     pub fn take_redraw(&self) -> RedrawRequest {
         let echoed = self.redraw.swap(false, Ordering::SeqCst);
         let arrived = self.arrived.swap(false, Ordering::SeqCst);
-        requested(echoed || arrived)
+        RedrawRequest::from(echoed || arrived)
     }
 
     /// Drop what the render just presented asked for itself (the host thread's flag), and
     /// report it. A request from another thread is left for the next flush.
     pub fn drop_echo(&self) -> RedrawRequest {
-        requested(self.redraw.swap(false, Ordering::SeqCst))
+        RedrawRequest::from(self.redraw.swap(false, Ordering::SeqCst))
     }
 
     /// The cursor the document last asked for, if it changed since the last call.
@@ -143,11 +143,42 @@ pub enum RedrawRequest {
     NotRequested,
 }
 
-fn requested(flag: bool) -> RedrawRequest {
-    if flag {
-        RedrawRequest::Requested
-    } else {
-        RedrawRequest::NotRequested
+/// The wire form: the flags a redraw request sets are atomics.
+impl From<bool> for RedrawRequest {
+    fn from(flag: bool) -> RedrawRequest {
+        match flag {
+            true => RedrawRequest::Requested,
+            false => RedrawRequest::NotRequested,
+        }
+    }
+}
+
+/// Blitz's IME switch, which arrives as a bare `bool`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImeSwitch {
+    On,
+    Off,
+}
+
+impl From<bool> for ImeSwitch {
+    fn from(wire: bool) -> ImeSwitch {
+        match wire {
+            true => ImeSwitch::On,
+            false => ImeSwitch::Off,
+        }
+    }
+}
+
+impl ImeSwitch {
+    /// The request after this switch: turning on keeps an existing cursor area.
+    fn apply(self, current: ImeRequest) -> ImeRequest {
+        match (self, current) {
+            (ImeSwitch::On, enabled @ ImeRequest::Enabled { .. }) => enabled,
+            (ImeSwitch::On, ImeRequest::Disabled) => ImeRequest::Enabled {
+                cursor_area: Rect::ZERO,
+            },
+            (ImeSwitch::Off, _) => ImeRequest::Disabled,
+        }
     }
 }
 
@@ -176,13 +207,7 @@ impl ShellProvider for HostShellProvider {
 
     fn set_ime_enabled(&self, is_enabled: bool) {
         let mut ime = self.ime.lock().unwrap_or_else(PoisonError::into_inner);
-        *ime = match (is_enabled, *ime) {
-            (true, current @ ImeRequest::Enabled { .. }) => current,
-            (true, ImeRequest::Disabled) => ImeRequest::Enabled {
-                cursor_area: Rect::ZERO,
-            },
-            (false, _) => ImeRequest::Disabled,
-        };
+        *ime = ImeSwitch::from(is_enabled).apply(*ime);
     }
 
     fn set_ime_cursor_area(&self, x: f32, y: f32, width: f32, height: f32) {
