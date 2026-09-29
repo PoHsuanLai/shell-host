@@ -4,6 +4,9 @@ use dioxus::prelude::*;
 
 use std::sync::Arc;
 
+use crate::blur::BlurSpec;
+use crate::root::Root;
+
 use super::*;
 use crate::clipboard::SharedSelection;
 use crate::dom::document::Polled;
