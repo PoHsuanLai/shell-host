@@ -2,8 +2,8 @@
 //! modifiers combined into one `BlitzKeyEvent`. The per-table rows are unit-tested in
 //! `src/input/{keysym,keycode,modifiers}.rs`; these check the combination.
 
+use crate::input::key::{Composing, Repeat, key_event};
 use keyboard_types::{Code, Key, Location, Modifiers};
-use shell_host::input::key::{Composing, Repeat, key_event};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
 fn press(raw_code: u32, keysym: Keysym, utf8: Option<&str>) -> KeyEvent {

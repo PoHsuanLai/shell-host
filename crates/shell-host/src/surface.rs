@@ -306,6 +306,7 @@ fn with_scroll(document: Animation, scroll: Animation) -> Animation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::msg::Visibility;
 
     #[test]
     fn a_zero_axis_keeps_the_requested_size() {
@@ -322,6 +323,20 @@ mod tests {
         ];
         for (name, requested, got, want) in cases {
             assert_eq!(configured_size(requested, got), want, "{name}");
+        }
+    }
+
+    #[test]
+    fn visibility_changes_unmap_and_map_only_on_a_real_change() {
+        use Visibility::{Hidden, Shown};
+        let cases = [
+            (Shown, Shown, VisibilityChange::Unchanged),
+            (Shown, Hidden, VisibilityChange::Unmap),
+            (Hidden, Hidden, VisibilityChange::Unchanged),
+            (Hidden, Shown, VisibilityChange::Map),
+        ];
+        for (from, to, want) in cases {
+            assert_eq!(visibility_change(from, to), want, "{from:?} -> {to:?}");
         }
     }
 }

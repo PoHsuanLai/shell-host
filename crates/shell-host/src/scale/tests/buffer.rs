@@ -1,6 +1,6 @@
 //! Table test for `Scale` and its conversions, against the public API only.
 
-use shell_host::scale::{Scale, Size, buffer_size, logical_to_physical};
+use crate::scale::{Scale, Size, buffer_size, logical_to_physical};
 
 const CASES: &[(&str, u32, f64)] = &[
     ("1.0x", 120, 1.0),

@@ -6,37 +6,31 @@
 
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
-use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 use rustix::net::{
     AddressFamily, SendFlags, SocketAddrUnix, SocketFlags, SocketType, accept, bind, listen, send,
     socket_with,
 };
 
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
+use crate::dom::document::SurfaceDocument;
+use crate::dom::scroll as dom;
+use crate::dom::tests::env::test_env;
+use crate::input::palmrest::route::route;
+use crate::input::palmrest::{Palmrest, read_all, socket_path};
+use crate::input::pointer::PointerPos;
+use crate::root::HostRoot;
+use crate::scroll::engine::Motion;
+use crate::scroll::geom::{ScrollAxis, Scroller};
+use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
+use crate::scroll::suppress::{AxisKind, Suppress, Verdict};
+use crate::scroll::surface::SurfaceScroll;
+use crate::scroll::tuning::Tuning;
+use crate::scroll::watch::ScrollBoard;
+use crate::tick::HostInstant;
 use palmrest_protocol::{ActiveTouch, Axis as WireAxis, GestureId, Phase, ToHost};
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
-use shell_host::dom::scroll as dom;
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::input::palmrest::route::route;
-use shell_host::input::palmrest::{Palmrest, read_all, socket_path};
-use shell_host::input::pointer::PointerPos;
-use shell_host::root::HostRoot;
-use shell_host::scroll::engine::Motion;
-use shell_host::scroll::geom::{ScrollAxis, Scroller};
-use shell_host::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
-use shell_host::scroll::suppress::{AxisKind, Suppress, Verdict};
-use shell_host::scroll::surface::SurfaceScroll;
-use shell_host::scroll::tuning::Tuning;
-use shell_host::scroll::watch::ScrollBoard;
-use shell_host::tick::HostInstant;
 
 const FRAME: Duration = Duration::from_micros(8333);
 const AT: PointerPos = PointerPos { x: 100.0, y: 300.0 };
@@ -50,18 +44,7 @@ fn page() -> Element {
 }
 
 fn document() -> SurfaceDocument {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(400, 600, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(400, 600);
     let mut doc = SurfaceDocument::build(HostRoot::new(page), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);

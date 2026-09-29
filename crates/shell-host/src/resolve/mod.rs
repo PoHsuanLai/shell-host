@@ -15,3 +15,6 @@ mod tracked;
 pub use anchor::resolve_popup_anchor;
 pub use spec::{Resolved, resolve};
 pub use tracked::{Change, Tracked};
+
+#[cfg(test)]
+mod tests;

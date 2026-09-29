@@ -8,3 +8,6 @@ pub mod ime_focus;
 pub mod scroll;
 pub mod shell_provider;
 pub(crate) mod stacking;
+
+#[cfg(test)]
+pub(crate) mod tests;

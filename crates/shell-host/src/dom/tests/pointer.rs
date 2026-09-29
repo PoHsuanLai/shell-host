@@ -5,24 +5,17 @@
 //! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them; the
 //! `data-first-mouse` opt-in (design/13 §13.3.8) is asked of `SurfaceDocument::wants_first_mouse`.
 
-use std::sync::Arc;
-
+use crate::dom::document::{FirstMouseOptIn, Polled, SurfaceDocument};
+use crate::dom::tests::env::test_env;
+use crate::input::pointer::{self, PointerPos};
+use crate::root::HostRoot;
 use blitz_dom::NodeId;
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
 use blitz_traits::events::{
     BlitzWheelDelta, BlitzWheelEvent, MouseEventButton, MouseEventButtons, Point, PointerCoords,
     UiEvent,
 };
-use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 use keyboard_types::Modifiers;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, FirstMouseOptIn, Polled, SurfaceDocument};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::input::pointer::{self, PointerPos};
-use shell_host::root::HostRoot;
 
 /// The margin reset quire's `css/reset.css` brings; the host's UA sheet sizes the root
 /// but leaves margins to the design system.
@@ -52,18 +45,7 @@ fn app() -> Element {
 }
 
 fn build() -> SurfaceDocument {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(400, 300);
     let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.resolve(0.0);
     doc
@@ -303,18 +285,7 @@ fn text_of(doc: &mut SurfaceDocument, selector: &str) -> String {
 /// Blitz's own hover change dispatches them; `clear_hover()` after it finds nothing left.
 #[test]
 fn leaving_the_surface_runs_mouseleave_handlers() {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(400, 300);
     let mut doc = SurfaceDocument::build(HostRoot::new(leave_counter), env);
     doc.resolve(0.0);
     let icon = node_id(&mut doc, "#icon0");
@@ -362,18 +333,7 @@ fn context_menu_probe() -> Element {
 /// which Dioxus delivers to `oncontextmenu`. A primary release is the reverse: `onclick` only.
 #[test]
 fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick() {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(400, 300);
     let mut doc = SurfaceDocument::build(HostRoot::new(context_menu_probe), env);
     doc.resolve(0.0);
     let icon = node_id(&mut doc, "#icon0");
@@ -440,18 +400,7 @@ fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick()
 #[test]
 fn a_move_past_the_threshold_between_press_and_release_suppresses_the_click() {
     let press_move_release = |dx: f64, dy: f64| -> String {
-        let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-        let env = DocumentEnv {
-            shell: Arc::new(HostShellProvider::new(
-                SurfaceId(1),
-                ping,
-                SharedSelection::default(),
-            )),
-            fonts: SharedFonts::system().for_document(),
-            net: Arc::new(LocalNet),
-            viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
-            prepaint: shell_host::Prepaint::None,
-        };
+        let env = test_env(400, 300);
         let mut doc = SurfaceDocument::build(HostRoot::new(context_menu_probe), env);
         doc.resolve(0.0);
         let icon = node_id(&mut doc, "#icon0");

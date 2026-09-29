@@ -122,3 +122,6 @@ impl<M: 'static> Flush for HostCtx<M> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

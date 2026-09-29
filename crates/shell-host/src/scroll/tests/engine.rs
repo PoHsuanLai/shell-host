@@ -4,16 +4,16 @@
 
 use std::time::Duration;
 
-use shell_host::scroll::config::{ScrollConfig, ScrollRubberBand, ScrollSettings};
-use shell_host::scroll::engine::{
+use crate::scroll::config::{ScrollConfig, ScrollRubberBand, ScrollSettings};
+use crate::scroll::engine::{
     self, Engine, Flight, Kinetic, Motion, NotifyPhase, Physics, ScrollAnimate, ScrollIn, ScrollOut,
 };
-use shell_host::scroll::geom::{Dir, Elastic, Geom, Latch, Px, ScrollAxis, Scroller};
-use shell_host::scroll::keys::{self, LINE_PX};
-use shell_host::scroll::latch::{Candidate, Latched, latch};
-use shell_host::scroll::rubber::AtEdge;
-use shell_host::scroll::velocity::SampleTime;
-use shell_host::tick::HostInstant;
+use crate::scroll::geom::{Dir, Elastic, Geom, Latch, Px, ScrollAxis, Scroller};
+use crate::scroll::keys::{self, LINE_PX};
+use crate::scroll::latch::{Candidate, Latched, latch};
+use crate::scroll::rubber::AtEdge;
+use crate::scroll::velocity::SampleTime;
+use crate::tick::HostInstant;
 
 const FRAME: f64 = 1.0 / 120.0;
 

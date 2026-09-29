@@ -7,20 +7,15 @@
 //! dioxus-native-dom's `height:auto` `#main`, which an all-positioned document leaves 0 px tall
 //! (quire's `RootExtent::Viewport`). A box sized in viewport units covers it all.
 
-use std::sync::Arc;
 use std::task::Context;
 
-use blitz_traits::shell::{ColorScheme, Viewport};
+use blitz_traits::shell::ColorScheme;
 use dioxus::prelude::*;
 
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::region::{ElementId, Rect};
-use shell_host::root::HostRoot;
+use crate::dom::document::SurfaceDocument;
+use crate::dom::tests::env::test_env;
+use crate::region::{ElementId, Rect};
+use crate::root::HostRoot;
 
 const WIDTH: u32 = 120;
 const HEIGHT: u32 = 80;
@@ -48,18 +43,7 @@ fn own_margin() -> Element {
 }
 
 fn resolved(app: fn() -> Element) -> SurfaceDocument {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(WIDTH, HEIGHT, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(WIDTH, HEIGHT);
     let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);
@@ -101,9 +85,7 @@ fn a_documents_own_body_margin_still_wins() {
 #[cfg(feature = "headless")]
 #[test]
 fn a_headless_bare_document_paints_its_corner() {
-    use shell_host::headless::{
-        Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png,
-    };
+    use crate::headless::{Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png};
 
     fn red() -> Element {
         rsx! {

@@ -6,6 +6,13 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
+use crate::gpu::context::{GpuContext, devices_created};
+use crate::gpu::presenter::FrameTarget;
+use crate::gpu::render::capture_document;
+use crate::gpu::shm::swap_red_blue;
+use crate::gpu::swapchain::{alpha_mode_of, choose_alpha, choose_present, present_mode_of};
+use crate::stats::{AlphaMode, PresentMode};
+use crate::{AdapterPref, Scale, Size};
 use anyrender::{PaintRef, PaintScene as _, RenderContext, ResourceId, Scene};
 use blitz_dom::node::ComputedStyles;
 use blitz_dom::{Document as _, DocumentConfig, Widget};
@@ -16,13 +23,6 @@ use dioxus::prelude::*;
 use dioxus_native_dom::{CustomWidgetAttr, DioxusDocument};
 use peniko::kurbo::{Affine, Rect};
 use peniko::{Fill, ImageBrush, ImageSampler};
-use shell_host::gpu::context::{GpuContext, devices_created};
-use shell_host::gpu::presenter::FrameTarget;
-use shell_host::gpu::render::capture_document;
-use shell_host::gpu::shm::swap_red_blue;
-use shell_host::gpu::swapchain::{alpha_mode_of, choose_alpha, choose_present, present_mode_of};
-use shell_host::stats::{AlphaMode, PresentMode};
-use shell_host::{AdapterPref, Scale, Size};
 use wgpu::{CompositeAlphaMode as A, PresentMode as P};
 
 // ---- swapchain choices --------------------------------------------------------------------

@@ -2,7 +2,7 @@
 //! the true rounded rectangle, and the strips must cover at least 99% of it. A second check
 //! sweeps many radii and confirms no corner strip is ever inset by more than the radius.
 
-use shell_host::region::{Px, Rect, RoundedRect, rounded_strips};
+use crate::region::{Px, Rect, RoundedRect, rounded_strips};
 
 /// Is the pixel with top-left corner `(px, py)` (so centre `(px+0.5, py+0.5)`) inside the
 /// rounded rectangle `rr`? This is an independent rasteriser: it tests distance-from-corner-

@@ -135,4 +135,46 @@ mod tests {
         );
         assert_eq!(w.counters().frames, 2);
     }
+
+    #[test]
+    fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
+        let t0 = Instant::now();
+        let mut window = StatsWindow::default();
+        // Three frames, 1 ms of work each, presented a refresh apart.
+        for n in 0..3u64 {
+            window.presented(
+                Duration::from_millis(1),
+                t0 + Duration::from_micros(16_667 * n),
+            );
+            window.callback();
+        }
+        window.watchdog_fired();
+        let (work, interval, samples) = window.peek();
+        assert_eq!(samples, 3);
+        assert_eq!(work.p95_us, 1000, "work is trigger to present");
+        assert_eq!(interval.p50_us, 16_667, "interval is present to present");
+        assert_eq!(
+            window.drain(),
+            (work, interval, samples),
+            "drain reports what peek did"
+        );
+        assert_eq!(
+            window.peek(),
+            (Percentiles::default(), Percentiles::default(), 0),
+            "then starts over"
+        );
+        assert_eq!(
+            window.counters(),
+            FrameCounters {
+                frames: 3,
+                callbacks: 3,
+                commits: 3,
+                skipped: 0,
+                watchdog_fired: 1,
+                ticks: 0,
+                prepaints: 0,
+            },
+            "counters are cumulative"
+        );
+    }
 }

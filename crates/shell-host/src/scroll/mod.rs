@@ -25,3 +25,6 @@ pub mod surface;
 pub mod tuning;
 pub mod velocity;
 pub mod watch;
+
+#[cfg(test)]
+mod tests;

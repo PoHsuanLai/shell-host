@@ -3,15 +3,13 @@
 //! outward, inflating it, `resolve::Tracked`'s change detection, and a layer surface's
 //! `configure` -> resolved logical size (`Extent::{Fill, Px}`).
 
-use shell_host::geometry::{enclosing_rect, inflate};
-use shell_host::handlers::layer::configured_size;
-use shell_host::layer::{LayerExtent, LayerSize};
-use shell_host::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect};
-use shell_host::resolve::{Change, Resolved, Tracked, resolve, resolve_popup_anchor};
-use shell_host::scale::Size;
-use shell_host::{
-    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
-};
+use crate::geometry::{enclosing_rect, inflate};
+use crate::handlers::layer::configured_size;
+use crate::layer::{LayerExtent, LayerSize};
+use crate::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect};
+use crate::resolve::{Change, Resolved, Tracked, resolve, resolve_popup_anchor};
+use crate::scale::Size;
+use crate::{PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize};
 
 const BUTTON: Rect = Rect {
     x: 10,

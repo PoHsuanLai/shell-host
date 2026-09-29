@@ -1,13 +1,13 @@
 //! Table test for `positioner_params`, covering the flip/slide/resize `PopupAdjust` combinations and
 //! the `PopupSize` clamping behaviour, against the public API only.
 
-use shell_host::PopupPlacement;
-use shell_host::popup::{
+use crate::PopupPlacement;
+use crate::popup::{
     PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
     PopupToggle, offset_rect, positioner_params, refit, to_wire_constraint_adjustment,
 };
-use shell_host::region::{ElementId, Rect};
-use shell_host::scale::Size;
+use crate::region::{ElementId, Rect};
+use crate::scale::Size;
 use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
 
 struct Case {

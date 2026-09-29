@@ -3,34 +3,17 @@
 //! `banner-out` keyframes) resolved to its untransformed rect, so a blur region on it stayed
 //! behind as a grey rectangle while the card was dragged or slid out.
 
-use std::sync::Arc;
 use std::task::Context;
 
-use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::region::{ElementId, Rect};
-use shell_host::root::HostRoot;
+use crate::dom::document::SurfaceDocument;
+use crate::dom::tests::env::test_env;
+use crate::region::{ElementId, Rect};
+use crate::root::HostRoot;
 
 fn document(root: HostRoot) -> SurfaceDocument {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(300, 100, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(300, 100);
     let mut doc = SurfaceDocument::build(root, env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc

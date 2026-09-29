@@ -6,24 +6,18 @@
 //! resolves once more, drew them in place. The live frame resolves once per change and the
 //! capture twice, so the test does exactly that and compares.
 
-use std::sync::Arc;
 use std::task::Context;
 
 use anyrender::render_to_buffer;
 use anyrender_vello_cpu::VelloCpuImageRenderer;
 use blitz_paint::paint_scene;
-use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 use tokio::sync::watch;
 
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::root::HostRoot;
-use shell_host::use_watch;
+use crate::dom::document::{Polled, SurfaceDocument};
+use crate::dom::tests::env::test_env;
+use crate::root::HostRoot;
+use crate::use_watch;
 
 const WIDTH: u32 = 100;
 const HEIGHT: u32 = 200;
@@ -36,21 +30,6 @@ const STYLE: &str = "\
     #col{display:flex;flex-direction:column}\
     .tile{height:60px;background:rgb(0,0,255)}\
     .body{position:relative;z-index:1;margin-top:20px;height:20px;background:rgb(255,0,0)}";
-
-fn env() -> DocumentEnv {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(WIDTH, HEIGHT, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    }
-}
 
 fn tiles(rx: watch::Receiver<u32>) -> Element {
     let count = use_watch(rx);
@@ -69,7 +48,7 @@ fn tiles(rx: watch::Receiver<u32>) -> Element {
 /// The document with one tile laid out, then grown to three and polled, not yet resolved.
 fn grown() -> SurfaceDocument {
     let (tx, rx) = watch::channel(1);
-    let mut doc = SurfaceDocument::build(HostRoot::with_props(tiles, rx), env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(tiles, rx), test_env(WIDTH, HEIGHT));
     let waker = std::task::Waker::noop().clone();
     let mut cx = Context::from_waker(&waker);
     doc.poll(&mut cx);

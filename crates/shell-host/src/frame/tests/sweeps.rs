@@ -10,11 +10,11 @@
 
 use std::time::{Duration, Instant};
 
-use shell_host::frame::{
+use crate::frame::{
     Animation, FrameAction, FrameInput, FrameState, Pace, RenderCmd, TimerCmd, step,
 };
-use shell_host::stats::{FrameCounters, StatsWindow};
-use shell_host::tick::{FrameTicks, HostInstant, Ticked, pacing};
+use crate::stats::{FrameCounters, StatsWindow};
+use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
 
 /// A surface, the machine driving it, and what happened to it.
 struct Sim {

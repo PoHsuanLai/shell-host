@@ -68,4 +68,29 @@ mod tests {
             assert_eq!(percentiles(samples), *want, "{samples:?}");
         }
     }
+
+    #[test]
+    fn percentiles_are_nearest_rank_over_the_window() {
+        let p = |p50_us, p95_us, max_us| Percentiles {
+            p50_us,
+            p95_us,
+            max_us,
+        };
+        let hundred: Vec<u32> = (1..=100).collect();
+        let cases: Vec<(&str, Vec<u32>, Percentiles)> = vec![
+            ("empty", vec![], p(0, 0, 0)),
+            ("one", vec![7], p(7, 7, 7)),
+            ("two", vec![9, 1], p(1, 9, 9)),
+            ("unsorted", vec![5, 3, 9, 1, 7], p(5, 9, 9)),
+            ("1..=100", hundred, p(50, 95, 100)),
+            (
+                "an outlier moves only max",
+                vec![1; 99].into_iter().chain([900]).collect(),
+                p(1, 1, 900),
+            ),
+        ];
+        for (name, samples, want) in cases {
+            assert_eq!(percentiles(&samples), want, "{name}");
+        }
+    }
 }

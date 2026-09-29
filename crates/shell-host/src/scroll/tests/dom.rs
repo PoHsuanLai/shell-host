@@ -4,33 +4,27 @@
 //! natural direction (item 15), `data-wheel="capture"`, and the raw offsets surviving
 //! Blitz's resolve. (`use_scroll` is tested beside the surface builder, `ctx::spawn`.)
 
-use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
-use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 
-use blitz_kit::fonts::SharedFonts;
-use blitz_kit::net::LocalNet;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
-use shell_host::dom::scroll::{self as dom, KeyFocus, WheelRoute};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::input::key::Repeat;
-use shell_host::input::pointer::PointerPos;
-use shell_host::region::ElementId;
-use shell_host::root::HostRoot;
-use shell_host::scroll::engine::{Engine, Motion};
-use shell_host::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller};
-use shell_host::scroll::keys::ScrollKey;
-use shell_host::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
-use shell_host::scroll::surface::{KeyUse, PalmScroll, SurfaceScroll};
-use shell_host::scroll::tuning::Tuning;
-use shell_host::scroll::velocity::SampleTime;
-use shell_host::scroll::watch::ScrollBoard;
-use shell_host::tick::HostInstant;
+use crate::dom::document::SurfaceDocument;
+use crate::dom::scroll::{self as dom, KeyFocus, WheelRoute};
+use crate::dom::tests::env::test_env;
+use crate::input::key::Repeat;
+use crate::input::pointer::PointerPos;
+use crate::region::ElementId;
+use crate::root::HostRoot;
+use crate::scroll::engine::{Engine, Motion};
+use crate::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller};
+use crate::scroll::keys::ScrollKey;
+use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
+use crate::scroll::surface::{KeyUse, PalmScroll, SurfaceScroll};
+use crate::scroll::tuning::Tuning;
+use crate::scroll::velocity::SampleTime;
+use crate::scroll::watch::ScrollBoard;
+use crate::tick::HostInstant;
 
 const WIDTH: u32 = 400;
 const HEIGHT: u32 = 600;
@@ -64,18 +58,7 @@ fn page() -> Element {
 }
 
 fn document(app: fn() -> Element) -> SurfaceDocument {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    let env = DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(WIDTH, HEIGHT, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    };
+    let env = test_env(WIDTH, HEIGHT);
     let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);
@@ -324,10 +307,10 @@ fn item_11_page_down_over_the_page_scrolls_it() {
 #[test]
 fn item_15_natural_palmrest_content_follows_the_finger() {
     for (natural, want_down) in [
-        (shell_host::NaturalScroll::Natural, false),
-        (shell_host::NaturalScroll::Traditional, true),
+        (crate::NaturalScroll::Natural, false),
+        (crate::NaturalScroll::Traditional, true),
     ] {
-        let mut config = shell_host::ScrollConfig::default();
+        let mut config = crate::ScrollConfig::default();
         config.scroll.natural = natural;
         let mut bench = Bench::with(Tuning::new(config));
         bench.set(Scroller::Viewport, 500.0);
@@ -546,9 +529,8 @@ fn a_capturing_element_that_is_not_a_scroller_gets_the_wheel_as_before() {
         discrete: 1,
         ..AxisScroll::default()
     };
-    let delta =
-        shell_host::input::pointer::wheel_delta(AxisScroll::default(), notch).expect("a delta");
-    let event = shell_host::input::pointer::wheel_event(
+    let delta = crate::input::pointer::wheel_delta(AxisScroll::default(), notch).expect("a delta");
+    let event = crate::input::pointer::wheel_event(
         delta,
         at,
         blitz_traits::events::MouseEventButtons::None,
@@ -556,13 +538,11 @@ fn a_capturing_element_that_is_not_a_scroller_gets_the_wheel_as_before() {
     );
     // The host always has the pointer there first (an enter or a motion): Blitz targets a
     // wheel at the hovered element.
-    bench
-        .doc
-        .handle_event(shell_host::input::pointer::move_event(
-            at,
-            blitz_traits::events::MouseEventButtons::None,
-            keyboard_types::Modifiers::empty(),
-        ));
+    bench.doc.handle_event(crate::input::pointer::move_event(
+        at,
+        blitz_traits::events::MouseEventButtons::None,
+        keyboard_types::Modifiers::empty(),
+    ));
     bench.doc.handle_event(event);
     let y = f64::from_bits(WHEEL_Y.load(std::sync::atomic::Ordering::SeqCst));
     assert_eq!(y, -1.0, "one line, the sign Blitz always had");

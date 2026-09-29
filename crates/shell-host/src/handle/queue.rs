@@ -41,3 +41,31 @@ impl RequestQueue {
         self.wake.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use calloop::ping::make_ping;
+
+    use super::*;
+    use crate::id::SurfaceId;
+
+    #[test]
+    fn the_request_queue_is_first_in_first_out() {
+        let (ping, _source) = make_ping().expect("an eventfd for the ping");
+        let queue = RequestQueue::new(ping);
+        let ids = [3, 1, 2].map(SurfaceId);
+        for id in ids {
+            queue.push(Request::Close(id));
+        }
+        let drained: Vec<SurfaceId> = queue
+            .drain()
+            .into_iter()
+            .filter_map(|request| match request {
+                Request::Close(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(drained, ids);
+        assert!(queue.drain().is_empty());
+    }
+}

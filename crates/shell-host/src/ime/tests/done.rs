@@ -4,8 +4,8 @@
 //! impl drives; these tests build the same `PendingIme` a sequence of events would leave behind
 //! and check what `on_done` does with it.
 
+use crate::ime::{DeleteSurrounding, Preedit, on_done};
 use blitz_traits::events::BlitzImeEvent;
-use shell_host::ime::{DeleteSurrounding, Preedit, on_done};
 
 /// One step in a wire sequence: which buffered field it sets (`PendingIme` is double-buffered,
 /// so later events of the same kind in one cycle replace earlier ones; every `done` resets the
@@ -22,8 +22,8 @@ fn clear() -> BlitzImeEvent {
     BlitzImeEvent::Preedit(String::new(), None)
 }
 
-fn pending(steps: Pending) -> shell_host::ime::PendingIme {
-    shell_host::ime::PendingIme {
+fn pending(steps: Pending) -> crate::ime::PendingIme {
+    crate::ime::PendingIme {
         preedit: steps.preedit,
         commit: steps.commit.map(str::to_owned),
         delete: steps
@@ -38,7 +38,7 @@ fn pending(steps: Pending) -> shell_host::ime::PendingIme {
 fn done_with_nothing_pending_only_clears_the_preedit() {
     let (events, rest) = on_done(pending(Pending::default()));
     assert_eq!(events, vec![clear()]);
-    assert_eq!(rest, shell_host::ime::PendingIme::default());
+    assert_eq!(rest, crate::ime::PendingIme::default());
 }
 
 /// `preedit_string("ni", 0, 2)` then `done`: one `Preedit` event, cursor at the given range.
@@ -55,7 +55,7 @@ fn a_single_preedit_commits_its_cursor_range() {
         events,
         vec![BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2)))]
     );
-    assert_eq!(rest, shell_host::ime::PendingIme::default());
+    assert_eq!(rest, crate::ime::PendingIme::default());
 }
 
 /// `preedit_string(_, -1, -1)` hides the cursor (protocol rule: both -1 means hidden).
@@ -82,7 +82,7 @@ fn a_single_commit_produces_one_event() {
         events,
         vec![clear(), BlitzImeEvent::Commit("你".to_owned())]
     );
-    assert_eq!(rest, shell_host::ime::PendingIme::default());
+    assert_eq!(rest, crate::ime::PendingIme::default());
 }
 
 /// `commit_string("")` is a real event (it clears any shown preedit without inserting text),
@@ -113,7 +113,7 @@ fn a_single_delete_produces_one_event() {
             }
         ]
     );
-    assert_eq!(rest, shell_host::ime::PendingIme::default());
+    assert_eq!(rest, crate::ime::PendingIme::default());
 }
 
 /// A full compose-then-commit cycle: `delete_surrounding_text`, `commit_string` and
@@ -141,7 +141,7 @@ fn a_full_cycle_applies_delete_then_commit_then_preedit() {
             BlitzImeEvent::Preedit("ni".to_owned(), Some((0, 2))),
         ]
     );
-    assert_eq!(rest, shell_host::ime::PendingIme::default());
+    assert_eq!(rest, crate::ime::PendingIme::default());
 }
 
 /// Two `done` cycles in a row: the second sees only what was buffered since the first (the

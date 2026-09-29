@@ -12,3 +12,6 @@ pub mod raw_handle;
 pub mod render;
 pub mod shm;
 pub mod swapchain;
+
+#[cfg(test)]
+mod tests;

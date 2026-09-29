@@ -3,44 +3,24 @@
 //! no Wayland connection, no GPU surface — using a dummy `HostShellProvider` and the
 //! local (`data:` and `file:`) `NetProvider`.
 
-use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
 use blitz_dom::Document as _;
 use blitz_traits::net::{Bytes, NetHandler, NetProvider, Request};
-use blitz_traits::shell::{ColorScheme, Viewport};
 use calloop::EventLoop;
 use dioxus::prelude::*;
 use tokio::sync::watch;
 
-use blitz_kit::fonts::SharedFonts;
+use crate::clipboard::SharedSelection;
+use crate::dom::document::{Polled, SurfaceDocument};
+use crate::dom::shell_provider::HostShellProvider;
+use crate::dom::tests::env::test_env;
+use crate::id::SurfaceId;
+use crate::root::HostRoot;
+use crate::use_watch;
+use crate::wake::{WokenSet, surface_waker};
 use blitz_kit::net::LocalNet;
-use shell_host::clipboard::SharedSelection;
-use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
-use shell_host::dom::shell_provider::HostShellProvider;
-use shell_host::id::SurfaceId;
-use shell_host::root::HostRoot;
-use shell_host::use_watch;
-use shell_host::wake::{WokenSet, surface_waker};
-
-/// A `DocumentEnv` with no Wayland connection behind it: the shell provider only records what
-/// it is asked, the font context discovers whatever fonts this machine has, and the net
-/// provider serves `data:` and `file:` only.
-fn test_env() -> DocumentEnv {
-    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
-    DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
-        fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
-        viewport: Viewport::new(200, 100, 1.0, ColorScheme::Light),
-        prepaint: shell_host::Prepaint::None,
-    }
-}
 
 /// Every text node's content, concatenated, for a coarse "did the DOM render X" assertion.
 fn all_text(doc: &mut SurfaceDocument) -> String {
@@ -62,7 +42,7 @@ fn styled_app() -> Element {
 
 #[test]
 fn the_head_shim_delivers_a_style_element_into_the_document() {
-    let mut doc = SurfaceDocument::build(HostRoot::new(styled_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(styled_app), test_env(200, 100));
 
     let mut found_style = false;
     doc.dioxus().inner().visit(|_, node| {
@@ -97,11 +77,11 @@ fn style_only_app() -> Element {
 /// measures the actual content element after it.
 #[test]
 fn content_size_measures_the_first_content_element_under_body() {
-    let mut doc = SurfaceDocument::build(HostRoot::new(sized_content_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(sized_content_app), test_env(200, 100));
     doc.resolve(0.0);
     assert_eq!(
         doc.content_size(),
-        Some(shell_host::scale::Size {
+        Some(crate::scale::Size {
             width: 160,
             height: 40
         }),
@@ -112,7 +92,7 @@ fn content_size_measures_the_first_content_element_under_body() {
 /// A document whose body holds nothing but a `<style>` has no content to measure.
 #[test]
 fn content_size_is_none_with_no_content_element() {
-    let mut doc = SurfaceDocument::build(HostRoot::new(style_only_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(style_only_app), test_env(200, 100));
     doc.resolve(0.0);
     assert_eq!(doc.content_size(), None);
 }
@@ -127,7 +107,7 @@ fn watched_app(rx: watch::Receiver<i32>) -> Element {
 #[tokio::test]
 async fn use_watch_updates_the_rendered_value_when_the_channel_changes() {
     let (tx, rx) = watch::channel(1);
-    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env(200, 100));
     assert!(all_text(&mut doc).contains('1'), "{:?}", all_text(&mut doc));
 
     let waker = std::task::Waker::noop().clone();
@@ -148,7 +128,7 @@ async fn use_watch_updates_the_rendered_value_when_the_channel_changes() {
 #[tokio::test]
 async fn poll_reports_a_change_and_the_waker_pings_when_a_watched_value_changes() {
     let (tx, rx) = watch::channel(0i32);
-    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env(200, 100));
 
     let (ping, ping_source) = calloop::ping::make_ping().expect("eventfd ping");
     let woken = WokenSet::default();
