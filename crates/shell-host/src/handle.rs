@@ -460,3 +460,6 @@ pub fn use_input_modality() -> ReadSignal<InputModality> {
 pub fn use_surface() -> SurfaceHandle {
     dioxus::prelude::use_context::<SurfaceHandle>()
 }
+
+#[cfg(test)]
+mod tests;
