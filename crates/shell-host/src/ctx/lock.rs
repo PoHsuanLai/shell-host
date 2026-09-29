@@ -23,7 +23,7 @@ use crate::msg::Request;
 use crate::output::OutputInfo;
 use crate::region::RegionSpec;
 use crate::role::Role;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::Size;
 use crate::state::HostState;
 
@@ -37,7 +37,7 @@ impl<M: 'static> HostCtx<M> {
     pub fn lock_session(
         &mut self,
         config: LockConfig,
-        factory: impl Fn(OutputInfo) -> Root + 'static,
+        factory: impl Fn(OutputInfo) -> HostRoot + 'static,
     ) -> Result<LockId, LockError> {
         if let Some(active) = &self.state.lock {
             return Err(LockError::InProgress(active.id));

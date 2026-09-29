@@ -1,5 +1,5 @@
 //! Integration tests for the document modules (`dom/**`, `wake.rs`, `bridge.rs`, `root.rs`):
-//! building a `SurfaceDocument` from a `Root`, polling it, and its supporting pieces. Headless —
+//! building a `SurfaceDocument` from a `HostRoot`, polling it, and its supporting pieces. Headless —
 //! no Wayland connection, no GPU surface — using a dummy `HostShellProvider` and the
 //! local (`data:` and `file:`) `NetProvider`.
 
@@ -20,7 +20,7 @@ use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 use shell_host::use_watch;
 use shell_host::wake::{WokenSet, surface_waker};
 
@@ -62,7 +62,7 @@ fn styled_app() -> Element {
 
 #[test]
 fn the_head_shim_delivers_a_style_element_into_the_document() {
-    let mut doc = SurfaceDocument::build(Root::new(styled_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(styled_app), test_env());
 
     let mut found_style = false;
     doc.dioxus().inner().visit(|_, node| {
@@ -97,7 +97,7 @@ fn style_only_app() -> Element {
 /// measures the actual content element after it.
 #[test]
 fn content_size_measures_the_first_content_element_under_body() {
-    let mut doc = SurfaceDocument::build(Root::new(sized_content_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(sized_content_app), test_env());
     doc.resolve(0.0);
     assert_eq!(
         doc.content_size(),
@@ -112,7 +112,7 @@ fn content_size_measures_the_first_content_element_under_body() {
 /// A document whose body holds nothing but a `<style>` has no content to measure.
 #[test]
 fn content_size_is_none_with_no_content_element() {
-    let mut doc = SurfaceDocument::build(Root::new(style_only_app), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::new(style_only_app), test_env());
     doc.resolve(0.0);
     assert_eq!(doc.content_size(), None);
 }
@@ -127,7 +127,7 @@ fn watched_app(rx: watch::Receiver<i32>) -> Element {
 #[tokio::test]
 async fn use_watch_updates_the_rendered_value_when_the_channel_changes() {
     let (tx, rx) = watch::channel(1);
-    let mut doc = SurfaceDocument::build(Root::with_props(watched_app, rx), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env());
     assert!(all_text(&mut doc).contains('1'), "{:?}", all_text(&mut doc));
 
     let waker = std::task::Waker::noop().clone();
@@ -148,7 +148,7 @@ async fn use_watch_updates_the_rendered_value_when_the_channel_changes() {
 #[tokio::test]
 async fn poll_reports_a_change_and_the_waker_pings_when_a_watched_value_changes() {
     let (tx, rx) = watch::channel(0i32);
-    let mut doc = SurfaceDocument::build(Root::with_props(watched_app, rx), test_env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(watched_app, rx), test_env());
 
     let (ping, ping_source) = calloop::ping::make_ping().expect("eventfd ping");
     let woken = WokenSet::default();

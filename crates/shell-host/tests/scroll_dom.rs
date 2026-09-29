@@ -21,9 +21,9 @@ use shell_host::id::SurfaceId;
 use shell_host::input::key::Repeat;
 use shell_host::input::pointer::PointerPos;
 use shell_host::region::ElementId;
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 use shell_host::scroll::engine::{Engine, Motion};
-use shell_host::scroll::geom::{Axis, Dir, Elastic, Scroller};
+use shell_host::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller};
 use shell_host::scroll::keys::ScrollKey;
 use shell_host::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
 use shell_host::scroll::surface::{KeyUse, PalmScroll, SurfaceScroll};
@@ -76,7 +76,7 @@ fn document(app: fn() -> Element) -> SurfaceDocument {
         viewport: Viewport::new(WIDTH, HEIGHT, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(app), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);
     doc
@@ -107,21 +107,21 @@ impl Bench {
     }
 
     fn offset(&self, scroller: Scroller) -> f64 {
-        dom::geom(&self.doc.base(), scroller, Axis::Y)
+        dom::geom(&self.doc.base(), scroller, ScrollAxis::Y)
             .expect("geom")
             .offset
             .0
     }
 
     fn max(&self, scroller: Scroller) -> f64 {
-        dom::geom(&self.doc.base(), scroller, Axis::Y)
+        dom::geom(&self.doc.base(), scroller, ScrollAxis::Y)
             .expect("geom")
             .max
             .0
     }
 
     fn set(&mut self, scroller: Scroller, offset: f64) {
-        dom::write(&mut self.doc.base_mut(), scroller, Axis::Y, offset);
+        dom::write(&mut self.doc.base_mut(), scroller, ScrollAxis::Y, offset);
     }
 
     /// One touchpad frame at `at`: `dy` px (offset space), or `axis_stop`.
@@ -190,16 +190,17 @@ fn raw_offsets_survive_blitz_resolve_even_out_of_range() {
 #[test]
 fn only_an_opted_in_container_is_elastic() {
     let bench = Bench::new();
-    let geom = |id: &str| dom::geom(&bench.doc.base(), bench.scroller(id), Axis::Y).expect("geom");
+    let geom =
+        |id: &str| dom::geom(&bench.doc.base(), bench.scroller(id), ScrollAxis::Y).expect("geom");
     assert_eq!(geom("list").elastic, Elastic::Elastic);
     assert_eq!(geom("menu").elastic, Elastic::Rigid);
-    let viewport = dom::geom(&bench.doc.base(), Scroller::Viewport, Axis::Y).expect("geom");
+    let viewport = dom::geom(&bench.doc.base(), Scroller::Viewport, ScrollAxis::Y).expect("geom");
     assert_eq!(
         viewport.elastic,
         Elastic::Rigid,
         "the viewport is not opted in"
     );
-    let chain = dom::chain_at(&bench.doc.base(), OVER_LIST.x, OVER_LIST.y, Axis::Y);
+    let chain = dom::chain_at(&bench.doc.base(), OVER_LIST.x, OVER_LIST.y, ScrollAxis::Y);
     let order: Vec<Scroller> = chain.iter().map(|c| c.scroller).collect();
     assert_eq!(order, vec![bench.scroller("list"), Scroller::Viewport]);
 }
@@ -287,7 +288,7 @@ fn item_11_keys_in_a_text_input_do_not_scroll() {
     let field = bench.doc.base().get_element_by_id("field").expect("input");
     bench.doc.base_mut().set_focus_to(field);
     assert_eq!(
-        dom::key_focus(&bench.doc.base(), Axis::Y),
+        dom::key_focus(&bench.doc.base(), ScrollAxis::Y),
         KeyFocus::Document
     );
     let key = ScrollKey::Page(Dir::Pos);
@@ -338,7 +339,12 @@ fn item_15_natural_palmrest_content_follows_the_finger() {
                 .palmrest(&mut base, event, OVER_PAGE, bench.now);
         };
         feed(&mut bench, PalmScroll::MayBegin);
-        feed(&mut bench, PalmScroll::Began { axis: Axis::Y });
+        feed(
+            &mut bench,
+            PalmScroll::Began {
+                axis: ScrollAxis::Y,
+            },
+        );
         for i in 0..5 {
             // The finger moves toward the user: +y.
             feed(
@@ -455,7 +461,7 @@ fn a_menu_that_handles_keys_keeps_arrow_down() {
     bench.focus("menu");
     let wrap = bench.scroller("menuwrap");
     assert_eq!(
-        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
         KeyUse::Passed
     );
     bench.settle(&[wrap]);
@@ -467,7 +473,7 @@ fn a_focused_scroller_with_its_own_keydown_keeps_down() {
     let mut bench = keyed_bench();
     bench.focus("column");
     assert_eq!(
-        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
         KeyUse::Passed
     );
     assert_eq!(bench.offset(bench.scroller("column")), 0.0);
@@ -479,13 +485,13 @@ fn a_focused_root_with_keydown_keeps_left_and_right_over_a_banded_sheet() {
     bench.focus("power");
     for dir in [Dir::Pos, Dir::Neg] {
         assert_eq!(
-            bench.press(ScrollKey::Line(Axis::X, dir), None),
+            bench.press(ScrollKey::Line(ScrollAxis::X, dir), None),
             KeyUse::Passed
         );
     }
     let sheet = bench.scroller("sheet");
     assert_eq!(
-        dom::geom(&bench.doc.base(), sheet, Axis::X)
+        dom::geom(&bench.doc.base(), sheet, ScrollAxis::X)
             .expect("geom")
             .offset
             .0,
@@ -500,7 +506,7 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     let plain = bench.scroller("plain");
     let over = Some(PointerPos { x: 300.0, y: 50.0 });
     assert!(matches!(
-        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), over),
+        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), over),
         KeyUse::Scrolled(_)
     ));
     bench.settle(&[plain]);
@@ -508,7 +514,7 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     // Focused, with no listener on its path: the focused scroller, wherever the pointer is.
     bench.focus("plain");
     assert!(matches!(
-        bench.press(ScrollKey::Line(Axis::Y, Dir::Pos), None),
+        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
         KeyUse::Scrolled(_)
     ));
     bench.settle(&[plain]);
@@ -519,7 +525,7 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     let nowhere = Some(PointerPos { x: 210.0, y: 110.0 });
     let mut fresh = keyed_bench();
     assert_eq!(
-        fresh.press(ScrollKey::Line(Axis::Y, Dir::Pos), nowhere),
+        fresh.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), nowhere),
         KeyUse::Passed
     );
 }

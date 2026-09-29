@@ -13,7 +13,7 @@ use crate::msg::{Request, SurfaceOp};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scroll::cmd::ScrollCmd;
 use crate::tick::{FrameDrive, FrameTick};
 
@@ -54,7 +54,7 @@ impl SurfaceHandle {
         &self,
         config: PopupConfig,
         placement: PopupPlacement,
-        root: Root,
+        root: HostRoot,
     ) -> SurfaceId {
         let id = self.ids.next();
         self.requests.push(Request::OpenPopup {

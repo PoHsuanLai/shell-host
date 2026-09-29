@@ -22,8 +22,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use dioxus::prelude::*;
 use shell_host::{
     Anchor, BlurSpec, DragActions, DragIcon, DragOutcome, DragPayload, DragSpec, ExclusiveZone,
-    Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer, LayerConfig, LayerSize, Margin,
-    OutputTarget, RegionSpec, Root, Size, use_surface,
+    Host, HostConfig, HostEvent, HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel,
+    LayerSize, Margin, OutputTarget, RegionSpec, Size, use_surface,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -76,7 +76,7 @@ fn spec(props: &Props) -> DragSpec {
     let icon = match props.icon {
         IconChoice::None => DragIcon::None,
         IconChoice::Root => DragIcon::Root {
-            root: Root::new(icon),
+            root: HostRoot::new(icon),
             size: Size {
                 width: 48,
                 height: 48,
@@ -151,11 +151,11 @@ fn json(outcome: &DragOutcome) -> String {
 fn config(keyboard: KeyboardMode) -> LayerConfig {
     LayerConfig {
         namespace: "drag-thumb".to_string(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::BOTTOM.union(Anchor::RIGHT),
         size: LayerSize {
-            width: Extent::Px(64),
-            height: Extent::Px(64),
+            width: LayerExtent::Px(64),
+            height: LayerExtent::Px(64),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin {
@@ -241,7 +241,7 @@ fn run() -> Result<(), String> {
     let result = host.run(move |ctx, event| match event {
         HostEvent::Started => {
             if let Err(error) =
-                ctx.spawn_layer(config(keyboard), Root::with_props(thumb, props.clone()))
+                ctx.spawn_layer(config(keyboard), HostRoot::with_props(thumb, props.clone()))
             {
                 eprintln!("demo_drag: {error}");
                 ctx.exit();

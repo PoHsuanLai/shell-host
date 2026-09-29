@@ -16,8 +16,9 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode,
-    Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root, SurfaceId, use_scroll,
+    Anchor, BlurSpec, ElementId, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot,
+    KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
+    RegionSpec, SurfaceId, use_scroll,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0;background:rgb(240,240,240)}\
@@ -65,11 +66,11 @@ fn app() -> Element {
 fn config() -> LayerConfig {
     LayerConfig {
         namespace: "scroll-demo".to_string(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::NONE,
         size: LayerSize {
-            width: Extent::Px(400),
-            height: Extent::Px(600),
+            width: LayerExtent::Px(400),
+            height: LayerExtent::Px(600),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin::ZERO,
@@ -113,7 +114,7 @@ fn run() -> Result<(), String> {
     });
     let mut surface: Option<SurfaceId> = None;
     host.run(move |ctx, event| match event {
-        HostEvent::Started => match ctx.spawn_layer(config(), Root::new(app)) {
+        HostEvent::Started => match ctx.spawn_layer(config(), HostRoot::new(app)) {
             Ok(id) => surface = Some(id),
             Err(error) => {
                 eprintln!("demo_scroll: {error}");

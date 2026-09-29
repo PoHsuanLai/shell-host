@@ -3,7 +3,7 @@
 //!
 //! All speeds here are magnitudes (px/s, >= 0); the engine carries the direction.
 
-use crate::scroll::config::{MomentumModel, ScrollSettings};
+use crate::scroll::config::{ScrollMomentumModel, ScrollSettings};
 
 /// The iOS decay rate per millisecond (design/11 R5).
 const IOS_RATE_PER_MS: f64 = 0.998;
@@ -28,11 +28,11 @@ impl Glide {
     /// The curve `settings` choose.
     pub fn from_settings(settings: &ScrollSettings) -> Glide {
         let curve = match settings.momentum_model {
-            MomentumModel::MacMouseFix => Curve::Drag {
+            ScrollMomentumModel::MacMouseFix => Curve::Drag {
                 a: settings.momentum_a.get(),
                 b: settings.momentum_b.get(),
             },
-            MomentumModel::Ios => Curve::Decay {
+            ScrollMomentumModel::Ios => Curve::Decay {
                 k: 1000.0 * IOS_RATE_PER_MS.ln(),
             },
         };
@@ -151,7 +151,7 @@ mod tests {
         for glide in [
             mmf(),
             Glide::from_settings(&ScrollSettings {
-                momentum_model: MomentumModel::Ios,
+                momentum_model: ScrollMomentumModel::Ios,
                 ..ScrollSettings::default()
             }),
         ] {
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn the_ios_curve_glides_about_twice_as_far() {
         let ios = Glide::from_settings(&ScrollSettings {
-            momentum_model: MomentumModel::Ios,
+            momentum_model: ScrollMomentumModel::Ios,
             ..ScrollSettings::default()
         });
         // ~0.5 s x v0 (design/11 R5).

@@ -22,7 +22,7 @@ use shell_host::dom::document::{DocumentEnv, FirstMouseOptIn, Polled, SurfaceDoc
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::input::pointer::{self, PointerPos};
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 
 /// The margin reset quire's `css/reset.css` brings; the host's UA sheet sizes the root
 /// but leaves margins to the design system.
@@ -64,7 +64,7 @@ fn build() -> SurfaceDocument {
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(app), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.resolve(0.0);
     doc
 }
@@ -315,7 +315,7 @@ fn leaving_the_surface_runs_mouseleave_handlers() {
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(leave_counter), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(leave_counter), env);
     doc.resolve(0.0);
     let icon = node_id(&mut doc, "#icon0");
     let pos = center(&mut doc, icon);
@@ -374,7 +374,7 @@ fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick()
         viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(context_menu_probe), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(context_menu_probe), env);
     doc.resolve(0.0);
     let icon = node_id(&mut doc, "#icon0");
     let pos = center(&mut doc, icon);
@@ -452,7 +452,7 @@ fn a_move_past_the_threshold_between_press_and_release_suppresses_the_click() {
             viewport: Viewport::new(400, 300, 1.0, ColorScheme::Light),
             prepaint: shell_host::Prepaint::None,
         };
-        let mut doc = SurfaceDocument::build(Root::new(context_menu_probe), env);
+        let mut doc = SurfaceDocument::build(HostRoot::new(context_menu_probe), env);
         doc.resolve(0.0);
         let icon = node_id(&mut doc, "#icon0");
         let start = center(&mut doc, icon);

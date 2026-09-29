@@ -15,8 +15,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec,
 };
 
 /// The margin and padding reset quire's `css/reset.css` would bring.
@@ -35,11 +35,11 @@ color:white;font-size:14px;font-family:sans-serif}\
 fn bar_config(blur: BlurSpec) -> LayerConfig {
     LayerConfig {
         namespace: "bar".to_owned(),
-        layer: Layer::Top,
+        layer: LayerLevel::Top,
         anchor: Anchor::TOP | Anchor::LEFT | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Fill,
-            height: Extent::Px(32),
+            width: LayerExtent::Fill,
+            height: LayerExtent::Px(32),
         },
         exclusive: ExclusiveZone::Reserve(32),
         margin: Margin::ZERO,
@@ -79,7 +79,7 @@ fn bar() -> Element {
 struct Options {
     blur: BlurSpec,
     exclusive: ExclusiveZone,
-    dock: Option<(dock::DockProps, Layer)>,
+    dock: Option<(dock::DockProps, LayerLevel)>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -123,7 +123,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 exclusive: options.exclusive,
                 ..bar_config(options.blur.clone())
             };
-            if let Err(error) = ctx.spawn_layer(config, Root::new(bar)) {
+            if let Err(error) = ctx.spawn_layer(config, HostRoot::new(bar)) {
                 eprintln!("bar: {error}");
                 ctx.exit();
             }

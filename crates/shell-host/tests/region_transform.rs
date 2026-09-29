@@ -16,9 +16,9 @@ use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::region::{ElementId, Rect};
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 
-fn document(root: Root) -> SurfaceDocument {
+fn document(root: HostRoot) -> SurfaceDocument {
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     let env = DocumentEnv {
         shell: Arc::new(HostShellProvider::new(
@@ -56,7 +56,7 @@ fn moved() -> Element {
 
 #[test]
 fn a_transformed_elements_region_is_where_it_paints() {
-    let mut doc = document(Root::new(moved));
+    let mut doc = document(HostRoot::new(moved));
     doc.resolve(0.0);
     assert_eq!(
         doc.element_rect(ElementId::new("card")),
@@ -77,7 +77,7 @@ fn scaled() -> Element {
 /// translation is scaled by the parent's, about the parent's origin.
 #[test]
 fn a_parents_scale_and_a_childs_translation_compose() {
-    let mut doc = document(Root::new(scaled));
+    let mut doc = document(HostRoot::new(scaled));
     doc.resolve(0.0);
     // Child laid out at (60, 0) 100x40; its translateY(10) -> (60, 10); the parent's
     // scale(0.5) about (20, 0) -> (40, 5) 50x20.
@@ -103,7 +103,7 @@ fn sliding() -> Element {
 /// (`ctx/paint.rs::render`), so the rect read after each resolve is the one the frame commits.
 #[test]
 fn the_rect_follows_an_animated_transform_every_frame() {
-    let mut doc = document(Root::new(sliding));
+    let mut doc = document(HostRoot::new(sliding));
     let mut seen = Vec::new();
     for time in [0.0, 0.25, 0.5, 1.0, 2.0] {
         doc.resolve(time);

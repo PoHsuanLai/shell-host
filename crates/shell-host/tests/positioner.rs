@@ -1,10 +1,10 @@
-//! Table test for `positioner_params`, covering the flip/slide/resize `Adjust` combinations and
+//! Table test for `positioner_params`, covering the flip/slide/resize `PopupAdjust` combinations and
 //! the `PopupSize` clamping behaviour, against the public API only.
 
 use shell_host::PopupPlacement;
 use shell_host::popup::{
-    Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize, Toggle, offset_rect,
-    positioner_params, refit, to_wire_constraint_adjustment,
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
+    PopupToggle, offset_rect, positioner_params, refit, to_wire_constraint_adjustment,
 };
 use shell_host::region::{ElementId, Rect};
 use shell_host::scale::Size;
@@ -12,12 +12,12 @@ use wayland_protocols::xdg::shell::client::xdg_positioner::ConstraintAdjustment;
 
 struct Case {
     name: &'static str,
-    edge: Edge,
-    gravity: Edge,
-    adjust: Adjust,
+    edge: PopupEdge,
+    gravity: PopupEdge,
+    adjust: PopupAdjust,
     popup_size: PopupSize,
     content_size: Size,
-    offset: Offset,
+    offset: PopupOffset,
     expected_size: Size,
     expected_anchor_rect: Rect,
     expected_wire_adjust: ConstraintAdjustment,
@@ -33,15 +33,15 @@ const BUTTON: Rect = Rect {
 const CASES: &[Case] = &[
     Case {
         name: "menu below button: slide+flip, fixed size",
-        edge: Edge::Bottom,
-        gravity: Edge::Bottom,
-        adjust: Adjust::SLIDE_AND_FLIP,
+        edge: PopupEdge::Bottom,
+        gravity: PopupEdge::Bottom,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
         popup_size: PopupSize::Fixed,
         content_size: Size {
             width: 160,
             height: 200,
         },
-        offset: Offset::ZERO,
+        offset: PopupOffset::ZERO,
         expected_size: Size {
             width: 160,
             height: 200,
@@ -54,19 +54,19 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "submenu to the right: resize only, content clamped",
-        edge: Edge::TopRight,
-        gravity: Edge::BottomRight,
-        adjust: Adjust {
-            resize_x: Toggle::On,
-            resize_y: Toggle::On,
-            ..Adjust::NONE
+        edge: PopupEdge::TopRight,
+        gravity: PopupEdge::BottomRight,
+        adjust: PopupAdjust {
+            resize_x: PopupToggle::On,
+            resize_y: PopupToggle::On,
+            ..PopupAdjust::NONE
         },
         popup_size: PopupSize::FitContent { max: 120 },
         content_size: Size {
             width: 300,
             height: 40,
         },
-        offset: Offset::ZERO,
+        offset: PopupOffset::ZERO,
         expected_size: Size {
             width: 120,
             height: 40,
@@ -76,15 +76,15 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "tooltip: no adjustment, content already under the cap",
-        edge: Edge::Top,
-        gravity: Edge::Top,
-        adjust: Adjust::NONE,
+        edge: PopupEdge::Top,
+        gravity: PopupEdge::Top,
+        adjust: PopupAdjust::NONE,
         popup_size: PopupSize::FitContent { max: 400 },
         content_size: Size {
             width: 90,
             height: 24,
         },
-        offset: Offset::ZERO,
+        offset: PopupOffset::ZERO,
         expected_size: Size {
             width: 90,
             height: 24,
@@ -94,18 +94,18 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "corner-anchored, slide-x only",
-        edge: Edge::TopLeft,
-        gravity: Edge::BottomLeft,
-        adjust: Adjust {
-            slide_x: Toggle::On,
-            ..Adjust::NONE
+        edge: PopupEdge::TopLeft,
+        gravity: PopupEdge::BottomLeft,
+        adjust: PopupAdjust {
+            slide_x: PopupToggle::On,
+            ..PopupAdjust::NONE
         },
         popup_size: PopupSize::Fixed,
         content_size: Size {
             width: 50,
             height: 50,
         },
-        offset: Offset::ZERO,
+        offset: PopupOffset::ZERO,
         expected_size: Size {
             width: 50,
             height: 50,
@@ -115,15 +115,15 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "bar menu at (-8, +6) from its title (design/13 §13.3.2)",
-        edge: Edge::BottomLeft,
-        gravity: Edge::BottomRight,
-        adjust: Adjust::SLIDE_AND_FLIP,
+        edge: PopupEdge::BottomLeft,
+        gravity: PopupEdge::BottomRight,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
         popup_size: PopupSize::FitContent { max: 480 },
         content_size: Size {
             width: 220,
             height: 300,
         },
-        offset: Offset { dx: -8, dy: 6 },
+        offset: PopupOffset { dx: -8, dy: 6 },
         expected_size: Size {
             width: 220,
             height: 300,
@@ -141,15 +141,15 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "status item menu at (+8, +6)",
-        edge: Edge::BottomRight,
-        gravity: Edge::BottomLeft,
-        adjust: Adjust::SLIDE_AND_FLIP,
+        edge: PopupEdge::BottomRight,
+        gravity: PopupEdge::BottomLeft,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
         popup_size: PopupSize::Fixed,
         content_size: Size {
             width: 200,
             height: 120,
         },
-        offset: Offset { dx: 8, dy: 6 },
+        offset: PopupOffset { dx: 8, dy: 6 },
         expected_size: Size {
             width: 200,
             height: 120,
@@ -167,15 +167,15 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "an offset past the parent's origin is sent as is",
-        edge: Edge::BottomLeft,
-        gravity: Edge::BottomRight,
-        adjust: Adjust::NONE,
+        edge: PopupEdge::BottomLeft,
+        gravity: PopupEdge::BottomRight,
+        adjust: PopupAdjust::NONE,
         popup_size: PopupSize::Fixed,
         content_size: Size {
             width: 100,
             height: 100,
         },
-        offset: Offset { dx: -30, dy: -10 },
+        offset: PopupOffset { dx: -30, dy: -10 },
         expected_size: Size {
             width: 100,
             height: 100,
@@ -199,7 +199,7 @@ fn positioner_params_matches_the_table() {
             edge: case.edge,
             gravity: case.gravity,
             adjust: case.adjust,
-            grab: Grab::Grabbed,
+            grab: PopupGrab::Grabbed,
             offset: case.offset,
         };
         let params = positioner_params(&config, BUTTON, case.content_size);
@@ -226,11 +226,11 @@ fn fixed_size_ignores_a_configured_max() {
     let config = PopupConfig {
         anchor: PopupAnchor::Rect,
         size: PopupSize::Fixed,
-        edge: Edge::Bottom,
-        gravity: Edge::Bottom,
-        adjust: Adjust::NONE,
-        grab: Grab::Ungrabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::Bottom,
+        gravity: PopupEdge::Bottom,
+        adjust: PopupAdjust::NONE,
+        grab: PopupGrab::Ungrabbed,
+        offset: PopupOffset::ZERO,
     };
     let params = positioner_params(
         &config,
@@ -256,11 +256,11 @@ fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_r
     let config = PopupConfig {
         anchor: PopupAnchor::Element(ElementId::new("dock-pill")),
         size: PopupSize::Fixed,
-        edge: Edge::Top,
-        gravity: Edge::Top,
-        adjust: Adjust::SLIDE_AND_FLIP,
-        grab: Grab::Grabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::Top,
+        gravity: PopupEdge::Top,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
+        grab: PopupGrab::Grabbed,
+        offset: PopupOffset::ZERO,
     };
     let size = Size {
         width: 160,
@@ -269,16 +269,16 @@ fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_r
     let params = positioner_params(&config, BUTTON, size);
     assert_eq!(params.anchor_rect, BUTTON);
     assert_eq!(params.size, size);
-    assert_eq!(params.anchor, Edge::Top);
-    assert_eq!(params.gravity, Edge::Top);
+    assert_eq!(params.anchor, PopupEdge::Top);
+    assert_eq!(params.gravity, PopupEdge::Top);
 }
 
 #[test]
 fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
-    const OFFSETS: &[(Offset, Rect)] = &[
-        (Offset::ZERO, BUTTON),
+    const OFFSETS: &[(PopupOffset, Rect)] = &[
+        (PopupOffset::ZERO, BUTTON),
         (
-            Offset { dx: -8, dy: 6 },
+            PopupOffset { dx: -8, dy: 6 },
             Rect {
                 x: 12,
                 y: 10,
@@ -287,7 +287,7 @@ fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
             },
         ),
         (
-            Offset { dx: 0, dy: -4 },
+            PopupOffset { dx: 0, dy: -4 },
             Rect {
                 x: 20,
                 y: 0,
@@ -299,7 +299,7 @@ fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
     for &(offset, want) in OFFSETS {
         assert_eq!(offset_rect(BUTTON, offset), want, "{offset:?}");
     }
-    assert_eq!(Offset::default(), Offset::ZERO);
+    assert_eq!(PopupOffset::default(), PopupOffset::ZERO);
 }
 
 /// `popup::refit`: a `FitContent` popup's placement changes, clamped to `max`, exactly
@@ -309,11 +309,11 @@ fn refit_reflows_a_fit_content_popup_to_its_measured_content_clamped_to_max() {
     let fixed = PopupConfig {
         anchor: PopupAnchor::Rect,
         size: PopupSize::Fixed,
-        edge: Edge::Bottom,
-        gravity: Edge::Bottom,
-        adjust: Adjust::NONE,
-        grab: Grab::Ungrabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::Bottom,
+        gravity: PopupEdge::Bottom,
+        adjust: PopupAdjust::NONE,
+        grab: PopupGrab::Ungrabbed,
+        offset: PopupOffset::ZERO,
     };
     let fit_content = PopupConfig {
         size: PopupSize::FitContent { max: 200 },

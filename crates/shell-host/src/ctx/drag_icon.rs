@@ -14,7 +14,7 @@ use crate::id::SurfaceId;
 use crate::id::SurfaceName;
 use crate::region::RegionSpec;
 use crate::role::Role;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::Size;
 use crate::state::HostState;
 use crate::surface::Configured;
@@ -50,7 +50,7 @@ fn spawn(
     origin: SurfaceId,
     id: SurfaceId,
     size: Size,
-    root: Root,
+    root: HostRoot,
 ) -> Result<()> {
     let (origin_name, scale) = state
         .surfaces

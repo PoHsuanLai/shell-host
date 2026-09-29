@@ -22,7 +22,7 @@ use shell_host::clipboard::SharedSelection;
 use shell_host::dom::document::{DocumentEnv, Polled, SurfaceDocument};
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 use shell_host::use_watch;
 
 const WIDTH: u32 = 100;
@@ -69,7 +69,7 @@ fn tiles(rx: watch::Receiver<u32>) -> Element {
 /// The document with one tile laid out, then grown to three and polled, not yet resolved.
 fn grown() -> SurfaceDocument {
     let (tx, rx) = watch::channel(1);
-    let mut doc = SurfaceDocument::build(Root::with_props(tiles, rx), env());
+    let mut doc = SurfaceDocument::build(HostRoot::with_props(tiles, rx), env());
     let waker = std::task::Waker::noop().clone();
     let mut cx = Context::from_waker(&waker);
     doc.poll(&mut cx);

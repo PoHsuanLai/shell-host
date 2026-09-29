@@ -8,8 +8,8 @@ use crate::dom::scroll::{self as dom, KeyFocus};
 use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
 use crate::scroll::cmd::{self, ScrollCmd};
-use crate::scroll::engine::{Animate, ScrollIn};
-use crate::scroll::geom::{Axis, Latch, Px, Scroller};
+use crate::scroll::engine::{ScrollAnimate, ScrollIn};
+use crate::scroll::geom::{Latch, Px, ScrollAxis, Scroller};
 use crate::scroll::keys::{self, ScrollKey};
 use crate::tick::HostInstant;
 
@@ -57,7 +57,7 @@ impl SurfaceScroll {
             (ScrollKey::Edge(dir), _) => ScrollIn::Jump {
                 latch,
                 to: Px(geom.edge(dir)),
-                animate: Animate::Smooth,
+                animate: ScrollAnimate::Smooth,
             },
         };
         KeyUse::Scrolled(self.run(doc, input, env))
@@ -69,7 +69,7 @@ impl SurfaceScroll {
     fn key_target(
         &self,
         doc: &BaseDocument,
-        axis: Axis,
+        axis: ScrollAxis,
         pos: Option<PointerPos>,
     ) -> Option<Scroller> {
         let chain = pos
@@ -136,14 +136,14 @@ impl SurfaceScroll {
                 };
                 let geom = dom::geom(doc, scroller, *axis)?;
                 Some(match animate {
-                    Animate::Smooth => ScrollIn::Step {
+                    ScrollAnimate::Smooth => ScrollIn::Step {
                         latch,
                         by: Px(*delta),
                     },
-                    Animate::Instant => ScrollIn::Jump {
+                    ScrollAnimate::Instant => ScrollIn::Jump {
                         latch,
                         to: Px(geom.offset.0 + delta),
-                        animate: Animate::Instant,
+                        animate: ScrollAnimate::Instant,
                     },
                 })
             }),
@@ -161,11 +161,11 @@ impl SurfaceScroll {
 fn into_view(
     doc: &BaseDocument,
     id: &crate::region::ElementId,
-    animate: Animate,
+    animate: ScrollAnimate,
 ) -> Option<ScrollIn> {
-    let (scroller, child) = dom::container_of(doc, id, Axis::Y)?;
+    let (scroller, child) = dom::container_of(doc, id, ScrollAxis::Y)?;
     let view = dom::area(doc, scroller)?;
-    let geom = dom::geom(doc, scroller, Axis::Y)?;
+    let geom = dom::geom(doc, scroller, ScrollAxis::Y)?;
     let to = cmd::into_view(
         (view.y, view.y + view.height),
         (child.y, child.y + child.height),
@@ -176,7 +176,7 @@ fn into_view(
     Some(ScrollIn::Jump {
         latch: Latch {
             scroller,
-            axis: Axis::Y,
+            axis: ScrollAxis::Y,
         },
         to: Px(to),
         animate,

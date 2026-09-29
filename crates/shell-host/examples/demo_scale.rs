@@ -13,9 +13,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostCtx, HostEvent, KeyboardMode,
-    Layer, LayerConfig, LayerSize, Margin, OutputTarget, Prepaint, RegionSpec, Root, SurfaceId,
-    use_surface_scale,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostCtx, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, Prepaint, RegionSpec,
+    SurfaceId, use_surface_scale,
 };
 
 /// How long the surface gets to settle before the first report, and how long it then idles.
@@ -63,11 +63,11 @@ fn strip() -> Element {
 fn strip_config() -> LayerConfig {
     LayerConfig {
         namespace: "scale-demo".to_owned(),
-        layer: Layer::Top,
+        layer: LayerLevel::Top,
         anchor: Anchor::TOP | Anchor::LEFT | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Fill,
-            height: Extent::Px(28),
+            width: LayerExtent::Fill,
+            height: LayerExtent::Px(28),
         },
         exclusive: ExclusiveZone::Ignore,
         margin: Margin::ZERO,
@@ -128,7 +128,7 @@ fn run() -> Result<(), String> {
     let handle = host.handle();
     let mut strip_id = None;
     host.run(move |ctx, event| match event {
-        HostEvent::Started => match ctx.spawn_layer(strip_config(), Root::new(strip)) {
+        HostEvent::Started => match ctx.spawn_layer(strip_config(), HostRoot::new(strip)) {
             Ok(id) => {
                 strip_id = Some(id);
                 let handle = handle.clone();

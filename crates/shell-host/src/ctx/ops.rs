@@ -13,7 +13,7 @@ use crate::layer::{
 };
 use crate::msg::{Repaint, Request, SurfaceOp, Visibility};
 use crate::placement::PopupPlacement;
-use crate::popup::{Grab, positioner_params};
+use crate::popup::{PopupGrab, positioner_params};
 use crate::role::Role;
 use crate::state::HostState;
 use crate::surface::{AppliedRegions, Configured, VisibilityChange, visibility_change};
@@ -239,7 +239,7 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
         return;
     };
     let lifted = match &surface.role {
-        Role::Popup { parent, config, .. } if config.grab == Grab::Grabbed => Some(*parent),
+        Role::Popup { parent, config, .. } if config.grab == PopupGrab::Grabbed => Some(*parent),
         Role::Popup { .. }
         | Role::Layer { .. }
         | Role::Toplevel { .. }
@@ -287,7 +287,7 @@ fn close_children<M: 'static>(ctx: &mut HostCtx<M>, parent: SurfaceId) {
 fn restore_keyboard(state: &mut HostState, parent: SurfaceId) {
     let still_grabbed = state.surfaces.values().any(|surface| {
         matches!(&surface.role, Role::Popup { parent: p, config, .. }
-            if *p == parent && config.grab == Grab::Grabbed)
+            if *p == parent && config.grab == PopupGrab::Grabbed)
     });
     if still_grabbed {
         return;

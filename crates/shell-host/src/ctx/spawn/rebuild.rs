@@ -3,7 +3,7 @@
 use smithay_client_toolkit::compositor::Surface;
 
 use crate::error::{HostError, Result};
-use crate::popup::Grab;
+use crate::popup::PopupGrab;
 use crate::role::Role;
 use crate::state::HostState;
 
@@ -54,7 +54,7 @@ pub(crate) fn rebuild(state: &mut HostState, old: Role) -> Result<Role> {
 /// the compositor answers with a configure.
 pub(crate) fn map(state: &HostState, role: &Role) {
     if let Role::Popup { popup, config, .. } = role
-        && config.grab == Grab::Grabbed
+        && config.grab == PopupGrab::Grabbed
         && let Some(seat) = &state.input.seat
     {
         popup.xdg_popup().grab(seat, state.input.last_serial);

@@ -4,7 +4,7 @@ use std::fmt;
 
 use wayland_client::protocol::wl_data_device_manager::DndAction;
 
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::Size;
 
 /// One drag: what it carries, what a target may do with it, and what follows the pointer.
@@ -94,7 +94,7 @@ pub enum DragIcon {
     None,
     /// `root` rendered at `size` (logical px) on a `wl_surface` with the `dnd_icon` role, its
     /// top-left corner at the pointer's hotspot.
-    Root { root: Root, size: Size },
+    Root { root: HostRoot, size: Size },
 }
 
 #[cfg(test)]

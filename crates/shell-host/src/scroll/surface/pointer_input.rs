@@ -7,7 +7,7 @@ use super::{Driver, Moved, PalmGesture, PalmScroll, SurfaceScroll};
 use crate::dom::scroll as dom;
 use crate::input::pointer::PointerPos;
 use crate::scroll::engine::{self, Engine, Kinetic, ScrollIn};
-use crate::scroll::geom::{Axis, Dir, Px};
+use crate::scroll::geom::{Dir, Px, ScrollAxis};
 use crate::scroll::latch::{self, Latched};
 use crate::scroll::rubber::AtEdge;
 use crate::scroll::source::{self, AxisFrame, AxisInput, PadEvent};
@@ -43,7 +43,7 @@ impl SurfaceScroll {
     fn detents(
         &mut self,
         doc: &mut BaseDocument,
-        axis: Axis,
+        axis: ScrollAxis,
         steps: f64,
         pos: PointerPos,
         env: Env<'_>,
@@ -106,7 +106,7 @@ impl SurfaceScroll {
     fn begin(
         &mut self,
         doc: &mut BaseDocument,
-        axis: Axis,
+        axis: ScrollAxis,
         dir: Dir,
         kinetic: Kinetic,
         pos: PointerPos,
@@ -168,8 +168,8 @@ impl SurfaceScroll {
                     PalmGesture::Idle => return Moved::Still,
                 };
                 let finger = match axis {
-                    Axis::X => dx,
-                    Axis::Y => dy,
+                    ScrollAxis::X => dx,
+                    ScrollAxis::Y => dy,
                 };
                 let delta = source::natural(finger, natural);
                 let began = match (self.palm, Dir::of(delta)) {

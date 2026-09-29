@@ -4,8 +4,8 @@
 //! Building and committing the actual `xdg_positioner` object is an effect (a Wayland request
 //! against a live connection) and belongs to the caller; this module only computes what to send.
 
-use super::config::{Adjust, Edge, Gravity};
-use super::config::{Offset, PopupConfig, PopupSize};
+use super::config::{PopupAdjust, PopupEdge};
+use super::config::{PopupConfig, PopupOffset, PopupSize};
 use crate::placement::PopupPlacement;
 use crate::region::Rect;
 use crate::scale::Size;
@@ -17,9 +17,9 @@ use crate::scale::Size;
 pub struct PositionerParams {
     pub size: Size,
     pub anchor_rect: Rect,
-    pub anchor: Edge,
-    pub gravity: Gravity,
-    pub adjust: Adjust,
+    pub anchor: PopupEdge,
+    pub gravity: PopupEdge,
+    pub adjust: PopupAdjust,
 }
 
 /// Combine a `PopupConfig` with a resolved anchor rect and a resolved content size into the
@@ -44,7 +44,7 @@ pub fn positioner_params(config: &PopupConfig, anchor: Rect, size: Size) -> Posi
 }
 
 /// `rect` moved by `offset`; its size is unchanged.
-pub fn offset_rect(rect: Rect, offset: Offset) -> Rect {
+pub fn offset_rect(rect: Rect, offset: PopupOffset) -> Rect {
     Rect {
         x: rect.x + offset.dx,
         y: rect.y + offset.dy,
@@ -82,18 +82,23 @@ pub fn refit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::popup::config::{Grab, PopupAnchor};
+    use crate::popup::config::{PopupAnchor, PopupGrab};
     use crate::region::ElementId;
 
-    fn config(edge: Edge, gravity: Gravity, adjust: Adjust, size: PopupSize) -> PopupConfig {
+    fn config(
+        edge: PopupEdge,
+        gravity: PopupEdge,
+        adjust: PopupAdjust,
+        size: PopupSize,
+    ) -> PopupConfig {
         PopupConfig {
             anchor: PopupAnchor::Rect,
             size,
             edge,
             gravity,
             adjust,
-            grab: Grab::Grabbed,
-            offset: Offset::ZERO,
+            grab: PopupGrab::Grabbed,
+            offset: PopupOffset::ZERO,
         }
     }
 
@@ -113,7 +118,12 @@ mod tests {
             width: 160,
             height: 200,
         };
-        let mut by_rect = config(Edge::Bottom, Edge::Bottom, Adjust::NONE, PopupSize::Fixed);
+        let mut by_rect = config(
+            PopupEdge::Bottom,
+            PopupEdge::Bottom,
+            PopupAdjust::NONE,
+            PopupSize::Fixed,
+        );
         let mut by_element = by_rect.clone();
         by_element.anchor = PopupAnchor::Element(ElementId::new("dock-pill"));
         by_rect.anchor = PopupAnchor::Rect;
@@ -125,7 +135,12 @@ mod tests {
 
     #[test]
     fn fixed_size_passes_through_unchanged() {
-        let cfg = config(Edge::Bottom, Edge::Bottom, Adjust::NONE, PopupSize::Fixed);
+        let cfg = config(
+            PopupEdge::Bottom,
+            PopupEdge::Bottom,
+            PopupAdjust::NONE,
+            PopupSize::Fixed,
+        );
         let anchor = Rect {
             x: 10,
             y: 4,
@@ -144,9 +159,9 @@ mod tests {
     #[test]
     fn fit_content_clamps_to_max_on_each_axis() {
         let cfg = config(
-            Edge::Bottom,
-            Edge::Bottom,
-            Adjust::NONE,
+            PopupEdge::Bottom,
+            PopupEdge::Bottom,
+            PopupAdjust::NONE,
             PopupSize::FitContent { max: 100 },
         );
         let anchor = Rect {
@@ -175,9 +190,9 @@ mod tests {
     #[test]
     fn fit_content_never_grows_a_size_already_under_max() {
         let cfg = config(
-            Edge::Bottom,
-            Edge::Bottom,
-            Adjust::NONE,
+            PopupEdge::Bottom,
+            PopupEdge::Bottom,
+            PopupAdjust::NONE,
             PopupSize::FitContent { max: 500 },
         );
         let anchor = Rect {
@@ -281,7 +296,12 @@ mod tests {
     #[test]
     fn refit_only_changes_a_fit_content_popup_whose_measured_size_differs() {
         for &(name, popup_size, current_size, content, expected_size) in REFIT_CASES {
-            let cfg = config(Edge::Bottom, Edge::Bottom, Adjust::NONE, popup_size);
+            let cfg = config(
+                PopupEdge::Bottom,
+                PopupEdge::Bottom,
+                PopupAdjust::NONE,
+                popup_size,
+            );
             let current = placement(current_size);
             let got = refit(&cfg, current, content);
             let want = expected_size.map(|size| PopupPlacement { size, ..current });

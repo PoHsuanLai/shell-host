@@ -28,9 +28,9 @@ use shell_host::id::SurfaceId;
 use shell_host::input::palmrest::route::route;
 use shell_host::input::palmrest::{Palmrest, read_all, socket_path};
 use shell_host::input::pointer::PointerPos;
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 use shell_host::scroll::engine::Motion;
-use shell_host::scroll::geom::{Axis, Scroller};
+use shell_host::scroll::geom::{ScrollAxis, Scroller};
 use shell_host::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
 use shell_host::scroll::suppress::{AxisKind, Suppress, Verdict};
 use shell_host::scroll::surface::SurfaceScroll;
@@ -62,7 +62,7 @@ fn document() -> SurfaceDocument {
         viewport: Viewport::new(400, 600, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(page), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(page), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);
     doc
@@ -186,7 +186,7 @@ impl Host {
     }
 
     fn offset(&self) -> f64 {
-        dom::geom(&self.doc.base(), Scroller::Viewport, Axis::Y)
+        dom::geom(&self.doc.base(), Scroller::Viewport, ScrollAxis::Y)
             .expect("geom")
             .offset
             .0
@@ -205,7 +205,12 @@ fn run(echo: Echo, name: &str) -> Vec<f64> {
     let reader = client.connect().expect("the fake daemon is there");
     let peer = accept(&daemon.listener).expect("accept");
     let mut doc = document();
-    dom::write(&mut doc.base_mut(), Scroller::Viewport, Axis::Y, 3000.0);
+    dom::write(
+        &mut doc.base_mut(),
+        Scroller::Viewport,
+        ScrollAxis::Y,
+        3000.0,
+    );
     let mut host = Host {
         peer,
         reader,

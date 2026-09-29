@@ -33,7 +33,7 @@ use crate::id::SurfaceName;
 use crate::layer::LayerConfig;
 use crate::msg::{SurfaceOp, Visibility};
 use crate::output::OutputInfo;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::state::HostState;
 use crate::stats::FrameStats;
 use crate::toplevel::ToplevelConfig;
@@ -77,7 +77,7 @@ impl<M: 'static> HostCtx<M> {
     }
 
     /// Create a layer surface rendering `root`. `HostError::Unsupported` without layer-shell.
-    pub fn spawn_layer(&mut self, config: LayerConfig, root: Root) -> Result<SurfaceId> {
+    pub fn spawn_layer(&mut self, config: LayerConfig, root: HostRoot) -> Result<SurfaceId> {
         let id = self.state.ids.next();
         spawn::layer(&mut self.state, id, config, root)?;
         self.presenter_or_close(id)?;
@@ -85,7 +85,7 @@ impl<M: 'static> HostCtx<M> {
     }
 
     /// Create an xdg toplevel rendering `root`.
-    pub fn spawn_toplevel(&mut self, config: ToplevelConfig, root: Root) -> Result<SurfaceId> {
+    pub fn spawn_toplevel(&mut self, config: ToplevelConfig, root: HostRoot) -> Result<SurfaceId> {
         let id = self.state.ids.next();
         spawn::toplevel(&mut self.state, id, config, root);
         self.presenter_or_close(id)?;

@@ -1,6 +1,6 @@
 //! The decisions behind the layer-surface configure handler, as values a table can assert on.
 
-use crate::layer::{Extent, LayerSize};
+use crate::layer::{LayerExtent, LayerSize};
 use crate::region::Px;
 use crate::scale::Size;
 
@@ -11,13 +11,13 @@ use crate::scale::Size;
 /// not resolved the stretch yet (a compositor should not normally send this for an anchored,
 /// opposite-edges-stretching axis, but nothing about the wire forbids it).
 pub fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
-    let axis = |extent: Extent, got: u32| -> Px {
+    let axis = |extent: LayerExtent, got: u32| -> Px {
         if got != 0 {
             return got as Px;
         }
         match extent {
-            Extent::Px(px) => px as Px,
-            Extent::Fill => 0,
+            LayerExtent::Px(px) => px as Px,
+            LayerExtent::Fill => 0,
         }
     };
     Size {
@@ -33,12 +33,12 @@ mod tests {
     #[test]
     fn configured_size_matches_the_table() {
         let bar = LayerSize {
-            width: Extent::Fill,
-            height: Extent::Px(32),
+            width: LayerExtent::Fill,
+            height: LayerExtent::Px(32),
         };
         let dock = LayerSize {
-            width: Extent::Px(740),
-            height: Extent::Px(96),
+            width: LayerExtent::Px(740),
+            height: LayerExtent::Px(96),
         };
         let cases: &[(&str, LayerSize, (u32, u32), Size)] = &[
             (

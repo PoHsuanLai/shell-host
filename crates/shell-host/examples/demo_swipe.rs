@@ -14,8 +14,9 @@ use std::io::{BufRead, Write};
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Extent, Host, HostConfig, HostEvent,
-    KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Host, HostConfig, HostEvent,
+    HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
+    RegionSpec,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -44,11 +45,11 @@ fn card_region() -> RegionSpec {
 fn layer_config() -> LayerConfig {
     LayerConfig {
         namespace: "swipe-banner".to_owned(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::TOP | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Px(400),
-            height: Extent::Px(120),
+            width: LayerExtent::Px(400),
+            height: LayerExtent::Px(120),
         },
         exclusive: ExclusiveZone::Ignore,
         margin: Margin::ZERO,
@@ -132,7 +133,7 @@ fn run() -> Result<(), String> {
     });
     host.run(move |ctx, event| match event {
         HostEvent::Started => {
-            if let Err(error) = ctx.spawn_layer(layer_config(), Root::new(banner)) {
+            if let Err(error) = ctx.spawn_layer(layer_config(), HostRoot::new(banner)) {
                 eprintln!("demo_swipe: {error}");
                 ctx.exit();
             }

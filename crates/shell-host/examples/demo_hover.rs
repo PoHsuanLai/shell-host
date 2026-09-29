@@ -22,8 +22,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root, SurfaceId, Visibility,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec, SurfaceId,
+    Visibility,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -47,10 +48,10 @@ impl Card {
     }
 
     /// `top` sits one layer above `bottom`, so it is the one under the pointer while shown.
-    fn layer(self) -> Layer {
+    fn layer(self) -> LayerLevel {
         match self {
-            Card::Top => Layer::Overlay,
-            Card::Bottom => Layer::Top,
+            Card::Top => LayerLevel::Overlay,
+            Card::Bottom => LayerLevel::Top,
         }
     }
 }
@@ -81,8 +82,8 @@ fn config(which: Card) -> LayerConfig {
         layer: which.layer(),
         anchor: Anchor::NONE,
         size: LayerSize {
-            width: Extent::Px(320),
-            height: Extent::Px(120),
+            width: LayerExtent::Px(320),
+            height: LayerExtent::Px(120),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin::ZERO,
@@ -189,7 +190,7 @@ fn slide() -> Element {
 fn slide_config() -> LayerConfig {
     LayerConfig {
         namespace: "hover-slide".to_string(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::BOTTOM.union(Anchor::LEFT),
         ..config(Card::Top)
     }
@@ -261,7 +262,7 @@ fn run() -> Result<(), String> {
         HostEvent::Started => {
             // Bottom first, so its surface exists before the one that covers it.
             for which in [Card::Bottom, Card::Top] {
-                match ctx.spawn_layer(config(which), Root::with_props(card, which)) {
+                match ctx.spawn_layer(config(which), HostRoot::with_props(card, which)) {
                     Ok(id) if which == Card::Top => cards.top = Some(id),
                     Ok(id) => cards.bottom = Some(id),
                     Err(error) => {
@@ -270,7 +271,7 @@ fn run() -> Result<(), String> {
                     }
                 }
             }
-            if let Err(error) = ctx.spawn_layer(slide_config(), Root::new(slide)) {
+            if let Err(error) = ctx.spawn_layer(slide_config(), HostRoot::new(slide)) {
                 eprintln!("demo_hover: slide: {error}");
                 ctx.exit();
             }

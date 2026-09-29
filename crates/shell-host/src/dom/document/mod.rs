@@ -1,4 +1,4 @@
-//! One surface's document: building it from a `Root`, polling it, feeding it events, and
+//! One surface's document: building it from a `HostRoot`, polling it, feeding it events, and
 //! answering layout questions (element rectangles for regions and popup anchors).
 
 mod first_mouse;
@@ -25,7 +25,7 @@ use dioxus_native_dom::DioxusDocument;
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
 use crate::dom::shell_provider::HostShellProvider;
 use crate::prepaint::Prepaint;
-use crate::root::Root;
+use crate::root::HostRoot;
 
 /// The host's user-agent stylesheet, added to every document. A sized root is what lets Blitz
 /// hit-test into the content at all (with `html,body` at zero height, hover never reached
@@ -86,7 +86,7 @@ impl SurfaceDocument {
     /// Build and initially render `root`: `StyleThreading::Sequential` (every document resolves
     /// on the main thread, blitz #430), the UA stylesheet and the body reset, the head shim as the Dioxus
     /// `Document` context, the `SurfaceHandle` as a root context.
-    pub fn build(root: Root, env: DocumentEnv) -> SurfaceDocument {
+    pub fn build(root: HostRoot, env: DocumentEnv) -> SurfaceDocument {
         let head = HeadQueue::default();
         let head_document: Rc<dyn dioxus_document::Document> =
             Rc::new(HeadDocument::new(head.clone()));

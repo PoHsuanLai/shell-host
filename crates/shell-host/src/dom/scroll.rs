@@ -11,7 +11,7 @@
 use blitz_dom::{BaseDocument, Node, NodeId};
 
 use crate::region::ElementId;
-use crate::scroll::geom::{Axis, Elastic, Geom, Px, Scroller};
+use crate::scroll::geom::{Elastic, Geom, Px, ScrollAxis, Scroller};
 use crate::scroll::indicator::Area;
 use crate::scroll::latch::Candidate;
 
@@ -68,10 +68,10 @@ pub fn page_point(doc: &BaseDocument, x: f64, y: f64) -> (f64, f64) {
 }
 
 /// Whether `node`'s computed `overflow-x`/`-y` lets a user scroll it on `axis`.
-fn scrolls(doc: &BaseDocument, node: &Node, axis: Axis) -> bool {
+fn scrolls(doc: &BaseDocument, node: &Node, axis: ScrollAxis) -> bool {
     let property = match axis {
-        Axis::X => "overflow-x",
-        Axis::Y => "overflow-y",
+        ScrollAxis::X => "overflow-x",
+        ScrollAxis::Y => "overflow-y",
     };
     matches!(
         doc.resolved_style_value(node.id, property).as_str(),
@@ -85,7 +85,7 @@ fn is_root(doc: &BaseDocument, id: NodeId) -> bool {
 
 /// The scrollers on `axis` from the element under surface-local `(x, y)` outward, innermost
 /// first, ending with the viewport when it can scroll or stretch on `axis`.
-pub fn chain_at(doc: &BaseDocument, x: f64, y: f64, axis: Axis) -> Vec<Candidate> {
+pub fn chain_at(doc: &BaseDocument, x: f64, y: f64, axis: ScrollAxis) -> Vec<Candidate> {
     let (px, py) = page_point(doc, x, y);
     let mut chain: Vec<Candidate> = element_under(doc, px, py)
         .into_iter()
@@ -133,19 +133,19 @@ fn overscroll(node: &Node) -> Overscroll {
 }
 
 /// An elastic axis (design/11 §11.3.7): opted in, and vertical or with content to scroll.
-fn elastic(opted: Overscroll, axis: Axis, max: f64) -> Elastic {
+fn elastic(opted: Overscroll, axis: ScrollAxis, max: f64) -> Elastic {
     match (opted, axis) {
-        (Overscroll::Band, Axis::Y) => Elastic::Elastic,
-        (Overscroll::Band, Axis::X) if max > 0.0 => Elastic::Elastic,
+        (Overscroll::Band, ScrollAxis::Y) => Elastic::Elastic,
+        (Overscroll::Band, ScrollAxis::X) if max > 0.0 => Elastic::Elastic,
         _ => Elastic::Rigid,
     }
 }
 
 /// `scroller`'s geometry on `axis`; `None` for a node that is gone.
-pub fn geom(doc: &BaseDocument, scroller: Scroller, axis: Axis) -> Option<Geom> {
+pub fn geom(doc: &BaseDocument, scroller: Scroller, axis: ScrollAxis) -> Option<Geom> {
     let pick = |x: f64, y: f64| match axis {
-        Axis::X => x,
-        Axis::Y => y,
+        ScrollAxis::X => x,
+        ScrollAxis::Y => y,
     };
     match scroller {
         Scroller::Viewport => {
@@ -204,10 +204,10 @@ fn body(doc: &BaseDocument) -> Option<&Node> {
 }
 
 /// Write `raw` as `scroller`'s offset on `axis`, leaving the other axis alone.
-pub fn write(doc: &mut BaseDocument, scroller: Scroller, axis: Axis, raw: f64) {
+pub fn write(doc: &mut BaseDocument, scroller: Scroller, axis: ScrollAxis, raw: f64) {
     let set = |point: &mut blitz_dom::Point<f64>| match axis {
-        Axis::X => point.x = raw,
-        Axis::Y => point.y = raw,
+        ScrollAxis::X => point.x = raw,
+        ScrollAxis::Y => point.y = raw,
     };
     match scroller {
         Scroller::Viewport => {
@@ -251,7 +251,7 @@ fn listens_for_keys(node: &Node) -> bool {
 }
 
 /// What the focused element means for a scroll key on `axis`.
-pub fn key_focus(doc: &BaseDocument, axis: Axis) -> KeyFocus {
+pub fn key_focus(doc: &BaseDocument, axis: ScrollAxis) -> KeyFocus {
     let Some(focus) = doc.get_focussed_node_id() else {
         return KeyFocus::Free;
     };
@@ -308,7 +308,11 @@ pub fn scroller_by_id(doc: &BaseDocument, id: &ElementId) -> Option<Scroller> {
 
 /// The nearest ancestor of the element with `id` that scrolls on `axis` (the viewport if none),
 /// and the element's own border box in surface-local coordinates.
-pub fn container_of(doc: &BaseDocument, id: &ElementId, axis: Axis) -> Option<(Scroller, Area)> {
+pub fn container_of(
+    doc: &BaseDocument,
+    id: &ElementId,
+    axis: ScrollAxis,
+) -> Option<(Scroller, Area)> {
     let node = doc.get_element_by_id(id.as_str())?;
     let area = area(doc, Scroller::Node(node.as_u64()))?;
     let container = ancestors(doc, node)

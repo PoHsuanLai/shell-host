@@ -2,7 +2,7 @@
 
 use super::fade::Hover;
 use crate::scroll::config::{ScrollbarSettings, ScrollbarVisibility};
-use crate::scroll::geom::Axis;
+use crate::scroll::geom::ScrollAxis;
 
 /// The thumb sits this far inside its track, px.
 const INSET: f64 = 2.0;
@@ -28,7 +28,7 @@ pub enum OtherAxis {
 pub struct Metrics {
     /// The scroller's border box.
     pub rect: Area,
-    pub axis: Axis,
+    pub axis: ScrollAxis,
     /// Its viewport extent on the axis.
     pub viewport: f64,
     /// The largest in-range offset.
@@ -97,13 +97,13 @@ pub fn geometry(
         ),
     };
     let short = match (m.other, m.axis) {
-        (OtherAxis::Shown, Axis::Y) => s.other_axis_offset_px.get(),
+        (OtherAxis::Shown, ScrollAxis::Y) => s.other_axis_offset_px.get(),
         _ => 0.0,
     };
     let r = m.rect;
     let min = s.thumb_min_length_px.get();
     match m.axis {
-        Axis::Y => {
+        ScrollAxis::Y => {
             let length = (r.height - 2.0 * INSET - short).max(0.0);
             let (len, pos) = thumb_span(m, length, min);
             let track = Area {
@@ -120,7 +120,7 @@ pub fn geometry(
             };
             (track, thumb)
         }
-        Axis::X => {
+        ScrollAxis::X => {
             let length = (r.width - 2.0 * INSET).max(0.0);
             let (len, pos) = thumb_span(m, length, min);
             let track = Area {
@@ -145,10 +145,10 @@ pub fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> Hove
     let r = metrics.rect;
     let zone = s.expand_zone_px.get();
     let inside = match metrics.axis {
-        Axis::Y => {
+        ScrollAxis::Y => {
             x >= r.x + r.width - zone && x <= r.x + r.width && y >= r.y && y <= r.y + r.height
         }
-        Axis::X => {
+        ScrollAxis::X => {
             y >= r.y + r.height - zone && y <= r.y + r.height && x >= r.x && x <= r.x + r.width
         }
     };
@@ -177,7 +177,7 @@ pub(super) mod tests {
                 width: 400.0,
                 height: 1000.0,
             },
-            axis: Axis::Y,
+            axis: ScrollAxis::Y,
             viewport: 1000.0,
             max: 3000.0,
             offset,

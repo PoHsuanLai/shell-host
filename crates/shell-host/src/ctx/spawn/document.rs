@@ -2,12 +2,12 @@
 
 use crate::dom::document::{DocumentEnv, SurfaceDocument};
 use crate::handle::SurfaceHandle;
-use crate::root::Root;
+use crate::root::HostRoot;
 
 /// Surface `root`'s document, with `handle` provided as a root context before the first build,
 /// so `use_surface()` works in every component of the surface from its first render.
 pub(super) fn surface_document(
-    root: Root,
+    root: HostRoot,
     handle: SurfaceHandle,
     env: DocumentEnv,
 ) -> SurfaceDocument {

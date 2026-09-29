@@ -4,11 +4,11 @@
 
 use std::time::Duration;
 
-use shell_host::scroll::config::{RubberBand, ScrollConfig, ScrollSettings};
+use shell_host::scroll::config::{ScrollConfig, ScrollRubberBand, ScrollSettings};
 use shell_host::scroll::engine::{
-    self, Animate, Engine, Flight, Kinetic, Motion, NotifyPhase, Physics, ScrollIn, ScrollOut,
+    self, Engine, Flight, Kinetic, Motion, NotifyPhase, Physics, ScrollAnimate, ScrollIn, ScrollOut,
 };
-use shell_host::scroll::geom::{Axis, Dir, Elastic, Geom, Latch, Px, Scroller};
+use shell_host::scroll::geom::{Dir, Elastic, Geom, Latch, Px, ScrollAxis, Scroller};
 use shell_host::scroll::keys::{self, LINE_PX};
 use shell_host::scroll::latch::{Candidate, Latched, latch};
 use shell_host::scroll::rubber::AtEdge;
@@ -19,7 +19,7 @@ const FRAME: f64 = 1.0 / 120.0;
 
 const PAGE: Latch = Latch {
     scroller: Scroller::Viewport,
-    axis: Axis::Y,
+    axis: ScrollAxis::Y,
 };
 
 /// One scroller, the engine, and a clock.
@@ -222,7 +222,7 @@ fn item_4_touch_stops_the_glide_where_it_is() {
 }
 
 /// At the top, a gesture begun inside at 50 px pulls `over` px past the edge.
-fn stretch(over: f64, model: RubberBand) -> f64 {
+fn stretch(over: f64, model: ScrollRubberBand) -> f64 {
     let scroll = ScrollSettings {
         rubber_band: model,
         ..ScrollSettings::default()
@@ -236,10 +236,10 @@ fn stretch(over: f64, model: RubberBand) -> f64 {
 #[test]
 fn item_5_the_stretch_under_the_fingers() {
     let cases = [
-        ("bounded 100", 100.0, RubberBand::Bounded, 52.1),
-        ("bounded 1000", 1000.0, RubberBand::Bounded, 354.8),
-        ("linear 100", 100.0, RubberBand::Linear, 5.0),
-        ("linear 1000", 1000.0, RubberBand::Linear, 50.0),
+        ("bounded 100", 100.0, ScrollRubberBand::Bounded, 52.1),
+        ("bounded 1000", 1000.0, ScrollRubberBand::Bounded, 354.8),
+        ("linear 100", 100.0, ScrollRubberBand::Linear, 5.0),
+        ("linear 1000", 1000.0, ScrollRubberBand::Linear, 50.0),
     ];
     for (name, over, model, want) in cases {
         let s = stretch(over, model);
@@ -251,7 +251,7 @@ fn item_5_the_stretch_under_the_fingers() {
         scroller: Scroller::Viewport,
         geom: sim.geom,
     }];
-    let latched = latch(&chain, Axis::Y, Dir::Neg).expect("the elastic page");
+    let latched = latch(&chain, ScrollAxis::Y, Dir::Neg).expect("the elastic page");
     assert_eq!(latched.began, AtEdge::AtEdge);
     sim.feed(ScrollIn::Began {
         latched,
@@ -378,7 +378,7 @@ fn item_11_keyboard_line_page_end() {
     sim.feed(ScrollIn::Jump {
         latch: PAGE,
         to: Px(50_000.0),
-        animate: Animate::Smooth,
+        animate: ScrollAnimate::Smooth,
     });
     let trace = sim.run(1.0);
     let done = trace

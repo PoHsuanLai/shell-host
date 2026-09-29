@@ -3,7 +3,7 @@
 
 use keyboard_types::{Key, Modifiers};
 
-use crate::scroll::geom::{Axis, Dir};
+use crate::scroll::geom::{Dir, ScrollAxis};
 
 /// One arrow press, px.
 pub const LINE_PX: f64 = 40.0;
@@ -25,7 +25,7 @@ const DAMPING: f64 = 20.0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollKey {
     /// An arrow: one line.
-    Line(Axis, Dir),
+    Line(ScrollAxis, Dir),
     /// Page Up / Page Down, Space / Shift+Space: one page, vertically.
     Page(Dir),
     /// Home / End, Ctrl+Up / Ctrl+Down: to an edge, vertically.
@@ -34,10 +34,10 @@ pub enum ScrollKey {
 
 impl ScrollKey {
     /// The axis the key moves along.
-    pub fn axis(self) -> Axis {
+    pub fn axis(self) -> ScrollAxis {
         match self {
             ScrollKey::Line(axis, _) => axis,
-            ScrollKey::Page(_) | ScrollKey::Edge(_) => Axis::Y,
+            ScrollKey::Page(_) | ScrollKey::Edge(_) => ScrollAxis::Y,
         }
     }
 
@@ -58,10 +58,10 @@ pub fn scroll_key(key: &Key, mods: Modifiers) -> Option<ScrollKey> {
     match (key, ctrl, shift) {
         (Key::ArrowUp, true, false) | (Key::Home, _, false) => Some(ScrollKey::Edge(Dir::Neg)),
         (Key::ArrowDown, true, false) | (Key::End, _, false) => Some(ScrollKey::Edge(Dir::Pos)),
-        (Key::ArrowUp, false, false) => Some(ScrollKey::Line(Axis::Y, Dir::Neg)),
-        (Key::ArrowDown, false, false) => Some(ScrollKey::Line(Axis::Y, Dir::Pos)),
-        (Key::ArrowLeft, false, false) => Some(ScrollKey::Line(Axis::X, Dir::Neg)),
-        (Key::ArrowRight, false, false) => Some(ScrollKey::Line(Axis::X, Dir::Pos)),
+        (Key::ArrowUp, false, false) => Some(ScrollKey::Line(ScrollAxis::Y, Dir::Neg)),
+        (Key::ArrowDown, false, false) => Some(ScrollKey::Line(ScrollAxis::Y, Dir::Pos)),
+        (Key::ArrowLeft, false, false) => Some(ScrollKey::Line(ScrollAxis::X, Dir::Neg)),
+        (Key::ArrowRight, false, false) => Some(ScrollKey::Line(ScrollAxis::X, Dir::Pos)),
         (Key::PageUp, false, false) => Some(ScrollKey::Page(Dir::Neg)),
         (Key::PageDown, false, false) => Some(ScrollKey::Page(Dir::Pos)),
         (Key::Character(c), false, shifted) if c == " " => Some(ScrollKey::Page(match shifted {
@@ -124,19 +124,19 @@ mod tests {
                 "down",
                 Key::ArrowDown,
                 none,
-                Some(ScrollKey::Line(Axis::Y, Dir::Pos)),
+                Some(ScrollKey::Line(ScrollAxis::Y, Dir::Pos)),
             ),
             (
                 "up",
                 Key::ArrowUp,
                 none,
-                Some(ScrollKey::Line(Axis::Y, Dir::Neg)),
+                Some(ScrollKey::Line(ScrollAxis::Y, Dir::Neg)),
             ),
             (
                 "right",
                 Key::ArrowRight,
                 none,
-                Some(ScrollKey::Line(Axis::X, Dir::Pos)),
+                Some(ScrollKey::Line(ScrollAxis::X, Dir::Pos)),
             ),
             (
                 "page down",

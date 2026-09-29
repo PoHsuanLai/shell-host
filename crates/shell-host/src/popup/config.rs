@@ -22,7 +22,7 @@ pub enum PopupSize {
 
 /// Which point of the anchor rectangle the popup is positioned relative to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Edge {
+pub enum PopupEdge {
     None,
     Top,
     Bottom,
@@ -34,15 +34,10 @@ pub enum Edge {
     BottomRight,
 }
 
-/// Which direction the popup grows away from its anchor point. Shares `Edge`'s nine positions
-/// but is a distinct type: an anchor edge and a gravity direction are never interchangeable,
-/// and mixing them up should be a type error, not a rendering bug.
-pub type Gravity = Edge;
-
-/// A single-axis toggle. Used instead of `bool` so `Adjust`'s fields read as intent
-/// (`slide_x: Toggle::On`) rather than an unlabelled `true`.
+/// A single-axis toggle. Used instead of `bool` so `PopupAdjust`'s fields read as intent
+/// (`slide_x: PopupToggle::On`) rather than an unlabelled `true`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Toggle {
+pub enum PopupToggle {
     #[default]
     Off,
     On,
@@ -51,41 +46,41 @@ pub enum Toggle {
 /// The `xdg_positioner` constraint-adjustment flags: how the compositor may move or resize the
 /// popup if its unadjusted position would be (partly) off-screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Adjust {
-    pub slide_x: Toggle,
-    pub slide_y: Toggle,
-    pub flip_x: Toggle,
-    pub flip_y: Toggle,
-    pub resize_x: Toggle,
-    pub resize_y: Toggle,
+pub struct PopupAdjust {
+    pub slide_x: PopupToggle,
+    pub slide_y: PopupToggle,
+    pub flip_x: PopupToggle,
+    pub flip_y: PopupToggle,
+    pub resize_x: PopupToggle,
+    pub resize_y: PopupToggle,
 }
 
-impl Adjust {
+impl PopupAdjust {
     /// No adjustment: the popup stays exactly where positioned, even off-screen.
-    pub const NONE: Adjust = Adjust {
-        slide_x: Toggle::Off,
-        slide_y: Toggle::Off,
-        flip_x: Toggle::Off,
-        flip_y: Toggle::Off,
-        resize_x: Toggle::Off,
-        resize_y: Toggle::Off,
+    pub const NONE: PopupAdjust = PopupAdjust {
+        slide_x: PopupToggle::Off,
+        slide_y: PopupToggle::Off,
+        flip_x: PopupToggle::Off,
+        flip_y: PopupToggle::Off,
+        resize_x: PopupToggle::Off,
+        resize_y: PopupToggle::Off,
     };
 
     /// Slide on both axes, flip on both axes, and never resize: the common "menu" behaviour.
-    pub const SLIDE_AND_FLIP: Adjust = Adjust {
-        slide_x: Toggle::On,
-        slide_y: Toggle::On,
-        flip_x: Toggle::On,
-        flip_y: Toggle::On,
-        resize_x: Toggle::Off,
-        resize_y: Toggle::Off,
+    pub const SLIDE_AND_FLIP: PopupAdjust = PopupAdjust {
+        slide_x: PopupToggle::On,
+        slide_y: PopupToggle::On,
+        flip_x: PopupToggle::On,
+        flip_y: PopupToggle::On,
+        resize_x: PopupToggle::Off,
+        resize_y: PopupToggle::Off,
     };
 }
 
 /// Whether a popup takes an exclusive input grab (dismissing it, and any popups nested inside
 /// it, when the compositor sees a click outside the stack).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Grab {
+pub enum PopupGrab {
     Ungrabbed,
     Grabbed,
 }
@@ -95,14 +90,14 @@ pub enum Grab {
 /// the anchor rectangle before it is sent, so it moves with the anchor and survives a flip
 /// or a reposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Offset {
+pub struct PopupOffset {
     pub dx: Px,
     pub dy: Px,
 }
 
-impl Offset {
+impl PopupOffset {
     /// No shift: the popup sits exactly where its anchor edge and gravity put it.
-    pub const ZERO: Offset = Offset { dx: 0, dy: 0 };
+    pub const ZERO: PopupOffset = PopupOffset { dx: 0, dy: 0 };
 }
 
 /// How a popup should be positioned and behave, independent of any particular anchor rect or
@@ -114,10 +109,10 @@ impl Offset {
 pub struct PopupConfig {
     pub anchor: PopupAnchor,
     pub size: PopupSize,
-    pub edge: Edge,
-    pub gravity: Gravity,
-    pub adjust: Adjust,
-    pub grab: Grab,
-    /// Where the popup sits relative to its anchor; `Offset::ZERO` for none.
-    pub offset: Offset,
+    pub edge: PopupEdge,
+    pub gravity: PopupEdge,
+    pub adjust: PopupAdjust,
+    pub grab: PopupGrab,
+    /// Where the popup sits relative to its anchor; `PopupOffset::ZERO` for none.
+    pub offset: PopupOffset,
 }

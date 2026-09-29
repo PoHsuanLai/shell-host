@@ -7,7 +7,7 @@ mod phases;
 mod types;
 
 pub use types::{
-    Animate, Flight, Held, Kinetic, Motion, NotifyPhase, Pending, Physics, Rebound, ScrollIn,
+    Flight, Held, Kinetic, Motion, NotifyPhase, Pending, Physics, Rebound, ScrollAnimate, ScrollIn,
     ScrollOut, Smooth, Spring, Track,
 };
 
@@ -102,8 +102,8 @@ pub fn step(
             animate::smooth_to(latch, from, g.clamp(base + by.0), now)
         }
         ScrollIn::Jump { latch, to, animate } => match animate {
-            Animate::Smooth => animate::smooth_to(latch, g.offset.0, g.clamp(to.0), now),
-            Animate::Instant => (Engine::Idle, vec![set(latch, g.clamp(to.0))]),
+            ScrollAnimate::Smooth => animate::smooth_to(latch, g.offset.0, g.clamp(to.0), now),
+            ScrollAnimate::Instant => (Engine::Idle, vec![set(latch, g.clamp(to.0))]),
         },
         ScrollIn::Hold { latch, step } => match engine {
             Engine::Held(h) if h.latch == latch => (Engine::Held(h), Vec::new()),

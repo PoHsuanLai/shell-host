@@ -136,9 +136,9 @@ mod tests {
     use crate::live_scale::LiveScale;
     use crate::prepaint::Prepaint;
     use crate::role::RoleKind;
-    use crate::root::Root;
+    use crate::root::HostRoot;
     use crate::scale::Scale;
-    use crate::scroll::geom::Axis;
+    use crate::scroll::geom::ScrollAxis;
     use crate::scroll::surface::SurfaceScroll;
     use crate::scroll::tuning::Tuning;
     use crate::tick::FrameTicks;
@@ -191,14 +191,14 @@ mod tests {
             viewport: Viewport::new(200, 300, 1.0, ColorScheme::Light),
             prepaint: Prepaint::None,
         };
-        let mut doc = SurfaceDocument::build(Root::new(watcher).context(handle), env);
+        let mut doc = SurfaceDocument::build(HostRoot::new(watcher).context(handle), env);
         let mut cx = Context::from_waker(std::task::Waker::noop());
         doc.poll(&mut cx);
         doc.resolve(0.0);
         assert_eq!(out(&doc), "0");
         let scroll = SurfaceScroll::new(board, Tuning::default());
         let target = dom::scroller_by_id(&doc.base(), &ElementId::new("box")).expect("box");
-        dom::write(&mut doc.base_mut(), target, Axis::Y, 123.0);
+        dom::write(&mut doc.base_mut(), target, ScrollAxis::Y, 123.0);
         scroll.publish(&doc.base());
         doc.poll(&mut cx);
         doc.resolve(0.1);

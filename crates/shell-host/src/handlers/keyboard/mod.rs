@@ -11,7 +11,7 @@ use smithay_client_toolkit::seat::keyboard::{
 use wayland_client::protocol::{wl_keyboard, wl_surface};
 use wayland_client::{Connection, QueueHandle};
 
-use crate::event::{Focus, HostEvent};
+use crate::event::{HostEvent, KeyboardFocus};
 use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::input::focus::{self, Departure};
@@ -50,7 +50,7 @@ impl KeyboardHandler for HostState {
         }
         self.events.push_back(HostEvent::KeyboardFocus {
             id,
-            focus: Focus::Gained,
+            focus: KeyboardFocus::Gained,
         });
     }
 
@@ -262,7 +262,7 @@ impl HostState {
         }
         self.events.push_back(HostEvent::KeyboardFocus {
             id,
-            focus: Focus::Lost,
+            focus: KeyboardFocus::Lost,
         });
     }
 }

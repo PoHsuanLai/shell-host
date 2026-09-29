@@ -4,7 +4,7 @@
 
 use crate::scroll::config::NaturalScroll;
 use crate::scroll::engine::Kinetic;
-use crate::scroll::geom::{Axis, Dir};
+use crate::scroll::geom::{Dir, ScrollAxis};
 use crate::scroll::latch::AxisLock;
 
 /// libinput's degrees per wheel click, for a wheel event carrying neither `value120` nor
@@ -81,7 +81,7 @@ pub struct AxisFrame {
 pub enum AxisInput {
     /// Wheel detents on `axis` (signed, 1.0 per click; positive toward the maximum).
     Detents {
-        axis: Axis,
+        axis: ScrollAxis,
         steps: f64,
     },
     /// A continuous pan in offset px.
@@ -130,15 +130,15 @@ pub fn classify(frame: &AxisFrame) -> AxisInput {
         let horizontal = frame.source == AxisSource::WheelTilt || frame.shift == Shift::Held;
         return match (horizontal, sy != 0.0) {
             (true, true) => AxisInput::Detents {
-                axis: Axis::X,
+                axis: ScrollAxis::X,
                 steps: sy,
             },
             (_, _) if sx != 0.0 => AxisInput::Detents {
-                axis: Axis::X,
+                axis: ScrollAxis::X,
                 steps: sx,
             },
             (_, true) => AxisInput::Detents {
-                axis: Axis::Y,
+                axis: ScrollAxis::Y,
                 steps: sy,
             },
             _ => AxisInput::Nothing,
@@ -160,7 +160,7 @@ pub fn classify(frame: &AxisFrame) -> AxisInput {
 pub enum PadEvent {
     /// The axis locked: latch toward `dir`, then apply `delta`.
     Began {
-        axis: Axis,
+        axis: ScrollAxis,
         dir: Dir,
         delta: f64,
         kinetic: Kinetic,
@@ -191,8 +191,8 @@ impl Pad {
             (Pad::Moving { lock, kinetic }, AxisInput::Pan { dx, dy, .. }) => match lock {
                 AxisLock::Locked(axis) => {
                     let delta = match axis {
-                        Axis::X => dx,
-                        Axis::Y => dy,
+                        ScrollAxis::X => dx,
+                        ScrollAxis::Y => dy,
                     };
                     (self, (delta != 0.0).then_some(PadEvent::Changed { delta }))
                 }
@@ -265,7 +265,7 @@ mod tests {
                 "one detent",
                 frame(Wheel, none, value(15.0, 120), Shift::Up),
                 AxisInput::Detents {
-                    axis: Axis::Y,
+                    axis: ScrollAxis::Y,
                     steps: 1.0,
                 },
             ),
@@ -273,7 +273,7 @@ mod tests {
                 "hi-res half",
                 frame(Wheel, none, value(7.5, 60), Shift::Up),
                 AxisInput::Detents {
-                    axis: Axis::Y,
+                    axis: ScrollAxis::Y,
                     steps: 0.5,
                 },
             ),
@@ -281,7 +281,7 @@ mod tests {
                 "shift turns it",
                 frame(Wheel, none, value(-15.0, -120), Shift::Held),
                 AxisInput::Detents {
-                    axis: Axis::X,
+                    axis: ScrollAxis::X,
                     steps: -1.0,
                 },
             ),
@@ -289,7 +289,7 @@ mod tests {
                 "tilt",
                 frame(WheelTilt, none, value(15.0, 120), Shift::Up),
                 AxisInput::Detents {
-                    axis: Axis::X,
+                    axis: ScrollAxis::X,
                     steps: 1.0,
                 },
             ),
@@ -297,7 +297,7 @@ mod tests {
                 "no value120: degrees",
                 frame(Wheel, none, value(30.0, 0), Shift::Up),
                 AxisInput::Detents {
-                    axis: Axis::Y,
+                    axis: ScrollAxis::Y,
                     steps: 2.0,
                 },
             ),
@@ -305,7 +305,7 @@ mod tests {
                 "no source: a wheel in degrees",
                 frame(Unknown, none, value(15.0, 0), Shift::Up),
                 AxisInput::Detents {
-                    axis: Axis::Y,
+                    axis: ScrollAxis::Y,
                     steps: 1.0,
                 },
             ),
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(
             e,
             Some(PadEvent::Began {
-                axis: Axis::Y,
+                axis: ScrollAxis::Y,
                 dir: Dir::Pos,
                 delta: 11.0,
                 kinetic: Kinetic::Momentum

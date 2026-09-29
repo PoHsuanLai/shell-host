@@ -12,11 +12,13 @@
 use std::time::Duration;
 
 use dioxus::prelude::*;
-use shell_host::popup::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize};
+use shell_host::popup::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
+};
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, PopupPlacement, Rect, RegionSpec, Root, Size,
-    use_surface,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect,
+    RegionSpec, Size, use_surface,
 };
 
 /// The margin and padding reset quire's `css/reset.css` would bring.
@@ -51,11 +53,11 @@ const GROWTH_DELAY: Duration = Duration::from_millis(300);
 fn bar_config() -> LayerConfig {
     LayerConfig {
         namespace: "bar".to_owned(),
-        layer: Layer::Top,
+        layer: LayerLevel::Top,
         anchor: Anchor::TOP | Anchor::LEFT | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Fill,
-            height: Extent::Px(32),
+            width: LayerExtent::Fill,
+            height: LayerExtent::Px(32),
         },
         exclusive: ExclusiveZone::Reserve(32),
         margin: Margin::ZERO,
@@ -70,11 +72,11 @@ fn popup_config() -> PopupConfig {
     PopupConfig {
         anchor: PopupAnchor::Rect,
         size: PopupSize::FitContent { max: 400 },
-        edge: Edge::Bottom,
-        gravity: Edge::Bottom,
-        adjust: Adjust::SLIDE_AND_FLIP,
-        grab: Grab::Ungrabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::Bottom,
+        gravity: PopupEdge::Bottom,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
+        grab: PopupGrab::Ungrabbed,
+        offset: PopupOffset::ZERO,
     }
 }
 
@@ -97,7 +99,7 @@ fn bar() -> Element {
                             height: 24,
                         },
                     };
-                    surface.open_popup(popup_config(), placement, Root::new(list));
+                    surface.open_popup(popup_config(), placement, HostRoot::new(list));
                 },
                 "Open",
             }
@@ -141,7 +143,7 @@ fn run() -> Result<(), String> {
                 eprintln!("debug-inject: {error}");
                 ctx.exit();
             }
-            if let Err(error) = ctx.spawn_layer(bar_config(), Root::new(bar)) {
+            if let Err(error) = ctx.spawn_layer(bar_config(), HostRoot::new(bar)) {
                 eprintln!("bar: {error}");
                 ctx.exit();
             }

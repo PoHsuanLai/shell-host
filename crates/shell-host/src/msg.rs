@@ -8,11 +8,11 @@ use crate::drag::outcome::DragOutcome;
 use crate::drag::spec::DragSpec;
 use crate::geometry::Margin;
 use crate::id::SurfaceId;
-use crate::layer::{Anchor, ExclusiveZone, KeyboardMode, Layer, LayerSize};
+use crate::layer::{Anchor, ExclusiveZone, KeyboardMode, LayerLevel, LayerSize};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scroll::cmd::ScrollCmd;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge};
 
@@ -34,7 +34,7 @@ pub enum SurfaceOp {
     /// Layer surfaces only.
     SetAnchor(Anchor),
     /// Layer surfaces only (`zwlr_layer_surface_v1.set_layer`, v2).
-    SetLayer(Layer),
+    SetLayer(LayerLevel),
     SetVisibility(Visibility),
     /// Popups only: move an open popup (`xdg_popup.reposition`, xdg_wm_base v3), which is how a
     /// menu bar switches menus on hover without a new grab (design/13 §13.7).
@@ -113,7 +113,7 @@ pub enum HostMsg<M> {
 }
 
 /// A request made from inside a document through its `SurfaceHandle`. Queued on the main
-/// thread (a `Root` is not `Send`), drained after the documents are polled.
+/// thread (a `HostRoot` is not `Send`), drained after the documents are polled.
 #[derive(Debug)]
 pub enum Request {
     Apply {
@@ -126,7 +126,7 @@ pub enum Request {
         id: SurfaceId,
         config: PopupConfig,
         placement: PopupPlacement,
-        root: Root,
+        root: HostRoot,
     },
     Close(SurfaceId),
     /// Render surface `id` on the next flush (a frame drive was taken on an idle surface, which

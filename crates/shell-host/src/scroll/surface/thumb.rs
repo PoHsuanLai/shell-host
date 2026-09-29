@@ -6,7 +6,7 @@ use blitz_dom::BaseDocument;
 use super::{Moved, SurfaceScroll};
 use crate::dom::scroll as dom;
 use crate::input::pointer::PointerPos;
-use crate::scroll::geom::Axis;
+use crate::scroll::geom::ScrollAxis;
 use crate::scroll::indicator::{self, Metrics, OtherAxis, ThumbPaint};
 use crate::scroll::watch::{ScrollExtent, ScrollPoint, ScrollState, phase_of};
 use crate::tick::HostInstant;
@@ -65,8 +65,8 @@ impl SurfaceScroll {
                 continue;
             };
             let (Some(x), Some(y)) = (
-                dom::geom(doc, scroller, Axis::X),
-                dom::geom(doc, scroller, Axis::Y),
+                dom::geom(doc, scroller, ScrollAxis::X),
+                dom::geom(doc, scroller, ScrollAxis::Y),
             ) else {
                 continue;
             };

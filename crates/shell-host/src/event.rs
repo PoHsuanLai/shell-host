@@ -22,7 +22,7 @@ pub enum HostEvent<M> {
     /// Keyboard focus entered or left a surface.
     KeyboardFocus {
         id: SurfaceId,
-        focus: Focus,
+        focus: KeyboardFocus,
     },
     /// A session lock from `HostCtx::lock_session` changed state: `Locked` once the compositor
     /// locked, `Unlocked` after the unlock, `Finished` when the compositor refused the lock
@@ -56,7 +56,7 @@ pub enum CloseReason {
 
 /// Keyboard focus, gained or lost.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Focus {
+pub enum KeyboardFocus {
     Gained,
     Lost,
 }
@@ -104,11 +104,11 @@ mod tests {
             (
                 HostEvent::KeyboardFocus {
                     id: SurfaceId(1),
-                    focus: Focus::Gained,
+                    focus: KeyboardFocus::Gained,
                 },
                 HostEvent::KeyboardFocus {
                     id: SurfaceId(1),
-                    focus: Focus::Gained,
+                    focus: KeyboardFocus::Gained,
                 },
             ),
             (

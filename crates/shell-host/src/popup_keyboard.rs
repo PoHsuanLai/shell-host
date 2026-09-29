@@ -11,7 +11,7 @@
 
 use crate::blur_health::CompositorKind;
 use crate::layer::KeyboardMode;
-use crate::popup::Grab;
+use crate::popup::PopupGrab;
 
 /// What opening a popup does to its parent layer's keyboard mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,10 +24,14 @@ pub enum ParentKeyboard {
 
 /// The rule: a grabbing popup of a `None` layer lifts it, except on KWin. `parent` is the
 /// layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
-pub fn parent_keyboard(kind: CompositorKind, grab: Grab, parent: KeyboardMode) -> ParentKeyboard {
+pub fn parent_keyboard(
+    kind: CompositorKind,
+    grab: PopupGrab,
+    parent: KeyboardMode,
+) -> ParentKeyboard {
     match (kind, grab, parent) {
         (CompositorKind::Kwin, _, _) => ParentKeyboard::Keep,
-        (_, Grab::Grabbed, KeyboardMode::None) => ParentKeyboard::Lift,
+        (_, PopupGrab::Grabbed, KeyboardMode::None) => ParentKeyboard::Lift,
         _ => ParentKeyboard::Keep,
     }
 }
@@ -39,9 +43,9 @@ mod tests {
     #[test]
     fn only_a_grabbing_popup_of_a_keyboardless_layer_lifts_it_and_never_on_kwin() {
         use CompositorKind as K;
-        use Grab::{Grabbed, Ungrabbed};
         use KeyboardMode as M;
         use ParentKeyboard::{Keep, Lift};
+        use PopupGrab::{Grabbed, Ungrabbed};
         let cases = [
             (K::Cosmic, Grabbed, M::None, Lift),
             (K::Other, Grabbed, M::None, Lift),

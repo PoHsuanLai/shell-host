@@ -9,7 +9,7 @@ use wayland_client::protocol::{wl_keyboard, wl_pointer, wl_seat};
 use wayland_client::{Proxy, QueueHandle};
 
 use crate::csd::Zone;
-use crate::event::{Focus, HostEvent};
+use crate::event::{HostEvent, KeyboardFocus};
 use crate::input::capability::CapabilityChange;
 use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
@@ -108,7 +108,7 @@ impl HostState {
         if let Some(id) = self.input.keyboard_focus.take() {
             self.events.push_back(HostEvent::KeyboardFocus {
                 id,
-                focus: Focus::Lost,
+                focus: KeyboardFocus::Lost,
             });
         }
         self.input.focused_at = None;

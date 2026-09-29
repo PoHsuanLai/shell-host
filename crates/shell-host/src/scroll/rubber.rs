@@ -5,7 +5,7 @@
 //! the scroller's viewport extent on the axis. Stretches are magnitudes (>= 0), measured
 //! outward from the edge.
 
-use crate::scroll::config::{RubberBand, ScrollSettings};
+use crate::scroll::config::{ScrollRubberBand, ScrollSettings};
 
 /// A rebound ends once `|s|` is below this and ...
 const END_STRETCH: f64 = 1.0;
@@ -15,7 +15,7 @@ const END_AFTER_S: f64 = 0.024;
 /// The stretch model and its constants.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Band {
-    model: RubberBand,
+    model: ScrollRubberBand,
     c: f64,
     divisor: f64,
     /// Overscroll that does not stretch when the gesture began at the edge.
@@ -56,7 +56,7 @@ impl Band {
 
     /// Whether any stretch is allowed at all (`scroll.rubber_band != Off`).
     pub fn enabled(&self) -> bool {
-        self.model != RubberBand::Off
+        self.model != ScrollRubberBand::Off
     }
 
     /// The stretch for overscroll `over` on a viewport of `d` px.
@@ -69,9 +69,9 @@ impl Band {
             return 0.0;
         }
         match self.model {
-            RubberBand::Bounded if d > 0.0 => (1.0 - 1.0 / (over * self.c / d + 1.0)) * d,
-            RubberBand::Bounded | RubberBand::Off => 0.0,
-            RubberBand::Linear => over / self.divisor,
+            ScrollRubberBand::Bounded if d > 0.0 => (1.0 - 1.0 / (over * self.c / d + 1.0)) * d,
+            ScrollRubberBand::Bounded | ScrollRubberBand::Off => 0.0,
+            ScrollRubberBand::Linear => over / self.divisor,
         }
     }
 
@@ -82,10 +82,10 @@ impl Band {
             return 0.0;
         }
         let over = match self.model {
-            RubberBand::Bounded if s < d => s * d / (self.c * (d - s)),
-            RubberBand::Bounded => f64::MAX / 4.0,
-            RubberBand::Linear => s * self.divisor,
-            RubberBand::Off => 0.0,
+            ScrollRubberBand::Bounded if s < d => s * d / (self.c * (d - s)),
+            ScrollRubberBand::Bounded => f64::MAX / 4.0,
+            ScrollRubberBand::Linear => s * self.divisor,
+            ScrollRubberBand::Off => 0.0,
         };
         match began {
             AtEdge::AtEdge => over + self.edge_min,
@@ -123,7 +123,7 @@ impl SnapBack {
 mod tests {
     use super::*;
 
-    fn band(model: RubberBand) -> Band {
+    fn band(model: ScrollRubberBand) -> Band {
         Band::from_settings(&ScrollSettings {
             rubber_band: model,
             ..ScrollSettings::default()
@@ -133,12 +133,12 @@ mod tests {
     #[test]
     fn the_worked_stretches_of_11_3_7() {
         let cases = [
-            ("bounded 100", RubberBand::Bounded, 100.0, 52.1),
-            ("bounded 300", RubberBand::Bounded, 300.0, 141.6),
-            ("bounded 1000", RubberBand::Bounded, 1000.0, 354.8),
-            ("linear 100", RubberBand::Linear, 100.0, 5.0),
-            ("linear 1000", RubberBand::Linear, 1000.0, 50.0),
-            ("off", RubberBand::Off, 1000.0, 0.0),
+            ("bounded 100", ScrollRubberBand::Bounded, 100.0, 52.1),
+            ("bounded 300", ScrollRubberBand::Bounded, 300.0, 141.6),
+            ("bounded 1000", ScrollRubberBand::Bounded, 1000.0, 354.8),
+            ("linear 100", ScrollRubberBand::Linear, 100.0, 5.0),
+            ("linear 1000", ScrollRubberBand::Linear, 1000.0, 50.0),
+            ("off", ScrollRubberBand::Off, 1000.0, 0.0),
         ];
         for (name, model, over, want) in cases {
             let got = band(model).stretch(over, 1000.0, AtEdge::Inside);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn a_gesture_begun_at_the_edge_gives_the_first_10_px_away() {
-        let bounded = band(RubberBand::Bounded);
+        let bounded = band(ScrollRubberBand::Bounded);
         assert_eq!(bounded.stretch(10.0, 1000.0, AtEdge::AtEdge), 0.0);
         let s = bounded.stretch(110.0, 1000.0, AtEdge::AtEdge);
         assert!((s - 52.1).abs() < 0.1, "{s}");
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn overscroll_inverts_stretch() {
-        for model in [RubberBand::Bounded, RubberBand::Linear] {
+        for model in [ScrollRubberBand::Bounded, ScrollRubberBand::Linear] {
             for began in [AtEdge::Inside, AtEdge::AtEdge] {
                 let b = band(model);
                 let s = b.stretch(420.0, 1000.0, began);

@@ -82,7 +82,7 @@ mod tests {
     use crate::gpu::shm::paint_cpu;
     use crate::id::SurfaceId;
     use crate::prepaint::Prepaint;
-    use crate::root::Root;
+    use crate::root::HostRoot;
     use crate::scale::{Scale, Size};
     use blitz_kit::fonts::SharedFonts;
     use blitz_kit::net::LocalNet;
@@ -111,7 +111,7 @@ mod tests {
             viewport: Viewport::new(side as u32, side as u32, scale.as_f64() as f32, scheme),
             prepaint: Prepaint::None,
         };
-        let mut doc = SurfaceDocument::build(Root::new(white), env);
+        let mut doc = SurfaceDocument::build(HostRoot::new(white), env);
         doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
         doc.resolve(0.0);
         let buffer = Size {

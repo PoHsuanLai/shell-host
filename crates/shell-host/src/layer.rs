@@ -16,7 +16,7 @@ pub struct LayerConfig {
     /// The layer-shell namespace (`sill-bar`, `sill-dock`); compositors key rules on it, and the
     /// debug commands address the surface by it.
     pub namespace: String,
-    pub layer: Layer,
+    pub layer: LayerLevel,
     pub anchor: Anchor,
     pub size: LayerSize,
     pub exclusive: ExclusiveZone,
@@ -29,7 +29,7 @@ pub struct LayerConfig {
 
 /// Which stacking layer a surface lives in, bottom to top.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Layer {
+pub enum LayerLevel {
     Background,
     /// Below normal windows: a dock that windows may cover (the occlusion check of render
     /// acceptance item c).
@@ -74,7 +74,7 @@ impl std::ops::BitOr for Anchor {
 
 /// One dimension of a layer surface's requested size.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Extent {
+pub enum LayerExtent {
     /// Stretch between the two opposite anchors (wire value 0; the protocol requires both
     /// opposite edges to be anchored, or the compositor raises an error).
     Fill,
@@ -85,8 +85,8 @@ pub enum Extent {
 /// The size a layer surface asks for, in logical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LayerSize {
-    pub width: Extent,
-    pub height: Extent,
+    pub width: LayerExtent,
+    pub height: LayerExtent,
 }
 
 /// How a layer surface interacts with other surfaces' exclusive zones.
@@ -123,12 +123,12 @@ pub enum OutputTarget {
 }
 
 /// The sctk value for `layer`.
-pub fn to_wire_layer(layer: Layer) -> WireLayer {
+pub fn to_wire_layer(layer: LayerLevel) -> WireLayer {
     match layer {
-        Layer::Background => WireLayer::Background,
-        Layer::Bottom => WireLayer::Bottom,
-        Layer::Top => WireLayer::Top,
-        Layer::Overlay => WireLayer::Overlay,
+        LayerLevel::Background => WireLayer::Background,
+        LayerLevel::Bottom => WireLayer::Bottom,
+        LayerLevel::Top => WireLayer::Top,
+        LayerLevel::Overlay => WireLayer::Overlay,
     }
 }
 
@@ -148,8 +148,8 @@ pub fn to_wire_anchor(anchor: Anchor) -> WireAnchor {
 /// The `set_size` arguments for `size`.
 pub fn to_wire_size(size: LayerSize) -> (u32, u32) {
     let wire = |extent| match extent {
-        Extent::Fill => 0,
-        Extent::Px(px) => px,
+        LayerExtent::Fill => 0,
+        LayerExtent::Px(px) => px,
     };
     (wire(size.width), wire(size.height))
 }
@@ -179,10 +179,10 @@ mod tests {
     #[test]
     fn every_layer_maps_to_its_wire_layer() {
         let cases = [
-            (Layer::Background, WireLayer::Background),
-            (Layer::Bottom, WireLayer::Bottom),
-            (Layer::Top, WireLayer::Top),
-            (Layer::Overlay, WireLayer::Overlay),
+            (LayerLevel::Background, WireLayer::Background),
+            (LayerLevel::Bottom, WireLayer::Bottom),
+            (LayerLevel::Top, WireLayer::Top),
+            (LayerLevel::Overlay, WireLayer::Overlay),
         ];
         for (ours, wire) in cases {
             assert_eq!(to_wire_layer(ours), wire, "{ours:?}");
@@ -221,15 +221,15 @@ mod tests {
         let sizes = [
             (
                 LayerSize {
-                    width: Extent::Fill,
-                    height: Extent::Px(32),
+                    width: LayerExtent::Fill,
+                    height: LayerExtent::Px(32),
                 },
                 (0, 32),
             ),
             (
                 LayerSize {
-                    width: Extent::Px(740),
-                    height: Extent::Px(96),
+                    width: LayerExtent::Px(740),
+                    height: LayerExtent::Px(96),
                 },
                 (740, 96),
             ),

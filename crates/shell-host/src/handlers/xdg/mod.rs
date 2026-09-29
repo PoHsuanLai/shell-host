@@ -13,7 +13,7 @@ use crate::frame::FrameInput;
 use crate::handlers::{close_surface_and_popups, follow_buffer_scale, surface_id_by_wl};
 use crate::id::SurfaceId;
 use crate::layer::{KeyboardMode, to_wire_keyboard};
-use crate::popup::Grab;
+use crate::popup::PopupGrab;
 use crate::region::Px;
 use crate::role::Role;
 use crate::scale::{self, Size};
@@ -182,7 +182,7 @@ fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
             matches!(
                 &s.role,
                 Role::Popup { parent, config, .. }
-                    if *parent == layer_id && config.grab == Grab::Grabbed
+                    if *parent == layer_id && config.grab == PopupGrab::Grabbed
             )
         })
         .map_or(GrabbingPopups::None, |_| GrabbingPopups::Open);

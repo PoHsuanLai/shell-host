@@ -7,7 +7,7 @@ pub struct Px(pub f64);
 
 /// A scroll axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Axis {
+pub enum ScrollAxis {
     X,
     Y,
 }
@@ -96,7 +96,7 @@ impl Geom {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Latch {
     pub scroller: Scroller,
-    pub axis: Axis,
+    pub axis: ScrollAxis,
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ use blitz_dom::BaseDocument;
 use crate::dom::scroll as dom;
 use crate::frame::Animation;
 use crate::scroll::engine::{self, Engine, Motion, ScrollIn, ScrollOut};
-use crate::scroll::geom::{Axis, Latch};
+use crate::scroll::geom::{Latch, ScrollAxis};
 use crate::scroll::indicator::{Indicator, Wake};
 use crate::scroll::latch::WheelBurst;
 use crate::scroll::source::Pad;
@@ -56,7 +56,7 @@ enum Driver {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PalmGesture {
     Idle,
-    Waiting(Axis),
+    Waiting(ScrollAxis),
     Latched,
 }
 
@@ -65,7 +65,7 @@ enum PalmGesture {
 pub enum PalmScroll {
     MayBegin,
     Began {
-        axis: Axis,
+        axis: ScrollAxis,
     },
     /// Finger-direction px on each axis at `at` (palmrest's `t_ns`).
     Changed {

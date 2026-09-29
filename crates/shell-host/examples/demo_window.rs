@@ -16,8 +16,8 @@ use std::io::{BufRead, Write};
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Decorations, Fullscreen, GrabRefused, Host, HostConfig, HostEvent, Maximize, ResizeEdge, Root,
-    Size, SurfaceHandle, SurfaceId, ToplevelConfig, use_surface, use_toplevel_state,
+    Decorations, Fullscreen, GrabRefused, Host, HostConfig, HostEvent, HostRoot, Maximize,
+    ResizeEdge, Size, SurfaceHandle, SurfaceId, ToplevelConfig, use_surface, use_toplevel_state,
 };
 
 /// The titlebar's colour, which the acceptance finds on screen to locate the frame.
@@ -174,7 +174,7 @@ fn run() -> Result<(), String> {
                 max_size: None,
                 decorations: Decorations::CLIENT,
             };
-            match ctx.spawn_toplevel(config, Root::new(window)) {
+            match ctx.spawn_toplevel(config, HostRoot::new(window)) {
                 Ok(spawned) => id = Some(spawned),
                 Err(error) => {
                     eprintln!("window: {error}");

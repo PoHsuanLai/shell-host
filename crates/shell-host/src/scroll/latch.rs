@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::scroll::geom::{Axis, Dir, Elastic, Geom, Latch, Scroller};
+use crate::scroll::geom::{Dir, Elastic, Geom, Latch, ScrollAxis, Scroller};
 use crate::scroll::rubber::AtEdge;
 use crate::tick::HostInstant;
 
@@ -28,7 +28,7 @@ pub struct Latched {
 /// Latch a gesture on `axis` moving toward `dir` (design/11 §11.3.3): the innermost scroller
 /// that can move that way; else the innermost elastic one, which rubber-bands; else nothing.
 /// `chain` holds only scrollers that scroll on `axis`.
-pub fn latch(chain: &[Candidate], axis: Axis, dir: Dir) -> Option<Latched> {
+pub fn latch(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latched> {
     let movable = chain
         .iter()
         .find(|c| c.geom.can_move(dir))
@@ -54,7 +54,7 @@ pub fn latch(chain: &[Candidate], axis: Axis, dir: Dir) -> Option<Latched> {
 }
 
 /// A wheel's target: the innermost scroller that can move (no rubber band for wheels).
-pub fn latch_rigid(chain: &[Candidate], axis: Axis, dir: Dir) -> Option<Latch> {
+pub fn latch_rigid(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latch> {
     chain.iter().find(|c| c.geom.can_move(dir)).map(|c| Latch {
         scroller: c.scroller,
         axis,
@@ -69,7 +69,7 @@ pub enum AxisLock {
         dx: f64,
         dy: f64,
     },
-    Locked(Axis),
+    Locked(ScrollAxis),
 }
 
 impl AxisLock {
@@ -87,9 +87,9 @@ impl AxisLock {
                     return (AxisLock::Free { dx: ax, dy: ay }, None);
                 }
                 if ax.abs() > ay.abs() {
-                    (AxisLock::Locked(Axis::X), Some(ax))
+                    (AxisLock::Locked(ScrollAxis::X), Some(ax))
                 } else {
-                    (AxisLock::Locked(Axis::Y), Some(ay))
+                    (AxisLock::Locked(ScrollAxis::Y), Some(ay))
                 }
             }
         }
@@ -104,7 +104,7 @@ pub struct WheelBurst {
 
 impl WheelBurst {
     /// The previous target, if a detent on `axis` at `now` continues its burst.
-    pub fn current(&self, axis: Axis, now: HostInstant, window: Duration) -> Option<Latch> {
+    pub fn current(&self, axis: ScrollAxis, now: HostInstant, window: Duration) -> Option<Latch> {
         self.last
             .filter(|(latch, at)| latch.axis == axis && now.0.saturating_sub(at.0) < window)
             .map(|(latch, _)| latch)
@@ -139,7 +139,7 @@ mod tests {
         Some(Latched {
             latch: Latch {
                 scroller: Scroller::Node(node),
-                axis: Axis::Y,
+                axis: ScrollAxis::Y,
             },
             began,
         })
@@ -176,14 +176,14 @@ mod tests {
             ("empty chain", vec![], Dir::Pos, None),
         ];
         for (name, chain, dir, want) in cases {
-            assert_eq!(latch(&chain, Axis::Y, dir), want, "{name}");
+            assert_eq!(latch(&chain, ScrollAxis::Y, dir), want, "{name}");
         }
     }
 
     #[test]
     fn a_wheel_never_latches_an_edge() {
         let chain = [candidate(1, 500.0, 500.0, Elastic::Elastic)];
-        assert_eq!(latch_rigid(&chain, Axis::Y, Dir::Pos), None);
+        assert_eq!(latch_rigid(&chain, ScrollAxis::Y, Dir::Pos), None);
     }
 
     #[test]
@@ -192,11 +192,14 @@ mod tests {
         assert_eq!(lock, AxisLock::Free { dx: 3.0, dy: -4.0 });
         assert_eq!(pending, None);
         let (lock, pending) = lock.feed(1.0, -7.0);
-        assert_eq!(lock, AxisLock::Locked(Axis::Y));
+        assert_eq!(lock, AxisLock::Locked(ScrollAxis::Y));
         assert_eq!(pending, Some(-11.0));
-        assert_eq!(lock.feed(50.0, 0.0), (AxisLock::Locked(Axis::Y), None));
+        assert_eq!(
+            lock.feed(50.0, 0.0),
+            (AxisLock::Locked(ScrollAxis::Y), None)
+        );
         let (lock, _) = AxisLock::START.feed(12.0, 12.0);
-        assert_eq!(lock, AxisLock::Locked(Axis::Y), "ties go vertical");
+        assert_eq!(lock, AxisLock::Locked(ScrollAxis::Y), "ties go vertical");
     }
 
     #[test]
@@ -204,13 +207,16 @@ mod tests {
         let window = Duration::from_millis(300);
         let latch = Latch {
             scroller: Scroller::Viewport,
-            axis: Axis::Y,
+            axis: ScrollAxis::Y,
         };
         let at = |ms| HostInstant(Duration::from_millis(ms));
         let burst = WheelBurst::default().record(latch, at(1000));
-        assert_eq!(burst.current(Axis::Y, at(1299), window), Some(latch));
-        assert_eq!(burst.current(Axis::Y, at(1300), window), None);
-        assert_eq!(burst.current(Axis::X, at(1100), window), None);
-        assert_eq!(WheelBurst::default().current(Axis::Y, at(0), window), None);
+        assert_eq!(burst.current(ScrollAxis::Y, at(1299), window), Some(latch));
+        assert_eq!(burst.current(ScrollAxis::Y, at(1300), window), None);
+        assert_eq!(burst.current(ScrollAxis::X, at(1100), window), None);
+        assert_eq!(
+            WheelBurst::default().current(ScrollAxis::Y, at(0), window),
+            None
+        );
     }
 }

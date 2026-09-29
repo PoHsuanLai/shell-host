@@ -65,7 +65,7 @@ pub use ctx::HostCtx;
 pub use drag::outcome::{DragAction, DragOutcome, DragRefused};
 pub use drag::spec::{BadMime, DragActions, DragIcon, DragPayload, DragSpec, Mime};
 pub use error::{HostError, Recovery, Result};
-pub use event::{CloseReason, Focus, HostEvent};
+pub use event::{CloseReason, HostEvent, KeyboardFocus};
 pub use geometry::{Margin, Point};
 pub use grab::GrabRefused;
 pub use handle::{
@@ -79,7 +79,8 @@ pub use id::{OutputId, SurfaceId};
 #[cfg(feature = "debug-inject")]
 pub use inject::{Inject, Injected};
 pub use layer::{
-    Anchor, ExclusiveZone, Extent, KeyboardMode, Layer, LayerConfig, LayerSize, OutputTarget,
+    Anchor, ExclusiveZone, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize,
+    OutputTarget,
 };
 pub use lock::handle::{LockHandle, use_lock, use_lock_phase};
 pub use lock::machine::{LockPhase, LockState};
@@ -89,18 +90,21 @@ pub use modifiers::{LockKey, Modifier, Modifiers};
 pub use msg::{SurfaceOp, Visibility};
 pub use output::OutputInfo;
 pub use placement::PopupPlacement;
-pub use popup::{Adjust, Edge, Grab, Gravity, Offset, PopupAnchor, PopupConfig, PopupSize, Toggle};
+pub use popup::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
+    PopupToggle,
+};
 pub use prepaint::{Prepaint, PrepaintFn};
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
-pub use root::Root;
+pub use root::HostRoot;
 pub use scale::{Scale, Size};
 pub use scroll::cmd::ScrollCmd;
 pub use scroll::config::{
-    Momentum, MomentumModel, NaturalScroll, RubberBand, ScrollConfig, ScrollSettings,
-    ScrollbarSettings, ScrollbarVisibility, TrackClick,
+    NaturalScroll, ScrollConfig, ScrollMomentum, ScrollMomentumModel, ScrollRubberBand,
+    ScrollSettings, ScrollTrackClick, ScrollbarSettings, ScrollbarVisibility,
 };
-pub use scroll::engine::Animate;
-pub use scroll::geom::Axis;
+pub use scroll::engine::ScrollAnimate;
+pub use scroll::geom::ScrollAxis;
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
 pub use stats::{FrameStats, Percentiles};
 pub use tick::{FrameDrive, FrameTick, HostInstant};

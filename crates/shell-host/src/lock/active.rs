@@ -11,10 +11,10 @@ use crate::live::Live;
 use crate::lock::machine::{LockInput, LockMachine, LockPhase};
 use crate::lock::{LockConfig, LockId};
 use crate::output::OutputInfo;
-use crate::root::Root;
+use crate::root::HostRoot;
 
 /// Builds one output's lock document.
-pub(crate) type LockFactory = Box<dyn Fn(OutputInfo) -> Root>;
+pub(crate) type LockFactory = Box<dyn Fn(OutputInfo) -> HostRoot>;
 
 /// A session lock from its request until it ends.
 pub(crate) struct ActiveLock {

@@ -1,6 +1,6 @@
 //! What the engine takes, gives and remembers: its inputs, outputs and one struct per phase.
 
-use crate::scroll::config::{Momentum, ScrollConfig};
+use crate::scroll::config::{ScrollConfig, ScrollMomentum};
 use crate::scroll::geom::{Dir, Latch, Px};
 use crate::scroll::latch::Latched;
 use crate::scroll::momentum::Glide;
@@ -15,7 +15,7 @@ pub struct Physics {
     pub band: Band,
     pub snap: SnapBack,
     pub release: Release,
-    pub momentum: Momentum,
+    pub momentum: ScrollMomentum,
     /// A release slower than this (px/s) does not glide.
     pub start: f64,
     /// A release is capped at this (px/s).
@@ -53,7 +53,7 @@ pub enum Kinetic {
 
 /// Whether a programmatic jump animates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Animate {
+pub enum ScrollAnimate {
     Smooth,
     Instant,
 }
@@ -81,7 +81,7 @@ pub enum ScrollIn {
     Jump {
         latch: Latch,
         to: Px,
-        animate: Animate,
+        animate: ScrollAnimate,
     },
     /// An arrow key repeats: ramp up by `step` per press.
     Hold { latch: Latch, step: Px },

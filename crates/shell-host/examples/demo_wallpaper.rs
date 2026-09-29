@@ -15,8 +15,8 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec,
 };
 
 /// How long after the first frame the content is swapped in.
@@ -91,11 +91,11 @@ fn wallpaper(content: Content) -> Element {
 fn wallpaper_config() -> LayerConfig {
     LayerConfig {
         namespace: "wallpaper".to_owned(),
-        layer: Layer::Background,
+        layer: LayerLevel::Background,
         anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Fill,
-            height: Extent::Fill,
+            width: LayerExtent::Fill,
+            height: LayerExtent::Fill,
         },
         exclusive: ExclusiveZone::Ignore,
         margin: Margin::ZERO,
@@ -169,7 +169,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 eprintln!("debug-inject: {error}");
                 ctx.exit();
             }
-            let root = Root::with_props(wallpaper, content.clone());
+            let root = HostRoot::with_props(wallpaper, content.clone());
             if let Err(error) = ctx.spawn_layer(wallpaper_config(), root) {
                 eprintln!("wallpaper: {error}");
                 ctx.exit();

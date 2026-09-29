@@ -3,8 +3,8 @@
 //! through Blitz's own `scroll_to` (whose 300 ms animation would fight the engine).
 
 use crate::region::ElementId;
-use crate::scroll::engine::Animate;
-use crate::scroll::geom::Axis;
+use crate::scroll::engine::ScrollAnimate;
+use crate::scroll::geom::ScrollAxis;
 
 /// The margin `IntoView` keeps between the element and the scroller's edge, px.
 pub const INTO_VIEW_MARGIN: f64 = 8.0;
@@ -15,22 +15,22 @@ pub enum ScrollCmd {
     /// Scroll `element` on `axis` to `offset`.
     To {
         element: ElementId,
-        axis: Axis,
+        axis: ScrollAxis,
         offset: f64,
-        animate: Animate,
+        animate: ScrollAnimate,
     },
     /// Scroll `element` on `axis` by `delta`.
     By {
         element: ElementId,
-        axis: Axis,
+        axis: ScrollAxis,
         delta: f64,
-        animate: Animate,
+        animate: ScrollAnimate,
     },
     /// Scroll the nearest vertical scroll container of `element` until it is in view, with
     /// [`INTO_VIEW_MARGIN`] to spare.
     IntoView {
         element: ElementId,
-        animate: Animate,
+        animate: ScrollAnimate,
     },
 }
 

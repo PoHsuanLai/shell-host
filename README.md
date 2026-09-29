@@ -91,7 +91,7 @@ in a runtime directory of its own); never run it against your session.
 
 ## Consuming: the session lock
 
-`HostCtx::lock_session(LockConfig, |output: OutputInfo| -> Root)` returns a `LockId` (or
+`HostCtx::lock_session(LockConfig, |output: OutputInfo| -> HostRoot)` returns a `LockId` (or
 `LockError::Unsupported` without `ext-session-lock-v1`, `InProgress` while a lock lasts) and
 makes a lock surface per output, now and for outputs added while locked; `HostEvent::Lock { id,
 state }` reports `Locked`, `Unlocked` or `Finished` (refused, or ended by the compositor). In a

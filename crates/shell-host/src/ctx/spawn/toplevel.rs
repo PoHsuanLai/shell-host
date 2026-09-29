@@ -6,7 +6,7 @@ use crate::id::SurfaceId;
 use crate::id::SurfaceName;
 use crate::region::RegionSpec;
 use crate::role::Role;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::Scale;
 use crate::state::HostState;
 use crate::toplevel::{ToplevelConfig, ToplevelState, to_wire_decorations};
@@ -17,7 +17,12 @@ use super::{Initial, insert, new_wl_surface};
 
 /// Create and map toplevel `id`. A client-decorated window starts floating, so its surface
 /// starts with the resize band around `config.size`.
-pub(crate) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelConfig, root: Root) {
+pub(crate) fn toplevel(
+    state: &mut HostState,
+    id: SurfaceId,
+    config: ToplevelConfig,
+    root: HostRoot,
+) {
     let name = SurfaceName(config.app_id.clone());
     let inset = inset_for(config.decorations, ToplevelState::default());
     let at = Initial {

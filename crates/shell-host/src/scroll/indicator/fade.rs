@@ -170,7 +170,7 @@ impl Indicator {
 mod tests {
     use super::super::geometry::tests::metrics;
     use super::*;
-    use crate::scroll::geom::{Axis, Scroller};
+    use crate::scroll::geom::{ScrollAxis, Scroller};
     use std::time::Duration;
 
     fn at(ms: u64) -> HostInstant {
@@ -179,7 +179,7 @@ mod tests {
 
     const LATCH: Latch = Latch {
         scroller: Scroller::Viewport,
-        axis: Axis::Y,
+        axis: ScrollAxis::Y,
     };
 
     #[test]

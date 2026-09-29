@@ -2,7 +2,7 @@
 //! the rebound, the smooth step, the held arrow and its spring (design/11 §11.5). Called from
 //! `scroll::engine::step`; pure.
 
-use crate::scroll::config::Momentum;
+use crate::scroll::config::ScrollMomentum;
 use crate::scroll::engine::{
     Engine, Flight, Held, Kinetic, NotifyPhase, Physics, Rebound, ScrollOut, Smooth, Spring, Track,
     notify, set,
@@ -85,7 +85,7 @@ pub(crate) fn release_track(
     physics: &Physics,
 ) -> (Engine, Vec<ScrollOut>) {
     let released = match (at, track.kinetic, physics.momentum) {
-        (Some(at), Kinetic::Momentum, Momentum::On) => {
+        (Some(at), Kinetic::Momentum, ScrollMomentum::On) => {
             track.samples.velocity(at, physics.release) + track.boost
         }
         _ => 0.0,

@@ -22,8 +22,8 @@ mod screen;
 use std::io::{BufRead, Write};
 
 use shell_host::{
-    Focus, Host, HostConfig, HostCtx, HostEvent, LockConfig, LockId, LockState, OutputInfo, Root,
-    SurfaceId,
+    Host, HostConfig, HostCtx, HostEvent, HostRoot, KeyboardFocus, LockConfig, LockId, LockState,
+    OutputInfo, SurfaceId,
 };
 
 use guard::Permit;
@@ -152,8 +152,8 @@ fn on_event(ctx: &mut HostCtx<Command>, demo: &mut Demo, event: HostEvent<Comman
         }
         HostEvent::KeyboardFocus { id, focus } => {
             demo.focus = match focus {
-                Focus::Gained => Some(id),
-                Focus::Lost => demo.focus.filter(|held| *held != id),
+                KeyboardFocus::Gained => Some(id),
+                KeyboardFocus::Lost => demo.focus.filter(|held| *held != id),
             };
             say(&format!("focus {} {focus:?}", id.0));
         }
@@ -167,7 +167,7 @@ fn lock(ctx: &mut HostCtx<Command>, demo: &mut Demo) {
         return;
     }
     let factory = |info: OutputInfo| {
-        Root::with_props(
+        HostRoot::with_props(
             lock_screen,
             Screen {
                 output: output_name(&info),

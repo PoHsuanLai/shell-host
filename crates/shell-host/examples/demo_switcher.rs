@@ -20,9 +20,9 @@ use std::io::{BufRead, Write};
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root, SurfaceId, Visibility,
-    use_modifiers,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec, SurfaceId,
+    Visibility, use_modifiers,
 };
 
 const CSS: &str =
@@ -59,11 +59,11 @@ fn panel() -> Element {
 fn config() -> LayerConfig {
     LayerConfig {
         namespace: "switcher".to_string(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::NONE,
         size: LayerSize {
-            width: Extent::Px(160),
-            height: Extent::Px(100),
+            width: LayerExtent::Px(160),
+            height: LayerExtent::Px(100),
         },
         exclusive: ExclusiveZone::Ignore,
         margin: Margin::ZERO,
@@ -118,7 +118,7 @@ fn run() -> Result<(), String> {
     host.run(move |ctx, event| match event {
         HostEvent::App(Command::Map) => match surface {
             Some(id) => ctx.set_visibility(id, Visibility::Shown),
-            None => match ctx.spawn_layer(config(), Root::new(panel)) {
+            None => match ctx.spawn_layer(config(), HostRoot::new(panel)) {
                 Ok(id) => surface = Some(id),
                 Err(error) => eprintln!("demo_switcher: {error}"),
             },

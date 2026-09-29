@@ -9,7 +9,7 @@ use crate::layer::{
     to_wire_size,
 };
 use crate::role::Role;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::Scale;
 use crate::state::HostState;
 
@@ -22,7 +22,7 @@ pub(crate) fn layer(
     state: &mut HostState,
     id: SurfaceId,
     config: LayerConfig,
-    root: Root,
+    root: HostRoot,
 ) -> Result<()> {
     let name = SurfaceName(config.namespace.clone());
     let requested = requested_size(&config);

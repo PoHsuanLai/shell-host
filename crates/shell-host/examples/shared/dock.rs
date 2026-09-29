@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Extent, FrameDrive, FrameTick,
-    HostCtx, KeyboardMode, Layer, LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
-    use_frame_tick, use_surface,
+    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, FrameDrive, FrameTick, HostCtx,
+    HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
+    RegionSpec, use_frame_tick, use_surface,
 };
 
 /// Tiles, gaps and the room the magnified end tiles need.
@@ -115,15 +115,15 @@ fn dock_region(cards: Cards) -> RegionSpec {
 
 /// The dock's layer surface: bottom-centred, never focused, input and blur on `cards`'
 /// elements, tall enough to hold them.
-pub fn dock_config(layer: Layer, cards: Cards) -> LayerConfig {
+pub fn dock_config(layer: LayerLevel, cards: Cards) -> LayerConfig {
     let region = dock_region(cards);
     LayerConfig {
         namespace: "dock".to_owned(),
         layer,
         anchor: Anchor::BOTTOM,
         size: LayerSize {
-            width: Extent::Px(DOCK_WIDTH),
-            height: Extent::Px(dock_height(cards)),
+            width: LayerExtent::Px(DOCK_WIDTH),
+            height: LayerExtent::Px(dock_height(cards)),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin::ZERO,
@@ -292,7 +292,7 @@ fn hold(mut drive: Signal<Option<FrameDrive>>, surface: &shell_host::SurfaceHand
 
 /// `--mode=transform|width|tick`, `--cards=one|two` and `--layer=top|overlay|bottom` from
 /// `args`.
-pub fn dock_options(args: &[String]) -> Result<(DockProps, Layer), String> {
+pub fn dock_options(args: &[String]) -> Result<(DockProps, LayerLevel), String> {
     let magnify = match value(args, "--mode").as_deref() {
         None | Some("transform") => Magnify::Transform,
         Some("width") => Magnify::Width,
@@ -308,11 +308,11 @@ pub fn dock_options(args: &[String]) -> Result<(DockProps, Layer), String> {
 }
 
 /// `--layer=top|overlay|bottom`, top by default.
-pub fn layer_option(args: &[String]) -> Result<Layer, String> {
+pub fn layer_option(args: &[String]) -> Result<LayerLevel, String> {
     match value(args, "--layer").as_deref() {
-        None | Some("top") => Ok(Layer::Top),
-        Some("overlay") => Ok(Layer::Overlay),
-        Some("bottom") => Ok(Layer::Bottom),
+        None | Some("top") => Ok(LayerLevel::Top),
+        Some("overlay") => Ok(LayerLevel::Overlay),
+        Some("bottom") => Ok(LayerLevel::Bottom),
         Some(other) => Err(format!("unknown --layer={other}")),
     }
 }
@@ -325,9 +325,9 @@ pub fn value(args: &[String], name: &str) -> Option<String> {
 }
 
 /// Spawn the dock; a failure ends the demo.
-pub fn spawn_dock<M: 'static>(ctx: &mut HostCtx<M>, props: DockProps, layer: Layer) {
+pub fn spawn_dock<M: 'static>(ctx: &mut HostCtx<M>, props: DockProps, layer: LayerLevel) {
     let config = dock_config(layer, props.cards);
-    if let Err(error) = ctx.spawn_layer(config, Root::with_props(dock, props)) {
+    if let Err(error) = ctx.spawn_layer(config, HostRoot::with_props(dock, props)) {
         eprintln!("dock: {error}");
         ctx.exit();
     }

@@ -29,7 +29,7 @@ use crate::modifiers::Modifiers;
 use crate::msg::Visibility;
 use crate::region::RegionSpec;
 use crate::role::Role;
-use crate::root::Root;
+use crate::root::HostRoot;
 use crate::scale::{Scale, Size};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::watch::ScrollBoard;
@@ -74,7 +74,7 @@ pub(super) fn insert(
         scale,
     }: Initial,
     (blur, input): (BlurSpec, RegionSpec),
-    root: Root,
+    root: HostRoot,
 ) {
     let shell = Arc::new(HostShellProvider::new(
         id,

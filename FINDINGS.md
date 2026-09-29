@@ -268,7 +268,7 @@ between menus in design/13 §13.7).
 
 ### F30. `PopupConfig::offset`
 
-`offset: Offset { dx, dy }` (logical px) translates the anchor rectangle
+`offset: PopupOffset { dx, dy }` (logical px) translates the anchor rectangle
 (`popup::offset_rect`), so the offset follows `PopupAnchor::Element`, `Reposition` and flips with
 no new wire code. A rectangle moved past the parent's origin is sent as is (xdg-shell has no
 bounds error for the anchor rect).
@@ -335,9 +335,9 @@ handled: 3-D transforms (Blitz paints those untransformed too), an ancestor's `o
 `bitflags` is not in the pinned block; `layer::Anchor` is a four-bit newtype with
 `TOP`/`BOTTOM`/`LEFT`/`RIGHT`/`ALL`/`NONE`, `|`, `union` and `contains`.
 
-### F13. `LayerSize` is two `Extent`s
+### F13. `LayerSize` is two `LayerExtent`s
 
-The wire's "0 means stretch" is `Extent::Fill` and a fixed size `Extent::Px(u32)`, so a zero size
+The wire's "0 means stretch" is `LayerExtent::Fill` and a fixed size `LayerExtent::Px(u32)`, so a zero size
 cannot be written by accident on an axis that is not meant to stretch.
 
 ### F11. Derives: serde only where a type is data all the way down
@@ -345,7 +345,7 @@ cannot be written by accident on an axis that is not meant to stretch.
 Nothing in shell-host is persisted, and the geometry types (`RegionSpec`, `PopupConfig`, `Scale`,
 `Size`, `Rect`) have no serde, so no type embedding them derives it. Serde is on `HostConfig` (a
 shell may read it from a file), the ids, and `FrameStats` with its parts (printed as JSON by
-`debug-inject`). Types holding Wayland objects, wgpu objects or a `Root` derive `Debug` only (by
+`debug-inject`). Types holding Wayland objects, wgpu objects or a `HostRoot` derive `Debug` only (by
 hand where a field has no `Debug`).
 
 ### F34. Open: minimize rectangles need the host's connection

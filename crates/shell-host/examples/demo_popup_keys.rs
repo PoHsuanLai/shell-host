@@ -13,11 +13,13 @@ use std::io::{BufRead, Write};
 
 use dioxus::prelude::*;
 use serde_json::json;
-use shell_host::popup::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize};
+use shell_host::popup::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
+};
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, PopupPlacement, Rect, RegionSpec, Root, Size,
-    use_input_modality, use_surface,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect,
+    RegionSpec, Size, use_input_modality, use_surface,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -43,11 +45,11 @@ fn print(value: serde_json::Value) {
 fn bar_config() -> LayerConfig {
     LayerConfig {
         namespace: "popup-keys-bar".to_owned(),
-        layer: Layer::Top,
+        layer: LayerLevel::Top,
         anchor: Anchor::TOP | Anchor::LEFT | Anchor::RIGHT,
         size: LayerSize {
-            width: Extent::Fill,
-            height: Extent::Px(32),
+            width: LayerExtent::Fill,
+            height: LayerExtent::Px(32),
         },
         exclusive: ExclusiveZone::Reserve(32),
         margin: Margin::ZERO,
@@ -62,11 +64,11 @@ fn popup_config() -> PopupConfig {
     PopupConfig {
         anchor: PopupAnchor::Rect,
         size: PopupSize::Fixed,
-        edge: Edge::BottomLeft,
-        gravity: Edge::BottomRight,
-        adjust: Adjust::SLIDE_AND_FLIP,
-        grab: Grab::Grabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::BottomLeft,
+        gravity: PopupEdge::BottomRight,
+        adjust: PopupAdjust::SLIDE_AND_FLIP,
+        grab: PopupGrab::Grabbed,
+        offset: PopupOffset::ZERO,
     }
 }
 
@@ -85,7 +87,7 @@ fn bar() -> Element {
                             height: 120,
                         },
                     };
-                    surface.open_popup(popup_config(), placement, Root::new(panel));
+                    surface.open_popup(popup_config(), placement, HostRoot::new(panel));
                     print(json!({"event": "opened"}));
                 },
             }
@@ -136,7 +138,7 @@ fn run() -> Result<(), String> {
     });
     host.run(move |ctx, event| match event {
         HostEvent::Started => {
-            if let Err(error) = ctx.spawn_layer(bar_config(), Root::new(bar)) {
+            if let Err(error) = ctx.spawn_layer(bar_config(), HostRoot::new(bar)) {
                 eprintln!("demo_popup_keys: {error}");
                 ctx.exit();
             }

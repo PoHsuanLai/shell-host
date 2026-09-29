@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use crate::scroll::geom::Axis;
+use crate::scroll::geom::ScrollAxis;
 use crate::scroll::suppress::Fingers;
 use crate::scroll::surface::PalmScroll;
 use crate::scroll::velocity::SampleTime;
@@ -65,8 +65,8 @@ fn scroll(
         Phase::MayBegin => (Fingers::Down, PalmScroll::MayBegin),
         Phase::Began => {
             let axis = match axis {
-                Some(WireAxis::X) => Axis::X,
-                Some(WireAxis::Y) | None => Axis::Y,
+                Some(WireAxis::X) => ScrollAxis::X,
+                Some(WireAxis::Y) | None => ScrollAxis::Y,
             };
             (Fingers::Down, PalmScroll::Began { axis })
         }
@@ -117,7 +117,9 @@ mod tests {
                 "began",
                 scroll_msg(Phase::Began, 0.0),
                 Some(Fingers::Down),
-                Some(PalmScroll::Began { axis: Axis::Y }),
+                Some(PalmScroll::Began {
+                    axis: ScrollAxis::Y,
+                }),
             ),
             (
                 "changed",

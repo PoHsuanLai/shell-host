@@ -5,11 +5,13 @@
 
 use shell_host::geometry::{enclosing_rect, inflate};
 use shell_host::handlers::layer::configured_size;
-use shell_host::layer::{Extent, LayerSize};
+use shell_host::layer::{LayerExtent, LayerSize};
 use shell_host::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect};
 use shell_host::resolve::{Change, Resolved, Tracked, resolve, resolve_popup_anchor};
 use shell_host::scale::Size;
-use shell_host::{Adjust, Edge, Grab, Offset, PopupAnchor, PopupConfig, PopupSize};
+use shell_host::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
+};
 
 const BUTTON: Rect = Rect {
     x: 10,
@@ -226,11 +228,11 @@ fn a_popup_anchored_to_an_element_falls_back_to_its_placement_rect_until_laid_ou
     let config = PopupConfig {
         anchor: PopupAnchor::Element(ElementId::new("dock-pill")),
         size: PopupSize::Fixed,
-        edge: Edge::Top,
-        gravity: Edge::Top,
-        adjust: Adjust::NONE,
-        grab: Grab::Ungrabbed,
-        offset: Offset::ZERO,
+        edge: PopupEdge::Top,
+        gravity: PopupEdge::Top,
+        adjust: PopupAdjust::NONE,
+        grab: PopupGrab::Ungrabbed,
+        offset: PopupOffset::ZERO,
     };
     let placement = Rect {
         x: 0,
@@ -253,12 +255,12 @@ fn a_popup_anchored_to_an_element_falls_back_to_its_placement_rect_until_laid_ou
 #[test]
 fn layer_configure_resolves_to_a_size_per_axis() {
     let dock = LayerSize {
-        width: Extent::Px(600),
-        height: Extent::Px(96),
+        width: LayerExtent::Px(600),
+        height: LayerExtent::Px(96),
     };
     let bar = LayerSize {
-        width: Extent::Fill,
-        height: Extent::Px(32),
+        width: LayerExtent::Fill,
+        height: LayerExtent::Px(32),
     };
     let cases: &[(&str, LayerSize, (u32, u32), Size)] = &[
         (

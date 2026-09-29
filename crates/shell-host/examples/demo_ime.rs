@@ -13,8 +13,8 @@ use std::sync::Mutex;
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Extent, Host, HostConfig, HostEvent, KeyboardMode, Layer,
-    LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0;background:white}\
@@ -54,11 +54,11 @@ fn app() -> Element {
 fn config() -> LayerConfig {
     LayerConfig {
         namespace: "ime-demo".to_string(),
-        layer: Layer::Overlay,
+        layer: LayerLevel::Overlay,
         anchor: Anchor::NONE,
         size: LayerSize {
-            width: Extent::Px(480),
-            height: Extent::Px(120),
+            width: LayerExtent::Px(480),
+            height: LayerExtent::Px(120),
         },
         exclusive: ExclusiveZone::Auto,
         margin: Margin::ZERO,
@@ -107,7 +107,7 @@ fn run() -> Result<(), String> {
     });
     host.run(move |ctx, event| match event {
         HostEvent::Started => {
-            if let Err(error) = ctx.spawn_layer(config(), Root::new(app)) {
+            if let Err(error) = ctx.spawn_layer(config(), HostRoot::new(app)) {
                 eprintln!("demo_ime: {error}");
                 ctx.exit();
             }

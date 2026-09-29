@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 
 use crate::blur::BlurSpec;
-use crate::root::Root;
+use crate::root::HostRoot;
 
 use super::*;
 use crate::clipboard::SharedSelection;
@@ -106,7 +106,7 @@ fn use_frame_tick_renders_each_published_tick() {
         parts(requests.clone(), ticks.clone(), LiveScale::new(Scale::ONE)),
     );
     let env = test_env(id, ping, Prepaint::None);
-    let mut document = SurfaceDocument::build(Root::new(ticking).context(handle.clone()), env);
+    let mut document = SurfaceDocument::build(HostRoot::new(ticking).context(handle.clone()), env);
     let wakes = Arc::new(Wakes::default());
     let waker = std::task::Waker::from(Arc::clone(&wakes));
     let mut cx = std::task::Context::from_waker(&waker);
@@ -154,7 +154,7 @@ fn a_spawned_root_reads_its_surface_handle() {
     );
     let env = test_env(id, ping, Prepaint::None);
 
-    let mut document = SurfaceDocument::build(Root::new(app).context(handle), env);
+    let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
 
     let mut text = String::new();
     document.dioxus().inner().visit(|_, node| {
@@ -199,7 +199,7 @@ fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
         ),
     );
     let env = test_env(id, ping, Prepaint::None);
-    let mut document = SurfaceDocument::build(Root::new(scaled).context(handle.clone()), env);
+    let mut document = SurfaceDocument::build(HostRoot::new(scaled).context(handle.clone()), env);
     assert_eq!(
         text(&mut document),
         "scale 150",
@@ -253,7 +253,7 @@ fn resolve_runs_the_prepaint_hook_once_after_layout() {
             LiveScale::new(Scale(180)),
         ),
     );
-    let mut document = SurfaceDocument::build(Root::new(app).context(handle), env);
+    let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
     let waker = std::task::Waker::noop();
     document.poll(&mut std::task::Context::from_waker(waker));
     let calls = || seen.lock().expect("unpoisoned").clone();
@@ -282,7 +282,7 @@ fn without_a_hook_resolve_reports_none_ran() {
         ),
     );
     let env = test_env(id, ping, Prepaint::None);
-    let mut document = SurfaceDocument::build(Root::new(app).context(handle), env);
+    let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
     assert_eq!(document.resolve(0.0).prepainted, Prepainted::NoHook);
 }
 
@@ -311,7 +311,8 @@ fn use_toplevel_state_follows_each_configure() {
         },
     );
     let env = test_env(id, ping, Prepaint::None);
-    let mut document = SurfaceDocument::build(Root::new(zoom_state).context(handle.clone()), env);
+    let mut document =
+        SurfaceDocument::build(HostRoot::new(zoom_state).context(handle.clone()), env);
     assert_eq!(text(&mut document), "Unset");
     let wakes = Arc::new(Wakes::default());
     let waker = std::task::Waker::from(Arc::clone(&wakes));
@@ -359,7 +360,7 @@ fn use_input_modality_is_the_seats_across_surfaces() {
                 },
             );
             let env = test_env(id, ping.clone(), Prepaint::None);
-            SurfaceDocument::build(Root::new(modality_text).context(handle), env)
+            SurfaceDocument::build(HostRoot::new(modality_text).context(handle), env)
         })
         .collect();
     let wakes = Arc::new(Wakes::default());

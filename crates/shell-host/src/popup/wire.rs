@@ -4,57 +4,57 @@ use wayland_protocols::xdg::shell::client::xdg_positioner::{
     Anchor, ConstraintAdjustment, Gravity as WireGravity,
 };
 
-use super::config::{Adjust, Edge, Gravity, Toggle};
+use super::config::{PopupAdjust, PopupEdge, PopupToggle};
 
 /// The `xdg_positioner` wire value for an anchor edge or gravity direction.
-pub fn to_wire_anchor(edge: Edge) -> Anchor {
+pub fn to_wire_anchor(edge: PopupEdge) -> Anchor {
     match edge {
-        Edge::None => Anchor::None,
-        Edge::Top => Anchor::Top,
-        Edge::Bottom => Anchor::Bottom,
-        Edge::Left => Anchor::Left,
-        Edge::Right => Anchor::Right,
-        Edge::TopLeft => Anchor::TopLeft,
-        Edge::BottomLeft => Anchor::BottomLeft,
-        Edge::TopRight => Anchor::TopRight,
-        Edge::BottomRight => Anchor::BottomRight,
+        PopupEdge::None => Anchor::None,
+        PopupEdge::Top => Anchor::Top,
+        PopupEdge::Bottom => Anchor::Bottom,
+        PopupEdge::Left => Anchor::Left,
+        PopupEdge::Right => Anchor::Right,
+        PopupEdge::TopLeft => Anchor::TopLeft,
+        PopupEdge::BottomLeft => Anchor::BottomLeft,
+        PopupEdge::TopRight => Anchor::TopRight,
+        PopupEdge::BottomRight => Anchor::BottomRight,
     }
 }
 
 /// The `xdg_positioner` wire value for a gravity direction.
-pub fn to_wire_gravity(gravity: Gravity) -> WireGravity {
+pub fn to_wire_gravity(gravity: PopupEdge) -> WireGravity {
     match gravity {
-        Edge::None => WireGravity::None,
-        Edge::Top => WireGravity::Top,
-        Edge::Bottom => WireGravity::Bottom,
-        Edge::Left => WireGravity::Left,
-        Edge::Right => WireGravity::Right,
-        Edge::TopLeft => WireGravity::TopLeft,
-        Edge::BottomLeft => WireGravity::BottomLeft,
-        Edge::TopRight => WireGravity::TopRight,
-        Edge::BottomRight => WireGravity::BottomRight,
+        PopupEdge::None => WireGravity::None,
+        PopupEdge::Top => WireGravity::Top,
+        PopupEdge::Bottom => WireGravity::Bottom,
+        PopupEdge::Left => WireGravity::Left,
+        PopupEdge::Right => WireGravity::Right,
+        PopupEdge::TopLeft => WireGravity::TopLeft,
+        PopupEdge::BottomLeft => WireGravity::BottomLeft,
+        PopupEdge::TopRight => WireGravity::TopRight,
+        PopupEdge::BottomRight => WireGravity::BottomRight,
     }
 }
 
 /// The `xdg_positioner` constraint-adjustment bitfield for `adjust`.
-pub fn to_wire_constraint_adjustment(adjust: Adjust) -> ConstraintAdjustment {
+pub fn to_wire_constraint_adjustment(adjust: PopupAdjust) -> ConstraintAdjustment {
     let mut wire = ConstraintAdjustment::empty();
-    if adjust.slide_x == Toggle::On {
+    if adjust.slide_x == PopupToggle::On {
         wire |= ConstraintAdjustment::SlideX;
     }
-    if adjust.slide_y == Toggle::On {
+    if adjust.slide_y == PopupToggle::On {
         wire |= ConstraintAdjustment::SlideY;
     }
-    if adjust.flip_x == Toggle::On {
+    if adjust.flip_x == PopupToggle::On {
         wire |= ConstraintAdjustment::FlipX;
     }
-    if adjust.flip_y == Toggle::On {
+    if adjust.flip_y == PopupToggle::On {
         wire |= ConstraintAdjustment::FlipY;
     }
-    if adjust.resize_x == Toggle::On {
+    if adjust.resize_x == PopupToggle::On {
         wire |= ConstraintAdjustment::ResizeX;
     }
-    if adjust.resize_y == Toggle::On {
+    if adjust.resize_y == PopupToggle::On {
         wire |= ConstraintAdjustment::ResizeY;
     }
     wire
@@ -65,18 +65,18 @@ mod tests {
     use super::*;
 
     // Table-tested flip/slide/resize combinations, at the wire level: this is the part of
-    // `positioner_params` most likely to have a transcription bug (an `Adjust` flag mapped to
+    // `positioner_params` most likely to have a transcription bug (an `PopupAdjust` flag mapped to
     // the wrong `ConstraintAdjustment` bit).
-    const EDGE_CASES: &[(Edge, Anchor)] = &[
-        (Edge::None, Anchor::None),
-        (Edge::Top, Anchor::Top),
-        (Edge::Bottom, Anchor::Bottom),
-        (Edge::Left, Anchor::Left),
-        (Edge::Right, Anchor::Right),
-        (Edge::TopLeft, Anchor::TopLeft),
-        (Edge::BottomLeft, Anchor::BottomLeft),
-        (Edge::TopRight, Anchor::TopRight),
-        (Edge::BottomRight, Anchor::BottomRight),
+    const EDGE_CASES: &[(PopupEdge, Anchor)] = &[
+        (PopupEdge::None, Anchor::None),
+        (PopupEdge::Top, Anchor::Top),
+        (PopupEdge::Bottom, Anchor::Bottom),
+        (PopupEdge::Left, Anchor::Left),
+        (PopupEdge::Right, Anchor::Right),
+        (PopupEdge::TopLeft, Anchor::TopLeft),
+        (PopupEdge::BottomLeft, Anchor::BottomLeft),
+        (PopupEdge::TopRight, Anchor::TopRight),
+        (PopupEdge::BottomRight, Anchor::BottomRight),
     ];
 
     #[test]
@@ -88,52 +88,52 @@ mod tests {
 
     #[test]
     fn every_gravity_maps_to_its_wire_gravity() {
-        let table: &[(Gravity, WireGravity)] = &[
-            (Edge::None, WireGravity::None),
-            (Edge::Top, WireGravity::Top),
-            (Edge::Bottom, WireGravity::Bottom),
-            (Edge::Left, WireGravity::Left),
-            (Edge::Right, WireGravity::Right),
-            (Edge::TopLeft, WireGravity::TopLeft),
-            (Edge::BottomLeft, WireGravity::BottomLeft),
-            (Edge::TopRight, WireGravity::TopRight),
-            (Edge::BottomRight, WireGravity::BottomRight),
+        let table: &[(PopupEdge, WireGravity)] = &[
+            (PopupEdge::None, WireGravity::None),
+            (PopupEdge::Top, WireGravity::Top),
+            (PopupEdge::Bottom, WireGravity::Bottom),
+            (PopupEdge::Left, WireGravity::Left),
+            (PopupEdge::Right, WireGravity::Right),
+            (PopupEdge::TopLeft, WireGravity::TopLeft),
+            (PopupEdge::BottomLeft, WireGravity::BottomLeft),
+            (PopupEdge::TopRight, WireGravity::TopRight),
+            (PopupEdge::BottomRight, WireGravity::BottomRight),
         ];
         for &(gravity, expected) in table {
             assert_eq!(to_wire_gravity(gravity), expected, "{gravity:?}");
         }
     }
 
-    const ADJUST_CASES: &[(&str, Adjust, ConstraintAdjustment)] = &[
-        ("none", Adjust::NONE, ConstraintAdjustment::empty()),
+    const ADJUST_CASES: &[(&str, PopupAdjust, ConstraintAdjustment)] = &[
+        ("none", PopupAdjust::NONE, ConstraintAdjustment::empty()),
         (
             "slide both axes",
-            Adjust {
-                slide_x: Toggle::On,
-                slide_y: Toggle::On,
-                ..Adjust::NONE
+            PopupAdjust {
+                slide_x: PopupToggle::On,
+                slide_y: PopupToggle::On,
+                ..PopupAdjust::NONE
             },
             ConstraintAdjustment::SlideX.union(ConstraintAdjustment::SlideY),
         ),
         (
             "flip both axes",
-            Adjust {
-                flip_x: Toggle::On,
-                flip_y: Toggle::On,
-                ..Adjust::NONE
+            PopupAdjust {
+                flip_x: PopupToggle::On,
+                flip_y: PopupToggle::On,
+                ..PopupAdjust::NONE
             },
             ConstraintAdjustment::FlipX.union(ConstraintAdjustment::FlipY),
         ),
         (
             "resize both axes",
-            Adjust {
-                resize_x: Toggle::On,
-                resize_y: Toggle::On,
-                ..Adjust::NONE
+            PopupAdjust {
+                resize_x: PopupToggle::On,
+                resize_y: PopupToggle::On,
+                ..PopupAdjust::NONE
             },
             ConstraintAdjustment::ResizeX.union(ConstraintAdjustment::ResizeY),
         ),
-        ("slide and flip", Adjust::SLIDE_AND_FLIP, {
+        ("slide and flip", PopupAdjust::SLIDE_AND_FLIP, {
             ConstraintAdjustment::SlideX
                 .union(ConstraintAdjustment::SlideY)
                 .union(ConstraintAdjustment::FlipX)
@@ -141,13 +141,13 @@ mod tests {
         }),
         (
             "every flag",
-            Adjust {
-                slide_x: Toggle::On,
-                slide_y: Toggle::On,
-                flip_x: Toggle::On,
-                flip_y: Toggle::On,
-                resize_x: Toggle::On,
-                resize_y: Toggle::On,
+            PopupAdjust {
+                slide_x: PopupToggle::On,
+                slide_y: PopupToggle::On,
+                flip_x: PopupToggle::On,
+                flip_y: PopupToggle::On,
+                resize_x: PopupToggle::On,
+                resize_y: PopupToggle::On,
             },
             ConstraintAdjustment::all(),
         ),

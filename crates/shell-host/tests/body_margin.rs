@@ -20,7 +20,7 @@ use shell_host::dom::document::{DocumentEnv, SurfaceDocument};
 use shell_host::dom::shell_provider::HostShellProvider;
 use shell_host::id::SurfaceId;
 use shell_host::region::{ElementId, Rect};
-use shell_host::root::Root;
+use shell_host::root::HostRoot;
 
 const WIDTH: u32 = 120;
 const HEIGHT: u32 = 80;
@@ -60,7 +60,7 @@ fn resolved(app: fn() -> Element) -> SurfaceDocument {
         viewport: Viewport::new(WIDTH, HEIGHT, 1.0, ColorScheme::Light),
         prepaint: shell_host::Prepaint::None,
     };
-    let mut doc = SurfaceDocument::build(Root::new(app), env);
+    let mut doc = SurfaceDocument::build(HostRoot::new(app), env);
     doc.poll(&mut Context::from_waker(std::task::Waker::noop()));
     doc.resolve(0.0);
     doc

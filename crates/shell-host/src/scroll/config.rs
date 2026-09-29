@@ -73,7 +73,7 @@ pub enum NaturalScroll {
 /// `scroll.momentum`: whether a flick glides on after the fingers lift.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Momentum {
+pub enum ScrollMomentum {
     #[default]
     On,
     Off,
@@ -82,7 +82,7 @@ pub enum Momentum {
 /// `scroll.momentum_model`: the deceleration curve of a glide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum MomentumModel {
+pub enum ScrollMomentumModel {
     /// `v' = -a v^b` (design/11 §11.5.1).
     #[default]
     MacMouseFix,
@@ -93,7 +93,7 @@ pub enum MomentumModel {
 /// `scroll.rubber_band`: how far content stretches past an edge under the fingers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RubberBand {
+pub enum ScrollRubberBand {
     /// `s = (1 - 1/(O c/d + 1)) d`.
     #[default]
     Bounded,
@@ -116,7 +116,7 @@ pub enum ScrollbarVisibility {
 /// `scrollbar.track_click_mode`: what a press on the track (not the thumb) does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TrackClick {
+pub enum ScrollTrackClick {
     #[default]
     PageTowardClick,
     JumpToClick,
@@ -127,8 +127,8 @@ pub enum TrackClick {
 #[serde(default)]
 pub struct ScrollSettings {
     pub natural: NaturalScroll,
-    pub momentum: Momentum,
-    pub momentum_model: MomentumModel,
+    pub momentum: ScrollMomentum,
+    pub momentum_model: ScrollMomentumModel,
     pub momentum_a: Scalar,
     pub momentum_b: Scalar,
     pub momentum_stop_px_s: Scalar,
@@ -136,7 +136,7 @@ pub struct ScrollSettings {
     pub momentum_cap_px_s: Scalar,
     pub velocity_window_ms: Ms,
     pub velocity_held_still_ms: Ms,
-    pub rubber_band: RubberBand,
+    pub rubber_band: ScrollRubberBand,
     pub rubber_band_c: Fraction,
     pub rubber_band_linear_divisor: Scalar,
     pub rubber_band_edge_min_px: Px,
@@ -153,8 +153,8 @@ impl Default for ScrollSettings {
     fn default() -> ScrollSettings {
         ScrollSettings {
             natural: NaturalScroll::Natural,
-            momentum: Momentum::On,
-            momentum_model: MomentumModel::MacMouseFix,
+            momentum: ScrollMomentum::On,
+            momentum_model: ScrollMomentumModel::MacMouseFix,
             momentum_a: Scalar(30.0),
             momentum_b: Scalar(0.7),
             momentum_stop_px_s: Scalar(1.0),
@@ -162,7 +162,7 @@ impl Default for ScrollSettings {
             momentum_cap_px_s: Scalar(12_000.0),
             velocity_window_ms: Ms(80),
             velocity_held_still_ms: Ms(50),
-            rubber_band: RubberBand::Bounded,
+            rubber_band: ScrollRubberBand::Bounded,
             rubber_band_c: Fraction(550),
             rubber_band_linear_divisor: Scalar(20.0),
             rubber_band_edge_min_px: Px(10),
@@ -192,7 +192,7 @@ pub struct ScrollbarSettings {
     pub expand_duration_ms: Ms,
     pub legacy_track_width_px: Px,
     pub other_axis_offset_px: Px,
-    pub track_click_mode: TrackClick,
+    pub track_click_mode: ScrollTrackClick,
 }
 
 impl Default for ScrollbarSettings {
@@ -209,7 +209,7 @@ impl Default for ScrollbarSettings {
             expand_duration_ms: Ms(240),
             legacy_track_width_px: Px(15),
             other_axis_offset_px: Px(12),
-            track_click_mode: TrackClick::PageTowardClick,
+            track_click_mode: ScrollTrackClick::PageTowardClick,
         }
     }
 }
@@ -275,7 +275,7 @@ mod tests {
             assert!((got - want).abs() < 1e-6, "{name}: {got} != {want}");
         }
         assert_eq!(s.natural, NaturalScroll::Natural);
-        assert_eq!(s.rubber_band, RubberBand::Bounded);
+        assert_eq!(s.rubber_band, ScrollRubberBand::Bounded);
         assert_eq!(s.scrollbars, ScrollbarVisibility::WhenScrolling);
     }
 
@@ -285,7 +285,7 @@ mod tests {
         let config: ScrollConfig = serde_json::from_str(json).expect("parses");
         assert_eq!(config.scroll.natural, NaturalScroll::Traditional);
         assert_eq!(config.scroll.wheel_detent_px, Px(53));
-        assert_eq!(config.scroll.momentum, Momentum::On);
+        assert_eq!(config.scroll.momentum, ScrollMomentum::On);
         assert_eq!(config.scrollbar, ScrollbarSettings::default());
     }
 }
