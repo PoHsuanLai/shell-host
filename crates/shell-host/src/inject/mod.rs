@@ -4,9 +4,13 @@
 //! Frame statistics are not an injection: [`HostCtx::stats`] and [`HostCtx::take_stats`] are
 //! the one source of them, with or without this feature.
 
+mod command;
 mod deliver;
+mod key;
+mod key_spec;
 mod request;
 pub mod stdin;
 
+pub use command::{CommandError, DebugAction, DebugCommand, parse_command};
 pub use deliver::write_capture;
-pub use request::{Inject, Injected};
+pub use request::{Inject, Injected, KeyAction, KeyStroke, PointerButton};

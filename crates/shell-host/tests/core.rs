@@ -1,19 +1,16 @@
 //! The host core's pure parts, without a compositor: the flush order (as a recorded sequence
 //! against a fake), op queueing (ops land after the poll that queued them and before the
-//! paint), visibility transitions, the stats maths, and the debug command language.
+//! paint), visibility transitions and the stats maths.
 
 use std::time::{Duration, Instant};
 
 use calloop::ping::make_ping;
 use shell_host::ctx::flush::{self, Flush, ORDER, Phase};
-use shell_host::debug::{
-    CommandError, DebugAction, DebugCommand, FrameCounters, Percentiles, PointerButton,
-    StatsWindow, SurfaceName, parse_command, percentiles,
-};
 use shell_host::handle::RequestQueue;
 use shell_host::msg::{Request, SurfaceOp, Visibility};
+use shell_host::stats::{FrameCounters, Percentiles, StatsWindow, percentiles};
 use shell_host::surface::{VisibilityChange, visibility_change};
-use shell_host::{BlurSpec, ExclusiveZone, HostError, Point, RegionSpec, SurfaceId};
+use shell_host::{BlurSpec, ExclusiveZone, HostError, RegionSpec, SurfaceId};
 
 /// What the fake saw, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,50 +252,4 @@ fn a_stats_window_keeps_work_and_interval_apart_and_drains_only_samples() {
         },
         "counters are cumulative"
     );
-}
-
-#[test]
-fn debug_commands_address_surfaces_by_name() {
-    let on = |surface: &str, action| DebugCommand::On {
-        surface: SurfaceName(surface.to_owned()),
-        action,
-    };
-    let cases: Vec<(&str, Result<DebugCommand, CommandError>)> = vec![
-        ("stats", Ok(DebugCommand::StatsAll)),
-        ("quit\n", Ok(DebugCommand::Quit)),
-        (
-            "bar hover 40 16",
-            Ok(on("bar", DebugAction::Hover(Point { x: 40, y: 16 }))),
-        ),
-        (
-            "dock click 60 64",
-            Ok(on(
-                "dock",
-                DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Primary),
-            )),
-        ),
-        ("dock leave", Ok(on("dock", DebugAction::Leave))),
-        ("bar/popup stats", Ok(on("bar/popup", DebugAction::Stats))),
-        (
-            "bar capture /tmp/f.png",
-            Ok(on("bar", DebugAction::Capture("/tmp/f.png".into()))),
-        ),
-        ("   ", Err(CommandError::Empty)),
-        ("leave", Err(CommandError::Unknown("leave".into()))),
-        (
-            "dock hover 40",
-            Err(CommandError::Missing {
-                verb: "hover",
-                needs: "X and Y",
-            }),
-        ),
-        (
-            "dock hover x 1",
-            Err(CommandError::NotACoordinate("x".into())),
-        ),
-        ("dock wiggle", Err(CommandError::Unknown("wiggle".into()))),
-    ];
-    for (line, want) in cases {
-        assert_eq!(parse_command(line), want, "{line:?}");
-    }
 }

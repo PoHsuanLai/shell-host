@@ -1,4 +1,4 @@
-//! The demos' stdin protocol: each line is a `debug::DebugCommand`, mapped onto
+//! The demos' stdin protocol: each line is a [`DebugCommand`], mapped onto
 //! [`HostCtx::inject`], [`HostCtx::take_stats`] and [`HostCtx::exit`], and the result printed
 //! as one JSON object per line on stdout. This is the only place the feature prints.
 //!
@@ -15,10 +15,9 @@ use calloop::generic::Generic;
 use calloop::{Interest, Mode, PostAction};
 use serde_json::json;
 
-use super::{Inject, Injected};
+use super::{DebugAction, DebugCommand, Inject, Injected, parse_command};
 use crate::blur_health::BlurHealth;
 use crate::ctx::HostCtx;
-use crate::debug::{DebugAction, DebugCommand, parse_command};
 use crate::dom::shell_provider::ImeRequest;
 use crate::error::{HostError, Result};
 use crate::handlers::background_effect::Support;
@@ -90,6 +89,7 @@ fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugActi
         DebugAction::Release(at, button) => Inject::PointerUp { at, button },
         DebugAction::Click(at, button) => Inject::Click { at, button },
         DebugAction::Leave => Inject::Leave,
+        DebugAction::Key(stroke, action) => Inject::Key { stroke, action },
         DebugAction::Capture(path) => {
             let written = ctx.inject(id, Inject::Capture { path: path.clone() });
             return print_line(&capture_line(&path, &written));

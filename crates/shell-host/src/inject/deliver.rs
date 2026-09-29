@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use blitz_traits::events::{MouseEventButton, MouseEventButtons, UiEvent};
 use keyboard_types::Modifiers;
 
+use super::PointerButton;
 use super::{Inject, Injected};
 use crate::ctx::HostCtx;
-use crate::debug::PointerButton;
 use crate::dom::document::Polled;
 use crate::error::{HostError, Result};
 use crate::frame::FrameInput;
@@ -58,6 +58,9 @@ impl<M: 'static> HostCtx<M> {
                 self.state.deliver(id, down.into_iter().chain([up]));
             }
             Inject::Leave => leave(&mut self.state, id),
+            Inject::Key { stroke, action } => {
+                super::key::deliver_key(&mut self.state, id, &stroke, action);
+            }
             Inject::Capture { path } => {
                 let image = crate::ctx::capture(&mut self.state, id)?;
                 return write_capture(&image, path);

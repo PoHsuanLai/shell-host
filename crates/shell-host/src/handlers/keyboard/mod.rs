@@ -136,10 +136,6 @@ impl KeyboardHandler for HostState {
         let Some(id) = self.input.keyboard_focus else {
             return;
         };
-        if self.scroll_key_up(id, event.raw_code) != KeyUse::Passed {
-            // Its press went to the scroll engine, so its release does too.
-            return;
-        }
         let blitz_event = key::key_event(
             &event,
             self.input.modifiers,
@@ -147,7 +143,7 @@ impl KeyboardHandler for HostState {
             Repeat::First,
             self.composing(),
         );
-        self.dispatch_key(id, blitz_event);
+        self.key_up(id, blitz_event, event.raw_code);
     }
 
     fn update_modifiers(
@@ -209,6 +205,14 @@ impl HostState {
     /// reaches the document; anything else is dispatched.
     pub(crate) fn key_down(&mut self, id: SurfaceId, event: BlitzKeyEvent, raw: u32) {
         if self.scroll_key_down(id, &event, raw) == KeyUse::Passed {
+            self.dispatch_key(id, event);
+        }
+    }
+
+    /// A release for surface `id`: one whose press went to the scroll engine goes there too
+    /// (a held arrow's spring starts), anything else is dispatched.
+    pub(crate) fn key_up(&mut self, id: SurfaceId, event: BlitzKeyEvent, raw: u32) {
+        if self.scroll_key_up(id, raw) == KeyUse::Passed {
             self.dispatch_key(id, event);
         }
     }

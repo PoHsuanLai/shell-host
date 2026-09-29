@@ -14,6 +14,7 @@
 //! the mouse (or a palm on the touchpad) in the middle of a Tab walk would otherwise hide the
 //! ring it is following.
 
+use keyboard_types::Key;
 use smithay_client_toolkit::seat::keyboard::Keysym;
 
 /// The kind of input the seat last saw that decides the modality.
@@ -82,6 +83,27 @@ pub fn key_kind(keysym: Keysym) -> KeyKind {
         KeyKind::Modifier
     } else {
         KeyKind::Other
+    }
+}
+
+/// Whether the DOM key `key` is a lone modifier: `key_kind` for a key that has no keysym.
+pub fn key_kind_of(key: &Key) -> KeyKind {
+    match key {
+        Key::Alt
+        | Key::AltGraph
+        | Key::CapsLock
+        | Key::Control
+        | Key::Fn
+        | Key::FnLock
+        | Key::Meta
+        | Key::NumLock
+        | Key::ScrollLock
+        | Key::Shift
+        | Key::Symbol
+        | Key::SymbolLock
+        | Key::Hyper
+        | Key::Super => KeyKind::Modifier,
+        _ => KeyKind::Other,
     }
 }
 

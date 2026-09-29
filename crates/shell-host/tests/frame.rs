@@ -10,10 +10,10 @@
 
 use std::time::{Duration, Instant};
 
-use shell_host::debug::{FrameCounters, StatsWindow};
 use shell_host::frame::{
     Animation, FrameAction, FrameInput, FrameState, Pace, RenderCmd, TimerCmd, step,
 };
+use shell_host::stats::{FrameCounters, StatsWindow};
 use shell_host::tick::{FrameTicks, HostInstant, Ticked, pacing};
 
 /// A surface, the machine driving it, and what happened to it.

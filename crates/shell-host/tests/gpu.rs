@@ -16,12 +16,12 @@ use dioxus::prelude::*;
 use dioxus_native_dom::{CustomWidgetAttr, DioxusDocument};
 use peniko::kurbo::{Affine, Rect};
 use peniko::{Fill, ImageBrush, ImageSampler};
-use shell_host::debug::{AlphaMode, PresentMode};
 use shell_host::gpu::context::{GpuContext, devices_created};
 use shell_host::gpu::presenter::FrameTarget;
 use shell_host::gpu::render::capture_document;
 use shell_host::gpu::shm::swap_red_blue;
 use shell_host::gpu::swapchain::{alpha_mode_of, choose_alpha, choose_present, present_mode_of};
+use shell_host::stats::{AlphaMode, PresentMode};
 use shell_host::{AdapterPref, Scale, Size};
 use wgpu::{CompositeAlphaMode as A, PresentMode as P};
 

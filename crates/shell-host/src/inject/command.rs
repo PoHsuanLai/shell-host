@@ -4,6 +4,8 @@
 
 use std::path::PathBuf;
 
+use super::key_spec::parse_stroke;
+use super::{KeyAction, KeyStroke, PointerButton};
 use crate::geometry::Point;
 use crate::id::SurfaceName;
 
@@ -19,17 +21,6 @@ pub enum DebugCommand {
     StatsAll,
     /// Close everything and leave `Host::run`.
     Quit,
-}
-
-/// A pointer button, as `debug click` and `Inject::Click` name it: the Linux evdev codes
-/// `input::pointer::button_from_evdev` maps to a DOM button. `Primary` is `BTN_LEFT` (272),
-/// `Secondary` is `BTN_RIGHT` (273), `Middle` is `BTN_MIDDLE` (274).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PointerButton {
-    #[default]
-    Primary,
-    Secondary,
-    Middle,
 }
 
 /// What a debug command does to its surface. Coordinates are surface-local logical pixels.
@@ -51,6 +42,8 @@ pub enum DebugAction {
     Click(Point, PointerButton),
     /// The pointer leaves the surface.
     Leave,
+    /// A key does `KeyAction` (a tap when the line names neither `down` nor `up`).
+    Key(KeyStroke, KeyAction),
     /// Print this surface's stats.
     Stats,
     /// Render offscreen at the buffer size and write a PNG.
@@ -74,6 +67,12 @@ pub enum CommandError {
     },
     #[error("{0:?} is not an integer coordinate")]
     NotACoordinate(String),
+    #[error("{0:?} is not a key (a W3C key name, or Space, optionally +shift/ctrl/alt/super)")]
+    NotAKey(String),
+    #[error("{0:?} is not a modifier (shift, ctrl, alt or super)")]
+    NotAModifier(String),
+    #[error("{0:?} is not a key action (down or up)")]
+    NotAKeyAction(String),
     #[error("{0:?} is not a pointer button (primary, secondary or middle)")]
     NotAButton(String),
 }
@@ -82,7 +81,8 @@ pub enum CommandError {
 /// `<surface> release X Y [button]`, `<surface> click X Y [button]` (`button` is `primary`,
 /// `secondary` or `middle`; primary when omitted — a press, one or more `hover`s and a release
 /// script a drag), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`,
-/// `<surface> focused`.
+/// `<surface> focused`, `<surface> key <name>[+mods] [down|up]` (`Tab`, `k+ctrl`, `Tab+shift up`;
+/// a tap when neither `down` nor `up` is given).
 /// Global verbs win, so no surface may be named `stats` or `quit`.
 pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
     let words: Vec<&str> = line.split_whitespace().collect();
@@ -110,6 +110,12 @@ fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> 
         ("click", _) => {
             button_at("click", args).map(|(point, button)| DebugAction::Click(point, button))
         }
+        ("key", [spec]) => Ok(DebugAction::Key(parse_stroke(spec)?, KeyAction::Tap)),
+        ("key", [spec, action]) => Ok(DebugAction::Key(parse_stroke(spec)?, key_action(action)?)),
+        ("key", _) => Err(CommandError::Missing {
+            verb: "key",
+            needs: "a key name, optionally down or up",
+        }),
         ("leave", []) => Ok(DebugAction::Leave),
         ("stats", []) => Ok(DebugAction::Stats),
         ("focused", []) => Ok(DebugAction::Focused),
@@ -152,6 +158,14 @@ fn button_at(verb: &'static str, args: &[&str]) -> Result<(Point, PointerButton)
     }
 }
 
+fn key_action(word: &str) -> Result<KeyAction, CommandError> {
+    match word {
+        "down" => Ok(KeyAction::Press),
+        "up" => Ok(KeyAction::Release),
+        _ => Err(CommandError::NotAKeyAction(word.to_owned())),
+    }
+}
+
 fn parse_button(word: &str) -> Result<PointerButton, CommandError> {
     match word {
         "primary" => Ok(PointerButton::Primary),
@@ -163,6 +177,8 @@ fn parse_button(word: &str) -> Result<PointerButton, CommandError> {
 
 #[cfg(test)]
 mod tests {
+    use keyboard_types::{Code, Key, Modifiers};
+
     use super::*;
 
     #[test]
@@ -228,6 +244,61 @@ mod tests {
                 )),
             ),
             ("dock leave", Ok(on("dock", DebugAction::Leave))),
+            ("bar/popup stats", Ok(on("bar/popup", DebugAction::Stats))),
+            (
+                "power-menu key Escape",
+                Ok(on(
+                    "power-menu",
+                    DebugAction::Key(
+                        KeyStroke {
+                            key: Key::Escape,
+                            code: Code::Escape,
+                            mods: Modifiers::empty(),
+                        },
+                        KeyAction::Tap,
+                    ),
+                )),
+            ),
+            (
+                "launcher key k+ctrl down",
+                Ok(on(
+                    "launcher",
+                    DebugAction::Key(
+                        KeyStroke {
+                            key: Key::Character("k".into()),
+                            code: Code::KeyK,
+                            mods: Modifiers::CONTROL,
+                        },
+                        KeyAction::Press,
+                    ),
+                )),
+            ),
+            (
+                "launcher key Tab up",
+                Ok(on(
+                    "launcher",
+                    DebugAction::Key(
+                        KeyStroke {
+                            key: Key::Tab,
+                            code: Code::Tab,
+                            mods: Modifiers::empty(),
+                        },
+                        KeyAction::Release,
+                    ),
+                )),
+            ),
+            (
+                "dock key",
+                Err(CommandError::Missing {
+                    verb: "key",
+                    needs: "a key name, optionally down or up",
+                }),
+            ),
+            (
+                "dock key Tab sideways",
+                Err(CommandError::NotAKeyAction("sideways".into())),
+            ),
+            ("dock key Tabb", Err(CommandError::NotAKey("Tabb".into()))),
             ("bar stats", Ok(on("bar", DebugAction::Stats))),
             (
                 "sill-launcher-Virtual-1 focused",

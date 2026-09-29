@@ -2,7 +2,8 @@
 
 use std::path::PathBuf;
 
-use crate::debug::PointerButton;
+use keyboard_types::{Code, Key, Modifiers};
+
 use crate::geometry::Point;
 use crate::scale::Size;
 
@@ -33,8 +34,44 @@ pub enum Inject {
     /// forgotten, as a real leave means the compositor took the pointer
     /// (`HostState::forget_buttons`).
     Leave,
+    /// A key does `action`. It enters at the point a real xkb-translated key does
+    /// (`HostState::key_down` and its release twin, reached from `handlers/keyboard.rs`), so
+    /// focus, modality, the scroll keys and the IME see it as they see a real key. It starts no
+    /// key repeat.
+    Key {
+        stroke: KeyStroke,
+        action: KeyAction,
+    },
     /// Render the surface offscreen at its buffer size and write it to `path` as a PNG.
     Capture { path: PathBuf },
+}
+
+/// A pointer button, as `Inject::Click` and `Inject::Click` name it: the Linux evdev codes
+/// `input::pointer::button_from_evdev` maps to a DOM button. `Primary` is `BTN_LEFT` (272),
+/// `Secondary` is `BTN_RIGHT` (273), `Middle` is `BTN_MIDDLE` (274).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PointerButton {
+    #[default]
+    Primary,
+    Secondary,
+    Middle,
+}
+
+/// A key as the DOM names it: the logical `key`, the physical `code` and the held `mods`
+/// (`Ctrl+K` is `Key::Character("k")`, `Code::KeyK`, `Modifiers::CONTROL`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyStroke {
+    pub key: Key,
+    pub code: Code,
+    pub mods: Modifiers,
+}
+
+/// What a key does. `Tap` is a `Press` immediately followed by a `Release`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyAction {
+    Press,
+    Release,
+    Tap,
 }
 
 /// What an [`Inject`] produced.
