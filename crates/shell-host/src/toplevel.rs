@@ -92,6 +92,16 @@ pub enum Maximize {
     Unset,
 }
 
+/// The wire form: sctk hands the configure's states over as bare `bool`s.
+impl From<bool> for Maximize {
+    fn from(wire: bool) -> Maximize {
+        match wire {
+            true => Maximize::Set,
+            false => Maximize::Unset,
+        }
+    }
+}
+
 /// Whether a window is (or should be) fullscreen: the request of
 /// `SurfaceHandle::set_fullscreen` and the `fullscreen` field of [`ToplevelState`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -99,6 +109,16 @@ pub enum Fullscreen {
     Set,
     #[default]
     Unset,
+}
+
+/// The wire form: sctk hands the configure's states over as bare `bool`s.
+impl From<bool> for Fullscreen {
+    fn from(wire: bool) -> Fullscreen {
+        match wire {
+            true => Fullscreen::Set,
+            false => Fullscreen::Unset,
+        }
+    }
 }
 
 /// Whether a toplevel is the active window, from its last configure. Drives the first-mouse
@@ -110,12 +130,32 @@ pub enum Activation {
     Inactive,
 }
 
+/// The wire form: sctk hands the configure's states over as bare `bool`s.
+impl From<bool> for Activation {
+    fn from(wire: bool) -> Activation {
+        match wire {
+            true => Activation::Active,
+            false => Activation::Inactive,
+        }
+    }
+}
+
 /// Whether one edge of a window is tiled against a neighbour or the output edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Tile {
     Tiled,
     #[default]
     Free,
+}
+
+/// The wire form: sctk hands the configure's states over as bare `bool`s.
+impl From<bool> for Tile {
+    fn from(wire: bool) -> Tile {
+        match wire {
+            true => Tile::Tiled,
+            false => Tile::Free,
+        }
+    }
 }
 
 /// Which edges of a window the compositor has tiled (`xdg_toplevel.state` `tiled_*`, v2).
@@ -174,29 +214,16 @@ pub fn to_wire_edge(edge: ResizeEdge) -> xdg_toplevel::ResizeEdge {
 /// The state a configure carries.
 pub fn state_of(configure: &WindowConfigure) -> ToplevelState {
     ToplevelState {
-        maximized: pick(configure.is_maximized(), Maximize::Set, Maximize::Unset),
-        fullscreen: pick(
-            configure.is_fullscreen(),
-            Fullscreen::Set,
-            Fullscreen::Unset,
-        ),
-        activated: pick(
-            configure.is_activated(),
-            Activation::Active,
-            Activation::Inactive,
-        ),
+        maximized: Maximize::from(configure.is_maximized()),
+        fullscreen: Fullscreen::from(configure.is_fullscreen()),
+        activated: Activation::from(configure.is_activated()),
         tiled: TileEdges {
-            top: pick(configure.is_tiled_top(), Tile::Tiled, Tile::Free),
-            bottom: pick(configure.is_tiled_bottom(), Tile::Tiled, Tile::Free),
-            left: pick(configure.is_tiled_left(), Tile::Tiled, Tile::Free),
-            right: pick(configure.is_tiled_right(), Tile::Tiled, Tile::Free),
+            top: Tile::from(configure.is_tiled_top()),
+            bottom: Tile::from(configure.is_tiled_bottom()),
+            left: Tile::from(configure.is_tiled_left()),
+            right: Tile::from(configure.is_tiled_right()),
         },
     }
-}
-
-/// `yes` when the wire flag is set: sctk hands the configure's states over as `bool`s.
-fn pick<T>(on: bool, yes: T, no: T) -> T {
-    if on { yes } else { no }
 }
 
 #[cfg(test)]
