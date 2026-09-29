@@ -40,7 +40,9 @@ impl SurfaceDocument {
     /// `display:none`, so their box carries no useful size, and a document's own `<style>`
     /// tends to render as the first child of its root). `None` before the first layout, when
     /// `#main` is missing (a caller contract: `dioxus-native-dom` always creates it), or when it
-    /// has no such child.
+    /// has no such child. The size is then widened to the far edges of every absolutely or fixed
+    /// positioned element beneath `#main` (`positioned_extents`), so a menu or popover drawn as
+    /// an overlay, which is out of flow and gives its parent no size, is measured too.
     pub(crate) fn content_size(&self) -> Option<Size> {
         let inner = self.doc.inner();
         let main = inner.get_element_by_id("main")?;
@@ -52,10 +54,41 @@ impl SurfaceDocument {
                 .is_some_and(is_content_element)
         })?;
         let bounds = inner.get_client_bounding_rect(content)?;
-        let rect = enclosing_rect(0.0, 0.0, bounds.width, bounds.height);
+        let (right, bottom) = children
+            .iter()
+            .flat_map(|&child| positioned_extents(&inner, child))
+            .fold((bounds.width, bounds.height), |(w, h), (r, b)| {
+                (w.max(r), h.max(b))
+            });
+        let rect = enclosing_rect(0.0, 0.0, right, bottom);
         Some(Size {
             width: rect.width,
             height: rect.height,
         })
     }
+}
+
+/// The far edges `(right, bottom)`, from the surface origin, of the layout box of every
+/// absolutely (or fixed) positioned element in `id`'s subtree, `id` included. Such a box is out
+/// of flow, so it adds nothing to its parent's size; measuring only in-flow content sees a
+/// menu drawn as an overlay as 1x1. In-flow boxes are left out on purpose: `<body>`'s margin
+/// offsets them, and their parent's own size already contains them. The layout box, not the
+/// transformed one, so an appear animation's scale does not move the measurement.
+fn positioned_extents(doc: &blitz_dom::BaseDocument, id: blitz_dom::NodeId) -> Vec<(f64, f64)> {
+    let Some(node) = doc.get_node(id).filter(|node| node.is_element()) else {
+        return Vec::new();
+    };
+    let own = node
+        .primary_styles()
+        .is_some_and(|style| style.get_box().position.is_absolutely_positioned())
+        .then(|| doc.get_client_bounding_rect(id))
+        .flatten()
+        .map(|rect| (rect.x + rect.width, rect.y + rect.height));
+    own.into_iter()
+        .chain(
+            node.children
+                .iter()
+                .flat_map(|&child| positioned_extents(doc, child)),
+        )
+        .collect()
 }

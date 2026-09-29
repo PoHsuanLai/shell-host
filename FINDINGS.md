@@ -285,6 +285,13 @@ clamped content size differs from the current one, so a settled popup never repo
 the compositor's configure then resizes the surface. The caller's initial `PopupPlacement.size`
 is the placeholder until the first measurement.
 
+The measurement also includes absolutely (and fixed) positioned descendants of `#main`: the
+size is widened to their layout boxes' far edges (`x + width`, `y + height`, from the surface
+origin, untransformed so an appear animation does not move it). A menu drawn as a quire
+`Menu`/`Popover` overlay is out of flow, so in-flow measuring alone saw about 1x1. No public
+API change: `FitContent { max }` is requested exactly as before. In-flow descendants are not
+unioned (body margin would inflate them; their parent already contains them).
+
 ### F72. On KWin a popup never lifts its `KeyboardMode::None` parent
 
 KWin's `LayerShellV1Window::handleAcceptsFocusChanged` *activates* a Top/Overlay layer whose

@@ -97,6 +97,31 @@ fn content_size_is_none_with_no_content_element() {
     assert_eq!(doc.content_size(), None);
 }
 
+fn overlay_content_app() -> Element {
+    rsx! {
+        style { "html,body{{margin:0}}#wrap{{width:10px;height:10px}}#menu{{position:absolute;left:8px;top:6px;width:140px;height:90px}}" }
+        div { id: "wrap",
+            div { id: "menu", "menu" }
+        }
+    }
+}
+
+/// A menu drawn as an absolutely placed overlay (quire's `Menu`/`Popover`) adds nothing to its
+/// parent's size; `content_size` still measures where it paints: its far edges from the origin.
+#[test]
+fn content_size_includes_absolutely_positioned_descendants() {
+    let mut doc = SurfaceDocument::build(HostRoot::new(overlay_content_app), test_env(200, 100));
+    doc.resolve(0.0);
+    assert_eq!(
+        doc.content_size(),
+        Some(crate::scale::Size {
+            width: 148,
+            height: 96
+        }),
+        "the menu's right and bottom edges (8 + 140, 6 + 90), not the 10x10 in-flow wrapper"
+    );
+}
+
 fn watched_app(rx: watch::Receiver<i32>) -> Element {
     let value = use_watch(rx);
     rsx! {
