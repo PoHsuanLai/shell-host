@@ -13,12 +13,12 @@ pub enum Modifier {
     Held,
 }
 
-impl Modifier {
-    fn of(held: bool) -> Modifier {
-        if held {
-            Modifier::Held
-        } else {
-            Modifier::Released
+/// The wire form: sctk reports a held modifier as a bare `bool`.
+impl From<bool> for Modifier {
+    fn from(wire: bool) -> Modifier {
+        match wire {
+            true => Modifier::Held,
+            false => Modifier::Released,
         }
     }
 }
@@ -33,12 +33,12 @@ pub enum LockKey {
     Locked,
 }
 
-impl LockKey {
-    fn of(locked: bool) -> LockKey {
-        if locked {
-            LockKey::Locked
-        } else {
-            LockKey::Unlocked
+/// The wire form: sctk reports an engaged lock as a bare `bool`.
+impl From<bool> for LockKey {
+    fn from(wire: bool) -> LockKey {
+        match wire {
+            true => LockKey::Locked,
+            false => LockKey::Unlocked,
         }
     }
 }
@@ -63,12 +63,12 @@ impl Modifiers {
     /// `caps_lock`/`num_lock` are the currently-locked ones.
     pub fn from_sctk(state: SctkModifiers) -> Modifiers {
         Modifiers {
-            shift: Modifier::of(state.shift),
-            ctrl: Modifier::of(state.ctrl),
-            alt: Modifier::of(state.alt),
-            logo: Modifier::of(state.logo),
-            caps_lock: LockKey::of(state.caps_lock),
-            num_lock: LockKey::of(state.num_lock),
+            shift: Modifier::from(state.shift),
+            ctrl: Modifier::from(state.ctrl),
+            alt: Modifier::from(state.alt),
+            logo: Modifier::from(state.logo),
+            caps_lock: LockKey::from(state.caps_lock),
+            num_lock: LockKey::from(state.num_lock),
         }
     }
 }
