@@ -135,17 +135,19 @@ mod tests {
         }
     }
 
+    type Case = (
+        &'static str,
+        Option<RoleKind>,
+        Focused,
+        Option<Duration>,
+        FirstMouse,
+    );
+
     #[test]
     fn only_a_focused_toplevel_can_swallow_its_activating_click() {
         let window = Duration::from_millis(100);
         let recent = Some(Duration::from_millis(3));
-        let cases: &[(
-            &str,
-            Option<RoleKind>,
-            Focused,
-            Option<Duration>,
-            FirstMouse,
-        )] = &[
+        let cases: &[Case] = &[
             (
                 "focused toplevel just activated",
                 Some(RoleKind::Toplevel),

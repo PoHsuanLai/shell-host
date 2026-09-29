@@ -138,8 +138,6 @@ pub(crate) fn positioner(state: &HostState, params: &PositionerParams) -> Result
 }
 
 /// Switch a `KeyboardMode::None` layer to `OnDemand`, so the grabbing popup opened from it can
-
-/// Switch a `KeyboardMode::None` layer to `OnDemand`, so the grabbing popup opened from it can
 /// take keyboard focus (plan "Opening a grabbing popup ..."), where `parent_keyboard` says so.
 fn lift_keyboard(state: &mut HostState, parent: SurfaceId, grab: Grab) {
     let kind = state.compositor_kind;

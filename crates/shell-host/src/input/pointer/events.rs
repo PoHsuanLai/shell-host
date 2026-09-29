@@ -84,10 +84,6 @@ pub fn leave_event(mods: Modifiers) -> UiEvent {
     move_event(PointerPos::OUTSIDE, MouseEventButtons::None, mods)
 }
 
-/// Whether a press is the one that activated its toplevel. `since_activation` is how long
-/// before the press the toplevel became active (its `activated` configure state, or
-/// `wl_keyboard.enter`); `None` when it was already active. `window` is the settings key
-
 #[cfg(test)]
 mod tests {
     use super::*;

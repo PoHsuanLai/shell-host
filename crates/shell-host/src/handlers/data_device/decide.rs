@@ -29,9 +29,11 @@ pub(super) fn source_owner<T: PartialEq>(
 mod tests {
     use super::*;
 
+    type Case = (&'static str, u32, Option<u32>, Option<u32>, SourceOwner);
+
     #[test]
     fn a_source_belongs_to_the_drag_the_selection_or_nobody() {
-        let cases: &[(&str, u32, Option<u32>, Option<u32>, SourceOwner)] = &[
+        let cases: &[Case] = &[
             ("the drag's", 1, Some(1), Some(2), SourceOwner::Drag),
             (
                 "the selection's",

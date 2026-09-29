@@ -31,8 +31,6 @@ pub(crate) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelCon
     insert(state, id, role, name, at, regions, root);
 }
 
-/// Create and map popup `id` on `parent`. A grabbing popup lifts a `KeyboardMode::None` parent
-
 pub(super) fn toplevel_role(state: &mut HostState, config: ToplevelConfig) -> Role {
     let wl = new_wl_surface(state);
     let window =

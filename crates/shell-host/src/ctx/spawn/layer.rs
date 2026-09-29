@@ -38,8 +38,6 @@ pub(crate) fn layer(
     Ok(())
 }
 
-/// Create and map toplevel `id`. A client-decorated window starts floating, so its surface
-
 pub(super) fn layer_role(state: &mut HostState, config: LayerConfig) -> Result<Role> {
     let layer_shell = state.layer_shell.as_ref().ok_or(HostError::Unsupported {
         global: "zwlr_layer_shell_v1",
