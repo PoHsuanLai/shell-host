@@ -2,11 +2,13 @@
 //! in, the document's coordinates, the cursor to show, and the resize a press in the band
 //! starts. Split from `pointer` so the event dispatch stays one screen long.
 
-use blitz_traits::events::UiEvent;
+mod decide;
+
+use blitz_traits::events::{MouseEventButtons, UiEvent};
 use cursor_icon::CursorIcon;
 use wayland_client::protocol::wl_pointer::WlPointer;
 
-use crate::csd::{Zone, cursor_for, to_document, zone_at};
+use crate::csd::{Zone, to_document, zone_at};
 use crate::ctx::begin_resize;
 use crate::dom::shell_provider::CursorRequest;
 use crate::id::SurfaceId;
@@ -15,6 +17,7 @@ use crate::input::pointer::{self, PointerPos};
 use crate::role::Role;
 use crate::state::HostState;
 use crate::toplevel::ResizeEdge;
+use decide::MotionRoute;
 
 impl HostState {
     /// The zone surface-local `pos` is in on surface `id` (always the document without a band).
@@ -31,30 +34,31 @@ impl HostState {
         })
     }
 
-    /// A motion to `pos` on surface `id`: re-decide the zone unless a button is held (a drag
-    /// keeps the zone it started in), then hand the move to the document, or tell it the
-    /// pointer left when the pointer has crossed into the band.
+    /// The zone after an event at `pos` on surface `id`: re-decided unless a button is held (a
+    /// drag keeps the zone it started in).
+    pub(crate) fn zone_while_held(&self, id: SurfaceId, pos: PointerPos) -> Zone {
+        decide::zone_while(self.input.buttons, self.input.zone, self.zone_of(id, pos))
+    }
+
+    /// A motion to `pos` on surface `id`: re-decide the zone unless a button is held, then hand
+    /// the move to the document, or tell it the pointer left when the pointer has crossed into
+    /// the band.
     pub(crate) fn pointer_moved(&mut self, id: SurfaceId, pos: PointerPos) {
-        let held = self.input.buttons != blitz_traits::events::MouseEventButtons::None;
-        let zone = if held {
-            self.input.zone
-        } else {
-            self.zone_of(id, pos)
-        };
+        let zone = self.zone_while_held(id, pos);
         let was = std::mem::replace(&mut self.input.zone, zone);
-        match zone {
-            Zone::Document => {
+        match decide::motion_route(zone, was) {
+            MotionRoute::Document => {
                 let at = self.document_pos(id, pos);
                 let event = pointer::move_event(at, self.input.buttons, self.input.modifiers);
                 self.deliver(id, [event]);
             }
-            Zone::Edge(_) if was == Zone::Document => {
+            MotionRoute::LeftDocument => {
                 if let Some(surface) = self.surfaces.get_mut(&id) {
                     surface.document.pointer_left(self.input.modifiers);
                 }
                 self.invalidate(id);
             }
-            Zone::Edge(_) => {}
+            MotionRoute::Band => {}
         }
     }
 
@@ -83,13 +87,11 @@ impl HostState {
         if surface != id {
             return;
         }
-        let icon = match self.input.zone {
-            Zone::Edge(edge) => Some(cursor_for(edge)),
-            Zone::Document => self
-                .surfaces
-                .get(&id)
-                .map_or(Some(CursorIcon::Default), |surface| surface.doc_cursor),
-        };
+        let document = self
+            .surfaces
+            .get(&id)
+            .map_or(Some(CursorIcon::Default), |surface| surface.doc_cursor);
+        let icon = decide::cursor_in(self.input.zone, document);
         self.cursor.set(pointer, serial, icon);
     }
 
@@ -98,7 +100,7 @@ impl HostState {
     /// resize grab), and the release then goes to the compositor, never to us; keeping the
     /// buttons would pin the zone and let a later `begin_move` reuse a dead serial.
     pub(crate) fn forget_buttons(&mut self) {
-        self.input.buttons = blitz_traits::events::MouseEventButtons::None;
+        self.input.buttons = MouseEventButtons::None;
         self.input.grab.update(|facts| facts.press = None);
     }
 
