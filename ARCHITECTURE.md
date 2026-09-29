@@ -346,12 +346,12 @@ session. Goldens change only with a reason in the commit message.
 Each step keeps master green (the gate above), and callers in sill and quire change in the same
 step as an API they use.
 
-1. `blitz-kit` repo: create it with `hover`, `net`, `fonts`, `paint_rect`, `hit` and their tests
+1. `blitz-kit` repo (done): create it with `hover`, `net`, `fonts`, `paint_rect`, `hit` and their tests
    moved from shell-host unchanged in behaviour; add `adapter` and `snap`. Gate in the kit.
-2. shell-host depends on `blitz-kit`; delete `dom/hover_sync.rs`, `dom/net.rs`, `dom/fonts.rs`,
+2. shell-host depends on `blitz-kit` (done); delete `dom/hover_sync.rs`, `dom/net.rs`, `dom/fonts.rs`,
    `dom/painted.rs`, the ranking half of `gpu/adapter.rs`; `tests/hover_sync.rs` and
    `tests/host_fonts.rs` move to the kit.
-3. `palmrest-protocol` exists (palmrest step 1); shell-host depends on it and deletes
+3. `palmrest-protocol` exists (palmrest step 1) (done); shell-host depends on it and deletes
    `input/palmrest/wire.rs`; `tests/scroll_palmrest.rs` reads the crate's fixtures. Update
    `check-boundary.sh`.
 4. Bools to enums (done): `Modifier::of`, `LockKey::of`, `pick`, `elastic`, `requested`,
