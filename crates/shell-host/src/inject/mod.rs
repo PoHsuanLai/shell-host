@@ -1,0 +1,12 @@
+//! The `debug-inject` feature: synthetic input and offscreen captures on one surface, as a
+//! typed API that returns its results ([`HostCtx::inject`]), and the stdin command source the
+//! demos are driven by ([`stdin`], which maps each line onto that API and prints the result).
+//! Frame statistics are not an injection: [`HostCtx::stats`] and [`HostCtx::take_stats`] are
+//! the one source of them, with or without this feature.
+
+mod deliver;
+mod request;
+pub mod stdin;
+
+pub use deliver::write_capture;
+pub use request::{Inject, Injected};
