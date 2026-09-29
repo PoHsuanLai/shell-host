@@ -217,6 +217,18 @@ impl HostState {
         }
     }
 
+    /// Make `mods` the seat's modifiers, as `update_modifiers` does for the compositor's report:
+    /// Blitz's copy, the `use_modifiers` cache, and the live copy of the surface holding
+    /// keyboard focus (`id` when none does, an injected key's target).
+    pub(crate) fn set_modifiers(&mut self, id: SurfaceId, mods: keyboard_types::Modifiers) {
+        self.input.modifiers = mods;
+        self.input.held_modifiers = self.input.held_modifiers.with_dom(mods);
+        let target = self.input.keyboard_focus.unwrap_or(id);
+        if let Some(surface) = self.surfaces.get_mut(&target) {
+            surface.live_modifiers.publish(self.input.held_modifiers);
+        }
+    }
+
     /// Feed `event` to surface `id`'s document and invalidate it.
     pub(crate) fn dispatch_key(&mut self, id: SurfaceId, event: BlitzKeyEvent) {
         let ui_event = match event.state {

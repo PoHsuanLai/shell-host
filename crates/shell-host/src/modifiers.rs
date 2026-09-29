@@ -71,6 +71,19 @@ impl Modifiers {
             num_lock: LockKey::from(state.num_lock),
         }
     }
+
+    /// These with the four held modifiers taken from the DOM flags `mods`, the locks kept: what
+    /// an injected key's modifier change comes to, in place of a `wl_keyboard.modifiers`.
+    pub(crate) fn with_dom(self, mods: keyboard_types::Modifiers) -> Modifiers {
+        let of = |flag| Modifier::from(mods.contains(flag));
+        Modifiers {
+            shift: of(keyboard_types::Modifiers::SHIFT),
+            ctrl: of(keyboard_types::Modifiers::CONTROL),
+            alt: of(keyboard_types::Modifiers::ALT),
+            logo: of(keyboard_types::Modifiers::META),
+            ..self
+        }
+    }
 }
 
 #[cfg(test)]

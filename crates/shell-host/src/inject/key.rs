@@ -30,6 +30,32 @@ pub(super) fn deliver_key(
     if action != KeyAction::Press {
         state.key_up(id, blitz_key(stroke, KeyState::Released, composing), raw);
     }
+    let after = modifiers_after(state.input.modifiers, stroke, action);
+    state.set_modifiers(id, after);
+}
+
+/// The DOM modifier flag a modifier key holds, if it is one.
+fn flag_of(key: &Key) -> Modifiers {
+    match key {
+        Key::Alt => Modifiers::ALT,
+        Key::Control => Modifiers::CONTROL,
+        Key::Shift => Modifiers::SHIFT,
+        Key::Meta => Modifiers::META,
+        _ => Modifiers::empty(),
+    }
+}
+
+/// The seat's modifiers after `action` with `stroke`, as the compositor's `wl_keyboard.modifiers`
+/// would report them: a press holds the key's own flag and the stroke's `mods`, a release drops
+/// them, and a tap holds them only for its own press, so it leaves whatever was held before it
+/// (a modifier tapped on its own ends released). Locks (caps, num) are never touched.
+fn modifiers_after(before: Modifiers, stroke: &KeyStroke, action: KeyAction) -> Modifiers {
+    let flags = flag_of(&stroke.key) | (stroke.mods & !Modifiers::CAPS_LOCK & !Modifiers::NUM_LOCK);
+    match action {
+        KeyAction::Press => before | flags,
+        KeyAction::Release => before & !flags,
+        KeyAction::Tap => before & !flag_of(&stroke.key),
+    }
 }
 
 /// The Blitz event for `stroke`: the same fields `input::key::key_event` fills from a real key.
@@ -66,6 +92,7 @@ fn location_of(code: Code) -> Location {
 mod tests {
     use super::*;
     use crate::modality::KeyKind;
+    use crate::modifiers::{Modifier, Modifiers as HeldModifiers};
 
     fn stroke(key: Key, code: Code, mods: Modifiers) -> KeyStroke {
         KeyStroke { key, code, mods }
@@ -107,6 +134,73 @@ mod tests {
             assert_eq!(event.modifiers, stroke.mods, "{name}");
             assert!(!event.is_auto_repeating, "{name}");
         }
+    }
+
+    #[test]
+    fn injected_modifier_keys_and_mods_move_the_seat_modifiers() {
+        let key = |key: Key, code, mods| KeyStroke { key, code, mods };
+        let alt = || key(Key::Alt, Code::AltLeft, Modifiers::empty());
+        let tab = |mods| key(Key::Tab, Code::Tab, mods);
+        let none = Modifiers::empty();
+        let cases: &[(&str, Modifiers, KeyStroke, KeyAction, Modifiers)] = &[
+            ("alt press", none, alt(), KeyAction::Press, Modifiers::ALT),
+            (
+                "alt release",
+                Modifiers::ALT,
+                alt(),
+                KeyAction::Release,
+                none,
+            ),
+            ("alt tap", none, alt(), KeyAction::Tap, none),
+            (
+                "tab while alt held",
+                Modifiers::ALT,
+                tab(none),
+                KeyAction::Tap,
+                Modifiers::ALT,
+            ),
+            (
+                "tap with mods leaves nothing stuck",
+                none,
+                tab(Modifiers::ALT | Modifiers::SHIFT),
+                KeyAction::Tap,
+                none,
+            ),
+            (
+                "tap with mods keeps an earlier hold",
+                Modifiers::ALT,
+                tab(Modifiers::ALT),
+                KeyAction::Tap,
+                Modifiers::ALT,
+            ),
+            (
+                "press with mods holds them",
+                none,
+                tab(Modifiers::CONTROL),
+                KeyAction::Press,
+                Modifiers::CONTROL,
+            ),
+            (
+                "release with mods drops them",
+                Modifiers::CONTROL | Modifiers::ALT,
+                tab(Modifiers::CONTROL),
+                KeyAction::Release,
+                Modifiers::ALT,
+            ),
+            (
+                "locks are untouched",
+                Modifiers::CAPS_LOCK,
+                alt(),
+                KeyAction::Press,
+                Modifiers::CAPS_LOCK | Modifiers::ALT,
+            ),
+        ];
+        for (name, before, stroke, action, want) in cases {
+            assert_eq!(modifiers_after(*before, stroke, *action), *want, "{name}");
+        }
+        let held = HeldModifiers::default().with_dom(Modifiers::ALT);
+        assert_eq!(held.alt, Modifier::Held);
+        assert_eq!(held.shift, Modifier::Released);
     }
 
     #[test]
