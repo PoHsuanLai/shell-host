@@ -43,7 +43,7 @@ anyrender_vello_cpu = { version = "0.17", features = ["multithreading"] }
 vello_hybrid = "0.1"
 wgpu = "29"
 wgpu_context = "0.9"
-# Per-device image cache for the shared hybrid renderer (SPIKE.md S1 finding 5).
+# Per-device image cache for the shared hybrid renderer (anyrender_vello_hybrid names both).
 rustc-hash = "2"
 vello_common = "0.1"
 parley = { version = "0.11.1", default-features = false, features = ["std"] }
@@ -106,6 +106,3 @@ latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "43ebf45f244a23c
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
-
-[workspace.lints.clippy]
-todo = "allow"

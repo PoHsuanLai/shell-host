@@ -56,8 +56,8 @@ default = []
 # surface. Off by default because it is a CI/testing path, not something a running shell
 # needs linked in.
 headless = []
-# Per-surface debug commands on stdin (`<surface> hover x y`, `stats`, `capture`), the real-API
-# successor of the spike's command language. Off in a shipped shell.
+# Per-surface debug commands on stdin (`<surface> hover x y`, `stats`, `capture`) and
+# `HostCtx::inject`. Off in a shipped shell.
 debug-inject = []
 
 # The acceptance probe: a plain xdg toplevel (JSON configure lines) the demo items cover.
