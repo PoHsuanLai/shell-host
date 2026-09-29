@@ -107,16 +107,36 @@ pub fn chain_at(doc: &BaseDocument, x: f64, y: f64, axis: Axis) -> Vec<Candidate
     chain
 }
 
-/// Whether `node` opted into the rubber band (`data-overscroll="band"`).
-fn banded(node: &Node) -> bool {
-    attr(node, "data-overscroll") == Some("band")
+/// What a node's `data-overscroll` asks for at the end of its range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Overscroll {
+    Band,
+    Clamp,
+}
+
+impl Overscroll {
+    /// This request, or `other` when this one asks for nothing.
+    fn or(self, other: Overscroll) -> Overscroll {
+        match self {
+            Overscroll::Band => Overscroll::Band,
+            Overscroll::Clamp => other,
+        }
+    }
+}
+
+/// What `node` opted into (`data-overscroll="band"` is the rubber band).
+fn overscroll(node: &Node) -> Overscroll {
+    match attr(node, "data-overscroll") {
+        Some("band") => Overscroll::Band,
+        _ => Overscroll::Clamp,
+    }
 }
 
 /// An elastic axis (design/11 §11.3.7): opted in, and vertical or with content to scroll.
-fn elastic(opted: bool, axis: Axis, max: f64) -> Elastic {
+fn elastic(opted: Overscroll, axis: Axis, max: f64) -> Elastic {
     match (opted, axis) {
-        (true, Axis::Y) => Elastic::Elastic,
-        (true, Axis::X) if max > 0.0 => Elastic::Elastic,
+        (Overscroll::Band, Axis::Y) => Elastic::Elastic,
+        (Overscroll::Band, Axis::X) if max > 0.0 => Elastic::Elastic,
         _ => Elastic::Rigid,
     }
 }
@@ -141,7 +161,8 @@ pub fn geom(doc: &BaseDocument, scroller: Scroller, axis: Axis) -> Option<Geom> 
             );
             let max = pick(content_w - f64::from(vw), content_h - f64::from(vh)).max(0.0);
             let scroll = doc.viewport_scroll();
-            let opted = banded(root) || body(doc).is_some_and(banded);
+            let opted = body(doc).map_or(Overscroll::Clamp, overscroll);
+            let opted = overscroll(root).or(opted);
             Some(Geom {
                 offset: Px(pick(scroll.x, scroll.y)),
                 max: Px(max),
@@ -168,7 +189,7 @@ pub fn geom(doc: &BaseDocument, scroller: Scroller, axis: Axis) -> Option<Geom> 
                     f64::from(layout.size.width),
                     f64::from(layout.size.height),
                 )),
-                elastic: elastic(banded(node), axis, max),
+                elastic: elastic(overscroll(node), axis, max),
             })
         }
     }
