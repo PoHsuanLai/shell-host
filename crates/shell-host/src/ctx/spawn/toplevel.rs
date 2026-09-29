@@ -2,8 +2,8 @@
 
 use crate::blur::BlurSpec;
 use crate::csd::{inset_for, surface_of};
-use crate::debug::SurfaceName;
 use crate::id::SurfaceId;
+use crate::id::SurfaceName;
 use crate::region::RegionSpec;
 use crate::role::Role;
 use crate::root::Root;

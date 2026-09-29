@@ -1,10 +1,10 @@
 //! A wgpu surface configured on the shared device: Mailbox, else Fifo; PreMultiplied alpha,
 //! else PostMultiplied, else opaque (and then blur off).
 
-use crate::debug::{AlphaMode, PresentMode};
 use crate::error::{HostError, Result};
 use crate::gpu::context::{GpuContext, SURFACE_FORMAT};
 use crate::scale::Size;
+use crate::stats::{AlphaMode, PresentMode};
 
 /// One surface's swapchain and scene. The wgpu surface is declared first so it drops first.
 pub struct Swapchain {

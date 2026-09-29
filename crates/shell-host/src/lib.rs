@@ -49,6 +49,7 @@ pub mod root;
 pub mod scale;
 pub mod scroll;
 pub mod state;
+mod stats;
 pub mod surface;
 pub mod tick;
 pub mod timers;
@@ -60,7 +61,6 @@ pub use blur::BlurSpec;
 pub use bridge::use_watch;
 pub use config::{AdapterPref, Backend, FontFaces, HostConfig};
 pub use ctx::HostCtx;
-pub use debug::{FrameStats, Percentiles, SurfaceName};
 pub use dom::fonts::registered_families;
 pub use drag::outcome::{DragAction, DragOutcome, DragRefused};
 pub use drag::spec::{BadMime, DragActions, DragIcon, DragPayload, DragSpec, Mime};
@@ -74,6 +74,7 @@ pub use handle::{
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
+pub use id::SurfaceName;
 pub use id::{OutputId, SurfaceId};
 #[cfg(feature = "debug-inject")]
 pub use inject::{Inject, Injected};
@@ -101,6 +102,7 @@ pub use scroll::config::{
 pub use scroll::engine::Animate;
 pub use scroll::geom::Axis;
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
+pub use stats::{FrameStats, Percentiles};
 pub use tick::{FrameDrive, FrameTick, HostInstant};
 pub use toplevel::{
     Activation, Decorations, Fullscreen, Maximize, ResizeEdge, ResizeMargin, Tile, TileEdges,

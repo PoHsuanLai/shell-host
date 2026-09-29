@@ -7,9 +7,9 @@ use smithay_client_toolkit::shell::xdg::{XdgPositioner, XdgSurface};
 
 use crate::blur::BlurSpec;
 use crate::csd::Inset;
-use crate::debug::SurfaceName;
 use crate::error::{HostError, Result};
 use crate::id::SurfaceId;
+use crate::id::SurfaceName;
 use crate::layer::{KeyboardMode, to_wire_keyboard};
 use crate::placement::PopupPlacement;
 use crate::popup::{

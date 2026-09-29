@@ -3,7 +3,6 @@
 
 use blitz_traits::shell::ColorScheme;
 
-use crate::debug::{AlphaMode, PresentMode};
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
@@ -13,6 +12,7 @@ use crate::gpu::swapchain::{Swapchain, alpha_mode_of, pixel_extent, present_mode
 use crate::region::Rect;
 use crate::scale::{Scale, Size};
 use crate::scroll::indicator::ThumbPaint;
+use crate::stats::{AlphaMode, PresentMode};
 
 /// What the host paints over the document: the scroll thumbs (design/11 §11.3.12).
 #[derive(Debug, Clone, PartialEq, Default)]

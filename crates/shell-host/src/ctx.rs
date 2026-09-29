@@ -24,17 +24,18 @@ use calloop::{LoopHandle, RegistrationToken};
 use tokio::sync::oneshot;
 
 use crate::config::{AdapterPref, Backend};
-use crate::debug::{FrameStats, SurfaceName};
 use crate::error::Result;
 use crate::frame::FrameInput;
 use crate::handlers::activation::ActivationRequest;
 use crate::handlers::output::output_info;
 use crate::id::SurfaceId;
+use crate::id::SurfaceName;
 use crate::layer::LayerConfig;
 use crate::msg::{SurfaceOp, Visibility};
 use crate::output::OutputInfo;
 use crate::root::Root;
 use crate::state::HostState;
+use crate::stats::FrameStats;
 use crate::toplevel::ToplevelConfig;
 
 /// Whether `Host::run` should return after this iteration.

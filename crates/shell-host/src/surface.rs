@@ -7,12 +7,12 @@ use cursor_icon::CursorIcon;
 
 use crate::blur::BlurSpec;
 use crate::csd::{Inset, content_px, frame_of};
-use crate::debug::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow, SurfaceName};
 use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::id::SurfaceId;
+use crate::id::SurfaceName;
 use crate::live::Live;
 use crate::live_scale::LiveScale;
 use crate::modifiers::Modifiers;
@@ -22,6 +22,7 @@ use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 use crate::scroll::surface::SurfaceScroll;
+use crate::stats::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow};
 use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
 use crate::toplevel::ToplevelState;
 
@@ -202,7 +203,7 @@ impl HostSurface {
         };
         let vm_rss_kib = std::fs::read_to_string("/proc/self/status")
             .ok()
-            .and_then(|status| crate::debug::vm_rss_kib(&status))
+            .and_then(|status| crate::stats::vm_rss_kib(&status))
             .unwrap_or(0);
         FrameStats {
             surface: self.name.clone(),

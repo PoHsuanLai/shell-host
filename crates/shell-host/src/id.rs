@@ -16,6 +16,11 @@ pub struct SurfaceId(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OutputId(pub u32);
 
+/// The name a debug command addresses a surface by: the layer namespace, the toplevel app id,
+/// or `<parent>/popup` for a parent's open popup.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SurfaceName(pub String);
+
 /// Hands out [`SurfaceId`]s. Shared between the host and every `SurfaceHandle`, because
 /// `SurfaceHandle::open_popup` must return the popup's id before the host has created it.
 #[derive(Debug, Clone, Default)]

@@ -18,7 +18,6 @@ use crate::blur::BlurSpec;
 use crate::config::Backend;
 use crate::csd::{Inset, band, content_px, to_surface};
 use crate::ctx::HostCtx;
-use crate::debug::AlphaMode;
 use crate::dom::document::HoverShift;
 use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
 use crate::error::{HostError, Recovery, Result};
@@ -43,6 +42,7 @@ use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 use crate::scroll::indicator::Wake;
 use crate::state::HostState;
+use crate::stats::AlphaMode;
 use crate::surface::{Configured, Geometry, HostSurface};
 use crate::timers::TimerRequest;
 

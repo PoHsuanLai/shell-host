@@ -1,8 +1,8 @@
 //! Layer surfaces: the request sequence that builds one and the size it asks for.
 
 use crate::csd::Inset;
-use crate::debug::SurfaceName;
 use crate::error::{HostError, Result};
+use crate::id::SurfaceName;
 use crate::id::{OutputId, SurfaceId};
 use crate::layer::{
     LayerConfig, OutputTarget, to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer,
