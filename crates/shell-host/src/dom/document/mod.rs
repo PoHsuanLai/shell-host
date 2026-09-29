@@ -3,10 +3,12 @@
 //!
 //! See FINDINGS F12, F62.
 
+mod first_mouse;
 mod hover;
 mod rects;
 mod resolve;
 
+pub(crate) use first_mouse::FirstMouseOptIn;
 pub(crate) use hover::HoverShift;
 
 use std::rc::Rc;

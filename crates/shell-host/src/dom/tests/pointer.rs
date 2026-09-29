@@ -4,7 +4,7 @@
 //! The documents are the host's own `SurfaceDocument`s (UA stylesheet included), fed the event
 //! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them.
 
-use crate::dom::document::{Polled, SurfaceDocument};
+use crate::dom::document::{FirstMouseOptIn, Polled, SurfaceDocument};
 use crate::dom::tests::env::test_env;
 use crate::input::pointer::{self, PointerPos};
 use crate::root::HostRoot;
@@ -25,6 +25,9 @@ const CSS: &str = "
 .icon{width:40px;height:40px;background:#456}
 #scroller{width:120px;height:80px;overflow:auto}
 #tall{height:600px}
+#drag{width:60px;height:20px}
+#bar{width:80px;height:30px}
+#bar button{width:20px;height:20px}
 ";
 
 fn app() -> Element {
@@ -37,6 +40,10 @@ fn app() -> Element {
         }
         div { id: "scroller",
             div { id: "tall" }
+        }
+        div { id: "drag", "data-first-mouse": "" }
+        div { id: "bar", "data-first-mouse": "",
+            button { id: "inside" }
         }
     }
 }
@@ -430,4 +437,29 @@ fn a_move_past_the_threshold_between_press_and_release_suppresses_the_click() {
         "clicks 0",
         "a move past the threshold starts a drag, so the release no longer clicks"
     );
+}
+
+/// The element under a point, or an ancestor of it, carrying `data-first-mouse` opts in
+/// (design/13 §13.3.8); the pointer handler asks this only for a press that would be swallowed.
+#[test]
+fn the_opt_in_is_the_element_or_an_ancestor_carrying_the_attribute() {
+    let mut doc = build();
+    let cases = [
+        (
+            "the element with the attribute",
+            "#drag",
+            FirstMouseOptIn::OptedIn,
+        ),
+        (
+            "a descendant of one that has it",
+            "#inside",
+            FirstMouseOptIn::OptedIn,
+        ),
+        ("an ordinary element", "#icon0", FirstMouseOptIn::Default),
+    ];
+    for (name, selector, want) in cases {
+        let id = node_id(&mut doc, selector);
+        let at = center(&mut doc, id);
+        assert_eq!(doc.wants_first_mouse(at.x, at.y), want, "{name}");
+    }
 }

@@ -8,6 +8,7 @@ use wayland_client::protocol::wl_pointer::WlPointer;
 use wayland_client::{Connection, QueueHandle};
 
 use crate::csd::Zone;
+use crate::dom::document::FirstMouseOptIn;
 use crate::grab::Press;
 use crate::id::SurfaceId;
 use crate::input::focus::{self, Departure, PointerFocus};
@@ -106,7 +107,9 @@ impl PointerHandler for HostState {
                             serial,
                         });
                     });
-                    let route = decide::press_route(self.input.zone, btn, self.first_mouse(id));
+                    let first = self.first_mouse(id);
+                    let opt_in = self.first_mouse_opt_in(id, first, pos);
+                    let route = decide::press_route(self.input.zone, btn, first, opt_in);
                     match route {
                         // The band is the host's: the press starts the resize, whether or not
                         // the window is active, and the document never hears of it.
@@ -177,6 +180,23 @@ impl HostState {
         };
         let since_activation = self.input.focused_at.map(|at| at.elapsed());
         decide::first_mouse_verdict(role, focus, since_activation, self.first_mouse_window)
+    }
+
+    /// Whether the element under `pos` on surface `id` opted into the activating click
+    /// (`data-first-mouse`). Asked of the document only when the click would be swallowed.
+    fn first_mouse_opt_in(
+        &self,
+        id: SurfaceId,
+        first: FirstMouse,
+        pos: PointerPos,
+    ) -> FirstMouseOptIn {
+        match (first, self.surfaces.get(&id)) {
+            (FirstMouse::Swallow, Some(surface)) => {
+                let at = self.document_pos(id, pos);
+                surface.document.wants_first_mouse(at.x, at.y)
+            }
+            _ => FirstMouseOptIn::Default,
+        }
     }
 
     /// Surface `id` is being unmapped or closed by the host. If the pointer is on it, end the

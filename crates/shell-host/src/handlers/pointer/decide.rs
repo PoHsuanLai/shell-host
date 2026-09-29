@@ -6,6 +6,7 @@ use std::time::Duration;
 use blitz_traits::events::MouseEventButton;
 
 use crate::csd::Zone;
+use crate::dom::document::FirstMouseOptIn;
 use crate::input::pointer::{FirstMouse, first_mouse};
 use crate::role::RoleKind;
 use crate::toplevel::ResizeEdge;
@@ -24,14 +25,20 @@ pub(super) enum PressRoute {
     Deliver,
 }
 
-/// The route of `button` pressed in `zone`, where `first_mouse` is the verdict for the window's
-/// activation.
-pub(super) fn press_route(zone: Zone, button: MouseEventButton, first: FirstMouse) -> PressRoute {
-    match (zone, button, first) {
-        (Zone::Edge(edge), MouseEventButton::Main, _) => PressRoute::Resize(edge),
-        (Zone::Edge(_), _, _) => PressRoute::Absorbed,
-        (Zone::Document, _, FirstMouse::Swallow) => PressRoute::Swallowed,
-        (Zone::Document, _, FirstMouse::Deliver) => PressRoute::Deliver,
+/// The route of `button` pressed in `zone`, where `first` is the verdict for the window's
+/// activation and `opt_in` says whether the element pressed asked to receive that click anyway.
+pub(super) fn press_route(
+    zone: Zone,
+    button: MouseEventButton,
+    first: FirstMouse,
+    opt_in: FirstMouseOptIn,
+) -> PressRoute {
+    match (zone, button, first, opt_in) {
+        (Zone::Edge(edge), MouseEventButton::Main, _, _) => PressRoute::Resize(edge),
+        (Zone::Edge(_), _, _, _) => PressRoute::Absorbed,
+        (Zone::Document, _, FirstMouse::Swallow, FirstMouseOptIn::Default) => PressRoute::Swallowed,
+        (Zone::Document, _, FirstMouse::Swallow, FirstMouseOptIn::OptedIn)
+        | (Zone::Document, _, FirstMouse::Deliver, _) => PressRoute::Deliver,
     }
 }
 
@@ -81,46 +88,90 @@ mod tests {
 
     #[test]
     fn a_press_goes_where_its_zone_and_the_first_mouse_rule_send_it() {
+        use FirstMouse::{Deliver, Swallow};
+        use FirstMouseOptIn::{Default, OptedIn};
         use MouseEventButton::{Main, Secondary};
-        let cases: &[(&str, Zone, MouseEventButton, FirstMouse, PressRoute)] = &[
+        type Row = (
+            &'static str,
+            Zone,
+            MouseEventButton,
+            FirstMouse,
+            FirstMouseOptIn,
+            PressRoute,
+        );
+        let resize = PressRoute::Resize(ResizeEdge::BottomRight);
+        let cases: &[Row] = &[
             (
                 "primary in the band resizes, active window or not",
                 EDGE,
                 Main,
-                FirstMouse::Swallow,
-                PressRoute::Resize(ResizeEdge::BottomRight),
+                Swallow,
+                Default,
+                resize,
             ),
             (
                 "secondary in the band is absorbed",
                 EDGE,
                 Secondary,
-                FirstMouse::Deliver,
+                Deliver,
+                Default,
                 PressRoute::Absorbed,
             ),
             (
-                "the activating click on the document is swallowed",
+                "the activating click on a plain element is swallowed",
                 Zone::Document,
                 Main,
-                FirstMouse::Swallow,
+                Swallow,
+                Default,
                 PressRoute::Swallowed,
             ),
             (
-                "a press on the document is delivered",
+                "the activating click on an opted-in element is delivered",
                 Zone::Document,
                 Main,
-                FirstMouse::Deliver,
+                Swallow,
+                OptedIn,
                 PressRoute::Deliver,
             ),
             (
-                "a secondary press on the document is delivered",
+                "the activating secondary click on a plain element is swallowed",
                 Zone::Document,
                 Secondary,
-                FirstMouse::Deliver,
+                Swallow,
+                Default,
+                PressRoute::Swallowed,
+            ),
+            (
+                "a press on an active window's plain element is delivered",
+                Zone::Document,
+                Main,
+                Deliver,
+                Default,
+                PressRoute::Deliver,
+            ),
+            (
+                "a press on an active window's opted-in element is delivered",
+                Zone::Document,
+                Main,
+                Deliver,
+                OptedIn,
+                PressRoute::Deliver,
+            ),
+            (
+                "a secondary press on an active window is delivered",
+                Zone::Document,
+                Secondary,
+                Deliver,
+                Default,
                 PressRoute::Deliver,
             ),
         ];
-        for (name, zone, button, first, want) in cases {
-            assert_eq!(press_route(*zone, *button, *first), *want, "{name}");
+        for (name, zone, button, first, opt_in, want) in cases {
+            assert_eq!(
+                press_route(*zone, *button, *first, *opt_in),
+                *want,
+                "{name}"
+            );
         }
     }
 
