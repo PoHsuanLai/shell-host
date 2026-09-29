@@ -17,7 +17,7 @@ use crate::tick::HostInstant;
 
 impl SurfaceScroll {
     /// A `wl_pointer` axis frame at surface-local `pos`.
-    pub fn axis(
+    pub(crate) fn axis(
         &mut self,
         doc: &mut BaseDocument,
         frame: &AxisFrame,
@@ -138,7 +138,7 @@ impl SurfaceScroll {
     }
 
     /// A palmrest scroll event while the pointer is at `pos` on this surface.
-    pub fn palmrest(
+    pub(crate) fn palmrest(
         &mut self,
         doc: &mut BaseDocument,
         event: PalmScroll,

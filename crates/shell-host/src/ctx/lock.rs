@@ -166,11 +166,7 @@ fn create_surface<M: 'static>(ctx: &mut HostCtx<M>, output: OutputId) {
     let root = (active.factory)(info.clone()).context(handle);
     let label = info.name.clone().unwrap_or_else(|| output.0.to_string());
     let name = SurfaceName(format!("{}/{label}", active.config.namespace));
-    let role = Role::Lock {
-        surface,
-        output,
-        lock: active.id,
-    };
+    let role = Role::Lock { surface };
     let id = state.ids.next();
     active.surfaces.insert(output, id);
     let at = Initial {

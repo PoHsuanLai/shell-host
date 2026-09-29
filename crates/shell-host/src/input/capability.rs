@@ -11,7 +11,7 @@
 
 /// What the seat said about a capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Announcement {
+pub(crate) enum Announcement {
     /// `wl_seat.capabilities` now includes it (sctk's `new_capability`).
     Added,
     /// `wl_seat.capabilities` no longer includes it (sctk's `remove_capability`).
@@ -21,14 +21,14 @@ pub enum Announcement {
 /// Whether the host already holds the capability's device object (`wl_pointer`,
 /// `wl_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Held {
+pub(crate) enum Held {
     Object,
     Nothing,
 }
 
 impl Held {
     /// `Held::Object` for `Some`.
-    pub fn of<T>(object: &Option<T>) -> Held {
+    pub(crate) fn of<T>(object: &Option<T>) -> Held {
         match object {
             Some(_) => Held::Object,
             None => Held::Nothing,
@@ -38,7 +38,7 @@ impl Held {
 
 /// What the host does with the capability's device object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CapabilityChange {
+pub(crate) enum CapabilityChange {
     /// Create the object (and what hangs off it: the cursor-shape device).
     New,
     /// Keep the object already held: a second one would receive every event again.
@@ -51,7 +51,7 @@ pub enum CapabilityChange {
 }
 
 /// The decision table.
-pub fn capability_change(announcement: Announcement, held: Held) -> CapabilityChange {
+pub(crate) fn capability_change(announcement: Announcement, held: Held) -> CapabilityChange {
     match (announcement, held) {
         (Announcement::Added, Held::Nothing) => CapabilityChange::New,
         (Announcement::Added, Held::Object) => CapabilityChange::Repeat,

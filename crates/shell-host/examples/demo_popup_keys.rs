@@ -13,13 +13,13 @@ use std::io::{BufRead, Write};
 
 use dioxus::prelude::*;
 use serde_json::json;
-use shell_host::popup::{
-    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
-};
 use shell_host::{
     Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
     LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect,
     RegionSpec, Size, use_input_modality, use_surface,
+};
+use shell_host::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\

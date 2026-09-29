@@ -9,7 +9,7 @@ use dioxus_document::{Document, Eval, NoOpDocument};
 
 /// One element Dioxus asked for in the `<head>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HeadElement {
+pub(crate) struct HeadElement {
     pub name: String,
     pub attributes: Vec<(String, String)>,
     pub contents: Option<String>,
@@ -17,7 +17,7 @@ pub struct HeadElement {
 
 /// The queue the shim fills and the host drains.
 #[derive(Debug, Clone, Default)]
-pub struct HeadQueue(Rc<RefCell<Vec<HeadElement>>>);
+pub(crate) struct HeadQueue(Rc<RefCell<Vec<HeadElement>>>);
 
 impl HeadQueue {
     /// Record one queued element.
@@ -26,20 +26,20 @@ impl HeadQueue {
     }
 
     /// Everything queued since the last drain, in order.
-    pub fn drain(&self) -> Vec<HeadElement> {
+    pub(crate) fn drain(&self) -> Vec<HeadElement> {
         std::mem::take(&mut *self.0.borrow_mut())
     }
 }
 
 /// The `Document` a surface's `VirtualDom` gets as its document context.
 #[derive(Debug, Clone)]
-pub struct HeadDocument {
+pub(crate) struct HeadDocument {
     queue: HeadQueue,
 }
 
 impl HeadDocument {
     /// A shim filling `queue`.
-    pub fn new(queue: HeadQueue) -> HeadDocument {
+    pub(crate) fn new(queue: HeadQueue) -> HeadDocument {
         HeadDocument { queue }
     }
 }

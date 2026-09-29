@@ -8,7 +8,10 @@ mod percentile;
 mod rss;
 mod window;
 
-pub use frame_stats::{AlphaMode, Dimensions, FrameCounters, FrameStats, PresentMode};
-pub use percentile::{Percentiles, percentiles};
-pub use rss::vm_rss_kib;
-pub use window::StatsWindow;
+#[cfg(test)]
+pub(crate) use frame_stats::FrameCounters;
+pub use frame_stats::FrameStats;
+pub(crate) use frame_stats::{AlphaMode, Dimensions, PresentMode};
+pub use percentile::Percentiles;
+pub(crate) use rss::vm_rss_kib;
+pub(crate) use window::StatsWindow;

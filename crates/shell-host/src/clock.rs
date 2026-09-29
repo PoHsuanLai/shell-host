@@ -7,24 +7,24 @@ use crate::tick::HostInstant;
 
 /// Seconds since the host started, for `resolve(t)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HostClock {
+pub(crate) struct HostClock {
     origin: Instant,
 }
 
 impl HostClock {
     /// A clock whose zero is `origin` (the host passes `Instant::now()` once, at connect).
-    pub fn starting_at(origin: Instant) -> HostClock {
+    pub(crate) fn starting_at(origin: Instant) -> HostClock {
         HostClock { origin }
     }
 
     /// `now` on the host clock, for frame ticks (`tick::HostInstant`). An instant before the
     /// origin is the origin.
-    pub fn instant_at(self, now: Instant) -> HostInstant {
+    pub(crate) fn instant_at(self, now: Instant) -> HostInstant {
         HostInstant(now.saturating_duration_since(self.origin))
     }
 
     /// The document time at `now`, in seconds. An instant before the origin is time zero.
-    pub fn seconds_at(self, now: Instant) -> f64 {
+    pub(crate) fn seconds_at(self, now: Instant) -> f64 {
         now.saturating_duration_since(self.origin).as_secs_f64()
     }
 }

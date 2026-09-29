@@ -12,13 +12,13 @@
 use std::time::Duration;
 
 use dioxus::prelude::*;
-use shell_host::popup::{
-    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
-};
 use shell_host::{
     Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
     LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect,
     RegionSpec, Size, use_surface,
+};
+use shell_host::{
+    PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
 };
 
 /// The margin and padding reset quire's `css/reset.css` would bring.

@@ -16,29 +16,29 @@ const MIN_SAMPLES: usize = 3;
 
 /// A point on a source's timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct SampleTime(pub Duration);
+pub(crate) struct SampleTime(pub Duration);
 
 impl SampleTime {
     /// Seconds from `earlier` to `self` (negative if `earlier` is later).
-    pub fn secs_since(self, earlier: SampleTime) -> f64 {
+    pub(crate) fn secs_since(self, earlier: SampleTime) -> f64 {
         self.0.as_secs_f64() - earlier.0.as_secs_f64()
     }
 }
 
 /// The window and held-still rule of a release.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Release {
+pub(crate) struct Release {
     pub window: Duration,
     pub held_still: Duration,
 }
 
 /// The recent `(time, cumulative offset)` samples of one gesture.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Samples(VecDeque<(SampleTime, f64)>);
+pub(crate) struct Samples(VecDeque<(SampleTime, f64)>);
 
 impl Samples {
     /// Record the cumulative offset `at`, dropping samples older than 100 ms.
-    pub fn push(&mut self, at: SampleTime, cumulative: f64) {
+    pub(crate) fn push(&mut self, at: SampleTime, cumulative: f64) {
         self.0.push_back((at, cumulative));
         while let Some(&(oldest, _)) = self.0.front() {
             if at.secs_since(oldest) > KEEP.as_secs_f64() {
@@ -51,7 +51,7 @@ impl Samples {
 
     /// The release velocity (px/s, signed) for fingers lifted at `end`: 0 with fewer than three
     /// samples in the window, or when the newest is older than the held-still limit.
-    pub fn velocity(&self, end: SampleTime, rule: Release) -> f64 {
+    pub(crate) fn velocity(&self, end: SampleTime, rule: Release) -> f64 {
         let Some(&(newest, _)) = self.0.back() else {
             return 0.0;
         };

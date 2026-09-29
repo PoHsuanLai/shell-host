@@ -9,8 +9,9 @@ pub use config::{
     PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
     PopupToggle,
 };
-pub use positioner::{PositionerParams, offset_rect, positioner_params, refit};
-pub use wire::{to_wire_anchor, to_wire_constraint_adjustment, to_wire_gravity};
+pub use positioner::offset_rect;
+pub(crate) use positioner::{PositionerParams, positioner_params, refit};
+pub(crate) use wire::{to_wire_anchor, to_wire_constraint_adjustment, to_wire_gravity};
 
 #[cfg(test)]
 mod tests;

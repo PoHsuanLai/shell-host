@@ -20,7 +20,7 @@ use super::PointerPos;
 use super::button::{ButtonChange, buttons_after};
 
 /// A mouse pointer event at `pos`.
-pub fn pointer_event(
+pub(crate) fn pointer_event(
     pos: PointerPos,
     button: MouseEventButton,
     buttons: MouseEventButtons,
@@ -49,13 +49,13 @@ pub fn pointer_event(
 }
 
 /// A plain motion to `pos` with `held` buttons down.
-pub fn move_event(pos: PointerPos, held: MouseEventButtons, mods: Modifiers) -> UiEvent {
+pub(crate) fn move_event(pos: PointerPos, held: MouseEventButtons, mods: Modifiers) -> UiEvent {
     UiEvent::PointerMove(pointer_event(pos, MouseEventButton::Main, held, mods))
 }
 
 /// The events for pressing `button` at `pos`: a move to the same point first, then the down.
 /// `held` is the set before the press.
-pub fn press_events(
+pub(crate) fn press_events(
     pos: PointerPos,
     button: MouseEventButton,
     held: MouseEventButtons,
@@ -69,7 +69,7 @@ pub fn press_events(
 }
 
 /// The event for releasing `button` at `pos`. `held` is the set before the release.
-pub fn release_event(
+pub(crate) fn release_event(
     pos: PointerPos,
     button: MouseEventButton,
     held: MouseEventButtons,
@@ -80,7 +80,7 @@ pub fn release_event(
 }
 
 /// The event sent when the pointer leaves a surface, before `clear_hover()`.
-pub fn leave_event(mods: Modifiers) -> UiEvent {
+pub(crate) fn leave_event(mods: Modifiers) -> UiEvent {
     move_event(PointerPos::OUTSIDE, MouseEventButtons::None, mods)
 }
 

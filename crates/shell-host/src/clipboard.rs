@@ -22,19 +22,19 @@ use wayland_client::Connection;
 use crate::error::{HostError, Result};
 
 /// How long reading a selection offer waits for its owner to write.
-pub const PASTE_TIMEOUT: Duration = Duration::from_millis(200);
+pub(crate) const PASTE_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// The MIME types a text paste accepts, most preferred first.
-pub const TEXT_MIME: &[&str] = &["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
+pub(crate) const TEXT_MIME: &[&str] = &["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
 
 /// Which selection a read belongs to: bumped by every new selection, so a slow read of an old
 /// offer cannot overwrite the text of a newer one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Generation(u64);
+pub(crate) struct Generation(u64);
 
 /// Whether a published read was kept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Publish {
+pub(crate) enum Publish {
     Kept,
     /// A newer selection began while this one was being read.
     Stale,
@@ -49,12 +49,12 @@ struct Published {
 /// The current selection's text, shared between the seat (which publishes it) and every
 /// surface's shell provider (which reads it for a paste).
 #[derive(Debug, Clone, Default)]
-pub struct SharedSelection(Arc<Mutex<Published>>);
+pub(crate) struct SharedSelection(Arc<Mutex<Published>>);
 
 impl SharedSelection {
     /// A new selection replaced the old one: the generation a read of it must publish under.
     /// The previous text stays readable until that read publishes.
-    pub fn begin(&self) -> Generation {
+    pub(crate) fn begin(&self) -> Generation {
         let mut published = self.lock();
         published.generation = Generation(published.generation.0 + 1);
         published.generation
@@ -62,7 +62,7 @@ impl SharedSelection {
 
     /// Publish the text read for `generation`; `None` when the selection holds no text (or the
     /// read failed). Ignored when a newer selection has begun since.
-    pub fn publish(&self, generation: Generation, text: Option<String>) -> Publish {
+    pub(crate) fn publish(&self, generation: Generation, text: Option<String>) -> Publish {
         let mut published = self.lock();
         if published.generation != generation {
             return Publish::Stale;
@@ -72,7 +72,7 @@ impl SharedSelection {
     }
 
     /// The selection's text as last published.
-    pub fn text(&self) -> Option<String> {
+    pub(crate) fn text(&self) -> Option<String> {
         self.lock().text.clone()
     }
 
@@ -83,7 +83,7 @@ impl SharedSelection {
 
 /// The seat's clipboard.
 #[derive(Debug, Default)]
-pub struct Clipboard {
+pub(crate) struct Clipboard {
     /// The text we last copied, while we own the selection.
     pub(crate) own: Option<String>,
     /// The compositor's current selection offer.
@@ -109,26 +109,16 @@ impl Clipboard {
     /// publishes it at once, so a paste in this process sees it without a round trip. The wire
     /// request (`wl_data_device.set_selection`, which needs a queue handle and the serial of a
     /// recent input event) is made by `handlers::data_device::claim_selection`.
-    pub fn copy(&mut self, text: String) {
+    pub(crate) fn copy(&mut self, text: String) {
         let generation = self.selection.begin();
         self.selection.publish(generation, Some(text.clone()));
         self.own = Some(text);
     }
 
-    /// The clipboard text as last published; never blocks.
-    pub fn paste(&self) -> Result<String> {
-        self.selection.text().ok_or_else(|| {
-            HostError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "the selection holds no text",
-            ))
-        })
-    }
-
     /// Follow a new selection (`wl_data_device.selection`): remember the offer and read its text
     /// on a helper thread, publishing it when the read finishes (or `None` when the offer has
     /// no text type, the read fails, or it times out). No offer means an empty clipboard.
-    pub fn follow(&mut self, offer: Option<SelectionOffer>) {
+    pub(crate) fn follow(&mut self, offer: Option<SelectionOffer>) {
         let generation = self.selection.begin();
         let pipe = offer
             .as_ref()
@@ -239,6 +229,5 @@ mod tests {
         let provider = clipboard.selection.clone();
         clipboard.copy("mine".into());
         assert_eq!(provider.text().as_deref(), Some("mine"));
-        assert_eq!(clipboard.paste().ok().as_deref(), Some("mine"));
     }
 }

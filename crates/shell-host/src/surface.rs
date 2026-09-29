@@ -28,14 +28,14 @@ use crate::toplevel::ToplevelState;
 
 /// Whether the compositor has configured the surface yet. Nothing renders before it has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Configured {
+pub(crate) enum Configured {
     Pending,
     Done,
 }
 
 /// The size and scale the viewport, the document and the presenter were last set up for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Geometry {
+pub(crate) struct Geometry {
     pub logical: Size,
     pub inset: Inset,
     pub scale: Scale,
@@ -45,7 +45,7 @@ pub struct Geometry {
 /// (`resolve::Tracked`). The one path that sends regions is the per-frame
 /// `ctx::paint::send_regions`, after layout; configure handlers only invalidate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppliedRegions {
+pub(crate) struct AppliedRegions {
     /// Starts unknown: the compositor's default input region is infinite, so the first
     /// resolution is always sent.
     pub input: Tracked,
@@ -65,7 +65,7 @@ impl Default for AppliedRegions {
 /// A surface. Field order is drop order: the presenter (holding the wgpu surface) goes before
 /// the role (holding the `wl_surface`).
 #[derive(Debug)]
-pub struct HostSurface {
+pub(crate) struct HostSurface {
     pub(crate) presenter: Option<Presenter>,
     pub(crate) role: Role,
     pub(crate) document: SurfaceDocument,
@@ -108,22 +108,22 @@ pub struct HostSurface {
 
 impl HostSurface {
     /// The buffer size for the current logical size and scale.
-    pub fn buffer(&self) -> Size {
+    pub(crate) fn buffer(&self) -> Size {
         buffer_size(self.logical, self.scale)
     }
 
     /// The document's logical size: the surface less the resize band.
-    pub fn document_size(&self) -> Size {
+    pub(crate) fn document_size(&self) -> Size {
         frame_of(self.logical, self.inset)
     }
 
     /// Where the document paints in the buffer, in physical pixels.
-    pub fn content(&self) -> Rect {
+    pub(crate) fn content(&self) -> Rect {
         content_px(self.buffer(), self.inset, self.scale)
     }
 
     /// Step the frame machine; the caller performs the returned action.
-    pub fn step(&mut self, input: FrameInput) -> FrameAction {
+    pub(crate) fn step(&mut self, input: FrameInput) -> FrameAction {
         let (next, action) = crate::frame::step(self.frame, input);
         self.frame = next;
         action
@@ -132,7 +132,7 @@ impl HostSurface {
     /// What the frame machine is told about this surface's motion: its document's animation,
     /// running while a `FrameDrive` is held (`tick::pacing`), or while the scroll engine or its
     /// thumb animates. Scrolling does not tick `use_frame_tick`: its frames are the host's.
-    pub fn pacing(&self, now: HostInstant) -> Animation {
+    pub(crate) fn pacing(&self, now: HostInstant) -> Animation {
         with_scroll(
             pacing(self.document.animation(), self.ticks.drive()),
             self.scroll.animation(now),
@@ -142,7 +142,7 @@ impl HostSurface {
     /// A frame is due at `at` (a callback, or the watchdog standing in for one): publish a
     /// tick if the surface is animating or driven, and return what the machine is told (the
     /// scroll engine's motion included).
-    pub fn frame_due(&mut self, at: HostInstant) -> Animation {
+    pub(crate) fn frame_due(&mut self, at: HostInstant) -> Animation {
         let (animation, ticked) = self.ticks.frame_due(self.document.animation(), at);
         if ticked == Ticked::Ticked {
             self.stats.ticked();
@@ -151,21 +151,21 @@ impl HostSurface {
     }
 
     /// Record a configure: the new logical size (0 on an axis keeps the requested size).
-    pub fn configure(&mut self, logical: Size) {
+    pub(crate) fn configure(&mut self, logical: Size) {
         self.logical = configured_size(self.logical, logical);
         self.configured = Configured::Done;
     }
 
     /// Record a new preferred scale and publish it to the document, whose components reading
     /// `use_surface_scale` are woken (and so polled at the next flush's first phase).
-    pub fn rescale(&mut self, scale: Scale) {
+    pub(crate) fn rescale(&mut self, scale: Scale) {
         self.scale = scale;
         self.live_scale.publish(scale);
     }
 
     /// Record `op`'s effect on this surface's own fields; the Wayland requests are the
     /// caller's.
-    pub fn record(&mut self, op: &SurfaceOp) {
+    pub(crate) fn record(&mut self, op: &SurfaceOp) {
         match (op, &mut self.role) {
             (SurfaceOp::SetBlur(blur), _) => {
                 self.blur = blur.clone();
@@ -195,7 +195,7 @@ impl HostSurface {
 
     /// The stats report over the current sample window (`StatsWindow::peek`); the debug
     /// `stats` command drains the window after printing it.
-    pub fn report(&self, adapter: &str) -> FrameStats {
+    pub(crate) fn report(&self, adapter: &str) -> FrameStats {
         let (work, interval, samples) = self.stats.peek();
         let (alpha_mode, present_mode) = match &self.presenter {
             Some(presenter) => (presenter.alpha_mode(), presenter.present_mode()),
@@ -254,7 +254,7 @@ fn record_layer(
 
 /// The logical size after a configure of `got`: an axis the compositor left at 0 keeps
 /// `requested`. Pure.
-pub fn configured_size(requested: Size, got: Size) -> Size {
+pub(crate) fn configured_size(requested: Size, got: Size) -> Size {
     let pick = |got: Px, requested: Px| if got > 0 { got } else { requested };
     Size {
         width: pick(got.width, requested.width),
@@ -272,7 +272,7 @@ fn dimensions(size: Size) -> Dimensions {
 
 /// What changing a surface's visibility takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VisibilityChange {
+pub(crate) enum VisibilityChange {
     /// Already in that state: nothing to do.
     Unchanged,
     /// Cancel the watchdog, drop the presenter (the wgpu surface before its `wl_surface`),
@@ -285,7 +285,7 @@ pub enum VisibilityChange {
 }
 
 /// The change that takes a surface from `from` to `to`. Pure.
-pub fn visibility_change(from: Visibility, to: Visibility) -> VisibilityChange {
+pub(crate) fn visibility_change(from: Visibility, to: Visibility) -> VisibilityChange {
     match (from, to) {
         (Visibility::Shown, Visibility::Hidden) => VisibilityChange::Unmap,
         (Visibility::Hidden, Visibility::Shown) => VisibilityChange::Map,

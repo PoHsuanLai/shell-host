@@ -2,16 +2,16 @@
 //! (the second surface costs ~1.8 MB, so per-surface devices are
 //! unnecessary), with a CPU `wl_shm` presenter as the fallback.
 
-pub mod adapter;
+pub(crate) mod adapter;
 mod block_on;
-pub mod context;
-pub mod context_proxy;
-pub mod presenter;
+pub(crate) mod context;
+pub(crate) mod context_proxy;
+pub(crate) mod presenter;
 mod probe;
-pub mod raw_handle;
-pub mod render;
-pub mod shm;
-pub mod swapchain;
+pub(crate) mod raw_handle;
+pub(crate) mod render;
+pub(crate) mod shm;
+pub(crate) mod swapchain;
 
 #[cfg(test)]
 mod tests;

@@ -119,7 +119,7 @@ pub enum RegionSpec {
 /// outside the rounded shape), and the amount trimmed off the corners is never more than the
 /// rectangle's `effective_radius()`. A radius of zero or a degenerate rectangle returns the
 /// rectangle itself (zero or one strip).
-pub fn rounded_strips(rr: RoundedRect) -> Vec<Rect> {
+pub(crate) fn rounded_strips(rr: RoundedRect) -> Vec<Rect> {
     let Rect {
         x,
         y,

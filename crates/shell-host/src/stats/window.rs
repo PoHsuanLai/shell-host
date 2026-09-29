@@ -7,7 +7,7 @@ use super::percentile::{Percentiles, percentiles};
 
 /// The samples and counters behind one surface's [`FrameStats`], accumulated between reports.
 #[derive(Debug, Clone, Default)]
-pub struct StatsWindow {
+pub(crate) struct StatsWindow {
     counters: FrameCounters,
     work_us: Vec<u32>,
     interval_us: Vec<u32>,
@@ -16,7 +16,7 @@ pub struct StatsWindow {
 
 impl StatsWindow {
     /// Record a presented frame whose work took `work`, presented at `now`.
-    pub fn presented(&mut self, work: Duration, now: Instant) {
+    pub(crate) fn presented(&mut self, work: Duration, now: Instant) {
         self.counters.frames += 1;
         self.counters.commits += 1;
         self.work_us.push(micros(work));
@@ -28,37 +28,37 @@ impl StatsWindow {
     }
 
     /// Record a frame callback.
-    pub fn callback(&mut self) {
+    pub(crate) fn callback(&mut self) {
         self.counters.callbacks += 1;
     }
 
     /// Record a frame that could not be presented.
-    pub fn skipped(&mut self) {
+    pub(crate) fn skipped(&mut self) {
         self.counters.skipped += 1;
     }
 
     /// Record a frame tick.
-    pub fn ticked(&mut self) {
+    pub(crate) fn ticked(&mut self) {
         self.counters.ticks += 1;
     }
 
     /// Record a render that ran the pre-paint hook.
-    pub fn prepainted(&mut self) {
+    pub(crate) fn prepainted(&mut self) {
         self.counters.prepaints += 1;
     }
 
     /// Record a watchdog expiry.
-    pub fn watchdog_fired(&mut self) {
+    pub(crate) fn watchdog_fired(&mut self) {
         self.counters.watchdog_fired += 1;
     }
 
     /// The counters so far.
-    pub fn counters(&self) -> FrameCounters {
+    pub(crate) fn counters(&self) -> FrameCounters {
         self.counters
     }
 
     /// The work and interval percentiles and sample count since the last drain.
-    pub fn peek(&self) -> (Percentiles, Percentiles, u32) {
+    pub(crate) fn peek(&self) -> (Percentiles, Percentiles, u32) {
         let samples = u32::try_from(self.work_us.len()).unwrap_or(u32::MAX);
         (
             percentiles(&self.work_us),
@@ -69,7 +69,7 @@ impl StatsWindow {
 
     /// [`StatsWindow::peek`], then clear the samples (counters stay cumulative). The debug
     /// `stats` command drains, so each report covers the time since the previous one.
-    pub fn drain(&mut self) -> (Percentiles, Percentiles, u32) {
+    pub(crate) fn drain(&mut self) -> (Percentiles, Percentiles, u32) {
         let report = self.peek();
         self.work_us.clear();
         self.interval_us.clear();

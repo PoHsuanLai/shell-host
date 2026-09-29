@@ -62,9 +62,9 @@ fn text(document: &mut SurfaceDocument) -> String {
     text
 }
 
-fn test_env(id: SurfaceId, ping: calloop::ping::Ping, prepaint: Prepaint) -> DocumentEnv {
+fn test_env(ping: calloop::ping::Ping, prepaint: Prepaint) -> DocumentEnv {
     DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(id, ping, SharedSelection::default())),
+        shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
@@ -105,7 +105,7 @@ fn use_frame_tick_renders_each_published_tick() {
         RoleKind::Toplevel,
         parts(requests.clone(), ticks.clone(), LiveScale::new(Scale::ONE)),
     );
-    let env = test_env(id, ping, Prepaint::None);
+    let env = test_env(ping, Prepaint::None);
     let mut document = SurfaceDocument::build(HostRoot::new(ticking).context(handle.clone()), env);
     let wakes = Arc::new(Wakes::default());
     let waker = std::task::Waker::from(Arc::clone(&wakes));
@@ -152,7 +152,7 @@ fn a_spawned_root_reads_its_surface_handle() {
             LiveScale::new(Scale::ONE),
         ),
     );
-    let env = test_env(id, ping, Prepaint::None);
+    let env = test_env(ping, Prepaint::None);
 
     let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
 
@@ -198,7 +198,7 @@ fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
             live.clone(),
         ),
     );
-    let env = test_env(id, ping, Prepaint::None);
+    let env = test_env(ping, Prepaint::None);
     let mut document = SurfaceDocument::build(HostRoot::new(scaled).context(handle.clone()), env);
     assert_eq!(
         text(&mut document),
@@ -242,7 +242,7 @@ fn resolve_runs_the_prepaint_hook_once_after_layout() {
     });
     let env = DocumentEnv {
         viewport: Viewport::new(300, 60, 1.5, ColorScheme::Light),
-        ..test_env(id, ping.clone(), hook)
+        ..test_env(ping.clone(), hook)
     };
     let handle = SurfaceHandle::new(
         id,
@@ -281,7 +281,7 @@ fn without_a_hook_resolve_reports_none_ran() {
             LiveScale::new(Scale::ONE),
         ),
     );
-    let env = test_env(id, ping, Prepaint::None);
+    let env = test_env(ping, Prepaint::None);
     let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
     assert_eq!(document.resolve(0.0).prepainted, Prepainted::NoHook);
 }
@@ -310,7 +310,7 @@ fn use_toplevel_state_follows_each_configure() {
             )
         },
     );
-    let env = test_env(id, ping, Prepaint::None);
+    let env = test_env(ping, Prepaint::None);
     let mut document =
         SurfaceDocument::build(HostRoot::new(zoom_state).context(handle.clone()), env);
     assert_eq!(text(&mut document), "Unset");
@@ -359,7 +359,7 @@ fn use_input_modality_is_the_seats_across_surfaces() {
                     )
                 },
             );
-            let env = test_env(id, ping.clone(), Prepaint::None);
+            let env = test_env(ping.clone(), Prepaint::None);
             SurfaceDocument::build(HostRoot::new(modality_text).context(handle), env)
         })
         .collect();
@@ -374,8 +374,8 @@ fn use_input_modality_is_the_seats_across_surfaces() {
     let note = |stroke| {
         let _ = seat.publish(modality::after(seat.get(), stroke));
     };
-    note(Stroke::PointerMotion);
-    assert_eq!(wakes.take(), 0, "motion changes nothing");
+    note(Stroke::PointerPress);
+    assert_eq!(wakes.take(), 0, "a press while on pointer changes nothing");
     note(Stroke::KeyPress(KeyKind::Other));
     assert!(wakes.take() > 0, "the surfaces wake");
     for document in &mut documents {

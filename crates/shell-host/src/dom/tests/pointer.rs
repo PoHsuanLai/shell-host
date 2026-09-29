@@ -2,10 +2,9 @@
 //! `input::pointer`, applied to a live Blitz document.
 //!
 //! The documents are the host's own `SurfaceDocument`s (UA stylesheet included), fed the event
-//! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them; the
-//! `data-first-mouse` opt-in (design/13 §13.3.8) is asked of `SurfaceDocument::wants_first_mouse`.
+//! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them.
 
-use crate::dom::document::{FirstMouseOptIn, Polled, SurfaceDocument};
+use crate::dom::document::{Polled, SurfaceDocument};
 use crate::dom::tests::env::test_env;
 use crate::input::pointer::{self, PointerPos};
 use crate::root::HostRoot;
@@ -26,7 +25,6 @@ const CSS: &str = "
 .icon{width:40px;height:40px;background:#456}
 #scroller{width:120px;height:80px;overflow:auto}
 #tall{height:600px}
-#drag{width:60px;height:20px}
 ";
 
 fn app() -> Element {
@@ -40,7 +38,6 @@ fn app() -> Element {
         div { id: "scroller",
             div { id: "tall" }
         }
-        div { id: "drag", "data-first-mouse": "true" }
     }
 }
 
@@ -234,29 +231,6 @@ fn axis_absolute(absolute: f64) -> smithay_client_toolkit::seat::pointer::AxisSc
         absolute,
         ..Default::default()
     }
-}
-
-/// A press on an inactive toplevel is swallowed unless the element it lands on (or an
-/// ancestor) carries `data-first-mouse` (design/13 §13.3.8). `input::pointer::first_mouse`
-/// (table-tested in `src/input/pointer.rs`) decides *whether* a press is in the activating
-/// window; this checks the DOM-side half the pointer handler asks the document.
-#[test]
-fn the_activating_click_is_swallowed_unless_opted_in() {
-    let mut doc = build();
-    let drag = node_id(&mut doc, "#drag");
-    let icon0 = node_id(&mut doc, "#icon0");
-    let (drag, icon0) = (center(&mut doc, drag), center(&mut doc, icon0));
-
-    assert_eq!(
-        doc.wants_first_mouse(drag.x, drag.y),
-        FirstMouseOptIn::OptedIn,
-        "the data-first-mouse element opts in"
-    );
-    assert_eq!(
-        doc.wants_first_mouse(icon0.x, icon0.y),
-        FirstMouseOptIn::Default,
-        "an ordinary element does not opt in"
-    );
 }
 
 fn leave_counter() -> Element {

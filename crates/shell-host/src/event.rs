@@ -63,10 +63,10 @@ pub enum KeyboardFocus {
 
 /// An event raised inside the Wayland handlers, which never carry an app message. Widened to
 /// the caller's `HostEvent<M>` with [`widen`] when it is delivered.
-pub type ShellEvent = HostEvent<std::convert::Infallible>;
+pub(crate) type ShellEvent = HostEvent<std::convert::Infallible>;
 
 /// `event` as a `HostEvent<M>`. Total: a `ShellEvent` cannot be `App`.
-pub fn widen<M>(event: ShellEvent) -> HostEvent<M> {
+pub(crate) fn widen<M>(event: ShellEvent) -> HostEvent<M> {
     match event {
         HostEvent::Started => HostEvent::Started,
         HostEvent::OutputAdded(info) => HostEvent::OutputAdded(info),

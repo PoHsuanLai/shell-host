@@ -8,14 +8,14 @@ use crate::tick::HostInstant;
 
 /// Whether the pointer is over the thumb's track zone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Hover {
+pub(crate) enum Hover {
     Hovered,
     Away,
 }
 
 /// What the indicator needs next.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Wake {
+pub(crate) enum Wake {
     /// It fades or expands: a frame per callback.
     Frames,
     /// Nothing moves until then (the end of the hold before the fade).
@@ -26,7 +26,7 @@ pub enum Wake {
 
 /// One surface's thumb: which scroller it shows, when that last moved, and the hover.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Indicator {
+pub(crate) struct Indicator {
     pub latch: Option<Latch>,
     last_change: Option<HostInstant>,
     hover: Option<Hover>,
@@ -41,7 +41,7 @@ fn secs(from: HostInstant, to: HostInstant) -> f64 {
 
 impl Indicator {
     /// `latch`'s offset changed at `now`: show its thumb at full opacity.
-    pub fn changed(self, latch: Latch, now: HostInstant) -> Indicator {
+    pub(crate) fn changed(self, latch: Latch, now: HostInstant) -> Indicator {
         let same = self.latch == Some(latch);
         Indicator {
             latch: Some(latch),
@@ -53,7 +53,7 @@ impl Indicator {
     }
 
     /// The pointer moved onto or off the track zone at `now`.
-    pub fn hover(self, hover: Hover, s: &ScrollbarSettings, now: HostInstant) -> Indicator {
+    pub(crate) fn hover(self, hover: Hover, s: &ScrollbarSettings, now: HostInstant) -> Indicator {
         let current = self.hover.unwrap_or(Hover::Away);
         if current == hover || self.latch.is_none() {
             return self;
@@ -76,7 +76,7 @@ impl Indicator {
     }
 
     /// The thumb's opacity at `now` (§11.5.6): 1 for the hold, then a linear fade.
-    pub fn opacity(
+    pub(crate) fn opacity(
         &self,
         s: &ScrollbarSettings,
         vis: ScrollbarVisibility,
@@ -101,7 +101,7 @@ impl Indicator {
     }
 
     /// The expansion at `now`, 0 at rest and 1 hovered, eased over the expand duration.
-    pub fn expansion(&self, s: &ScrollbarSettings, now: HostInstant) -> f64 {
+    pub(crate) fn expansion(&self, s: &ScrollbarSettings, now: HostInstant) -> f64 {
         let target = match self.hover {
             Some(Hover::Hovered) => 1.0,
             Some(Hover::Away) | None => 0.0,
@@ -119,7 +119,12 @@ impl Indicator {
     }
 
     /// What the indicator needs after a frame at `now`.
-    pub fn wake(&self, s: &ScrollbarSettings, vis: ScrollbarVisibility, now: HostInstant) -> Wake {
+    pub(crate) fn wake(
+        &self,
+        s: &ScrollbarSettings,
+        vis: ScrollbarVisibility,
+        now: HostInstant,
+    ) -> Wake {
         let Some(changed) = self.last_change else {
             return Wake::Never;
         };
@@ -144,7 +149,7 @@ impl Indicator {
     }
 
     /// What to paint for `metrics` at `now`; `None` once faded out.
-    pub fn paint(
+    pub(crate) fn paint(
         &self,
         metrics: &Metrics,
         s: &ScrollbarSettings,

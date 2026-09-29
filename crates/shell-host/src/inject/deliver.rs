@@ -72,7 +72,7 @@ impl<M: 'static> HostCtx<M> {
 
 /// Write `image` to `path` as a PNG: the second half of [`Inject::Capture`], apart so a
 /// headless render can go through the same writer.
-pub fn write_capture(image: &image::RgbaImage, path: PathBuf) -> Result<Injected> {
+pub(crate) fn write_capture(image: &image::RgbaImage, path: PathBuf) -> Result<Injected> {
     save_png(image, &path)?;
     let px = |v: u32| Px::try_from(v).unwrap_or(Px::MAX);
     let size = Size {
@@ -158,6 +158,36 @@ fn pos(point: Point) -> PointerPos {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The capture writer (what `HostCtx::inject` calls after its offscreen render) writes a PNG
+    /// that decodes to the same pixels and returns the path and the pixel size.
+    #[test]
+    fn a_capture_is_written_as_a_png_and_reports_its_size() {
+        let frame = image::RgbaImage::from_fn(240, 160, |x, y| {
+            image::Rgba([(x % 256) as u8, (y % 256) as u8, 64, 255])
+        });
+        let dir = std::env::temp_dir().join(format!("shell-host-capture-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("capture.png");
+        let _ = std::fs::remove_file(&path);
+
+        let written = write_capture(&frame, path.clone()).expect("capture written");
+
+        let size = Size {
+            width: 240,
+            height: 160,
+        };
+        assert_eq!(
+            written,
+            Injected::Captured {
+                path: path.clone(),
+                size
+            }
+        );
+        let read = image::open(&path).expect("a PNG").to_rgba8();
+        assert_eq!(read, frame, "the file holds the rendered pixels");
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     const BUTTON_CASES: &[(PointerButton, MouseEventButton, MouseEventButtons)] = &[
         (

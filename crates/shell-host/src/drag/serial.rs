@@ -12,7 +12,7 @@ use crate::grab::PointerFacts;
 use crate::id::SurfaceId;
 
 /// The serial to start a drag from surface `id` with, or why none fits.
-pub fn drag_serial(facts: PointerFacts, id: SurfaceId) -> Result<u32, DragRefused> {
+pub(crate) fn drag_serial(facts: PointerFacts, id: SurfaceId) -> Result<u32, DragRefused> {
     match facts.press {
         None => Err(DragRefused::NoPress),
         Some(press) if press.surface != id => Err(DragRefused::PressedElsewhere),

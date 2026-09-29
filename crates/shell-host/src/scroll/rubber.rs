@@ -14,7 +14,7 @@ const END_AFTER_S: f64 = 0.024;
 
 /// The stretch model and its constants.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Band {
+pub(crate) struct Band {
     model: ScrollRubberBand,
     c: f64,
     divisor: f64,
@@ -24,28 +24,28 @@ pub struct Band {
 
 /// The spring-back after release.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SnapBack {
+pub(crate) struct SnapBack {
     rate: f64,
     gain: f64,
 }
 
 /// Whether a gesture began with its scroller already at the edge it pushes against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AtEdge {
+pub(crate) enum AtEdge {
     AtEdge,
     Inside,
 }
 
 /// Whether a rebound has settled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Settled {
+pub(crate) enum Settled {
     Settled,
     Moving,
 }
 
 impl Band {
     /// The model `settings` choose.
-    pub fn from_settings(settings: &ScrollSettings) -> Band {
+    pub(crate) fn from_settings(settings: &ScrollSettings) -> Band {
         Band {
             model: settings.rubber_band,
             c: settings.rubber_band_c.get(),
@@ -55,12 +55,12 @@ impl Band {
     }
 
     /// Whether any stretch is allowed at all (`scroll.rubber_band != Off`).
-    pub fn enabled(&self) -> bool {
+    pub(crate) fn enabled(&self) -> bool {
         self.model != ScrollRubberBand::Off
     }
 
     /// The stretch for overscroll `over` on a viewport of `d` px.
-    pub fn stretch(&self, over: f64, d: f64, began: AtEdge) -> f64 {
+    pub(crate) fn stretch(&self, over: f64, d: f64, began: AtEdge) -> f64 {
         let over = match began {
             AtEdge::AtEdge => over - self.edge_min,
             AtEdge::Inside => over,
@@ -77,7 +77,7 @@ impl Band {
 
     /// The overscroll that shows stretch `s` (the inverse of [`Band::stretch`]), for a gesture
     /// that starts on a stretched scroller.
-    pub fn overscroll(&self, s: f64, d: f64, began: AtEdge) -> f64 {
+    pub(crate) fn overscroll(&self, s: f64, d: f64, began: AtEdge) -> f64 {
         if s <= 0.0 {
             return 0.0;
         }
@@ -96,7 +96,7 @@ impl Band {
 
 impl SnapBack {
     /// The constants `settings` carry.
-    pub fn from_settings(settings: &ScrollSettings) -> SnapBack {
+    pub(crate) fn from_settings(settings: &ScrollSettings) -> SnapBack {
         SnapBack {
             rate: settings.rubber_band_snap_rate.get(),
             gain: settings.rubber_band_snap_gain.get(),
@@ -105,12 +105,12 @@ impl SnapBack {
 
     /// The stretch `t` s into a rebound from stretch `s0` moving outward at `v0` px/s; never
     /// below 0 (the rebound stops at the edge, it does not cross it).
-    pub fn stretch(&self, s0: f64, v0: f64, t: f64) -> f64 {
+    pub(crate) fn stretch(&self, s0: f64, v0: f64, t: f64) -> f64 {
         ((s0 + self.gain * v0 * t) * (-self.rate * t).exp()).max(0.0)
     }
 
     /// Whether a rebound showing `s` at `t` s is over.
-    pub fn settled(&self, s: f64, t: f64) -> Settled {
+    pub(crate) fn settled(&self, s: f64, t: f64) -> Settled {
         if s.abs() < END_STRETCH && t >= END_AFTER_S {
             Settled::Settled
         } else {

@@ -14,7 +14,7 @@
 /// Which compositor this is, where its behaviour differs: blur (cosmic-comp) and a
 /// grabbing popup's keyboard (KWin, `popup_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositorKind {
+pub(crate) enum CompositorKind {
     Cosmic,
     Kwin,
     Other,
@@ -22,7 +22,7 @@ pub enum CompositorKind {
 
 /// How the compositor puts pixels on its outputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputBackend {
+pub(crate) enum OutputBackend {
     /// Nested inside another compositor through winit (cosmic-comp's `COSMIC_BACKEND=winit`).
     Winit,
     /// Anything else: KMS, a virtual output, or not known yet.
@@ -31,7 +31,7 @@ pub enum OutputBackend {
 
 /// The vendor of the compositor's main render device.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RenderVendor {
+pub(crate) enum RenderVendor {
     Nvidia,
     Other,
     /// No `zwp_linux_dmabuf_v1` v4 feedback, or the device could not be looked up.
@@ -40,7 +40,7 @@ pub enum RenderVendor {
 
 /// What the host knows about the compositor, for [`blur_health`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CompositorFacts {
+pub(crate) struct CompositorFacts {
     pub kind: CompositorKind,
     pub backend: OutputBackend,
     pub vendor: RenderVendor,
@@ -48,7 +48,7 @@ pub struct CompositorFacts {
 
 /// Whether blur, once advertised, renders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BlurHealth {
+pub(crate) enum BlurHealth {
     Renders,
     /// A known compositor bug makes a blurred surface disappear; the host sends no blur region.
     Breaks,
@@ -56,7 +56,7 @@ pub enum BlurHealth {
 
 /// The verdict for `facts`: only the exact condition that loses blurred surfaces (cosmic-comp on
 /// the winit backend with an NVIDIA render device) is `Breaks`.
-pub fn blur_health(facts: CompositorFacts) -> BlurHealth {
+pub(crate) fn blur_health(facts: CompositorFacts) -> BlurHealth {
     match facts {
         CompositorFacts {
             kind: CompositorKind::Cosmic,
@@ -70,7 +70,7 @@ pub fn blur_health(facts: CompositorFacts) -> BlurHealth {
 /// cosmic-comp, recognised by any of its private globals (`zcosmic_*`, `cosmic_*`); KWin by
 /// `org_kde_plasma_shell` (wlroots compositors offer some `org_kde_kwin_*` globals, never this
 /// one).
-pub fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> CompositorKind {
+pub(crate) fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> CompositorKind {
     let cosmic = |name: &str| name.starts_with("zcosmic_") || name.starts_with("cosmic_");
     let kwin = |name: &str| name == "org_kde_plasma_shell";
     interfaces
@@ -88,7 +88,7 @@ pub fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> Com
 }
 
 /// The winit backend, recognised by an output named `WINIT-n` (`wl_output.name`, v4).
-pub fn output_backend<'a>(names: impl IntoIterator<Item = &'a str>) -> OutputBackend {
+pub(crate) fn output_backend<'a>(names: impl IntoIterator<Item = &'a str>) -> OutputBackend {
     if names.into_iter().any(|name| name.starts_with("WINIT-")) {
         OutputBackend::Winit
     } else {
@@ -97,7 +97,7 @@ pub fn output_backend<'a>(names: impl IntoIterator<Item = &'a str>) -> OutputBac
 }
 
 /// The vendor from a PCI vendor id as sysfs prints it (`0x10de\n`).
-pub fn render_vendor(sysfs_vendor: &str) -> RenderVendor {
+pub(crate) fn render_vendor(sysfs_vendor: &str) -> RenderVendor {
     match sysfs_vendor.trim() {
         "0x10de" => RenderVendor::Nvidia,
         "" => RenderVendor::Unknown,
@@ -107,7 +107,7 @@ pub fn render_vendor(sysfs_vendor: &str) -> RenderVendor {
 
 /// A Linux device number, as `zwp_linux_dmabuf_feedback_v1.main_device` carries it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeviceNumber {
+pub(crate) struct DeviceNumber {
     pub major: u32,
     pub minor: u32,
 }
@@ -115,7 +115,7 @@ pub struct DeviceNumber {
 impl DeviceNumber {
     /// Decode the wire's `dev_t` (native-endian bytes) with glibc's `major`/`minor` split.
     /// `None` unless it is exactly the 8 bytes of a Linux `dev_t`.
-    pub fn from_wire(bytes: &[u8]) -> Option<DeviceNumber> {
+    pub(crate) fn from_wire(bytes: &[u8]) -> Option<DeviceNumber> {
         let dev = u64::from_ne_bytes(bytes.try_into().ok()?);
         let major = ((dev >> 32) & 0xffff_f000) | ((dev >> 8) & 0x0000_0fff);
         let minor = ((dev >> 12) & 0xffff_ff00) | (dev & 0x0000_00ff);
@@ -126,7 +126,7 @@ impl DeviceNumber {
     }
 
     /// Where sysfs keeps the PCI vendor of this character device.
-    pub fn sysfs_vendor_path(self) -> std::path::PathBuf {
+    pub(crate) fn sysfs_vendor_path(self) -> std::path::PathBuf {
         format!("/sys/dev/char/{}:{}/device/vendor", self.major, self.minor).into()
     }
 }

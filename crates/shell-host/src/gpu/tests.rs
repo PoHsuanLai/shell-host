@@ -378,41 +378,6 @@ fn a_widget_texture_is_registered_once_and_drawn_every_frame() {
 }
 
 #[test]
-fn the_widget_context_hands_out_the_device_and_round_trips_a_texture() {
-    let mut gpu = gpu();
-    let mut ctx = gpu.widget_context();
-    let device = ctx
-        .renderer_specific_context()
-        .and_then(|any| any.downcast::<wgpu_context::DeviceHandle>().ok())
-        .expect("the renderer-specific context is the shared DeviceHandle");
-    let texture = device.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("round trip"),
-        size: wgpu::Extent3d {
-            width: 4,
-            height: 4,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
-    let id = ctx
-        .try_register_custom_resource(Box::new(texture))
-        .expect("a wgpu texture registers");
-    assert!(ctx.is_registered(id));
-    assert!(
-        ctx.try_register_custom_resource(Box::new("not a texture"))
-            .is_err(),
-        "anything but a texture or a view is refused"
-    );
-    ctx.unregister_resource(id);
-    assert!(!ctx.is_registered(id));
-}
-
-#[test]
 fn every_render_shares_one_device() {
     let buffer = Size {
         width: 8,

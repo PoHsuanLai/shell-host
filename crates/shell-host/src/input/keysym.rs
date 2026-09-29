@@ -14,7 +14,7 @@ use smithay_client_toolkit::seat::keyboard::Keysym;
 
 /// The named key for `keysym`, or `None` when the keysym stands for text (or for nothing we
 /// name).
-pub fn named_key(keysym: Keysym) -> Option<Key> {
+pub(crate) fn named_key(keysym: Keysym) -> Option<Key> {
     let key = match keysym {
         // TTY function keys
         Keysym::BackSpace => Key::Backspace,
@@ -254,7 +254,7 @@ pub fn named_key(keysym: Keysym) -> Option<Key> {
 /// `text` is xkb's UTF-8 for the press (sctk's `KeyEvent::utf8`). Control characters in it
 /// (Ctrl+C yields U+0003) are not text, so they fall through to the keysym's character (`c`),
 /// which is what a shortcut matcher wants to see.
-pub fn logical_key(keysym: Keysym, text: Option<&str>) -> Key {
+pub(crate) fn logical_key(keysym: Keysym, text: Option<&str>) -> Key {
     if let Some(key) = named_key(keysym) {
         return key;
     }
@@ -267,7 +267,7 @@ pub fn logical_key(keysym: Keysym, text: Option<&str>) -> Key {
 }
 
 /// Where on the keyboard the key that produced `keysym` sits.
-pub fn location(keysym: Keysym) -> Location {
+pub(crate) fn location(keysym: Keysym) -> Location {
     match keysym {
         Keysym::Shift_L
         | Keysym::Control_L

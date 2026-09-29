@@ -11,7 +11,7 @@ use wayland_protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::
 
 /// The cursor-shape device for the seat's pointer, and the shape last set.
 #[derive(Debug)]
-pub struct Cursor {
+pub(crate) struct Cursor {
     pub(crate) manager: Option<CursorShapeManager>,
     pub(crate) device: Option<WpCursorShapeDeviceV1>,
     pub(crate) current: Option<CursorIcon>,
@@ -20,7 +20,7 @@ pub struct Cursor {
 impl Cursor {
     /// Show `icon` (or hide the cursor for `None`) on `pointer`, with the serial of its last
     /// `enter`. Does nothing when the shape is already `icon`.
-    pub fn set(&mut self, pointer: &WlPointer, serial: u32, icon: Option<CursorIcon>) {
+    pub(crate) fn set(&mut self, pointer: &WlPointer, serial: u32, icon: Option<CursorIcon>) {
         if self.current == icon {
             return;
         }

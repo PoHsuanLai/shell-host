@@ -7,7 +7,7 @@ use crate::scale::Size;
 use crate::stats::{AlphaMode, PresentMode};
 
 /// One surface's swapchain and scene. The wgpu surface is declared first so it drops first.
-pub struct Swapchain {
+pub(crate) struct Swapchain {
     pub(crate) surface: wgpu::Surface<'static>,
     pub(crate) config: Option<wgpu::SurfaceConfiguration>,
     pub(crate) scene: vello_hybrid::Scene,
@@ -15,7 +15,7 @@ pub struct Swapchain {
 
 impl Swapchain {
     /// A swapchain for `surface`, unconfigured until the first `configure`.
-    pub fn new(surface: wgpu::Surface<'static>) -> Swapchain {
+    pub(crate) fn new(surface: wgpu::Surface<'static>) -> Swapchain {
         Swapchain {
             surface,
             config: None,
@@ -24,7 +24,7 @@ impl Swapchain {
     }
 
     /// Configure (or reconfigure after `Outdated`/`Lost`) for `buffer` on `gpu`'s device.
-    pub fn configure(&mut self, gpu: &GpuContext, buffer: Size) {
+    pub(crate) fn configure(&mut self, gpu: &GpuContext, buffer: Size) {
         let (width, height) = pixel_extent(buffer);
         let config = match self.config.take() {
             Some(previous) => wgpu::SurfaceConfiguration {
@@ -102,7 +102,7 @@ fn first_config(
 }
 
 /// Mailbox if offered, else Fifo (always offered).
-pub fn choose_present(offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
+pub(crate) fn choose_present(offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
     if offered.contains(&wgpu::PresentMode::Mailbox) {
         wgpu::PresentMode::Mailbox
     } else {
@@ -115,7 +115,7 @@ pub fn choose_present(offered: &[wgpu::PresentMode]) -> wgpu::PresentMode {
 /// `Opaque` is taken even when the surface does not list it, only when nothing else is
 /// listed at all; a surface that lists only an unusual mode (`Inherit`) gets that mode, which
 /// the stats report as opaque.
-pub fn choose_alpha(offered: &[wgpu::CompositeAlphaMode]) -> wgpu::CompositeAlphaMode {
+pub(crate) fn choose_alpha(offered: &[wgpu::CompositeAlphaMode]) -> wgpu::CompositeAlphaMode {
     [
         wgpu::CompositeAlphaMode::PreMultiplied,
         wgpu::CompositeAlphaMode::PostMultiplied,
@@ -128,7 +128,7 @@ pub fn choose_alpha(offered: &[wgpu::CompositeAlphaMode]) -> wgpu::CompositeAlph
 }
 
 /// The stats name of a wgpu present mode.
-pub fn present_mode_of(mode: wgpu::PresentMode) -> PresentMode {
+pub(crate) fn present_mode_of(mode: wgpu::PresentMode) -> PresentMode {
     match mode {
         wgpu::PresentMode::Mailbox => PresentMode::Mailbox,
         wgpu::PresentMode::Immediate | wgpu::PresentMode::AutoNoVsync => PresentMode::Immediate,
@@ -139,7 +139,7 @@ pub fn present_mode_of(mode: wgpu::PresentMode) -> PresentMode {
 }
 
 /// The stats name of a wgpu alpha mode.
-pub fn alpha_mode_of(mode: wgpu::CompositeAlphaMode) -> AlphaMode {
+pub(crate) fn alpha_mode_of(mode: wgpu::CompositeAlphaMode) -> AlphaMode {
     match mode {
         wgpu::CompositeAlphaMode::PreMultiplied => AlphaMode::PreMultiplied,
         wgpu::CompositeAlphaMode::PostMultiplied => AlphaMode::PostMultiplied,

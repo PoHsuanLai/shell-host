@@ -6,7 +6,7 @@ use crate::region::Rect;
 /// Whether a freshly resolved region differs from the one [`Tracked`] last recorded, and so
 /// needs to be sent to the compositor again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Change {
+pub(crate) enum Change {
     Same,
     Changed,
 }
@@ -19,26 +19,26 @@ pub enum Change {
 /// "keep whatever region the surface has now" — so it always reports [`Change::Same`]: there is
 /// nothing new to send, whether or not anything was ever resolved before.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Tracked {
+pub(crate) struct Tracked {
     last: Option<Vec<Rect>>,
 }
 
 impl Tracked {
     /// A tracker that has not recorded anything yet; its first real resolution always reports
     /// [`Change::Changed`].
-    pub fn new() -> Tracked {
+    pub(crate) fn new() -> Tracked {
         Tracked::default()
     }
 
     /// A tracker for a region the compositor is already known to hold, so resolving to the
     /// same strips sends nothing: a fresh surface has no blur region, which is
     /// `Tracked::holding(Vec::new())`, and resolving "no blur" on it creates no effect object.
-    pub fn holding(strips: Vec<Rect>) -> Tracked {
+    pub(crate) fn holding(strips: Vec<Rect>) -> Tracked {
         Tracked { last: Some(strips) }
     }
 
     /// Record `resolved` and report whether the compositor needs a new region.
-    pub fn update(&mut self, resolved: &Resolved) -> Change {
+    pub(crate) fn update(&mut self, resolved: &Resolved) -> Change {
         let Resolved::Strips(strips) = resolved else {
             return Change::Same;
         };

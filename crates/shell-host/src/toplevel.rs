@@ -190,7 +190,7 @@ pub struct ToplevelState {
 }
 
 /// The sctk request for `decorations`.
-pub fn to_wire_decorations(decorations: Decorations) -> WindowDecorations {
+pub(crate) fn to_wire_decorations(decorations: Decorations) -> WindowDecorations {
     match decorations {
         Decorations::Client(_) => WindowDecorations::RequestClient,
         Decorations::Server => WindowDecorations::RequestServer,
@@ -198,7 +198,7 @@ pub fn to_wire_decorations(decorations: Decorations) -> WindowDecorations {
 }
 
 /// The `xdg_toplevel.resize_edge` for `edge`.
-pub fn to_wire_edge(edge: ResizeEdge) -> xdg_toplevel::ResizeEdge {
+pub(crate) fn to_wire_edge(edge: ResizeEdge) -> xdg_toplevel::ResizeEdge {
     match edge {
         ResizeEdge::Top => xdg_toplevel::ResizeEdge::Top,
         ResizeEdge::Bottom => xdg_toplevel::ResizeEdge::Bottom,
@@ -212,7 +212,7 @@ pub fn to_wire_edge(edge: ResizeEdge) -> xdg_toplevel::ResizeEdge {
 }
 
 /// The state a configure carries.
-pub fn state_of(configure: &WindowConfigure) -> ToplevelState {
+pub(crate) fn state_of(configure: &WindowConfigure) -> ToplevelState {
     ToplevelState {
         maximized: Maximize::from(configure.is_maximized()),
         fullscreen: Fullscreen::from(configure.is_fullscreen()),

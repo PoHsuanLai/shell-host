@@ -13,7 +13,7 @@
 use keyboard_types::Code;
 
 /// The physical key for evdev code `scancode`.
-pub fn code_from_evdev(scancode: u32) -> Code {
+pub(crate) fn code_from_evdev(scancode: u32) -> Code {
     match scancode {
         1 => Code::Escape,
         2 => Code::Digit1,

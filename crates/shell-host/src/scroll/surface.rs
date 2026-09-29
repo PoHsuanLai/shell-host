@@ -23,7 +23,7 @@ use crate::tick::HostInstant;
 
 /// What a step did to the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Moved {
+pub(crate) enum Moved {
     Moved,
     Still,
 }
@@ -39,7 +39,7 @@ impl Moved {
 
 /// Whether a key reached the engine or belongs to the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyUse {
+pub(crate) enum KeyUse {
     Scrolled(Moved),
     Passed,
 }
@@ -62,7 +62,7 @@ enum PalmGesture {
 
 /// A palmrest scroll event, already on the host's terms.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PalmScroll {
+pub(crate) enum PalmScroll {
     MayBegin,
     Began {
         axis: ScrollAxis,
@@ -81,7 +81,7 @@ pub enum PalmScroll {
 
 /// One surface's scroll state.
 #[derive(Debug, Clone)]
-pub struct SurfaceScroll {
+pub(crate) struct SurfaceScroll {
     engine: Engine,
     indicator: Indicator,
     pad: Pad,
@@ -96,7 +96,7 @@ pub struct SurfaceScroll {
 
 impl SurfaceScroll {
     /// A surface's scrolling, publishing to `board` (shared with its `SurfaceHandle`).
-    pub fn new(board: ScrollBoard, tuning: Tuning) -> SurfaceScroll {
+    pub(crate) fn new(board: ScrollBoard, tuning: Tuning) -> SurfaceScroll {
         SurfaceScroll {
             engine: Engine::Idle,
             indicator: Indicator::default(),
@@ -111,17 +111,19 @@ impl SurfaceScroll {
     }
 
     /// Use `tuning` from now on (a settings change; nothing animates from it).
-    pub fn set_tuning(&mut self, tuning: Tuning) {
+    pub(crate) fn set_tuning(&mut self, tuning: Tuning) {
         self.tuning = tuning;
     }
 
     /// The watched scrollers this surface publishes to.
-    pub fn board(&self) -> ScrollBoard {
+    #[cfg(test)]
+    pub(crate) fn board(&self) -> ScrollBoard {
         self.board.clone()
     }
 
-    /// The engine, for tests and stats.
-    pub fn engine(&self) -> &Engine {
+    /// The engine, for tests.
+    #[cfg(test)]
+    pub(crate) fn engine(&self) -> &Engine {
         &self.engine
     }
 
@@ -144,14 +146,14 @@ impl SurfaceScroll {
 
     /// A frame is rendered at `env.now`: advance the animation. Called before the resolve, so
     /// the layout (and Blitz's hoisting of positioned descendants) sees this frame's offsets.
-    pub fn frame(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
+    pub(crate) fn frame(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.run(doc, ScrollIn::Frame, env)
     }
 
     /// Whether the surface needs a frame per callback for scrolling.
-    pub fn motion(&self, now: HostInstant) -> Motion {
+    pub(crate) fn motion(&self, now: HostInstant) -> Motion {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let fading =
@@ -164,7 +166,7 @@ impl SurfaceScroll {
     }
 
     /// [`SurfaceScroll::motion`] as the frame machine reads it.
-    pub fn animation(&self, now: HostInstant) -> Animation {
+    pub(crate) fn animation(&self, now: HostInstant) -> Animation {
         match self.motion(now) {
             Motion::Animating => Animation::Running,
             Motion::Still => Animation::Stopped,
@@ -172,7 +174,7 @@ impl SurfaceScroll {
     }
 
     /// When the thumb next needs a frame while nothing animates (the end of its hold).
-    pub fn wake(&self, now: HostInstant) -> Wake {
+    pub(crate) fn wake(&self, now: HostInstant) -> Wake {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.indicator
@@ -180,7 +182,7 @@ impl SurfaceScroll {
     }
 
     /// Whether palmrest drove what the engine is doing now (for the double-scroll rule).
-    pub fn driven(&self) -> Driven {
+    pub(crate) fn driven(&self) -> Driven {
         let busy = !matches!(self.engine, Engine::Idle);
         match (self.driver, busy) {
             (Driver::Palmrest, true) => Driven::Running,

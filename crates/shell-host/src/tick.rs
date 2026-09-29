@@ -48,14 +48,14 @@ pub struct FrameTick {
 
 /// Whether any [`FrameDrive`] of a surface is alive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Drive {
+pub(crate) enum Drive {
     Held,
     Released,
 }
 
 /// What the frame machine is told about a surface: animating when its document is, or when
 /// a drive is held. Pure.
-pub fn pacing(document: Animation, drive: Drive) -> Animation {
+pub(crate) fn pacing(document: Animation, drive: Drive) -> Animation {
     match (document, drive) {
         (Animation::Running, _) | (_, Drive::Held) => Animation::Running,
         (Animation::Stopped, Drive::Released) => Animation::Stopped,
@@ -64,14 +64,14 @@ pub fn pacing(document: Animation, drive: Drive) -> Animation {
 
 /// The tick at `at`, after the previous tick of this run at `previous` (none: a new run).
 /// Pure.
-pub fn tick_after(previous: Option<HostInstant>, at: HostInstant) -> FrameTick {
+pub(crate) fn tick_after(previous: Option<HostInstant>, at: HostInstant) -> FrameTick {
     let dt = previous.map_or(Duration::ZERO, |before| at.0.saturating_sub(before.0));
     FrameTick { at, dt }
 }
 
 /// Whether a frame due now ticked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Ticked {
+pub(crate) enum Ticked {
     Ticked,
     Quiet,
 }
@@ -89,11 +89,11 @@ struct TickState {
 
 /// One surface's frame ticks and drives. Cloned into the surface's `SurfaceHandle`.
 #[derive(Debug, Clone, Default)]
-pub struct FrameTicks(Rc<RefCell<TickState>>);
+pub(crate) struct FrameTicks(Rc<RefCell<TickState>>);
 
 impl FrameTicks {
     /// Whether a drive is held.
-    pub fn drive(&self) -> Drive {
+    pub(crate) fn drive(&self) -> Drive {
         match self.0.borrow().drives {
             0 => Drive::Released,
             _ => Drive::Held,
@@ -102,7 +102,7 @@ impl FrameTicks {
 
     /// Hold a drive until the returned value is dropped. The host must also be told to render
     /// (an idle surface has no callback to tick on); `SurfaceHandle::drive_frames` does both.
-    pub fn hold(&self) -> FrameDrive {
+    pub(crate) fn hold(&self) -> FrameDrive {
         self.0.borrow_mut().drives += 1;
         FrameDrive {
             ticks: self.clone(),
@@ -112,7 +112,7 @@ impl FrameTicks {
     /// A frame is due at `at` (its callback, or the watchdog standing in for it) on a surface
     /// whose document is in `document`: tick when [`pacing`] says running, else end the run.
     /// Returns what the frame machine should be told, and whether a tick fired.
-    pub fn frame_due(&self, document: Animation, at: HostInstant) -> (Animation, Ticked) {
+    pub(crate) fn frame_due(&self, document: Animation, at: HostInstant) -> (Animation, Ticked) {
         let animation = pacing(document, self.drive());
         let mut state = self.0.borrow_mut();
         match animation {
@@ -132,12 +132,12 @@ impl FrameTicks {
     }
 
     /// Ticks published so far.
-    pub fn count(&self) -> u64 {
+    pub(crate) fn count(&self) -> u64 {
         self.0.borrow().count
     }
 
     /// The first tick after the `seen`th: resolves with its number and the latest tick.
-    pub fn after(&self, seen: u64) -> NextTick {
+    pub(crate) fn after(&self, seen: u64) -> NextTick {
         NextTick {
             ticks: self.clone(),
             seen,
@@ -181,7 +181,7 @@ impl Drop for FrameDrive {
 
 /// The future [`FrameTicks::after`] returns.
 #[derive(Debug)]
-pub struct NextTick {
+pub(crate) struct NextTick {
     ticks: FrameTicks,
     seen: u64,
 }

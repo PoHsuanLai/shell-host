@@ -16,7 +16,7 @@ impl SurfaceDocument {
     /// before layout or when absent. What `RegionSpec::Element(s)` and `PopupAnchor::Element`
     /// resolve against, once per rendered frame, so a region follows a transform as it
     /// animates.
-    pub fn element_rect(&self, id: ElementId) -> Option<Rect> {
+    pub(crate) fn element_rect(&self, id: ElementId) -> Option<Rect> {
         let inner = self.doc.inner();
         let node_id = inner.get_element_by_id(id.as_str())?;
         let bounds = painted_rect(&inner, node_id)?;
@@ -41,7 +41,7 @@ impl SurfaceDocument {
     /// tends to render as the first child of its root). `None` before the first layout, when
     /// `#main` is missing (a caller contract: `dioxus-native-dom` always creates it), or when it
     /// has no such child.
-    pub fn content_size(&self) -> Option<Size> {
+    pub(crate) fn content_size(&self) -> Option<Size> {
         let inner = self.doc.inner();
         let main = inner.get_element_by_id("main")?;
         let children = &inner.get_node(main)?.children;

@@ -3,23 +3,23 @@
 //! fractional scale + viewporter, text input). The delegate macros that route to them are all
 //! in `state.rs`.
 
-pub mod activation;
-pub mod background_effect;
-pub mod band;
-pub mod compositor;
-pub mod data_device;
-pub mod devices;
-pub mod drag_source;
-pub mod fractional;
-pub mod keyboard;
-pub mod layer;
-pub mod output;
-pub mod pointer;
-pub mod render_device;
-pub mod seat;
-pub mod session_lock;
-pub mod text_input;
-pub mod xdg;
+pub(crate) mod activation;
+pub(crate) mod background_effect;
+pub(crate) mod band;
+pub(crate) mod compositor;
+pub(crate) mod data_device;
+pub(crate) mod devices;
+pub(crate) mod drag_source;
+pub(crate) mod fractional;
+pub(crate) mod keyboard;
+pub(crate) mod layer;
+pub(crate) mod output;
+pub(crate) mod pointer;
+pub(crate) mod render_device;
+pub(crate) mod seat;
+pub(crate) mod session_lock;
+pub(crate) mod text_input;
+pub(crate) mod xdg;
 
 use wayland_client::protocol::wl_surface::WlSurface;
 

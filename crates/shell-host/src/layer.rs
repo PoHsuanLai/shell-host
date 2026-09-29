@@ -123,7 +123,7 @@ pub enum OutputTarget {
 }
 
 /// The sctk value for `layer`.
-pub fn to_wire_layer(layer: LayerLevel) -> WireLayer {
+pub(crate) fn to_wire_layer(layer: LayerLevel) -> WireLayer {
     match layer {
         LayerLevel::Background => WireLayer::Background,
         LayerLevel::Bottom => WireLayer::Bottom,
@@ -133,7 +133,7 @@ pub fn to_wire_layer(layer: LayerLevel) -> WireLayer {
 }
 
 /// The sctk value for `anchor`.
-pub fn to_wire_anchor(anchor: Anchor) -> WireAnchor {
+pub(crate) fn to_wire_anchor(anchor: Anchor) -> WireAnchor {
     [
         (Anchor::TOP, WireAnchor::TOP),
         (Anchor::BOTTOM, WireAnchor::BOTTOM),
@@ -146,7 +146,7 @@ pub fn to_wire_anchor(anchor: Anchor) -> WireAnchor {
 }
 
 /// The `set_size` arguments for `size`.
-pub fn to_wire_size(size: LayerSize) -> (u32, u32) {
+pub(crate) fn to_wire_size(size: LayerSize) -> (u32, u32) {
     let wire = |extent| match extent {
         LayerExtent::Fill => 0,
         LayerExtent::Px(px) => px,
@@ -155,7 +155,7 @@ pub fn to_wire_size(size: LayerSize) -> (u32, u32) {
 }
 
 /// The `set_exclusive_zone` argument for `zone`.
-pub fn to_wire_exclusive(zone: ExclusiveZone) -> i32 {
+pub(crate) fn to_wire_exclusive(zone: ExclusiveZone) -> i32 {
     match zone {
         ExclusiveZone::Ignore => -1,
         ExclusiveZone::Auto => 0,
@@ -164,7 +164,7 @@ pub fn to_wire_exclusive(zone: ExclusiveZone) -> i32 {
 }
 
 /// The sctk value for `mode`.
-pub fn to_wire_keyboard(mode: KeyboardMode) -> KeyboardInteractivity {
+pub(crate) fn to_wire_keyboard(mode: KeyboardMode) -> KeyboardInteractivity {
     match mode {
         KeyboardMode::None => KeyboardInteractivity::None,
         KeyboardMode::Exclusive => KeyboardInteractivity::Exclusive,

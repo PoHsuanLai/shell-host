@@ -12,7 +12,7 @@ pub struct Percentiles {
 }
 
 /// Nearest-rank p50, p95 and max of `samples`; all zero when there are none.
-pub fn percentiles(samples: &[u32]) -> Percentiles {
+pub(crate) fn percentiles(samples: &[u32]) -> Percentiles {
     let mut sorted = samples.to_vec();
     sorted.sort_unstable();
     let rank = |q_percent: usize| -> u32 {

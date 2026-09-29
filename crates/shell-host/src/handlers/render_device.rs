@@ -16,7 +16,7 @@ use crate::blur_health::{DeviceNumber, RenderVendor, render_vendor};
 
 /// The bound manager and what its default feedback said about the main device.
 #[derive(Debug)]
-pub struct RenderDevice {
+pub(crate) struct RenderDevice {
     manager: ZwpLinuxDmabufV1,
     vendor: RenderVendor,
 }
@@ -24,7 +24,10 @@ pub struct RenderDevice {
 impl RenderDevice {
     /// Bind `zwp_linux_dmabuf_v1` at v4 or later and request the default feedback; the vendor
     /// is known after the next roundtrip.
-    pub fn bind<D>(globals: &GlobalList, qh: &QueueHandle<D>) -> Result<RenderDevice, BindError>
+    pub(crate) fn bind<D>(
+        globals: &GlobalList,
+        qh: &QueueHandle<D>,
+    ) -> Result<RenderDevice, BindError>
     where
         D: Dispatch<ZwpLinuxDmabufV1, ()> + Dispatch<ZwpLinuxDmabufFeedbackV1, ()> + 'static,
     {
@@ -37,7 +40,7 @@ impl RenderDevice {
     }
 
     /// The main device's vendor; `Unknown` until the feedback arrived or when it cannot be read.
-    pub fn vendor(&self) -> RenderVendor {
+    pub(crate) fn vendor(&self) -> RenderVendor {
         self.vendor
     }
 }

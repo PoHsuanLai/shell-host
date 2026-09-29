@@ -14,7 +14,7 @@ use crate::region::{Px, Rect};
 
 /// What has the document's focus, as far as the IME is concerned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusedField {
+pub(crate) enum FocusedField {
     /// A text field (`<input>` of a text type, `<textarea>`), with its content box in
     /// surface-local logical pixels.
     Text { area: Rect },
@@ -24,7 +24,7 @@ pub enum FocusedField {
 
 /// What the shell's IME request needs after a resolve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Repair {
+pub(crate) enum Repair {
     Keep,
     /// Enable the IME at `cursor_area`, as `Node::focus` would have.
     Enable {
@@ -35,22 +35,24 @@ pub enum Repair {
 /// The repair for `request` with `focused` holding the focus. Only a focused text field with the
 /// IME off is repaired; an enabled request keeps its own caret, and anything else is the
 /// document's own business (an edit surface switches the IME itself). Pure.
-pub fn repair(request: ImeRequest, focused: FocusedField) -> Repair {
+pub(crate) fn repair(request: ImeRequest, focused: FocusedField) -> Repair {
     match (request, focused) {
         (ImeRequest::Disabled, FocusedField::Text { area }) => Repair::Enable { cursor_area: area },
         (ImeRequest::Enabled { .. }, _) | (_, FocusedField::Other) => Repair::Keep,
     }
 }
 
+#[cfg(feature = "debug-inject")]
 /// A focused text field's text: `typed` is its value, `shown` adds the live composition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldText {
+pub(crate) struct FieldText {
     pub typed: String,
     pub shown: String,
 }
 
+#[cfg(feature = "debug-inject")]
 /// The focused text field's text, if a text field has the focus.
-pub fn focused_text(doc: &BaseDocument) -> Option<FieldText> {
+pub(crate) fn focused_text(doc: &BaseDocument) -> Option<FieldText> {
     let node = doc.get_node(doc.get_focussed_node_id()?)?;
     let data = node.element_data()?.text_input_data()?;
     Some(FieldText {
@@ -60,7 +62,7 @@ pub fn focused_text(doc: &BaseDocument) -> Option<FieldText> {
 }
 
 /// The document's focused node, if it is a text field, with its content box.
-pub fn focused_field(doc: &BaseDocument) -> FocusedField {
+pub(crate) fn focused_field(doc: &BaseDocument) -> FocusedField {
     let Some(node) = doc.get_focussed_node_id().and_then(|id| doc.get_node(id)) else {
         return FocusedField::Other;
     };

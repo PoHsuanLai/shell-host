@@ -11,14 +11,14 @@ use crate::msg::Request;
 /// The main-thread queue a `SurfaceHandle` pushes into, and the ping that wakes the loop to
 /// drain it. Ops queue while a document is borrowed and apply after `poll()`, before paint.
 #[derive(Debug, Clone)]
-pub struct RequestQueue {
+pub(crate) struct RequestQueue {
     queue: Rc<RefCell<VecDeque<Request>>>,
     wake: Ping,
 }
 
 impl RequestQueue {
     /// A queue that pings `wake` on every push.
-    pub fn new(wake: Ping) -> RequestQueue {
+    pub(crate) fn new(wake: Ping) -> RequestQueue {
         RequestQueue {
             queue: Rc::default(),
             wake,
@@ -26,13 +26,13 @@ impl RequestQueue {
     }
 
     /// Queue `request` and wake the loop.
-    pub fn push(&self, request: Request) {
+    pub(crate) fn push(&self, request: Request) {
         self.queue.borrow_mut().push_back(request);
         self.wake.ping();
     }
 
     /// Everything queued so far, oldest first.
-    pub fn drain(&self) -> Vec<Request> {
+    pub(crate) fn drain(&self) -> Vec<Request> {
         self.queue.borrow_mut().drain(..).collect()
     }
 

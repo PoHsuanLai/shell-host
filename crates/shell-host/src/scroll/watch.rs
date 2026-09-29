@@ -58,7 +58,7 @@ pub struct ScrollState {
 }
 
 /// The phase `engine` gives `scroller`.
-pub fn phase_of(engine: &Engine, scroller: Scroller) -> ScrollPhase {
+pub(crate) fn phase_of(engine: &Engine, scroller: Scroller) -> ScrollPhase {
     if latch_of(engine).map(|latch| latch.scroller) != Some(scroller) {
         return ScrollPhase::Idle;
     }
@@ -75,11 +75,11 @@ pub fn phase_of(engine: &Engine, scroller: Scroller) -> ScrollPhase {
 /// publishes) and the surface's `SurfaceHandle`, on the main thread. An entry stays for the
 /// surface's life once watched.
 #[derive(Debug, Clone, Default)]
-pub struct ScrollBoard(Rc<RefCell<HashMap<ElementId, Live<ScrollState>>>>);
+pub(crate) struct ScrollBoard(Rc<RefCell<HashMap<ElementId, Live<ScrollState>>>>);
 
 impl ScrollBoard {
     /// The live state of `id`, created on first watch.
-    pub fn watch(&self, id: &ElementId) -> Live<ScrollState> {
+    pub(crate) fn watch(&self, id: &ElementId) -> Live<ScrollState> {
         self.0
             .borrow_mut()
             .entry(id.clone())
@@ -88,7 +88,7 @@ impl ScrollBoard {
     }
 
     /// Every watched id and its live state.
-    pub fn watched(&self) -> Vec<(ElementId, Live<ScrollState>)> {
+    pub(crate) fn watched(&self) -> Vec<(ElementId, Live<ScrollState>)> {
         self.0
             .borrow()
             .iter()
@@ -181,11 +181,7 @@ mod tests {
         };
         let handle = SurfaceHandle::new(SurfaceId(3), RoleKind::Toplevel, parts);
         let env = DocumentEnv {
-            shell: Arc::new(HostShellProvider::new(
-                SurfaceId(3),
-                ping,
-                SharedSelection::default(),
-            )),
+            shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
             fonts: SharedFonts::system().for_document(),
             net: Arc::new(LocalNet),
             viewport: Viewport::new(200, 300, 1.0, ColorScheme::Light),

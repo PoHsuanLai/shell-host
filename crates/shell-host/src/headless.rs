@@ -25,6 +25,7 @@ use image::RgbaImage;
 use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
 
 use crate::dom::document::BODY_RESET;
+use crate::scale::Scale;
 use blitz_kit::fonts::FontFaces;
 
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
@@ -43,9 +44,6 @@ impl PixelSize {
         Self { width, height }
     }
 }
-
-/// The rendering scale, in 120ths: the host's own [`crate::scale::Scale`].
-pub use crate::scale::Scale;
 
 /// Which fonts a headless render has available. `Bundled` is the reproducible choice for a
 /// snapshot test: it registers exactly the given faces and turns system font discovery off, so

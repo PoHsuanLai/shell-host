@@ -7,7 +7,7 @@ use wayland_protocols::xdg::shell::client::xdg_positioner::{
 use super::config::{PopupAdjust, PopupEdge, PopupToggle};
 
 /// The `xdg_positioner` wire value for an anchor edge or gravity direction.
-pub fn to_wire_anchor(edge: PopupEdge) -> Anchor {
+pub(crate) fn to_wire_anchor(edge: PopupEdge) -> Anchor {
     match edge {
         PopupEdge::None => Anchor::None,
         PopupEdge::Top => Anchor::Top,
@@ -22,7 +22,7 @@ pub fn to_wire_anchor(edge: PopupEdge) -> Anchor {
 }
 
 /// The `xdg_positioner` wire value for a gravity direction.
-pub fn to_wire_gravity(gravity: PopupEdge) -> WireGravity {
+pub(crate) fn to_wire_gravity(gravity: PopupEdge) -> WireGravity {
     match gravity {
         PopupEdge::None => WireGravity::None,
         PopupEdge::Top => WireGravity::Top,
@@ -37,7 +37,7 @@ pub fn to_wire_gravity(gravity: PopupEdge) -> WireGravity {
 }
 
 /// The `xdg_positioner` constraint-adjustment bitfield for `adjust`.
-pub fn to_wire_constraint_adjustment(adjust: PopupAdjust) -> ConstraintAdjustment {
+pub(crate) fn to_wire_constraint_adjustment(adjust: PopupAdjust) -> ConstraintAdjustment {
     let mut wire = ConstraintAdjustment::empty();
     if adjust.slide_x == PopupToggle::On {
         wire |= ConstraintAdjustment::SlideX;

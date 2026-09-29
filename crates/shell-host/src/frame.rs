@@ -29,14 +29,14 @@
 use std::time::Duration;
 
 /// The shortest watchdog wait: about three refresh periods at 60 Hz.
-pub const WATCHDOG_MIN: Duration = Duration::from_millis(50);
+pub(crate) const WATCHDOG_MIN: Duration = Duration::from_millis(50);
 
 /// The longest watchdog wait: the backoff stops doubling here.
-pub const WATCHDOG_MAX: Duration = Duration::from_millis(1000);
+pub(crate) const WATCHDOG_MAX: Duration = Duration::from_millis(1000);
 
 /// Where a surface is in its render cycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Pace {
+pub(crate) enum Pace {
     /// Nothing to draw and nothing in flight.
     Idle,
     /// Something changed; the next flush renders.
@@ -50,21 +50,21 @@ pub enum Pace {
 /// Whether the document still has a CSS transition or animation running
 /// (`BaseDocument::is_animating`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Animation {
+pub(crate) enum Animation {
     Running,
     Stopped,
 }
 
 /// Whether the watchdog timer is currently armed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Timer {
+pub(crate) enum Timer {
     Disarmed,
     Armed,
 }
 
 /// Everything the machine remembers about one surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FrameState {
+pub(crate) struct FrameState {
     pub pace: Pace,
     pub timer: Timer,
     /// The wait the watchdog uses the next time it is armed.
@@ -74,7 +74,7 @@ pub struct FrameState {
 impl FrameState {
     /// A freshly created surface: idle, no timer, shortest backoff. Its first configure
     /// arrives as an [`FrameInput::Invalidate`].
-    pub const NEW: FrameState = FrameState {
+    pub(crate) const NEW: FrameState = FrameState {
         pace: Pace::Idle,
         timer: Timer::Disarmed,
         backoff: WATCHDOG_MIN,
@@ -83,7 +83,7 @@ impl FrameState {
 
 /// Something that happened to a surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FrameInput {
+pub(crate) enum FrameInput {
     /// The document asked for a redraw, was polled with changes, got an input event that
     /// changed it, or the surface was configured or rescaled.
     Invalidate,
@@ -101,14 +101,14 @@ pub enum FrameInput {
 
 /// Whether the host should render and present now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RenderCmd {
+pub(crate) enum RenderCmd {
     Skip,
     Render,
 }
 
 /// What the host should do with the surface's watchdog timer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TimerCmd {
+pub(crate) enum TimerCmd {
     /// Leave it as it is (armed, disarmed, or already fired and gone).
     Keep,
     /// Start a one-shot timer that fires `FrameInput::WatchdogFired` after this long.
@@ -119,14 +119,14 @@ pub enum TimerCmd {
 
 /// What the host must do after a step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FrameAction {
+pub(crate) struct FrameAction {
     pub render: RenderCmd,
     pub timer: TimerCmd,
 }
 
 impl FrameAction {
     /// Do nothing.
-    pub const NONE: FrameAction = FrameAction {
+    pub(crate) const NONE: FrameAction = FrameAction {
         render: RenderCmd::Skip,
         timer: TimerCmd::Keep,
     };
@@ -138,7 +138,7 @@ impl FrameAction {
 }
 
 /// Advance the machine by one input.
-pub fn step(state: FrameState, input: FrameInput) -> (FrameState, FrameAction) {
+pub(crate) fn step(state: FrameState, input: FrameInput) -> (FrameState, FrameAction) {
     match input {
         FrameInput::Invalidate => invalidate(state),
         FrameInput::Flush => flush(state),

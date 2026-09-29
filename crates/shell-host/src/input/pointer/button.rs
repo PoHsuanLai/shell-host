@@ -4,13 +4,13 @@ use blitz_traits::events::{MouseEventButton, MouseEventButtons};
 
 /// Whether a button went down or up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ButtonChange {
+pub(crate) enum ButtonChange {
     Pressed,
     Released,
 }
 
 /// The DOM button for evdev code `code`; `None` for the buttons Blitz has no name for.
-pub fn button_from_evdev(code: u32) -> Option<MouseEventButton> {
+pub(crate) fn button_from_evdev(code: u32) -> Option<MouseEventButton> {
     match code {
         0x110 => Some(MouseEventButton::Main),
         0x111 => Some(MouseEventButton::Secondary),
@@ -22,7 +22,7 @@ pub fn button_from_evdev(code: u32) -> Option<MouseEventButton> {
 }
 
 /// The held-buttons set after `button` changed.
-pub fn buttons_after(
+pub(crate) fn buttons_after(
     held: MouseEventButtons,
     button: MouseEventButton,
     change: ButtonChange,

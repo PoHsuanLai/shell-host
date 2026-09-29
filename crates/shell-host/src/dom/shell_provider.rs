@@ -18,12 +18,11 @@ use calloop::ping::Ping;
 use cursor_icon::CursorIcon;
 
 use crate::clipboard::SharedSelection;
-use crate::id::SurfaceId;
 use crate::region::{Px, Rect};
 
 /// The IME state a document last asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ImeRequest {
+pub(crate) enum ImeRequest {
     #[default]
     Disabled,
     /// Enabled, with the caret rectangle in surface-local logical pixels.
@@ -32,7 +31,7 @@ pub enum ImeRequest {
 
 /// Which thread asked for a redraw, relative to the host's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Origin {
+pub(crate) enum Origin {
     /// The host's own thread: event handling, a poll, or the render itself.
     HostThread,
     /// Any other thread: a resource load that completed off the main thread.
@@ -41,7 +40,7 @@ pub enum Origin {
 
 impl Origin {
     /// Where a request made on `current` came from, for a host running on `host`. Pure.
-    pub fn of(host: ThreadId, current: ThreadId) -> Origin {
+    pub(crate) fn of(host: ThreadId, current: ThreadId) -> Origin {
         if host == current {
             Origin::HostThread
         } else {
@@ -52,8 +51,7 @@ impl Origin {
 
 /// A surface's shell provider.
 #[derive(Debug)]
-pub struct HostShellProvider {
-    id: SurfaceId,
+pub(crate) struct HostShellProvider {
     wake: Ping,
     /// The thread the host runs every document on: the one that built this provider.
     host_thread: ThreadId,
@@ -75,11 +73,10 @@ pub struct HostShellProvider {
 }
 
 impl HostShellProvider {
-    /// The provider for surface `id`, pinging `wake`, pasting from `selection`. Built on the
-    /// host's thread, which is how it knows that thread.
-    pub fn new(id: SurfaceId, wake: Ping, selection: SharedSelection) -> HostShellProvider {
+    /// A provider pinging `wake`, pasting from `selection`. Built on the host's thread, which is
+    /// how it knows that thread.
+    pub(crate) fn new(wake: Ping, selection: SharedSelection) -> HostShellProvider {
         HostShellProvider {
-            id,
             wake,
             host_thread: std::thread::current().id(),
             redraw: AtomicBool::new(false),
@@ -92,15 +89,9 @@ impl HostShellProvider {
         }
     }
 
-    /// The surface this provider belongs to (for routing per-surface state such as
-    /// `FrameStats` back to the surface that owns it).
-    pub fn id(&self) -> SurfaceId {
-        self.id
-    }
-
     /// Whether a redraw was requested, from any thread, since the last call; clears both
     /// flags. The flush's question.
-    pub fn take_redraw(&self) -> RedrawRequest {
+    pub(crate) fn take_redraw(&self) -> RedrawRequest {
         let echoed = self.redraw.swap(false, Ordering::SeqCst);
         let arrived = self.arrived.swap(false, Ordering::SeqCst);
         RedrawRequest::from(echoed || arrived)
@@ -108,12 +99,12 @@ impl HostShellProvider {
 
     /// Drop what the render just presented asked for itself (the host thread's flag), and
     /// report it. A request from another thread is left for the next flush.
-    pub fn drop_echo(&self) -> RedrawRequest {
+    pub(crate) fn drop_echo(&self) -> RedrawRequest {
         RedrawRequest::from(self.redraw.swap(false, Ordering::SeqCst))
     }
 
     /// The cursor the document last asked for, if it changed since the last call.
-    pub fn take_cursor(&self) -> CursorRequest {
+    pub(crate) fn take_cursor(&self) -> CursorRequest {
         if self.cursor_changed.swap(false, Ordering::SeqCst) {
             let icon = *self.cursor.lock().unwrap_or_else(PoisonError::into_inner);
             CursorRequest::Changed(icon)
@@ -123,7 +114,7 @@ impl HostShellProvider {
     }
 
     /// Text the document copied since the last call, for the host to claim the selection with.
-    pub fn take_copied(&self) -> Option<String> {
+    pub(crate) fn take_copied(&self) -> Option<String> {
         self.copied
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -131,14 +122,14 @@ impl HostShellProvider {
     }
 
     /// The IME state the document last asked for.
-    pub fn ime(&self) -> ImeRequest {
+    pub(crate) fn ime(&self) -> ImeRequest {
         *self.ime.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 /// Whether a document asked to be redrawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedrawRequest {
+pub(crate) enum RedrawRequest {
     Requested,
     NotRequested,
 }
@@ -184,7 +175,7 @@ impl ImeSwitch {
 
 /// A cursor change a document asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CursorRequest {
+pub(crate) enum CursorRequest {
     Unchanged,
     /// Show this cursor; `None` hides it.
     Changed(Option<CursorIcon>),
@@ -244,7 +235,7 @@ mod tests {
 
     fn provider() -> (HostShellProvider, calloop::ping::PingSource) {
         let (ping, source) = calloop::ping::make_ping().expect("eventfd ping");
-        let provider = HostShellProvider::new(SurfaceId(1), ping, SharedSelection::default());
+        let provider = HostShellProvider::new(ping, SharedSelection::default());
         (provider, source)
     }
 

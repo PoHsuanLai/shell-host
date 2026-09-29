@@ -14,7 +14,7 @@ use crate::gpu::probe;
 /// wgpu binds an instance to one `wl_display` and refuses a surface from another, so the probe
 /// cannot use `instance` (the host connection's): it opens its own instance on the throwaway
 /// connection and presents through the adapter there whose `AdapterInfo` equals `adapter`'s.
-pub fn validate(instance: &wgpu::Instance, adapter: &wgpu::Adapter) -> Result<()> {
+pub(crate) fn validate(instance: &wgpu::Instance, adapter: &wgpu::Adapter) -> Result<()> {
     let _ = instance;
     probe::first_present(adapter)
 }

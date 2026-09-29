@@ -8,12 +8,14 @@
 //! carries all of it), clear the redraw flag, and feed `Presented` back.
 
 #[cfg(feature = "debug-inject")]
+#[cfg(feature = "debug-inject")]
 mod capture;
 mod geometry;
 mod presenter;
 mod regions;
 mod render;
 
+#[cfg(feature = "debug-inject")]
 #[cfg(feature = "debug-inject")]
 pub(crate) use capture::capture;
 pub(super) use geometry::viewport;

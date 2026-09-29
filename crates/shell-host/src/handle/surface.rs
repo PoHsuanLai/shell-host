@@ -101,10 +101,7 @@ impl SurfaceHandle {
 
     /// Put `text` on the clipboard, owned by this surface's client.
     pub fn copy_text(&self, text: String) {
-        self.requests.push(Request::CopyText {
-            from: self.id,
-            text,
-        });
+        self.requests.push(Request::CopyText { text });
     }
 
     /// An xdg-activation token for launching `app_id` with focus handed over; `None` when the

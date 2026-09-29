@@ -16,7 +16,7 @@ use crate::state::HostState;
 
 /// The seat's drag, if one is under way, and the pipe writes waiting for the loop.
 #[derive(Debug, Default)]
-pub struct Dragging {
+pub(crate) struct Dragging {
     pub(crate) active: Option<ActiveDrag>,
     /// Pipes a target asked us to fill since the last flush; `ctx::drag::register_writes`
     /// hands each to the loop.
@@ -25,7 +25,7 @@ pub struct Dragging {
 
 /// A drag the compositor is running.
 #[derive(Debug)]
-pub struct ActiveDrag {
+pub(crate) struct ActiveDrag {
     /// Kept alive until the drag ends: dropping it destroys the source, which cancels the drag.
     pub(crate) source: DragSource,
     pub(crate) offered: Vec<Offered>,
@@ -38,7 +38,7 @@ pub struct ActiveDrag {
 
 /// A pipe and what it is owed.
 #[derive(Debug)]
-pub struct PendingWrite {
+pub(crate) struct PendingWrite {
     pub(crate) pipe: WritePipe,
     pub(crate) outgoing: Outgoing,
 }

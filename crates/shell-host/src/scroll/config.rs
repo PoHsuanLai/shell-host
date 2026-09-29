@@ -14,28 +14,28 @@ use serde::{Deserialize, Serialize};
 
 /// A length in logical pixels, as a settings key spells it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Px(pub u16);
+pub struct ScrollPx(pub u16);
 
 /// A duration in whole milliseconds, as a settings key spells it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Ms(pub u16);
+pub struct ScrollMs(pub u16);
 
 /// A ratio in thousandths (`550` is 0.55), as a settings key spells it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Fraction(pub u16);
+pub struct ScrollFraction(pub u16);
 
 /// A dimensionless physics constant (a drag exponent, a speed in px/s).
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Scalar(pub f32);
+pub struct ScrollScalar(pub f32);
 
-impl Px {
+impl ScrollPx {
     /// As an `f64` for the formulas.
     pub fn get(self) -> f64 {
         f64::from(self.0)
     }
 }
 
-impl Ms {
+impl ScrollMs {
     /// As a `Duration`.
     pub fn duration(self) -> Duration {
         Duration::from_millis(u64::from(self.0))
@@ -47,14 +47,14 @@ impl Ms {
     }
 }
 
-impl Fraction {
+impl ScrollFraction {
     /// As a ratio.
     pub fn get(self) -> f64 {
         f64::from(self.0) / 1000.0
     }
 }
 
-impl Scalar {
+impl ScrollScalar {
     /// As an `f64` for the formulas.
     pub fn get(self) -> f64 {
         f64::from(self.0)
@@ -129,23 +129,23 @@ pub struct ScrollSettings {
     pub natural: NaturalScroll,
     pub momentum: ScrollMomentum,
     pub momentum_model: ScrollMomentumModel,
-    pub momentum_a: Scalar,
-    pub momentum_b: Scalar,
-    pub momentum_stop_px_s: Scalar,
-    pub momentum_start_px_s: Scalar,
-    pub momentum_cap_px_s: Scalar,
-    pub velocity_window_ms: Ms,
-    pub velocity_held_still_ms: Ms,
+    pub momentum_a: ScrollScalar,
+    pub momentum_b: ScrollScalar,
+    pub momentum_stop_px_s: ScrollScalar,
+    pub momentum_start_px_s: ScrollScalar,
+    pub momentum_cap_px_s: ScrollScalar,
+    pub velocity_window_ms: ScrollMs,
+    pub velocity_held_still_ms: ScrollMs,
     pub rubber_band: ScrollRubberBand,
-    pub rubber_band_c: Fraction,
-    pub rubber_band_linear_divisor: Scalar,
-    pub rubber_band_edge_min_px: Px,
-    pub rubber_band_snap_rate: Scalar,
-    pub rubber_band_snap_gain: Scalar,
-    pub wheel_detent_px: Px,
-    pub wheel_burst_window_ms: Ms,
-    pub momentum_boost_threshold_px_s: Scalar,
-    pub double_scroll_grace_ms: Ms,
+    pub rubber_band_c: ScrollFraction,
+    pub rubber_band_linear_divisor: ScrollScalar,
+    pub rubber_band_edge_min_px: ScrollPx,
+    pub rubber_band_snap_rate: ScrollScalar,
+    pub rubber_band_snap_gain: ScrollScalar,
+    pub wheel_detent_px: ScrollPx,
+    pub wheel_burst_window_ms: ScrollMs,
+    pub momentum_boost_threshold_px_s: ScrollScalar,
+    pub double_scroll_grace_ms: ScrollMs,
     pub scrollbars: ScrollbarVisibility,
 }
 
@@ -155,23 +155,23 @@ impl Default for ScrollSettings {
             natural: NaturalScroll::Natural,
             momentum: ScrollMomentum::On,
             momentum_model: ScrollMomentumModel::MacMouseFix,
-            momentum_a: Scalar(30.0),
-            momentum_b: Scalar(0.7),
-            momentum_stop_px_s: Scalar(1.0),
-            momentum_start_px_s: Scalar(100.0),
-            momentum_cap_px_s: Scalar(12_000.0),
-            velocity_window_ms: Ms(80),
-            velocity_held_still_ms: Ms(50),
+            momentum_a: ScrollScalar(30.0),
+            momentum_b: ScrollScalar(0.7),
+            momentum_stop_px_s: ScrollScalar(1.0),
+            momentum_start_px_s: ScrollScalar(100.0),
+            momentum_cap_px_s: ScrollScalar(12_000.0),
+            velocity_window_ms: ScrollMs(80),
+            velocity_held_still_ms: ScrollMs(50),
             rubber_band: ScrollRubberBand::Bounded,
-            rubber_band_c: Fraction(550),
-            rubber_band_linear_divisor: Scalar(20.0),
-            rubber_band_edge_min_px: Px(10),
-            rubber_band_snap_rate: Scalar(12.5),
-            rubber_band_snap_gain: Scalar(0.31),
-            wheel_detent_px: Px(60),
-            wheel_burst_window_ms: Ms(300),
-            momentum_boost_threshold_px_s: Scalar(350.0),
-            double_scroll_grace_ms: Ms(150),
+            rubber_band_c: ScrollFraction(550),
+            rubber_band_linear_divisor: ScrollScalar(20.0),
+            rubber_band_edge_min_px: ScrollPx(10),
+            rubber_band_snap_rate: ScrollScalar(12.5),
+            rubber_band_snap_gain: ScrollScalar(0.31),
+            wheel_detent_px: ScrollPx(60),
+            wheel_burst_window_ms: ScrollMs(300),
+            momentum_boost_threshold_px_s: ScrollScalar(350.0),
+            double_scroll_grace_ms: ScrollMs(150),
             scrollbars: ScrollbarVisibility::WhenScrolling,
         }
     }
@@ -181,34 +181,34 @@ impl Default for ScrollSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ScrollbarSettings {
-    pub track_thickness_px: Px,
-    pub track_thickness_hover_px: Px,
-    pub thumb_thickness_px: Px,
-    pub thumb_thickness_hover_px: Px,
-    pub thumb_min_length_px: Px,
-    pub hide_delay_ms: Ms,
-    pub fade_duration_ms: Ms,
-    pub expand_zone_px: Px,
-    pub expand_duration_ms: Ms,
-    pub legacy_track_width_px: Px,
-    pub other_axis_offset_px: Px,
+    pub track_thickness_px: ScrollPx,
+    pub track_thickness_hover_px: ScrollPx,
+    pub thumb_thickness_px: ScrollPx,
+    pub thumb_thickness_hover_px: ScrollPx,
+    pub thumb_min_length_px: ScrollPx,
+    pub hide_delay_ms: ScrollMs,
+    pub fade_duration_ms: ScrollMs,
+    pub expand_zone_px: ScrollPx,
+    pub expand_duration_ms: ScrollMs,
+    pub legacy_track_width_px: ScrollPx,
+    pub other_axis_offset_px: ScrollPx,
     pub track_click_mode: ScrollTrackClick,
 }
 
 impl Default for ScrollbarSettings {
     fn default() -> ScrollbarSettings {
         ScrollbarSettings {
-            track_thickness_px: Px(12),
-            track_thickness_hover_px: Px(16),
-            thumb_thickness_px: Px(8),
-            thumb_thickness_hover_px: Px(12),
-            thumb_min_length_px: Px(18),
-            hide_delay_ms: Ms(500),
-            fade_duration_ms: Ms(240),
-            expand_zone_px: Px(16),
-            expand_duration_ms: Ms(240),
-            legacy_track_width_px: Px(15),
-            other_axis_offset_px: Px(12),
+            track_thickness_px: ScrollPx(12),
+            track_thickness_hover_px: ScrollPx(16),
+            thumb_thickness_px: ScrollPx(8),
+            thumb_thickness_hover_px: ScrollPx(12),
+            thumb_min_length_px: ScrollPx(18),
+            hide_delay_ms: ScrollMs(500),
+            fade_duration_ms: ScrollMs(240),
+            expand_zone_px: ScrollPx(16),
+            expand_duration_ms: ScrollMs(240),
+            legacy_track_width_px: ScrollPx(15),
+            other_axis_offset_px: ScrollPx(12),
             track_click_mode: ScrollTrackClick::PageTowardClick,
         }
     }
@@ -284,7 +284,7 @@ mod tests {
         let json = r#"{"scroll":{"natural":"traditional","wheel_detent_px":53}}"#;
         let config: ScrollConfig = serde_json::from_str(json).expect("parses");
         assert_eq!(config.scroll.natural, NaturalScroll::Traditional);
-        assert_eq!(config.scroll.wheel_detent_px, Px(53));
+        assert_eq!(config.scroll.wheel_detent_px, ScrollPx(53));
         assert_eq!(config.scroll.momentum, ScrollMomentum::On);
         assert_eq!(config.scrollbar, ScrollbarSettings::default());
     }

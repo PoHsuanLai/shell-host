@@ -16,7 +16,7 @@ use crate::tick::HostInstant;
 impl SurfaceScroll {
     /// A scroll key went down (`Repeat::First`) or repeated. `Passed` (the document's) when
     /// something on the focus path handles keys or nothing around the focus scrolls.
-    pub fn key(
+    pub(crate) fn key(
         &mut self,
         doc: &mut BaseDocument,
         key: ScrollKey,
@@ -95,14 +95,14 @@ impl SurfaceScroll {
     }
 
     /// A held scroll key was released.
-    pub fn key_up(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
+    pub(crate) fn key_up(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.run(doc, ScrollIn::Release, env)
     }
 
     /// A programmatic scroll.
-    pub fn command(
+    pub(crate) fn command(
         &mut self,
         doc: &mut BaseDocument,
         command: &ScrollCmd,

@@ -7,18 +7,18 @@ use crate::clipboard::TEXT_MIME;
 use crate::drag::spec::DragPayload;
 
 /// The mime type a `DragPayload::Uris` is offered under first.
-pub const URI_LIST_MIME: &str = "text/uri-list";
+pub(crate) const URI_LIST_MIME: &str = "text/uri-list";
 
 /// One offered mime type and the bytes a target asking for it receives. Shared, so a target
 /// that asks twice (or two targets) costs no copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Offered {
+pub(crate) struct Offered {
     pub mime: String,
     pub bytes: Arc<[u8]>,
 }
 
 /// The mime types `payload` is offered under, most specific first, with each one's bytes.
-pub fn offers(payload: &DragPayload) -> Vec<Offered> {
+pub(crate) fn offers(payload: &DragPayload) -> Vec<Offered> {
     match payload {
         DragPayload::Uris(uris) => {
             let list: String = uris.iter().map(|uri| format!("{uri}\r\n")).collect();
@@ -52,7 +52,7 @@ fn text_offers(text: &str) -> Vec<Offered> {
 
 /// The bytes for `mime`, compared whole; `None` for a type that was never offered (a target
 /// may ask for anything).
-pub fn bytes_for(offered: &[Offered], mime: &str) -> Option<Arc<[u8]>> {
+pub(crate) fn bytes_for(offered: &[Offered], mime: &str) -> Option<Arc<[u8]>> {
     offered
         .iter()
         .find(|offer| offer.mime == mime)

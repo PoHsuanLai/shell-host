@@ -11,7 +11,7 @@ use crate::state::HostState;
 
 /// One pending token request and where its answer goes.
 #[derive(Debug)]
-pub struct ActivationRequest {
+pub(crate) struct ActivationRequest {
     pub(crate) app_id: Option<String>,
     pub(crate) seat_and_serial: Option<(WlSeat, u32)>,
     pub(crate) surface: Option<WlSurface>,

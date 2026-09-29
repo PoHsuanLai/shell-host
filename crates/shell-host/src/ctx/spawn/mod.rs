@@ -77,7 +77,6 @@ pub(super) fn insert(
     root: HostRoot,
 ) {
     let shell = Arc::new(HostShellProvider::new(
-        id,
         state.requests.ping(),
         state.clipboard.selection.clone(),
     ));

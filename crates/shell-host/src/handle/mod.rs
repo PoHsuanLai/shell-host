@@ -10,7 +10,7 @@ pub use hooks::{
     use_frame_tick, use_input_modality, use_modifiers, use_surface, use_surface_scale,
     use_toplevel_state,
 };
-pub use queue::RequestQueue;
+pub(crate) use queue::RequestQueue;
 
 use crate::grab::GrabRecord;
 use crate::id::{SurfaceId, SurfaceIds};

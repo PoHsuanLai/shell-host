@@ -10,21 +10,21 @@ use crate::tick::HostInstant;
 
 /// Where palmrest's fingers are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Fingers {
+pub(crate) enum Fingers {
     Down,
     Up,
 }
 
 /// Whether a host animation palmrest started is still running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Driven {
+pub(crate) enum Driven {
     Running,
     Settled,
 }
 
 /// A compositor axis event's source, as far as suppression cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AxisKind {
+pub(crate) enum AxisKind {
     /// `finger` or `wheel`: what palmrest's outputs arrive as.
     Suppressible,
     /// Anything else (continuous, wheel tilt).
@@ -33,14 +33,14 @@ pub enum AxisKind {
 
 /// Whether a compositor axis event reaches the engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Verdict {
+pub(crate) enum Verdict {
     Deliver,
     Drop,
 }
 
 /// The suppression window.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Suppress {
+pub(crate) struct Suppress {
     fingers: Option<Fingers>,
     /// When palmrest's fingers last lifted (its Ended, or `Touches{Up}`); `None` once an
     /// `axis_stop` closed the grace.
@@ -50,7 +50,7 @@ pub struct Suppress {
 impl Suppress {
     /// palmrest reported its fingers `Down` or `Up` at `now` (`Touches`, or a scroll phase:
     /// MayBegin / Began / Changed are down, Ended / Cancelled are up).
-    pub fn fingers(self, fingers: Fingers, now: HostInstant) -> Suppress {
+    pub(crate) fn fingers(self, fingers: Fingers, now: HostInstant) -> Suppress {
         Suppress {
             fingers: Some(fingers),
             lifted: match fingers {
@@ -61,7 +61,7 @@ impl Suppress {
     }
 
     /// A compositor `axis_stop` arrived: the grace after a lift ends.
-    pub fn axis_stop(self) -> Suppress {
+    pub(crate) fn axis_stop(self) -> Suppress {
         Suppress {
             lifted: None,
             ..self
@@ -70,7 +70,7 @@ impl Suppress {
 
     /// Whether a compositor axis event of `kind` at `now` is delivered, while a palmrest-driven
     /// animation is `driven`.
-    pub fn verdict(
+    pub(crate) fn verdict(
         &self,
         kind: AxisKind,
         driven: Driven,

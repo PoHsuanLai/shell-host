@@ -13,7 +13,7 @@ const DEGREES_PER_DETENT: f64 = 15.0;
 
 /// `wl_pointer.axis_source`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AxisSource {
+pub(crate) enum AxisSource {
     Wheel,
     Finger,
     Continuous,
@@ -24,7 +24,7 @@ pub enum AxisSource {
 
 /// Whether an axis carried `axis_stop` in this frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stop {
+pub(crate) enum Stop {
     Stopped,
     Moving,
 }
@@ -33,21 +33,21 @@ pub enum Stop {
 /// the physical motion (its natural-scrolling setting). Informational: compositor values are
 /// used as delivered, so natural scrolling is never applied twice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Relative {
+pub(crate) enum Relative {
     Identical,
     Inverted,
 }
 
 /// Whether Shift is held (a vertical wheel then scrolls horizontally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Shift {
+pub(crate) enum Shift {
     Held,
     Up,
 }
 
 /// One axis of a `wl_pointer.frame`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AxisValue {
+pub(crate) struct AxisValue {
     /// `wl_pointer.axis`, px; positive moves the offset toward its maximum.
     pub px: f64,
     pub v120: i32,
@@ -56,9 +56,10 @@ pub struct AxisValue {
     pub relative: Relative,
 }
 
+#[cfg(test)]
 impl AxisValue {
     /// No motion on this axis.
-    pub const NONE: AxisValue = AxisValue {
+    pub(crate) const NONE: AxisValue = AxisValue {
         px: 0.0,
         v120: 0,
         discrete: 0,
@@ -69,7 +70,7 @@ impl AxisValue {
 
 /// One `wl_pointer.frame`'s axis content.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AxisFrame {
+pub(crate) struct AxisFrame {
     pub source: AxisSource,
     pub horizontal: AxisValue,
     pub vertical: AxisValue,
@@ -78,7 +79,7 @@ pub struct AxisFrame {
 
 /// What an axis frame means for scrolling.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AxisInput {
+pub(crate) enum AxisInput {
     /// Wheel detents on `axis` (signed, 1.0 per click; positive toward the maximum).
     Detents {
         axis: ScrollAxis,
@@ -107,7 +108,7 @@ fn steps(axis: &AxisValue) -> f64 {
 }
 
 /// Classify one axis frame.
-pub fn classify(frame: &AxisFrame) -> AxisInput {
+pub(crate) fn classify(frame: &AxisFrame) -> AxisInput {
     let (h, v) = (&frame.horizontal, &frame.vertical);
     let stopped = h.stop == Stop::Stopped || v.stop == Stop::Stopped;
     let moved = h.px != 0.0 || v.px != 0.0 || h.v120 != 0 || v.v120 != 0;
@@ -157,7 +158,7 @@ pub fn classify(frame: &AxisFrame) -> AxisInput {
 
 /// A touchpad gesture's phase, from its pans and stop.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PadEvent {
+pub(crate) enum PadEvent {
     /// The axis locked: latch toward `dir`, then apply `delta`.
     Began {
         axis: ScrollAxis,
@@ -174,14 +175,14 @@ pub enum PadEvent {
 /// A touchpad gesture on one of our surfaces (design/11 §11.3.2: the first axis event is
 /// Began, `axis_stop` is Ended; §11.3.9: locked to the larger axis at 10 px).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Pad {
+pub(crate) enum Pad {
     Idle,
     Moving { lock: AxisLock, kinetic: Kinetic },
 }
 
 impl Pad {
     /// Feed one classified frame.
-    pub fn feed(self, input: AxisInput) -> (Pad, Option<PadEvent>) {
+    pub(crate) fn feed(self, input: AxisInput) -> (Pad, Option<PadEvent>) {
         match (self, input) {
             (Pad::Idle, AxisInput::Pan { dx, dy, kinetic }) => Pad::Moving {
                 lock: AxisLock::START,
@@ -224,7 +225,7 @@ impl Pad {
 
 /// A palmrest delta (finger direction) as an offset delta: with `Natural` the content follows
 /// the finger, so a finger moving toward the maximum's side moves the offset the other way.
-pub fn natural(finger: f64, setting: NaturalScroll) -> f64 {
+pub(crate) fn natural(finger: f64, setting: NaturalScroll) -> f64 {
     match setting {
         NaturalScroll::Natural => -finger,
         NaturalScroll::Traditional => finger,

@@ -8,16 +8,15 @@ use smithay_client_toolkit::shell::xdg::popup::Popup;
 use smithay_client_toolkit::shell::xdg::window::Window;
 use wayland_client::protocol::wl_surface::WlSurface;
 
-use crate::id::{OutputId, SurfaceId};
+use crate::id::SurfaceId;
 use crate::layer::{KeyboardMode, LayerConfig};
-use crate::lock::LockId;
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::toplevel::{ToplevelConfig, ToplevelState};
 
 /// A surface's role.
 #[derive(Debug)]
-pub enum Role {
+pub(crate) enum Role {
     Layer {
         surface: LayerSurface,
         config: LayerConfig,
@@ -43,16 +42,12 @@ pub enum Role {
     /// A session lock surface (`ext_session_lock_surface_v1`) on `output`: made and destroyed
     /// by the lock's machine only, never hidden, never committed before its configure, always
     /// given the keyboard by the compositor while the session is locked.
-    Lock {
-        surface: SessionLockSurface,
-        output: OutputId,
-        lock: LockId,
-    },
+    Lock { surface: SessionLockSurface },
 }
 
 /// Which role a surface has, without its objects: what a `SurfaceHandle` knows of its surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RoleKind {
+pub(crate) enum RoleKind {
     Layer,
     Popup,
     Toplevel,
@@ -62,7 +57,7 @@ pub enum RoleKind {
 
 impl Role {
     /// This role's kind.
-    pub fn kind(&self) -> RoleKind {
+    pub(crate) fn kind(&self) -> RoleKind {
         match self {
             Role::Layer { .. } => RoleKind::Layer,
             Role::Popup { .. } => RoleKind::Popup,
@@ -73,7 +68,7 @@ impl Role {
     }
 
     /// The `wl_surface` the role owns.
-    pub fn wl_surface(&self) -> &WlSurface {
+    pub(crate) fn wl_surface(&self) -> &WlSurface {
         match self {
             Role::Layer { surface, .. } => surface.wl_surface(),
             Role::Popup { popup, .. } => popup.wl_surface(),
@@ -84,7 +79,7 @@ impl Role {
     }
 
     /// The parent, for a popup.
-    pub fn parent(&self) -> Option<SurfaceId> {
+    pub(crate) fn parent(&self) -> Option<SurfaceId> {
         match self {
             Role::Popup { parent, .. } => Some(*parent),
             Role::Layer { .. }

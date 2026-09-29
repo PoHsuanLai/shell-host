@@ -7,7 +7,7 @@ use crate::scroll::engine::ScrollAnimate;
 use crate::scroll::geom::ScrollAxis;
 
 /// The margin `IntoView` keeps between the element and the scroller's edge, px.
-pub const INTO_VIEW_MARGIN: f64 = 8.0;
+pub(crate) const INTO_VIEW_MARGIN: f64 = 8.0;
 
 /// A programmatic scroll of the scroll container `element` (an element with that `id`).
 #[derive(Debug, Clone, PartialEq)]
@@ -37,7 +37,7 @@ pub enum ScrollCmd {
 /// The offset that brings a child spanning `child_start..child_end` into a view spanning
 /// `view_start..view_end` (both in the same coordinates, the view scrolled to `offset`) with
 /// `margin` to spare; `None` if it is already fully in view. Clamped to `0..=max`.
-pub fn into_view(
+pub(crate) fn into_view(
     view: (f64, f64),
     child: (f64, f64),
     offset: f64,

@@ -34,7 +34,7 @@ fn pill(area: Area, radius: f64) -> RoundedRect {
 
 /// Paint `thumbs` into `scene`: document px scaled by `scale`, offset by the content origin
 /// `(x, y)` in buffer px.
-pub fn paint(
+pub(crate) fn paint(
     scene: &mut impl PaintScene,
     thumbs: &[ThumbPaint],
     scheme: ColorScheme,
@@ -80,7 +80,6 @@ mod tests {
     use crate::dom::shell_provider::HostShellProvider;
     use crate::gpu::presenter::{FrameTarget, Overlay};
     use crate::gpu::shm::paint_cpu;
-    use crate::id::SurfaceId;
     use crate::prepaint::Prepaint;
     use crate::root::HostRoot;
     use crate::scale::{Scale, Size};
@@ -101,11 +100,7 @@ mod tests {
         let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
         let side = (100 * scale.0 / 120) as i32;
         let env = DocumentEnv {
-            shell: Arc::new(HostShellProvider::new(
-                SurfaceId(1),
-                ping,
-                SharedSelection::default(),
-            )),
+            shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
             fonts: SharedFonts::system().for_document(),
             net: Arc::new(LocalNet),
             viewport: Viewport::new(side as u32, side as u32, scale.as_f64() as f32, scheme),

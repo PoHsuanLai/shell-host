@@ -5,7 +5,7 @@ use smithay_client_toolkit::seat::keyboard::Modifiers as SctkModifiers;
 
 /// The keyboard-types set for sctk's modifier state. The logo key is `META`, the W3C name
 /// (what `KeyboardEvent.metaKey` reports), matching `keysym::named_key`'s `Key::Meta`.
-pub fn modifiers_from(state: SctkModifiers) -> Modifiers {
+pub(crate) fn modifiers_from(state: SctkModifiers) -> Modifiers {
     [
         (state.ctrl, Modifiers::CONTROL),
         (state.alt, Modifiers::ALT),

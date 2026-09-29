@@ -3,7 +3,7 @@
 
 mod drag;
 mod drag_icon;
-pub mod flush;
+pub(crate) mod flush;
 mod lock;
 mod ops;
 mod paint;
@@ -13,6 +13,7 @@ mod spawn;
 mod timer;
 mod window;
 
+#[cfg(feature = "debug-inject")]
 #[cfg(feature = "debug-inject")]
 pub(crate) use paint::capture;
 pub(crate) use window::begin_resize;
@@ -41,7 +42,7 @@ use blitz_kit::adapter::AdapterPref;
 
 /// Whether `Host::run` should return after this iteration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Running {
+pub(crate) enum Running {
     Continue,
     Exit,
 }

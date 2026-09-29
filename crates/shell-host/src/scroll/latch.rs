@@ -13,14 +13,14 @@ const LOCK_PX: f64 = 10.0;
 /// One scroller on the chain from the element under the pointer outward, with its geometry on
 /// the axis being latched. Innermost first.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Candidate {
+pub(crate) struct Candidate {
     pub scroller: Scroller,
     pub geom: Geom,
 }
 
 /// What a gesture latched, and whether it began pushing against its scroller's edge.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Latched {
+pub(crate) struct Latched {
     pub latch: Latch,
     pub began: AtEdge,
 }
@@ -28,7 +28,7 @@ pub struct Latched {
 /// Latch a gesture on `axis` moving toward `dir` (design/11 §11.3.3): the innermost scroller
 /// that can move that way; else the innermost elastic one, which rubber-bands; else nothing.
 /// `chain` holds only scrollers that scroll on `axis`.
-pub fn latch(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latched> {
+pub(crate) fn latch(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latched> {
     let movable = chain
         .iter()
         .find(|c| c.geom.can_move(dir))
@@ -54,7 +54,7 @@ pub fn latch(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latched>
 }
 
 /// A wheel's target: the innermost scroller that can move (no rubber band for wheels).
-pub fn latch_rigid(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latch> {
+pub(crate) fn latch_rigid(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<Latch> {
     chain.iter().find(|c| c.geom.can_move(dir)).map(|c| Latch {
         scroller: c.scroller,
         axis,
@@ -63,7 +63,7 @@ pub fn latch_rigid(chain: &[Candidate], axis: ScrollAxis, dir: Dir) -> Option<La
 
 /// A touchpad gesture's axis: locked to the larger axis once either has moved 10 px.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AxisLock {
+pub(crate) enum AxisLock {
     /// Still accumulating; nothing scrolls yet.
     Free {
         dx: f64,
@@ -74,11 +74,11 @@ pub enum AxisLock {
 
 impl AxisLock {
     /// A fresh gesture.
-    pub const START: AxisLock = AxisLock::Free { dx: 0.0, dy: 0.0 };
+    pub(crate) const START: AxisLock = AxisLock::Free { dx: 0.0, dy: 0.0 };
 
     /// Feed a delta. Returns the new lock and, when this delta locked it, the pending motion
     /// on the locked axis (applied, so a slow start does not lose its first 10 px).
-    pub fn feed(self, dx: f64, dy: f64) -> (AxisLock, Option<f64>) {
+    pub(crate) fn feed(self, dx: f64, dy: f64) -> (AxisLock, Option<f64>) {
         match self {
             AxisLock::Locked(_) => (self, None),
             AxisLock::Free { dx: ax, dy: ay } => {
@@ -98,20 +98,25 @@ impl AxisLock {
 
 /// The wheel's last target, kept for detents less than the burst window apart.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct WheelBurst {
+pub(crate) struct WheelBurst {
     last: Option<(Latch, HostInstant)>,
 }
 
 impl WheelBurst {
     /// The previous target, if a detent on `axis` at `now` continues its burst.
-    pub fn current(&self, axis: ScrollAxis, now: HostInstant, window: Duration) -> Option<Latch> {
+    pub(crate) fn current(
+        &self,
+        axis: ScrollAxis,
+        now: HostInstant,
+        window: Duration,
+    ) -> Option<Latch> {
         self.last
             .filter(|(latch, at)| latch.axis == axis && now.0.saturating_sub(at.0) < window)
             .map(|(latch, _)| latch)
     }
 
     /// Remember `latch` as the burst's target at `now`.
-    pub fn record(self, latch: Latch, now: HostInstant) -> WheelBurst {
+    pub(crate) fn record(self, latch: Latch, now: HostInstant) -> WheelBurst {
         WheelBurst {
             last: Some((latch, now)),
         }

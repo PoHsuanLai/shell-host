@@ -7,7 +7,7 @@ use crate::region::{ElementId, Rect};
 /// carried alongside the config) unchanged; `PopupAnchor::Element` looks the
 /// element up the same way [`resolve`] does, falling back to `placement_rect` while the element
 /// is not yet laid out (a popup has to anchor somewhere even on its very first configure).
-pub fn resolve_popup_anchor(
+pub(crate) fn resolve_popup_anchor(
     anchor: &PopupAnchor,
     placement_rect: Rect,
     lookup: impl Fn(ElementId) -> Option<Rect>,

@@ -23,7 +23,7 @@ use crate::scale::Scale;
 /// State for `wp_fractional_scale_manager_v1` and `wp_viewporter`: the two bound managers, and
 /// the per-surface objects and last-reported scale created against them.
 #[derive(Debug)]
-pub struct Fractional {
+pub(crate) struct Fractional {
     scale_manager: WpFractionalScaleManagerV1,
     viewporter: WpViewporter,
     preferred: HashMap<ObjectId, Scale>,
@@ -33,7 +33,10 @@ pub struct Fractional {
 
 impl Fractional {
     /// Bind `wp_fractional_scale_manager_v1` and `wp_viewporter`.
-    pub fn bind<D>(globals: &GlobalList, qh: &QueueHandle<D>) -> Result<Fractional, BindError>
+    pub(crate) fn bind<D>(
+        globals: &GlobalList,
+        qh: &QueueHandle<D>,
+    ) -> Result<Fractional, BindError>
     where
         D: Dispatch<WpFractionalScaleManagerV1, ()> + Dispatch<WpViewporter, ()> + 'static,
     {
@@ -50,7 +53,7 @@ impl Fractional {
 
     /// Start (if not already started) reporting the preferred scale for `surface`, and ensure
     /// it has a `wp_viewport`. Call once per surface, before the first `set_destination`.
-    pub fn watch<D>(&mut self, qh: &QueueHandle<D>, surface: &WlSurface)
+    pub(crate) fn watch<D>(&mut self, qh: &QueueHandle<D>, surface: &WlSurface)
     where
         D: Dispatch<WpFractionalScaleV1, ()> + Dispatch<WpViewport, ()> + 'static,
     {
@@ -66,14 +69,14 @@ impl Fractional {
     }
 
     /// The last `preferred_scale` reported for `surface`, or `None` before the first event.
-    pub fn preferred_scale(&self, surface: &WlSurface) -> Option<Scale> {
+    pub(crate) fn preferred_scale(&self, surface: &WlSurface) -> Option<Scale> {
         self.preferred.get(&surface.id()).copied()
     }
 
     /// Set the viewport's destination size (the surface-local logical size the buffer, whatever
     /// its own pixel size, should be scaled to fill). Panics if `watch` was not called first for
     /// this surface, which is a caller bug, not a runtime condition.
-    pub fn set_destination(&self, surface: &WlSurface, width: i32, height: i32) {
+    pub(crate) fn set_destination(&self, surface: &WlSurface, width: i32, height: i32) {
         let viewport = self
             .viewport_of
             .get(&surface.id())

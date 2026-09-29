@@ -6,9 +6,15 @@ use blitz_traits::shell::ColorScheme;
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
-use crate::gpu::render::{capture_document, render_into};
-use crate::gpu::shm::{ShmBuffers, paint_cpu};
-use crate::gpu::swapchain::{Swapchain, alpha_mode_of, pixel_extent, present_mode_of};
+#[cfg(feature = "debug-inject")]
+use crate::gpu::render::capture_document;
+use crate::gpu::render::render_into;
+use crate::gpu::shm::ShmBuffers;
+#[cfg(feature = "debug-inject")]
+use crate::gpu::shm::paint_cpu;
+#[cfg(feature = "debug-inject")]
+use crate::gpu::swapchain::pixel_extent;
+use crate::gpu::swapchain::{Swapchain, alpha_mode_of, present_mode_of};
 use crate::region::Rect;
 use crate::scale::{Scale, Size};
 use crate::scroll::indicator::ThumbPaint;
@@ -16,14 +22,14 @@ use crate::stats::{AlphaMode, PresentMode};
 
 /// What the host paints over the document: the scroll thumbs (design/11 §11.3.12).
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Overlay {
+pub(crate) struct Overlay {
     pub thumbs: Vec<ThumbPaint>,
     pub scheme: ColorScheme,
 }
 
 /// A surface's presenter.
 #[derive(Debug)]
-pub enum Presenter {
+pub(crate) enum Presenter {
     /// Boxed: a swapchain (wgpu surface, configuration, scene) is far larger than a shm pool.
     Wgpu(Box<Swapchain>),
     Shm(ShmBuffers),
@@ -32,7 +38,7 @@ pub enum Presenter {
 /// What one render needs to know about the surface: its buffer size, its scale, and the
 /// document time to resolve at.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FrameTarget {
+pub(crate) struct FrameTarget {
     /// Physical pixels, `scale::buffer_size(logical, scale)`.
     pub buffer: Size,
     /// Where in the buffer the document paints, physical pixels: the whole buffer, or less a
@@ -45,7 +51,8 @@ pub struct FrameTarget {
 
 impl FrameTarget {
     /// A target whose document covers the whole buffer.
-    pub fn whole(buffer: Size, scale: Scale, time: f64) -> FrameTarget {
+    #[cfg(test)]
+    pub(crate) fn whole(buffer: Size, scale: Scale, time: f64) -> FrameTarget {
         FrameTarget {
             buffer,
             content: Rect {
@@ -60,7 +67,7 @@ impl FrameTarget {
     }
 
     /// `paint_scene`'s viewport width and height and its x and y offset, physical pixels.
-    pub fn paint_area(&self) -> (u32, u32, u32, u32) {
+    pub(crate) fn paint_area(&self) -> (u32, u32, u32, u32) {
         let px = |v: i32| u32::try_from(v).unwrap_or(0);
         let c = self.content;
         (px(c.width), px(c.height), px(c.x), px(c.y))
@@ -69,7 +76,7 @@ impl FrameTarget {
 
 impl Presenter {
     /// (Re)configure for a new buffer size.
-    pub fn resize(&mut self, gpu: Option<&GpuContext>, buffer: Size) {
+    pub(crate) fn resize(&mut self, gpu: Option<&GpuContext>, buffer: Size) {
         match self {
             // Without the device the size is picked up by the next present's acquire.
             Presenter::Wgpu(swapchain) => {
@@ -85,7 +92,7 @@ impl Presenter {
     /// hook, `SurfaceDocument::resolve`): resolving again here would re-round the layout the
     /// hook snapped. The caller has also requested the frame callback (`wl_surface.frame`), so
     /// the present's commit carries it. Never waits on the device.
-    pub fn present(
+    pub(crate) fn present(
         &mut self,
         gpu: Option<&mut GpuContext>,
         doc: &mut SurfaceDocument,
@@ -103,9 +110,10 @@ impl Presenter {
         }
     }
 
+    #[cfg(feature = "debug-inject")]
     /// Resolve `doc` (running its pre-paint hook), render it offscreen at `target.buffer` and
     /// return RGBA8 pixels (debug `capture`).
-    pub fn capture(
+    pub(crate) fn capture(
         &mut self,
         gpu: Option<&mut GpuContext>,
         doc: &mut SurfaceDocument,
@@ -126,7 +134,7 @@ impl Presenter {
     }
 
     /// The present mode in use, for stats.
-    pub fn present_mode(&self) -> PresentMode {
+    pub(crate) fn present_mode(&self) -> PresentMode {
         match self {
             Presenter::Wgpu(swapchain) => swapchain
                 .config
@@ -137,7 +145,7 @@ impl Presenter {
     }
 
     /// The alpha mode in use, for stats; `AlphaMode::Opaque` means blur is turned off.
-    pub fn alpha_mode(&self) -> AlphaMode {
+    pub(crate) fn alpha_mode(&self) -> AlphaMode {
         match self {
             Presenter::Wgpu(swapchain) => swapchain
                 .config

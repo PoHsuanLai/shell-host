@@ -83,7 +83,7 @@ const DEFAULT_REPEAT_INTERVAL: Duration = Duration::from_millis(40);
 /// Everything the Wayland handlers read and write. Field order is drop order: surfaces (and
 /// with them every wgpu surface) first, the connection last.
 #[derive(Debug)]
-pub struct HostState {
+pub(crate) struct HostState {
     pub(crate) surfaces: BTreeMap<SurfaceId, HostSurface>,
     pub(crate) gpu: Option<GpuContext>,
     pub(crate) registry: RegistryState,

@@ -10,11 +10,11 @@ use crate::id::SurfaceId;
 
 /// The surfaces whose documents have ready tasks, shared between every waker and the loop.
 #[derive(Debug, Clone, Default)]
-pub struct WokenSet(Arc<Mutex<Vec<SurfaceId>>>);
+pub(crate) struct WokenSet(Arc<Mutex<Vec<SurfaceId>>>);
 
 impl WokenSet {
     /// Mark `id` as woken (idempotent).
-    pub fn mark(&self, id: SurfaceId) {
+    pub(crate) fn mark(&self, id: SurfaceId) {
         let mut woken = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         if !woken.contains(&id) {
             woken.push(id);
@@ -22,7 +22,7 @@ impl WokenSet {
     }
 
     /// Every woken surface since the last take, each once.
-    pub fn take(&self) -> Vec<SurfaceId> {
+    pub(crate) fn take(&self) -> Vec<SurfaceId> {
         std::mem::take(&mut *self.0.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }
@@ -46,7 +46,7 @@ impl Wake for SurfaceWaker {
 }
 
 /// The waker for surface `id`'s document: marks it in `woken`, then pings `ping`.
-pub fn surface_waker(id: SurfaceId, woken: WokenSet, ping: Ping) -> Waker {
+pub(crate) fn surface_waker(id: SurfaceId, woken: WokenSet, ping: Ping) -> Waker {
     Waker::from(Arc::new(SurfaceWaker { id, woken, ping }))
 }
 

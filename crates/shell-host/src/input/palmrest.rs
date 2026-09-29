@@ -7,7 +7,7 @@
 //! The socket I/O is here; registering the reading side with the event loop is the context's
 //! (`ctx::palmrest`), since the loop belongs to `HostCtx`.
 
-pub mod route;
+pub(crate) mod route;
 
 use std::io;
 use std::os::fd::{AsFd, OwnedFd};
@@ -22,14 +22,14 @@ use palmrest_protocol::{Compat, MAX_PACKET, Over, ToDaemon, ToHost, compat, deco
 
 /// Whether the host should try to connect at the next flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Retry {
+pub(crate) enum Retry {
     Due,
     Waiting,
 }
 
 /// Whether the host goes on reading after a read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stream {
+pub(crate) enum Stream {
     Open,
     /// The daemon's end closed.
     Closed,
@@ -48,7 +48,7 @@ enum Link {
 
 /// The host's connection to palmrest.
 #[derive(Debug)]
-pub struct Palmrest {
+pub(crate) struct Palmrest {
     path: Option<PathBuf>,
     link: Link,
     /// Where the pointer is, sent on every change and again after each connect.
@@ -57,19 +57,19 @@ pub struct Palmrest {
 }
 
 /// `$XDG_RUNTIME_DIR/palmrest/events.sock` for `runtime_dir`.
-pub fn socket_path(runtime_dir: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn socket_path(runtime_dir: Option<&Path>) -> Option<PathBuf> {
     runtime_dir.map(|dir| dir.join("palmrest").join("events.sock"))
 }
 
 impl Palmrest {
     /// The client for the socket under `$XDG_RUNTIME_DIR`; unconnected, first attempt due.
-    pub fn from_env() -> Palmrest {
+    pub(crate) fn from_env() -> Palmrest {
         let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
         Palmrest::at(socket_path(runtime.as_deref()))
     }
 
     /// The client for the socket at `path` (`None`: never connects).
-    pub fn at(path: Option<PathBuf>) -> Palmrest {
+    pub(crate) fn at(path: Option<PathBuf>) -> Palmrest {
         Palmrest {
             path,
             link: Link::Down,
@@ -79,7 +79,7 @@ impl Palmrest {
     }
 
     /// Whether a connection attempt is due (at start, and after a pointer enter while down).
-    pub fn retry(&self) -> Retry {
+    pub(crate) fn retry(&self) -> Retry {
         match self.link {
             Link::Up(_) => Retry::Waiting,
             Link::Down => self.retry,
@@ -89,7 +89,7 @@ impl Palmrest {
     /// Connect if the socket exists: returns the descriptor the event loop reads from. Sends
     /// the pointer's current `PointerOver` at once. `None` (and no retry until the next enter)
     /// when there is no daemon.
-    pub fn connect(&mut self) -> Option<OwnedFd> {
+    pub(crate) fn connect(&mut self) -> Option<OwnedFd> {
         self.retry = Retry::Waiting;
         let path = self.path.as_ref()?;
         if !path.exists() {
@@ -103,13 +103,13 @@ impl Palmrest {
     }
 
     /// The daemon went away (the read side saw the end).
-    pub fn disconnected(&mut self) {
+    pub(crate) fn disconnected(&mut self) {
         self.link = Link::Down;
     }
 
     /// The pointer entered or left our surfaces. While down, an enter makes a connection
     /// attempt due.
-    pub fn pointer_over(&mut self, over: Over) {
+    pub(crate) fn pointer_over(&mut self, over: Over) {
         let changed = self.over != over;
         self.over = over;
         match (&self.link, over) {
@@ -118,11 +118,6 @@ impl Palmrest {
             (Link::Up(_), _) if changed => self.send(&ToDaemon::PointerOver { over }),
             (Link::Up(_), _) => {}
         }
-    }
-
-    /// Where the pointer was last reported.
-    pub fn over(&self) -> Over {
-        self.over
     }
 
     fn send(&mut self, message: &ToDaemon) {
@@ -143,7 +138,7 @@ impl Palmrest {
 }
 
 /// A non-blocking, close-on-exec `SOCK_SEQPACKET` connection to `path`.
-pub fn open(path: &Path) -> io::Result<OwnedFd> {
+pub(crate) fn open(path: &Path) -> io::Result<OwnedFd> {
     let fd = socket_with(
         AddressFamily::UNIX,
         SocketType::SEQPACKET,
@@ -157,7 +152,7 @@ pub fn open(path: &Path) -> io::Result<OwnedFd> {
 /// Every message waiting on `fd`, and whether to go on reading. A `Hello` of another protocol
 /// version ends the read there (nothing after it is understood); a packet over
 /// `MAX_PACKET` is truncated by the kernel and skipped.
-pub fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
+pub(crate) fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
     let mut messages = Vec::new();
     let mut buf = vec![0u8; MAX_PACKET];
     loop {
@@ -208,10 +203,10 @@ mod tests {
     mod tempdir {
         use std::path::{Path, PathBuf};
 
-        pub struct Dir(PathBuf);
+        pub(crate) struct Dir(PathBuf);
 
         impl Dir {
-            pub fn new() -> Dir {
+            pub(crate) fn new() -> Dir {
                 static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
                 let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let path = std::env::temp_dir()
@@ -220,7 +215,7 @@ mod tests {
                 Dir(path)
             }
 
-            pub fn path(&self) -> &Path {
+            pub(crate) fn path(&self) -> &Path {
                 &self.0
             }
         }

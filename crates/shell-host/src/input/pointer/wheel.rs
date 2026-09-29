@@ -13,7 +13,7 @@ use super::PointerPos;
 use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Relative, Shift, Stop};
 
 /// stops a scroll (`axis_stop`) or carries nothing.
-pub fn wheel_delta(horizontal: AxisScroll, vertical: AxisScroll) -> Option<BlitzWheelDelta> {
+pub(crate) fn wheel_delta(horizontal: AxisScroll, vertical: AxisScroll) -> Option<BlitzWheelDelta> {
     let steps = |axis: AxisScroll| {
         if axis.value120 != 0 {
             f64::from(axis.value120) / 120.0
@@ -33,7 +33,7 @@ pub fn wheel_delta(horizontal: AxisScroll, vertical: AxisScroll) -> Option<Blitz
 }
 
 /// One `wl_pointer.frame`'s axis content for the scroll engine (`scroll::source`).
-pub fn axis_frame(
+pub(crate) fn axis_frame(
     horizontal: AxisScroll,
     vertical: AxisScroll,
     source: Option<wl_pointer::AxisSource>,
@@ -72,7 +72,7 @@ pub fn axis_frame(
 }
 
 /// The raw wheel event a `data-wheel="capture"` element receives, at `pos`.
-pub fn wheel_event(
+pub(crate) fn wheel_event(
     delta: BlitzWheelDelta,
     pos: PointerPos,
     buttons: MouseEventButtons,
@@ -98,7 +98,7 @@ pub fn wheel_event(
 /// `event` with its page coordinates moved by the viewport's `scroll` from its client
 /// coordinates: Blitz hit-tests page coordinates, and the host's events are surface-local, so
 /// once the engine scrolls the viewport the two differ.
-pub fn scrolled(event: UiEvent, scroll: (f64, f64)) -> UiEvent {
+pub(crate) fn scrolled(event: UiEvent, scroll: (f64, f64)) -> UiEvent {
     let shift = |coords: &mut PointerCoords| {
         coords.page_x = coords.client_x + scroll.0 as f32;
         coords.page_y = coords.client_y + scroll.1 as f32;

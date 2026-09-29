@@ -1,7 +1,7 @@
 //! The process's resident set size.
 
 /// The `VmRSS` line of a `/proc/<pid>/status` text, in KiB.
-pub fn vm_rss_kib(status: &str) -> Option<u64> {
+pub(crate) fn vm_rss_kib(status: &str) -> Option<u64> {
     status
         .lines()
         .find_map(|line| line.strip_prefix("VmRSS:"))

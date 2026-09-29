@@ -23,7 +23,7 @@ use wayland_protocols::ext::background_effect::v1::client::ext_background_effect
 /// Whether the compositor reported supporting an effect, from the manager's `capabilities`
 /// event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Support {
+pub(crate) enum Support {
     #[default]
     Unsupported,
     Supported,
@@ -33,7 +33,7 @@ pub enum Support {
 /// effect in `ext-background-effect-v1` today (`blur`); the struct, not a bare `Support`, is so
 /// a second effect added to the protocol later is one field, not a signature change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Capabilities {
+pub(crate) struct Capabilities {
     pub blur: Support,
 }
 
@@ -51,7 +51,7 @@ impl Capabilities {
 /// State for `ext_background_effect_manager_v1`: the bound manager, the capabilities it last
 /// reported, and the per-surface `ext_background_effect_surface_v1` objects created against it.
 #[derive(Debug)]
-pub struct BackgroundEffect {
+pub(crate) struct BackgroundEffect {
     manager: ExtBackgroundEffectManagerV1,
     capabilities: Capabilities,
     surfaces: HashMap<ObjectId, ExtBackgroundEffectSurfaceV1>,
@@ -59,7 +59,10 @@ pub struct BackgroundEffect {
 
 impl BackgroundEffect {
     /// Bind the `ext_background_effect_manager_v1` global.
-    pub fn bind<D>(globals: &GlobalList, qh: &QueueHandle<D>) -> Result<BackgroundEffect, BindError>
+    pub(crate) fn bind<D>(
+        globals: &GlobalList,
+        qh: &QueueHandle<D>,
+    ) -> Result<BackgroundEffect, BindError>
     where
         D: Dispatch<ExtBackgroundEffectManagerV1, ()> + 'static,
     {
@@ -72,14 +75,14 @@ impl BackgroundEffect {
     }
 
     /// The effects the compositor supports, as of the last `capabilities` event.
-    pub fn capabilities(&self) -> Capabilities {
+    pub(crate) fn capabilities(&self) -> Capabilities {
         self.capabilities
     }
 
     /// Set (or, with `None`, clear) the blur region for `surface`, creating its
     /// `ext_background_effect_surface_v1` object on first use. Takes effect on the surface's
     /// next `wl_surface.commit`.
-    pub fn set_blur_region<D>(
+    pub(crate) fn set_blur_region<D>(
         &mut self,
         qh: &QueueHandle<D>,
         surface: &WlSurface,

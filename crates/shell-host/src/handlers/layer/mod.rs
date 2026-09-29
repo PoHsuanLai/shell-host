@@ -2,7 +2,7 @@
 
 mod decide;
 
-pub use decide::configured_size;
+pub(crate) use decide::configured_size;
 
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::{

@@ -35,7 +35,7 @@ pub enum Prepaint {
 
 /// Whether a resolve ran a hook, for the `prepaints` counter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Prepainted {
+pub(crate) enum Prepainted {
     Ran,
     NoHook,
 }

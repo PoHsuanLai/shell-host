@@ -6,7 +6,7 @@ use keyboard_types::{Key, Modifiers};
 use crate::scroll::geom::{Dir, ScrollAxis};
 
 /// One arrow press, px.
-pub const LINE_PX: f64 = 40.0;
+pub(crate) const LINE_PX: f64 = 40.0;
 /// A page keeps this much of the old view in sight, px ...
 const PAGE_OVERLAP_PX: f64 = 40.0;
 /// ... and moves at least this fraction of the view.
@@ -23,7 +23,7 @@ const DAMPING: f64 = 20.0;
 
 /// A key that scrolls, before the target's geometry is known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScrollKey {
+pub(crate) enum ScrollKey {
     /// An arrow: one line.
     Line(ScrollAxis, Dir),
     /// Page Up / Page Down, Space / Shift+Space: one page, vertically.
@@ -34,22 +34,17 @@ pub enum ScrollKey {
 
 impl ScrollKey {
     /// The axis the key moves along.
-    pub fn axis(self) -> ScrollAxis {
+    pub(crate) fn axis(self) -> ScrollAxis {
         match self {
             ScrollKey::Line(axis, _) => axis,
             ScrollKey::Page(_) | ScrollKey::Edge(_) => ScrollAxis::Y,
         }
     }
-
-    /// Whether holding the key runs the held ramp (arrows only).
-    pub fn holds(self) -> bool {
-        matches!(self, ScrollKey::Line(..))
-    }
 }
 
 /// The scroll key `key` with `mods` is, if any. Alt and Super combinations are shortcuts, never
 /// scrolls; Ctrl only turns Up/Down into Home/End.
-pub fn scroll_key(key: &Key, mods: Modifiers) -> Option<ScrollKey> {
+pub(crate) fn scroll_key(key: &Key, mods: Modifiers) -> Option<ScrollKey> {
     if mods.intersects(Modifiers::ALT | Modifiers::META | Modifiers::SUPER | Modifiers::HYPER) {
         return None;
     }
@@ -73,17 +68,17 @@ pub fn scroll_key(key: &Key, mods: Modifiers) -> Option<ScrollKey> {
 }
 
 /// The page step for a view `viewport` px long: `max(0.8 v, v - 40)`.
-pub fn page(viewport: f64) -> f64 {
+pub(crate) fn page(viewport: f64) -> f64 {
     (PAGE_MIN_RATIO * viewport).max(viewport - PAGE_OVERLAP_PX)
 }
 
 /// A held arrow's speed `t` s after the ramp started, for a signed `step` (px per press).
-pub fn held_speed(step: f64, t: f64) -> f64 {
+pub(crate) fn held_speed(step: f64, t: f64) -> f64 {
     (t / HELD_RAMP_S).clamp(0.0, 1.0) * HELD_STEPS_PER_S * step
 }
 
 /// How far a held arrow has moved `t` s after the ramp started (the integral of its speed).
-pub fn held_travel(step: f64, t: f64) -> f64 {
+pub(crate) fn held_travel(step: f64, t: f64) -> f64 {
     let top = HELD_STEPS_PER_S * step;
     let t = t.max(0.0);
     if t <= HELD_RAMP_S {
@@ -94,13 +89,13 @@ pub fn held_travel(step: f64, t: f64) -> f64 {
 }
 
 /// Where the release spring aims: the offset carried on at the release speed for 100 ms.
-pub fn release_target(x: f64, v: f64) -> f64 {
+pub(crate) fn release_target(x: f64, v: f64) -> f64 {
     x + v * RELEASE_LEAD_S
 }
 
 /// The spring's displacement from its target and its velocity `t` s after starting at
 /// displacement `e0` with velocity `v0` (`x'' = -175 e - 20 x'`, under-damped).
-pub fn spring(e0: f64, v0: f64, t: f64) -> (f64, f64) {
+pub(crate) fn spring(e0: f64, v0: f64, t: f64) -> (f64, f64) {
     let decay = DAMPING / 2.0;
     let wd = (STIFFNESS - decay * decay).sqrt();
     let b = (v0 + decay * e0) / wd;

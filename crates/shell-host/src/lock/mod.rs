@@ -4,8 +4,8 @@
 //! in force. Authentication is the shell's (PAM in sill), never the host's.
 
 pub(crate) mod active;
-pub mod handle;
-pub mod machine;
+pub(crate) mod handle;
+pub(crate) mod machine;
 
 use serde::{Deserialize, Serialize};
 

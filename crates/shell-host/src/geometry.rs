@@ -35,7 +35,7 @@ impl Margin {
 /// The smallest whole-pixel rectangle containing a fractional box (Blitz's
 /// `get_client_bounding_rect`): the origin rounds down, the far edge rounds up, so a region
 /// built from it never clips the element it follows.
-pub fn enclosing_rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
+pub(crate) fn enclosing_rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
     let left = x.floor();
     let top = y.floor();
     let right = (x + width.max(0.0)).ceil();
@@ -49,7 +49,7 @@ pub fn enclosing_rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 /// `rect` grown by `by` on every side (shrunk for a negative `by`, never below zero size).
-pub fn inflate(rect: Rect, by: Px) -> Rect {
+pub(crate) fn inflate(rect: Rect, by: Px) -> Rect {
     Rect {
         x: rect.x - by,
         y: rect.y - by,

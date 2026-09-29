@@ -21,7 +21,7 @@ use crate::error::{HostError, Result};
 /// `conn` closes. `HostSurface` guarantees the first by declaring its presenter before its role
 /// (fields drop in declaration order); `HostState`'s `Drop` clears every surface before the
 /// connection goes.
-pub fn create_surface(
+pub(crate) fn create_surface(
     instance: &wgpu::Instance,
     conn: &Connection,
     surface: &WlSurface,
@@ -54,7 +54,7 @@ fn display_ptr(conn: &Connection) -> Option<NonNull<c_void>> {
 
 /// The `wl_display` pointer as a display handle.
 #[derive(Debug)]
-pub struct WaylandDisplay(NonNull<c_void>);
+pub(crate) struct WaylandDisplay(NonNull<c_void>);
 
 // SAFETY: the pointer is only an address here; libwayland's `wl_display` may be used from any
 // thread, and wgpu only hands it to EGL/Vulkan at instance and surface creation.
@@ -64,7 +64,7 @@ unsafe impl Sync for WaylandDisplay {}
 
 impl WaylandDisplay {
     /// The display of `conn`; `None` when wayland-backend is not using the system libwayland.
-    pub fn new(conn: &Connection) -> Option<WaylandDisplay> {
+    pub(crate) fn new(conn: &Connection) -> Option<WaylandDisplay> {
         display_ptr(conn).map(WaylandDisplay)
     }
 }

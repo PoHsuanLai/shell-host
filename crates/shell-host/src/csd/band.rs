@@ -10,7 +10,7 @@ use crate::toplevel::ResizeEdge;
 
 /// Where a pointer on the surface is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Zone {
+pub(crate) enum Zone {
     /// On the frame: the document's.
     Document,
     /// In the band, over the edge or corner a press there resizes.
@@ -19,7 +19,7 @@ pub enum Zone {
 
 /// The band as input-region strips: full-width top and bottom (so the corners are covered),
 /// left and right between them. Empty without a band.
-pub fn band(surface: Size, inset: Inset) -> Vec<Rect> {
+pub(crate) fn band(surface: Size, inset: Inset) -> Vec<Rect> {
     let (w, h, i) = (surface.width, surface.height, inset.0);
     let strips = [
         Rect {
@@ -53,7 +53,7 @@ pub fn band(surface: Size, inset: Inset) -> Vec<Rect> {
 /// Where surface-local `pos` is on a surface of `surface` with band `inset`. A corner reaches
 /// one band width further along each side than the band's own corner square, since a square
 /// the band's width on a side is too small a target to hit reliably.
-pub fn zone_at(surface: Size, inset: Inset, pos: PointerPos) -> Zone {
+pub(crate) fn zone_at(surface: Size, inset: Inset, pos: PointerPos) -> Zone {
     let i = f64::from(inset.0);
     let (w, h) = (f64::from(surface.width), f64::from(surface.height));
     let (in_left, in_right) = (pos.x < i, pos.x >= w - i);
@@ -83,7 +83,7 @@ pub fn zone_at(surface: Size, inset: Inset, pos: PointerPos) -> Zone {
 
 /// The resize cursor for `edge` (CSS names: `ns-resize`, `ew-resize`, `nwse-resize`,
 /// `nesw-resize`); the bidirectional shapes, as a resize can grow or shrink.
-pub fn cursor_for(edge: ResizeEdge) -> CursorIcon {
+pub(crate) fn cursor_for(edge: ResizeEdge) -> CursorIcon {
     match edge {
         ResizeEdge::Top | ResizeEdge::Bottom => CursorIcon::NsResize,
         ResizeEdge::Left | ResizeEdge::Right => CursorIcon::EwResize,

@@ -10,12 +10,12 @@ const MAX_S: f64 = 0.2;
 const E_OUT: (f64, f64, f64, f64) = (0.22, 0.9, 0.30, 1.0);
 
 /// How long a step of `distance` px animates, seconds.
-pub fn duration(distance: f64) -> f64 {
+pub(crate) fn duration(distance: f64) -> f64 {
     (distance.abs() / SPEED).min(MAX_S)
 }
 
 /// The eased progress at linear progress `p` (clamped to `0..=1`).
-pub fn e_out(p: f64) -> f64 {
+pub(crate) fn e_out(p: f64) -> f64 {
     let p = p.clamp(0.0, 1.0);
     let (x1, y1, x2, y2) = E_OUT;
     let u = solve_u(p, x1, x2);

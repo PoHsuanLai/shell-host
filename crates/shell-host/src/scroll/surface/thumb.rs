@@ -7,14 +7,19 @@ use super::{Moved, SurfaceScroll};
 use crate::dom::scroll as dom;
 use crate::input::pointer::PointerPos;
 use crate::scroll::geom::ScrollAxis;
-use crate::scroll::indicator::{self, Metrics, OtherAxis, ThumbPaint};
+use crate::scroll::indicator::{self, Metrics, ThumbPaint};
 use crate::scroll::watch::{ScrollExtent, ScrollPoint, ScrollState, phase_of};
 use crate::tick::HostInstant;
 
 impl SurfaceScroll {
     /// The pointer moved to `pos`: expand or collapse the thumb. `Moved` when that starts an
     /// animation (the caller renders).
-    pub fn pointer(&mut self, doc: &BaseDocument, pos: PointerPos, now: HostInstant) -> Moved {
+    pub(crate) fn pointer(
+        &mut self,
+        doc: &BaseDocument,
+        pos: PointerPos,
+        now: HostInstant,
+    ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let Some(metrics) = self.metrics(doc) else {
@@ -41,12 +46,11 @@ impl SurfaceScroll {
             viewport: geom.viewport.0,
             max: geom.max.0,
             offset: geom.offset.0,
-            other: OtherAxis::Hidden,
         })
     }
 
     /// The thumbs to paint over the document at `env.now` (none for a scroller that fits).
-    pub fn overlay(&self, doc: &BaseDocument, now: HostInstant) -> Vec<ThumbPaint> {
+    pub(crate) fn overlay(&self, doc: &BaseDocument, now: HostInstant) -> Vec<ThumbPaint> {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let s = &env.config.scrollbar;
@@ -59,7 +63,7 @@ impl SurfaceScroll {
     }
 
     /// Publish every watched scroller's state (after the frame's resolve).
-    pub fn publish(&self, doc: &BaseDocument) {
+    pub(crate) fn publish(&self, doc: &BaseDocument) {
         for (id, live) in self.board.watched() {
             let Some(scroller) = dom::scroller_by_id(doc, &id) else {
                 continue;

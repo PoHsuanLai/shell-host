@@ -9,21 +9,21 @@ use crate::region::Rect;
 
 /// A preedit string with its cursor, as byte offsets into the string (`None` hides the cursor).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Preedit {
+pub(crate) struct Preedit {
     pub text: String,
     pub cursor: Option<(usize, usize)>,
 }
 
 /// How much text around the cursor to delete, in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct DeleteSurrounding {
+pub(crate) struct DeleteSurrounding {
     pub before: u32,
     pub after: u32,
 }
 
 /// The state accumulated since the last `done`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PendingIme {
+pub(crate) struct PendingIme {
     pub preedit: Option<Preedit>,
     pub commit: Option<String>,
     pub delete: Option<DeleteSurrounding>,
@@ -31,7 +31,7 @@ pub struct PendingIme {
 
 /// Whether text input is enabled for the focused surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ImeFocus {
+pub(crate) enum ImeFocus {
     Disabled,
     /// Enabled, with the caret rectangle last sent (`set_cursor_rectangle`).
     Enabled {
@@ -41,7 +41,7 @@ pub enum ImeFocus {
 
 /// One seat's text-input state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ime {
+pub(crate) struct Ime {
     pub pending: PendingIme,
     pub focus: ImeFocus,
     /// The `done` serial the compositor expects our next `commit` to match.
@@ -54,7 +54,7 @@ pub struct Ime {
 /// a commit next to a live composition rather than over it, so a commit of the composed text
 /// with the composition still shown doubled it. A lone new preedit replaces
 /// the old one by itself. Pure.
-pub fn on_done(pending: PendingIme) -> (Vec<BlitzImeEvent>, PendingIme) {
+pub(crate) fn on_done(pending: PendingIme) -> (Vec<BlitzImeEvent>, PendingIme) {
     let mut events = Vec::new();
     if pending.commit.is_some() || pending.delete.is_some() || pending.preedit.is_none() {
         events.push(BlitzImeEvent::Preedit(String::new(), None));

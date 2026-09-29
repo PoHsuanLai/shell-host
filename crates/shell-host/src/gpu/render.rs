@@ -10,14 +10,17 @@ use vello_hybrid::RenderSize;
 
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
-use crate::gpu::context::{GpuContext, SURFACE_FORMAT};
+use crate::gpu::context::GpuContext;
+#[cfg(any(feature = "debug-inject", test))]
+use crate::gpu::context::SURFACE_FORMAT;
 use crate::gpu::presenter::{FrameTarget, Overlay};
+#[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::shm::swap_red_blue;
 use crate::gpu::swapchain::pixel_extent;
 
 /// Paint the already resolved `doc` into `scene`, the host's overlay (the scroll thumbs) over
 /// it, then render the scene into `view` with `encoder`. The caller resolved it (`SurfaceDocument::resolve`, which runs the pre-paint hook).
-pub fn render_into(
+pub(crate) fn render_into(
     gpu: &mut GpuContext,
     doc: &mut SurfaceDocument,
     scene: &mut vello_hybrid::Scene,
@@ -33,7 +36,7 @@ pub fn render_into(
 /// Paint an already resolved document into `scene` and render it into `view`: [`render_into`]
 /// on a bare `BaseDocument`. Widgets in the document see the shared device and register their
 /// textures into it, where they stay for later frames.
-pub fn paint_document(
+pub(crate) fn paint_document(
     gpu: &mut GpuContext,
     doc: &mut BaseDocument,
     scene: &mut vello_hybrid::Scene,
@@ -112,10 +115,11 @@ fn too_large(width: u32, height: u32) -> HostError {
     ))
 }
 
+#[cfg(any(feature = "debug-inject", test))]
 /// Render an already resolved document offscreen at `target.buffer` through the shared
 /// renderer and read it back as RGBA8, premultiplied as rendered. Blocks on the device: for
 /// debug captures and tests, never the frame path.
-pub fn capture_document(
+pub(crate) fn capture_document(
     gpu: &mut GpuContext,
     doc: &mut BaseDocument,
     target: FrameTarget,
@@ -167,6 +171,7 @@ pub fn capture_document(
     read_rows(&device, &readback, row, width, height)
 }
 
+#[cfg(any(feature = "debug-inject", test))]
 fn extent(width: u32, height: u32) -> wgpu::Extent3d {
     wgpu::Extent3d {
         width,
@@ -175,6 +180,7 @@ fn extent(width: u32, height: u32) -> wgpu::Extent3d {
     }
 }
 
+#[cfg(any(feature = "debug-inject", test))]
 /// Map the readback buffer and turn its padded BGRA rows into a tight RGBA image.
 fn read_rows(
     device: &wgpu::Device,

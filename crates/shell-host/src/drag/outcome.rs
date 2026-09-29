@@ -66,7 +66,7 @@ pub enum DragRefused {
 
 /// The source's last event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DragEnd {
+pub(crate) enum DragEnd {
     /// `dnd_finished`: the target read what it wanted and is done.
     Finished,
     /// `cancelled`: no target took it, or the target gave up after the drop.
@@ -76,7 +76,7 @@ pub enum DragEnd {
 /// The outcome of a drag that ended with `end`, the last action the compositor chose being
 /// `chosen`. A finish with no action chosen is a copy: the source must not delete anything
 /// it was not told to move.
-pub fn outcome(end: DragEnd, chosen: Option<DragAction>) -> DragOutcome {
+pub(crate) fn outcome(end: DragEnd, chosen: Option<DragAction>) -> DragOutcome {
     match end {
         DragEnd::Finished => DragOutcome::Dropped {
             action: chosen.unwrap_or(DragAction::Copy),

@@ -6,7 +6,7 @@ use crate::region::Rect;
 use crate::scale::{Scale, Size, logical_to_physical};
 
 /// The surface around a frame of `frame`.
-pub fn surface_of(frame: Size, inset: Inset) -> Size {
+pub(crate) fn surface_of(frame: Size, inset: Inset) -> Size {
     Size {
         width: frame.width + 2 * inset.0,
         height: frame.height + 2 * inset.0,
@@ -14,7 +14,7 @@ pub fn surface_of(frame: Size, inset: Inset) -> Size {
 }
 
 /// The frame inside a surface of `surface`.
-pub fn frame_of(surface: Size, inset: Inset) -> Size {
+pub(crate) fn frame_of(surface: Size, inset: Inset) -> Size {
     Size {
         width: (surface.width - 2 * inset.0).max(0),
         height: (surface.height - 2 * inset.0).max(0),
@@ -23,7 +23,7 @@ pub fn frame_of(surface: Size, inset: Inset) -> Size {
 
 /// `xdg_surface.set_window_geometry` for a surface of `surface`: the frame, in surface
 /// coordinates.
-pub fn window_geometry(surface: Size, inset: Inset) -> Rect {
+pub(crate) fn window_geometry(surface: Size, inset: Inset) -> Rect {
     let frame = frame_of(surface, inset);
     Rect {
         x: inset.0,
@@ -36,7 +36,7 @@ pub fn window_geometry(surface: Size, inset: Inset) -> Rect {
 /// Where the document paints in a buffer of `buffer` physical pixels: the frame, in physical
 /// pixels. The offset is the band rounded to whole device pixels (blitz paints at an integer
 /// offset); the size is what is left, so the band is equally wide on both sides.
-pub fn content_px(buffer: Size, inset: Inset, scale: Scale) -> Rect {
+pub(crate) fn content_px(buffer: Size, inset: Inset, scale: Scale) -> Rect {
     let offset = logical_to_physical(inset.0, scale);
     Rect {
         x: offset,
@@ -48,7 +48,7 @@ pub fn content_px(buffer: Size, inset: Inset, scale: Scale) -> Rect {
 
 /// A surface-local pointer position in the document's coordinates: less the painted offset,
 /// so a hit test agrees with the pixels to the device pixel.
-pub fn to_document(pos: PointerPos, inset: Inset, scale: Scale) -> PointerPos {
+pub(crate) fn to_document(pos: PointerPos, inset: Inset, scale: Scale) -> PointerPos {
     let offset = f64::from(logical_to_physical(inset.0, scale)) / scale.as_f64();
     PointerPos {
         x: pos.x - offset,
@@ -57,7 +57,7 @@ pub fn to_document(pos: PointerPos, inset: Inset, scale: Scale) -> PointerPos {
 }
 
 /// Document-coordinate rectangles in surface coordinates.
-pub fn to_surface(rects: Vec<Rect>, inset: Inset) -> Vec<Rect> {
+pub(crate) fn to_surface(rects: Vec<Rect>, inset: Inset) -> Vec<Rect> {
     rects
         .into_iter()
         .map(|rect| Rect {

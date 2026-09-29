@@ -28,7 +28,7 @@ use crate::wake::surface_waker;
 
 /// One phase of a flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Phase {
+pub(crate) enum Phase {
     PollWoken,
     ApplyRequests,
     StepFrames,
@@ -37,7 +37,7 @@ pub enum Phase {
 }
 
 /// The phases, in the order every flush runs them.
-pub const ORDER: [Phase; 5] = [
+pub(crate) const ORDER: [Phase; 5] = [
     Phase::PollWoken,
     Phase::ApplyRequests,
     Phase::StepFrames,
@@ -47,7 +47,7 @@ pub const ORDER: [Phase; 5] = [
 
 /// What a flush acts on. The host's context is one implementation; a recording fake in
 /// `tests/core.rs` is the other, which is how the order is tested without a compositor.
-pub trait Flush {
+pub(crate) trait Flush {
     fn poll_woken(&mut self);
     fn apply_requests(&mut self);
     fn step_frames(&mut self);
@@ -56,7 +56,7 @@ pub trait Flush {
 }
 
 /// Run every phase of one flush on `target`, in [`ORDER`].
-pub fn run(target: &mut impl Flush) -> Result<()> {
+pub(crate) fn run(target: &mut impl Flush) -> Result<()> {
     for phase in ORDER {
         match phase {
             Phase::PollWoken => target.poll_woken(),

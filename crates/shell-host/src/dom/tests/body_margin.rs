@@ -9,7 +9,6 @@
 
 use std::task::Context;
 
-use blitz_traits::shell::ColorScheme;
 use dioxus::prelude::*;
 
 use crate::dom::document::SurfaceDocument;
@@ -85,7 +84,10 @@ fn a_documents_own_body_margin_still_wins() {
 #[cfg(feature = "headless")]
 #[test]
 fn a_headless_bare_document_paints_its_corner() {
-    use crate::headless::{Fonts, HeadlessConfig, PixelSize, Scale, bundled_faces, render_png};
+    use blitz_traits::shell::ColorScheme;
+
+    use crate::Scale;
+    use crate::headless::{Fonts, HeadlessConfig, PixelSize, bundled_faces, render_png};
 
     fn red() -> Element {
         rsx! {

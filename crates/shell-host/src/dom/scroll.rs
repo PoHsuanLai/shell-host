@@ -17,7 +17,7 @@ use crate::scroll::latch::Candidate;
 
 /// Whether a wheel over a point goes to the engine or, raw, to a capturing element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WheelRoute {
+pub(crate) enum WheelRoute {
     Engine,
     /// An element on the chain carries `data-wheel="capture"`.
     Capture,
@@ -25,7 +25,7 @@ pub enum WheelRoute {
 
 /// What the keyboard focus means for scroll keys (design/11 §11.3.10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyFocus {
+pub(crate) enum KeyFocus {
     /// Nothing focused (or the root or body, where Blitz parks focus): keys scroll the default
     /// target (the scroller under the pointer).
     Free,
@@ -62,7 +62,7 @@ fn element_under(doc: &BaseDocument, x: f64, y: f64) -> Option<NodeId> {
 }
 
 /// Page coordinates of surface-local `(x, y)`.
-pub fn page_point(doc: &BaseDocument, x: f64, y: f64) -> (f64, f64) {
+pub(crate) fn page_point(doc: &BaseDocument, x: f64, y: f64) -> (f64, f64) {
     let scroll = doc.viewport_scroll();
     (x + scroll.x, y + scroll.y)
 }
@@ -85,7 +85,7 @@ fn is_root(doc: &BaseDocument, id: NodeId) -> bool {
 
 /// The scrollers on `axis` from the element under surface-local `(x, y)` outward, innermost
 /// first, ending with the viewport when it can scroll or stretch on `axis`.
-pub fn chain_at(doc: &BaseDocument, x: f64, y: f64, axis: ScrollAxis) -> Vec<Candidate> {
+pub(crate) fn chain_at(doc: &BaseDocument, x: f64, y: f64, axis: ScrollAxis) -> Vec<Candidate> {
     let (px, py) = page_point(doc, x, y);
     let mut chain: Vec<Candidate> = element_under(doc, px, py)
         .into_iter()
@@ -142,7 +142,7 @@ fn elastic(opted: Overscroll, axis: ScrollAxis, max: f64) -> Elastic {
 }
 
 /// `scroller`'s geometry on `axis`; `None` for a node that is gone.
-pub fn geom(doc: &BaseDocument, scroller: Scroller, axis: ScrollAxis) -> Option<Geom> {
+pub(crate) fn geom(doc: &BaseDocument, scroller: Scroller, axis: ScrollAxis) -> Option<Geom> {
     let pick = |x: f64, y: f64| match axis {
         ScrollAxis::X => x,
         ScrollAxis::Y => y,
@@ -204,7 +204,7 @@ fn body(doc: &BaseDocument) -> Option<&Node> {
 }
 
 /// Write `raw` as `scroller`'s offset on `axis`, leaving the other axis alone.
-pub fn write(doc: &mut BaseDocument, scroller: Scroller, axis: ScrollAxis, raw: f64) {
+pub(crate) fn write(doc: &mut BaseDocument, scroller: Scroller, axis: ScrollAxis, raw: f64) {
     let set = |point: &mut blitz_dom::Point<f64>| match axis {
         ScrollAxis::X => point.x = raw,
         ScrollAxis::Y => point.y = raw,
@@ -224,7 +224,7 @@ pub fn write(doc: &mut BaseDocument, scroller: Scroller, axis: ScrollAxis, raw: 
 }
 
 /// Where a wheel at surface-local `(x, y)` goes.
-pub fn wheel_route(doc: &BaseDocument, x: f64, y: f64) -> WheelRoute {
+pub(crate) fn wheel_route(doc: &BaseDocument, x: f64, y: f64) -> WheelRoute {
     let (px, py) = page_point(doc, x, y);
     let captured = element_under(doc, px, py)
         .into_iter()
@@ -251,7 +251,7 @@ fn listens_for_keys(node: &Node) -> bool {
 }
 
 /// What the focused element means for a scroll key on `axis`.
-pub fn key_focus(doc: &BaseDocument, axis: ScrollAxis) -> KeyFocus {
+pub(crate) fn key_focus(doc: &BaseDocument, axis: ScrollAxis) -> KeyFocus {
     let Some(focus) = doc.get_focussed_node_id() else {
         return KeyFocus::Free;
     };
@@ -298,7 +298,7 @@ fn owns_keys(node: &Node) -> bool {
 }
 
 /// The scroller the element with `id` names, if it exists.
-pub fn scroller_by_id(doc: &BaseDocument, id: &ElementId) -> Option<Scroller> {
+pub(crate) fn scroller_by_id(doc: &BaseDocument, id: &ElementId) -> Option<Scroller> {
     let node = doc.get_element_by_id(id.as_str())?;
     Some(match is_root(doc, node) {
         true => Scroller::Viewport,
@@ -308,7 +308,7 @@ pub fn scroller_by_id(doc: &BaseDocument, id: &ElementId) -> Option<Scroller> {
 
 /// The nearest ancestor of the element with `id` that scrolls on `axis` (the viewport if none),
 /// and the element's own border box in surface-local coordinates.
-pub fn container_of(
+pub(crate) fn container_of(
     doc: &BaseDocument,
     id: &ElementId,
     axis: ScrollAxis,
@@ -326,7 +326,7 @@ pub fn container_of(
 /// Blitz's client rect of an element subtracts the element's own scroll offset along with its
 /// ancestors' (`unrounded_absolute_position`), which moves a scrolled container's box by its
 /// own scroll; that is added back here.
-pub fn area(doc: &BaseDocument, scroller: Scroller) -> Option<Area> {
+pub(crate) fn area(doc: &BaseDocument, scroller: Scroller) -> Option<Area> {
     match scroller {
         Scroller::Viewport => {
             let (w, h) = doc.viewport().logical_size();

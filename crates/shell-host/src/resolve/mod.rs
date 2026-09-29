@@ -12,9 +12,9 @@ mod anchor;
 mod spec;
 mod tracked;
 
-pub use anchor::resolve_popup_anchor;
-pub use spec::{Resolved, resolve};
-pub use tracked::{Change, Tracked};
+pub(crate) use anchor::resolve_popup_anchor;
+pub(crate) use spec::{Resolved, resolve};
+pub(crate) use tracked::{Change, Tracked};
 
 #[cfg(test)]
 mod tests;

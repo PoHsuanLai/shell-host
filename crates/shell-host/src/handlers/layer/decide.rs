@@ -10,7 +10,7 @@ use crate::scale::Size;
 /// (`Extent::Fill`) has no independent size to fall back to; a 0 there means the compositor has
 /// not resolved the stretch yet (a compositor should not normally send this for an anchored,
 /// opposite-edges-stretching axis, but nothing about the wire forbids it).
-pub fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
+pub(crate) fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
     let axis = |extent: LayerExtent, got: u32| -> Px {
         if got != 0 {
             return got as Px;

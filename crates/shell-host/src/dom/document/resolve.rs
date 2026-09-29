@@ -6,14 +6,16 @@ use blitz_traits::shell::ShellProvider as _;
 
 use super::SurfaceDocument;
 use super::hover::HoverShift;
-use crate::dom::ime_focus::{self, FieldText, Repair};
+#[cfg(feature = "debug-inject")]
+use crate::dom::ime_focus::FieldText;
+use crate::dom::ime_focus::{self, Repair};
 use crate::dom::stacking;
 use crate::frame::Animation;
 use crate::prepaint::Prepainted;
 
 /// What one `SurfaceDocument::resolve` did besides laying out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Resolved {
+pub(crate) struct Resolved {
     pub prepainted: Prepainted,
     pub hover: HoverShift,
 }
@@ -28,7 +30,7 @@ impl SurfaceDocument {
     /// exactly once, here, and paints what this left. The hover repair touches hover state and runs
     /// handlers, never layout, so the hook and the paint see the same layout; the restyle it causes
     /// is the next frame's (`Resolved::hover`).
-    pub fn resolve(&mut self, t: f64) -> Resolved {
+    pub(crate) fn resolve(&mut self, t: f64) -> Resolved {
         let before = self.hovered();
         self.doc.inner_mut().resolve(t);
         stacking::rehoist(&mut self.doc.inner_mut());
@@ -62,13 +64,14 @@ impl SurfaceDocument {
         }
     }
 
+    #[cfg(feature = "debug-inject")]
     /// The focused text field's text (`debug-inject`'s `focused`).
-    pub fn focused_text(&self) -> Option<FieldText> {
+    pub(crate) fn focused_text(&self) -> Option<FieldText> {
         ime_focus::focused_text(&self.doc.inner())
     }
 
     /// Whether a transition or animation is still running.
-    pub fn animation(&self) -> Animation {
+    pub(crate) fn animation(&self) -> Animation {
         if self.doc.inner().is_animating() {
             Animation::Running
         } else {

@@ -100,7 +100,7 @@ pub enum Visibility {
 
 /// A message sent through a `HostHandle`. `Send` whenever `M` is.
 #[derive(Debug)]
-pub enum HostMsg<M> {
+pub(crate) enum HostMsg<M> {
     /// Delivered to the event closure as `HostEvent::App`.
     App(M),
     Apply {
@@ -115,7 +115,7 @@ pub enum HostMsg<M> {
 /// A request made from inside a document through its `SurfaceHandle`. Queued on the main
 /// thread (a `HostRoot` is not `Send`), drained after the documents are polled.
 #[derive(Debug)]
-pub enum Request {
+pub(crate) enum Request {
     Apply {
         id: SurfaceId,
         op: SurfaceOp,
@@ -133,7 +133,6 @@ pub enum Request {
     /// has no callback coming to tick on).
     Redraw(SurfaceId),
     CopyText {
-        from: SurfaceId,
         text: String,
     },
     ActivationToken {

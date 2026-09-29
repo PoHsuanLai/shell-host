@@ -13,11 +13,12 @@ use crate::id::SurfaceName;
 use crate::layer::{KeyboardMode, to_wire_keyboard};
 use crate::placement::PopupPlacement;
 use crate::popup::{
-    PopupAnchor, PopupConfig, PopupGrab, PositionerParams, positioner_params,
-    to_wire_anchor as edge, to_wire_constraint_adjustment, to_wire_gravity,
+    PopupConfig, PopupGrab, PositionerParams, positioner_params, to_wire_anchor as edge,
+    to_wire_constraint_adjustment, to_wire_gravity,
 };
 use crate::popup_keyboard::{ParentKeyboard, parent_keyboard};
 use crate::region::RegionSpec;
+use crate::resolve::resolve_popup_anchor;
 use crate::role::Role;
 use crate::root::HostRoot;
 use crate::scale::Scale;
@@ -74,13 +75,9 @@ pub(super) fn popup_role(
         .surfaces
         .get(&parent)
         .ok_or(HostError::NoSurface(parent))?;
-    let anchor_rect = match &config.anchor {
-        PopupAnchor::Rect => placement.anchor_rect,
-        PopupAnchor::Element(element) => parent_surface
-            .document
-            .element_rect(ToOwned::to_owned(element))
-            .unwrap_or(placement.anchor_rect),
-    };
+    let anchor_rect = resolve_popup_anchor(&config.anchor, placement.anchor_rect, |element| {
+        parent_surface.document.element_rect(element)
+    });
     let positioner = positioner(
         state,
         &positioner_params(&config, anchor_rect, placement.size),

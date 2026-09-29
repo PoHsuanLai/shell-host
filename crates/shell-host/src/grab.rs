@@ -20,14 +20,14 @@ use crate::id::SurfaceId;
 
 /// A button press: the surface under the pointer and the `wl_pointer.button` serial.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Press {
+pub(crate) struct Press {
     pub surface: SurfaceId,
     pub serial: u32,
 }
 
 /// What the grab rule needs to know about the seat's pointer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PointerFacts {
+pub(crate) struct PointerFacts {
     /// The surface the pointer is on (since its `enter`, until its `leave`).
     pub focus: Option<SurfaceId>,
     /// The latest press while any button is held; `None` once every button is up.
@@ -56,7 +56,7 @@ pub enum GrabRefused {
 
 /// The serial to start a move or resize of surface `id` with, or why the compositor would
 /// ignore it. Pure.
-pub fn grab_serial(facts: PointerFacts, id: SurfaceId) -> Result<u32, GrabRefused> {
+pub(crate) fn grab_serial(facts: PointerFacts, id: SurfaceId) -> Result<u32, GrabRefused> {
     if facts.focus != Some(id) {
         return Err(GrabRefused::PointerElsewhere);
     }
@@ -69,23 +69,23 @@ pub fn grab_serial(facts: PointerFacts, id: SurfaceId) -> Result<u32, GrabRefuse
 
 /// The seat's [`PointerFacts`], shared by the pointer handler and every `SurfaceHandle`.
 #[derive(Debug, Clone, Default)]
-pub struct GrabRecord(Rc<Cell<PointerFacts>>);
+pub(crate) struct GrabRecord(Rc<Cell<PointerFacts>>);
 
 impl GrabRecord {
     /// The facts now.
-    pub fn get(&self) -> PointerFacts {
+    pub(crate) fn get(&self) -> PointerFacts {
         self.0.get()
     }
 
     /// Change the facts with `change`.
-    pub fn update(&self, change: impl FnOnce(&mut PointerFacts)) {
+    pub(crate) fn update(&self, change: impl FnOnce(&mut PointerFacts)) {
         let mut facts = self.0.get();
         change(&mut facts);
         self.0.set(facts);
     }
 
     /// [`grab_serial`] on the facts now.
-    pub fn serial_for(&self, id: SurfaceId) -> Result<u32, GrabRefused> {
+    pub(crate) fn serial_for(&self, id: SurfaceId) -> Result<u32, GrabRefused> {
         grab_serial(self.get(), id)
     }
 }

@@ -218,7 +218,7 @@ async fn the_net_provider_serves_a_file_url() {
 fn the_shell_provider_pastes_what_the_seat_published_and_queues_what_it_copies() {
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     let seat = SharedSelection::default();
-    let provider = HostShellProvider::new(SurfaceId(1), ping, seat.clone());
+    let provider = HostShellProvider::new(ping, seat.clone());
     use blitz_traits::shell::ShellProvider as _;
 
     assert!(provider.get_clipboard_text().is_err(), "empty clipboard");

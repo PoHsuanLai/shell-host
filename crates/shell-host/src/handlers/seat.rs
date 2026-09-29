@@ -27,7 +27,7 @@ use crate::timers::TimerRequest;
 
 /// The pointer and keyboard state of the (single, first) seat.
 #[derive(Debug)]
-pub struct SeatInput {
+pub(crate) struct SeatInput {
     pub(crate) seat: Option<wl_seat::WlSeat>,
     pub(crate) pointer: Option<wl_pointer::WlPointer>,
     pub(crate) keyboard: Option<wl_keyboard::WlKeyboard>,

@@ -18,7 +18,7 @@ use crate::scale::Size;
 
 /// A surface's shm buffer pool.
 #[derive(Debug)]
-pub struct ShmBuffers {
+pub(crate) struct ShmBuffers {
     pub(crate) pool: SlotPool,
     pub(crate) buffer: Size,
     /// Where the frames go; boxed so the `Presenter::Shm` variant stays small.
@@ -35,7 +35,7 @@ struct Attached {
 
 impl ShmBuffers {
     /// A pool for `buffer`-sized ARGB8888 frames.
-    pub fn new(shm: &Shm, buffer: Size) -> crate::error::Result<ShmBuffers> {
+    pub(crate) fn new(shm: &Shm, buffer: Size) -> crate::error::Result<ShmBuffers> {
         let pool = SlotPool::new(frame_len(buffer).max(4), shm)
             .map_err(|e| HostError::Surface(format!("wl_shm pool: {e}")))?;
         Ok(ShmBuffers {
@@ -47,7 +47,7 @@ impl ShmBuffers {
 
     /// A pool whose frames are presented on `surface`. A pool from `new` alone cannot
     /// present: `Presenter::present` does not carry the `wl_surface`, so the pool holds it.
-    pub fn for_surface(shm: &Shm, surface: WlSurface, buffer: Size) -> Result<ShmBuffers> {
+    pub(crate) fn for_surface(shm: &Shm, surface: WlSurface, buffer: Size) -> Result<ShmBuffers> {
         let mut buffers = ShmBuffers::new(shm, buffer)?;
         buffers.target = Some(Box::new(Attached {
             surface,
@@ -141,7 +141,7 @@ pub(crate) fn paint_cpu(doc: &mut BaseDocument, target: FrameTarget, overlay: &O
 /// BGRA8 back to RGBA8. Both sides are premultiplied (vello_cpu renders premultiplied, and
 /// Wayland's ARGB8888 is premultiplied), so alpha and the colour values pass through. Stops at
 /// the shorter of the two.
-pub fn swap_red_blue(src: &[u8], dst: &mut [u8]) {
+pub(crate) fn swap_red_blue(src: &[u8], dst: &mut [u8]) {
     for (s, d) in src
         .as_chunks::<4>()
         .0

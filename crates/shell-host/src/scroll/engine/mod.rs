@@ -6,9 +6,10 @@
 mod phases;
 mod types;
 
-pub use types::{
-    Flight, Held, Kinetic, Motion, NotifyPhase, Pending, Physics, Rebound, ScrollAnimate, ScrollIn,
-    ScrollOut, Smooth, Spring, Track,
+pub use types::ScrollAnimate;
+pub(crate) use types::{
+    Flight, Held, Kinetic, Motion, NotifyPhase, Pending, Physics, Rebound, ScrollIn, ScrollOut,
+    Smooth, Spring, Track,
 };
 
 use crate::scroll::animate;
@@ -19,7 +20,7 @@ use phases::{began, changed, lifted, may_begin};
 
 /// The engine (design/11 §11.4).
 #[derive(Debug, Clone, PartialEq, Default)]
-pub enum Engine {
+pub(crate) enum Engine {
     #[default]
     Idle,
     Pending(Pending),
@@ -33,7 +34,7 @@ pub enum Engine {
 
 /// The scroller whose geometry `step` needs for `input`: the one the input names, else the one
 /// the engine is on.
-pub fn target(engine: &Engine, input: &ScrollIn) -> Option<Latch> {
+pub(crate) fn target(engine: &Engine, input: &ScrollIn) -> Option<Latch> {
     match input {
         ScrollIn::Began { latched, .. } => Some(latched.latch),
         ScrollIn::Step { latch, .. }
@@ -44,7 +45,7 @@ pub fn target(engine: &Engine, input: &ScrollIn) -> Option<Latch> {
 }
 
 /// The scroller the engine is on.
-pub fn latch_of(engine: &Engine) -> Option<Latch> {
+pub(crate) fn latch_of(engine: &Engine) -> Option<Latch> {
     match engine {
         Engine::Idle => None,
         Engine::Pending(p) => p.last,
@@ -58,7 +59,7 @@ pub fn latch_of(engine: &Engine) -> Option<Latch> {
 }
 
 /// Whether the engine animates (and so needs a frame per callback).
-pub fn motion(engine: &Engine) -> Motion {
+pub(crate) fn motion(engine: &Engine) -> Motion {
     match engine {
         Engine::Idle | Engine::Pending(_) | Engine::Tracking(_) => Motion::Still,
         Engine::Momentum(_)
@@ -71,7 +72,7 @@ pub fn motion(engine: &Engine) -> Motion {
 
 /// Advance the engine by `input` at `now`. `geom` is [`target`]'s geometry, `None` when it is
 /// gone (the node was removed): the engine then stops.
-pub fn step(
+pub(crate) fn step(
     engine: Engine,
     input: ScrollIn,
     now: HostInstant,

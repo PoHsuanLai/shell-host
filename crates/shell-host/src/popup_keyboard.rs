@@ -15,7 +15,7 @@ use crate::popup::PopupGrab;
 
 /// What opening a popup does to its parent layer's keyboard mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParentKeyboard {
+pub(crate) enum ParentKeyboard {
     /// Switch the parent to `OnDemand` until its last grabbing popup closes.
     Lift,
     /// Leave the parent as it is.
@@ -24,7 +24,7 @@ pub enum ParentKeyboard {
 
 /// The rule: a grabbing popup of a `None` layer lifts it, except on KWin. `parent` is the
 /// layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
-pub fn parent_keyboard(
+pub(crate) fn parent_keyboard(
     kind: CompositorKind,
     grab: PopupGrab,
     parent: KeyboardMode,

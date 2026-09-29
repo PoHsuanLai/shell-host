@@ -17,8 +17,10 @@
 mod band;
 mod geometry;
 
-pub use band::{Zone, band, cursor_for, zone_at};
-pub use geometry::{content_px, frame_of, surface_of, to_document, to_surface, window_geometry};
+pub(crate) use band::{Zone, band, cursor_for, zone_at};
+pub(crate) use geometry::{
+    content_px, frame_of, surface_of, to_document, to_surface, window_geometry,
+};
 
 use crate::region::Px;
 use crate::toplevel::{Decorations, Fullscreen, Maximize, Tile, ToplevelState};
@@ -26,14 +28,14 @@ use crate::toplevel::{Decorations, Fullscreen, Maximize, Tile, ToplevelState};
 /// The band's width on each side, in logical pixels; [`Inset::NONE`] for every surface but a
 /// floating client-decorated toplevel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Inset(pub Px);
+pub(crate) struct Inset(pub Px);
 
 impl Inset {
-    pub const NONE: Inset = Inset(0);
+    pub(crate) const NONE: Inset = Inset(0);
 }
 
 /// The band a window with `decorations` has in `state`.
-pub fn inset_for(decorations: Decorations, state: ToplevelState) -> Inset {
+pub(crate) fn inset_for(decorations: Decorations, state: ToplevelState) -> Inset {
     let floating = state.maximized == Maximize::Unset
         && state.fullscreen == Fullscreen::Unset
         && state.tiled.any() == Tile::Free;

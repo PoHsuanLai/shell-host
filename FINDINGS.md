@@ -577,6 +577,12 @@ expression). Two deliberate changes from winit and blitz-shell: the Super keys a
 `input::pointer::first_mouse` takes the window as a parameter; the caller reads the settings key
 `menus.first_mouse_window_ms` (default 100), which design/22 marks proposed.
 
+**Open.** The `data-first-mouse` opt-in (design/13 §13.3.8; quire's window frame and traffic
+lights carry it) is not honoured: `handlers/pointer` swallows every press inside the window, and
+the document-side check that would let an opted-in element through was cut as dead code. To wire
+it, `press_route` needs the verdict of a document lookup (the element at the point, or an
+ancestor, has the attribute) before it answers `Swallowed`.
+
 ## Drag source
 
 ### F60. `SurfaceHandle::start_drag`
@@ -650,8 +656,10 @@ setting).
   element that is itself a scrolled container would shift.
 - Blitz's hit test does not clip a scroller's overflow: a point outside a scroll container but
   over its hidden content latches the container.
-- Thumb drag and track click are not wired (`indicator::drag_offset` is the formula);
-  `scrollbars = Always` still shows one thumb at a time.
+- Thumb drag and track click are not wired; the drag formula was cut as dead code (content moves
+  `max / (track - thumb)` px per thumb px, clamped, never stretched, design/11 §11.3.12).
+  `scrollbars = Always` still shows one thumb at a time, and the vertical track never stops short
+  for a horizontal one (`scrollbar.other_axis_offset_px` is parsed and read by nothing).
 - The thumb's colour follows the host's colour scheme; quire's `--scroll-thumb` is not readable
   from the host.
 - The viewport is rigid: `html`/`body` cannot carry `data-overscroll="band"` from Dioxus.

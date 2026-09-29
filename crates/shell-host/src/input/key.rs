@@ -10,14 +10,14 @@ use crate::input::{keycode, keysym};
 
 /// Whether a key event is the first press or a compositor/sctk key repeat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Repeat {
+pub(crate) enum Repeat {
     First,
     Repeated,
 }
 
 /// Whether an IME composition is in progress on the focused surface (`BlitzKeyEvent::is_composing`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Composing {
+pub(crate) enum Composing {
     Idle,
     Active,
 }
@@ -25,7 +25,7 @@ pub enum Composing {
 /// The Blitz event for `event`: `key` from `keysym::logical_key`, `code` from
 /// `keycode::code_from_evdev(event.raw_code)`, `location` from `keysym::location`, `text` from
 /// the printable part of `event.utf8` (presses only).
-pub fn key_event(
+pub(crate) fn key_event(
     event: &KeyEvent,
     mods: Modifiers,
     state: KeyState,

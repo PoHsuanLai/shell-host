@@ -8,23 +8,23 @@
 //! a scene: `surface` (through `dom::scroll`), `paint`, `watch` (the `use_scroll` hook).
 
 pub(crate) mod animate;
-pub mod cmd;
-pub mod config;
-pub mod engine;
-pub mod geom;
-pub mod indicator;
-pub mod keys;
-pub mod latch;
-pub mod momentum;
-pub mod paint;
-pub mod rubber;
-pub mod smooth;
-pub mod source;
-pub mod suppress;
-pub mod surface;
-pub mod tuning;
-pub mod velocity;
-pub mod watch;
+pub(crate) mod cmd;
+pub(crate) mod config;
+pub(crate) mod engine;
+pub(crate) mod geom;
+pub(crate) mod indicator;
+pub(crate) mod keys;
+pub(crate) mod latch;
+pub(crate) mod momentum;
+pub(crate) mod paint;
+pub(crate) mod rubber;
+pub(crate) mod smooth;
+pub(crate) mod source;
+pub(crate) mod suppress;
+pub(crate) mod surface;
+pub(crate) mod tuning;
+pub(crate) mod velocity;
+pub(crate) mod watch;
 
 #[cfg(test)]
 mod tests;

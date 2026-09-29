@@ -6,7 +6,7 @@ use crate::scale::Size;
 
 /// A region ready to send.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Resolved {
+pub(crate) enum Resolved {
     /// The union of these rectangles; empty means "nothing".
     Strips(Vec<Rect>),
     /// The element the region follows is not laid out yet (or not in the document); keep
@@ -15,7 +15,7 @@ pub enum Resolved {
 }
 
 /// Resolve `spec` for a surface of logical `size`, finding element rectangles with `lookup`.
-pub fn resolve(
+pub(crate) fn resolve(
     spec: &RegionSpec,
     size: Size,
     lookup: impl Fn(ElementId) -> Option<Rect>,

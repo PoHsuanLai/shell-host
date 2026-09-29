@@ -9,23 +9,16 @@ const INSET: f64 = 2.0;
 
 /// A rectangle in document logical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Area {
+pub(crate) struct Area {
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
 }
 
-/// Whether the other axis's track is showing (the vertical track then stops short).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OtherAxis {
-    Shown,
-    Hidden,
-}
-
 /// One scroller's metrics on the thumb's axis.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Metrics {
+pub(crate) struct Metrics {
     /// The scroller's border box.
     pub rect: Area,
     pub axis: ScrollAxis,
@@ -35,12 +28,11 @@ pub struct Metrics {
     pub max: f64,
     /// The raw offset (out of range while stretched).
     pub offset: f64,
-    pub other: OtherAxis,
 }
 
 /// What to paint for one thumb.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ThumbPaint {
+pub(crate) struct ThumbPaint {
     pub thumb: Area,
     /// The track, shown only while the thumb is expanded (hovered); zero opacity otherwise.
     pub track: Area,
@@ -52,7 +44,7 @@ pub struct ThumbPaint {
 
 /// The thumb's length and its position along a track of `length` px (§11.5.6), pinned and
 /// shortened while stretched.
-pub fn thumb_span(m: &Metrics, length: f64, min: f64) -> (f64, f64) {
+pub(crate) fn thumb_span(m: &Metrics, length: f64, min: f64) -> (f64, f64) {
     let content = m.max + m.viewport;
     let base = if content > 0.0 {
         (length * m.viewport / content).max(min).min(length)
@@ -79,7 +71,7 @@ fn shortened(len: f64, stretch: f64, viewport: f64, min: f64) -> f64 {
 }
 
 /// The track and thumb rectangles for `m` at expansion `expand` (0 at rest, 1 hovered).
-pub fn geometry(
+pub(crate) fn geometry(
     m: &Metrics,
     expand: f64,
     s: &ScrollbarSettings,
@@ -96,21 +88,17 @@ pub fn geometry(
             lerp(s.thumb_thickness_px.get(), s.thumb_thickness_hover_px.get()),
         ),
     };
-    let short = match (m.other, m.axis) {
-        (OtherAxis::Shown, ScrollAxis::Y) => s.other_axis_offset_px.get(),
-        _ => 0.0,
-    };
     let r = m.rect;
     let min = s.thumb_min_length_px.get();
     match m.axis {
         ScrollAxis::Y => {
-            let length = (r.height - 2.0 * INSET - short).max(0.0);
+            let length = (r.height - 2.0 * INSET).max(0.0);
             let (len, pos) = thumb_span(m, length, min);
             let track = Area {
                 x: r.x + r.width - track_w,
                 y: r.y,
                 width: track_w,
-                height: r.height - short,
+                height: r.height,
             };
             let thumb = Area {
                 x: r.x + r.width - INSET - thumb_w,
@@ -141,7 +129,7 @@ pub fn geometry(
 }
 
 /// Whether surface-local point `(x, y)` is within the expand zone of a thumb on `metrics`.
-pub fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> Hover {
+pub(crate) fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> Hover {
     let r = metrics.rect;
     let zone = s.expand_zone_px.get();
     let inside = match metrics.axis {
@@ -153,16 +141,6 @@ pub fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> Hove
         }
     };
     if inside { Hover::Hovered } else { Hover::Away }
-}
-
-/// The offset a thumb drag of `delta` px along a track of `length` gives, from `offset0`
-/// (§11.3.12): content moves `max / (length - len)` px per thumb px; clamped, never stretched.
-pub fn drag_offset(m: &Metrics, offset0: f64, delta: f64, length: f64, len: f64) -> f64 {
-    let free = length - len;
-    if free <= 0.0 {
-        return offset0.clamp(0.0, m.max.max(0.0));
-    }
-    (offset0 + delta * m.max / free).clamp(0.0, m.max.max(0.0))
 }
 
 #[cfg(test)]
@@ -181,7 +159,6 @@ pub(super) mod tests {
             viewport: 1000.0,
             max: 3000.0,
             offset,
-            other: OtherAxis::Hidden,
         }
     }
 
@@ -217,17 +194,6 @@ pub(super) mod tests {
             18.0,
         );
         assert_eq!(tiny, 18.0, "never under the minimum");
-    }
-
-    #[test]
-    fn a_thumb_drag_maps_track_px_to_content_px() {
-        let m = metrics(0.0);
-        let length = 996.0;
-        let (len, _) = thumb_span(&m, length, 18.0);
-        let moved = drag_offset(&m, 0.0, 10.0, length, len);
-        assert!((moved - 10.0 * 3000.0 / (length - len)).abs() < 1e-9);
-        assert_eq!(drag_offset(&m, 0.0, -50.0, length, len), 0.0);
-        assert_eq!(drag_offset(&m, 2900.0, 500.0, length, len), 3000.0);
     }
 
     #[test]

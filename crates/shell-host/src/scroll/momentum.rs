@@ -10,7 +10,7 @@ const IOS_RATE_PER_MS: f64 = 0.998;
 
 /// A deceleration curve with its stop speed.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Glide {
+pub(crate) struct Glide {
     curve: Curve,
     /// Below this speed the glide is over.
     stop: f64,
@@ -26,7 +26,7 @@ enum Curve {
 
 impl Glide {
     /// The curve `settings` choose.
-    pub fn from_settings(settings: &ScrollSettings) -> Glide {
+    pub(crate) fn from_settings(settings: &ScrollSettings) -> Glide {
         let curve = match settings.momentum_model {
             ScrollMomentumModel::MacMouseFix => Curve::Drag {
                 a: settings.momentum_a.get(),
@@ -43,7 +43,7 @@ impl Glide {
     }
 
     /// How long a glide from `v0` lasts, seconds.
-    pub fn duration(&self, v0: f64) -> f64 {
+    pub(crate) fn duration(&self, v0: f64) -> f64 {
         if v0 <= self.stop {
             return 0.0;
         }
@@ -54,7 +54,7 @@ impl Glide {
     }
 
     /// The speed `t` seconds into a glide from `v0` (0 once it is over).
-    pub fn speed(&self, v0: f64, t: f64) -> f64 {
+    pub(crate) fn speed(&self, v0: f64, t: f64) -> f64 {
         if t >= self.duration(v0) {
             return 0.0;
         }
@@ -68,7 +68,7 @@ impl Glide {
     }
 
     /// The distance covered `t` seconds into a glide from `v0`; constant once it is over.
-    pub fn travel(&self, v0: f64, t: f64) -> f64 {
+    pub(crate) fn travel(&self, v0: f64, t: f64) -> f64 {
         let t = t.clamp(0.0, self.duration(v0));
         match self.curve {
             Curve::Drag { a, b } => {
@@ -80,12 +80,12 @@ impl Glide {
     }
 
     /// The whole distance of a glide from `v0`.
-    pub fn total(&self, v0: f64) -> f64 {
+    pub(crate) fn total(&self, v0: f64) -> f64 {
         self.travel(v0, self.duration(v0))
     }
 
     /// When a glide from `v0` has covered `d` px, and its speed then; `None` if it stops first.
-    pub fn reach(&self, v0: f64, d: f64) -> Option<(f64, f64)> {
+    pub(crate) fn reach(&self, v0: f64, d: f64) -> Option<(f64, f64)> {
         if d <= 0.0 {
             return Some((0.0, v0));
         }

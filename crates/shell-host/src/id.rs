@@ -24,16 +24,16 @@ pub struct SurfaceName(pub String);
 /// Hands out [`SurfaceId`]s. Shared between the host and every `SurfaceHandle`, because
 /// `SurfaceHandle::open_popup` must return the popup's id before the host has created it.
 #[derive(Debug, Clone, Default)]
-pub struct SurfaceIds(Arc<AtomicU64>);
+pub(crate) struct SurfaceIds(Arc<AtomicU64>);
 
 impl SurfaceIds {
     /// A fresh allocator; the first id it returns is `SurfaceId(1)`.
-    pub fn new() -> SurfaceIds {
+    pub(crate) fn new() -> SurfaceIds {
         SurfaceIds::default()
     }
 
     /// The next unused id.
-    pub fn next(&self) -> SurfaceId {
+    pub(crate) fn next(&self) -> SurfaceId {
         // Relaxed is enough: uniqueness needs only the atomicity of the add, not ordering with
         // any other memory.
         SurfaceId(self.0.fetch_add(1, Ordering::Relaxed) + 1)

@@ -18,7 +18,7 @@ use crate::gpu::context_proxy::ContextProxy;
 use crate::gpu::raw_handle::WaylandDisplay;
 
 /// Every surface renders in this format (what vello_hybrid's own window renderer uses).
-pub const SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
+pub(crate) const SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
 
 static DEVICES_CREATED: AtomicU32 = AtomicU32::new(0);
 
@@ -26,12 +26,12 @@ static DEVICES_CREATED: AtomicU32 = AtomicU32::new(0);
 ///
 /// The throwaway devices `adapter::validate` opens to probe a candidate are not counted: they
 /// never render a surface and are gone before the real device exists.
-pub fn devices_created() -> u32 {
+pub(crate) fn devices_created() -> u32 {
     DEVICES_CREATED.load(Ordering::Relaxed)
 }
 
 /// The one device every surface shares.
-pub struct GpuContext {
+pub(crate) struct GpuContext {
     pub(crate) device: DeviceHandle,
     pub(crate) renderer: Renderer,
     pub(crate) resources: Resources,
@@ -44,7 +44,7 @@ pub struct GpuContext {
 impl GpuContext {
     /// A wgpu instance for `conn`: Vulkan, then GL (overridable with `WGPU_BACKEND`), with the
     /// display handle in the descriptor (GL needs it; `raw_handle::WaylandDisplay`).
-    pub fn instance(conn: &Connection) -> wgpu::Instance {
+    pub(crate) fn instance(conn: &Connection) -> wgpu::Instance {
         let desc = match WaylandDisplay::new(conn) {
             Some(display) => wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display)),
             None => wgpu::InstanceDescriptor::new_without_display_handle(),
@@ -56,7 +56,7 @@ impl GpuContext {
     /// `WGPU_ADAPTER_NAME` override), validate them in order, and create the device on the
     /// first that survives. `HostError::NoAdapter` (a `Fallback`) when none does: the host then
     /// switches to the CPU backend.
-    pub fn new(
+    pub(crate) fn new(
         instance: &wgpu::Instance,
         probe_surface: &wgpu::Surface<'_>,
         pref: &AdapterPref,
@@ -83,7 +83,8 @@ impl GpuContext {
     /// work, debug captures): the adapters are ranked under `pref` (after the
     /// `WGPU_ADAPTER_NAME` override) and the first that yields a device is used. There is
     /// nothing to validate by presenting, so no probe runs.
-    pub fn offscreen(pref: &AdapterPref) -> Result<GpuContext> {
+    #[cfg(test)]
+    pub(crate) fn offscreen(pref: &AdapterPref) -> Result<GpuContext> {
         let instance = wgpu::Instance::new(with_backends(
             wgpu::InstanceDescriptor::new_without_display_handle(),
         ));
@@ -98,7 +99,7 @@ impl GpuContext {
     }
 
     /// The adapter in use.
-    pub fn adapter(&self) -> &AdapterFacts {
+    pub(crate) fn adapter(&self) -> &AdapterFacts {
         &self.adapter
     }
 }

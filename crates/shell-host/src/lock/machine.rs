@@ -67,7 +67,7 @@ pub enum LockState {
 
 /// Something that happened to the lock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LockInput {
+pub(crate) enum LockInput {
     /// `ext_session_lock_v1.locked`.
     Locked,
     /// `ext_session_lock_v1.finished`.
@@ -82,7 +82,7 @@ pub enum LockInput {
 
 /// What the host must do, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LockAction {
+pub(crate) enum LockAction {
     CreateSurface(OutputId),
     DestroySurface(OutputId),
     /// Publish the phase to every lock document.
@@ -96,13 +96,13 @@ pub enum LockAction {
 
 /// A lock's phase and the outputs that have a lock surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LockMachine {
+pub(crate) struct LockMachine {
     pub phase: LockPhase,
     pub outputs: BTreeSet<OutputId>,
 }
 
 /// A new lock over `outputs`: `Requested`, a surface for each.
-pub fn start(outputs: impl IntoIterator<Item = OutputId>) -> (LockMachine, Vec<LockAction>) {
+pub(crate) fn start(outputs: impl IntoIterator<Item = OutputId>) -> (LockMachine, Vec<LockAction>) {
     let outputs: BTreeSet<OutputId> = outputs.into_iter().collect();
     let actions = outputs
         .iter()
@@ -117,7 +117,7 @@ pub fn start(outputs: impl IntoIterator<Item = OutputId>) -> (LockMachine, Vec<L
 
 /// The machine after `input`, and what to do. An input that means nothing in the current
 /// phase (a second `locked`, an unlock while unlocking, anything after the end) does nothing.
-pub fn step(machine: &LockMachine, input: LockInput) -> (LockMachine, Vec<LockAction>) {
+pub(crate) fn step(machine: &LockMachine, input: LockInput) -> (LockMachine, Vec<LockAction>) {
     let phase = machine.phase;
     match (phase, input) {
         (LockPhase::Unlocked | LockPhase::Finished, _) => (machine.clone(), Vec::new()),

@@ -10,7 +10,7 @@ use crate::id::SurfaceId;
 
 /// A timer change a handler asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TimerRequest {
+pub(crate) enum TimerRequest {
     /// The frame machine's watchdog for one surface. Firing feeds
     /// `FrameInput::WatchdogFired` back to that surface.
     Watchdog { id: SurfaceId, cmd: TimerCmd },

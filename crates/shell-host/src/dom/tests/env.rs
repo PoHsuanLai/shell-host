@@ -12,17 +12,12 @@ use crate::Prepaint;
 use crate::clipboard::SharedSelection;
 use crate::dom::document::DocumentEnv;
 use crate::dom::shell_provider::HostShellProvider;
-use crate::id::SurfaceId;
 
 /// A `DocumentEnv` for a `width` x `height` px viewport at scale 1.
 pub(crate) fn test_env(width: u32, height: u32) -> DocumentEnv {
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     DocumentEnv {
-        shell: Arc::new(HostShellProvider::new(
-            SurfaceId(1),
-            ping,
-            SharedSelection::default(),
-        )),
+        shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
         fonts: SharedFonts::system().for_document(),
         net: Arc::new(LocalNet),
         viewport: Viewport::new(width, height, 1.0, ColorScheme::Light),

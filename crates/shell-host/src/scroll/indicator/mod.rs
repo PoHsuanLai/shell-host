@@ -5,7 +5,5 @@
 mod fade;
 mod geometry;
 
-pub use fade::{Hover, Indicator, Wake};
-pub use geometry::{
-    Area, Metrics, OtherAxis, ThumbPaint, drag_offset, geometry, in_zone, thumb_span,
-};
+pub(crate) use fade::{Indicator, Wake};
+pub(crate) use geometry::{Area, Metrics, ThumbPaint, in_zone};

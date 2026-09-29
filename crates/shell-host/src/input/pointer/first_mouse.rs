@@ -5,7 +5,7 @@ use std::time::Duration;
 
 /// Whether a press reaches the document or is swallowed as the click that activated a window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FirstMouse {
+pub(crate) enum FirstMouse {
     Deliver,
     /// Swallow it, unless the element under it (or an ancestor) carries `data-first-mouse`.
     Swallow,
@@ -15,7 +15,7 @@ pub enum FirstMouse {
 /// before the press the toplevel became active (its `activated` configure state, or
 /// `wl_keyboard.enter`); `None` when it was already active. `window` is the settings key
 /// `menus.first_mouse_window_ms` (design/22-SETTINGS.md, default 100 ms).
-pub fn first_mouse(since_activation: Option<Duration>, window: Duration) -> FirstMouse {
+pub(crate) fn first_mouse(since_activation: Option<Duration>, window: Duration) -> FirstMouse {
     match since_activation {
         Some(elapsed) if elapsed <= window => FirstMouse::Swallow,
         _ => FirstMouse::Deliver,

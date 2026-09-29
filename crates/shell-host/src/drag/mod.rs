@@ -3,8 +3,8 @@
 //! pipe still owes, and how its end maps to an outcome. Pure; `ctx::drag` and
 //! `handlers::drag_source` are the Wayland side.
 
-pub mod offer;
-pub mod outcome;
-pub mod pipe;
-pub mod serial;
-pub mod spec;
+pub(crate) mod offer;
+pub(crate) mod outcome;
+pub(crate) mod pipe;
+pub(crate) mod serial;
+pub(crate) mod spec;

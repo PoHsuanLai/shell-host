@@ -11,7 +11,7 @@ use palmrest_protocol::{ActiveTouch, Axis as WireAxis, Phase, ToHost};
 
 /// A message's effects.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Route {
+pub(crate) struct Route {
     /// The fingers' state it reports, if any.
     pub fingers: Option<Fingers>,
     /// The engine event it is, if any (for the surface under the pointer).
@@ -21,7 +21,7 @@ pub struct Route {
 /// `message`'s effects: `Touches{Down}` is touch to stop, a scroll phase moves the engine, and
 /// every scroll phase also says where the fingers are. Tap (SmartZoom) and Swipe (the
 /// host-decided page swipe, 12 §12.3.6) have no consumer in the host yet.
-pub fn route(message: &ToHost) -> Route {
+pub(crate) fn route(message: &ToHost) -> Route {
     match *message {
         ToHost::Touches { active } => Route {
             fingers: Some(match active {

@@ -14,14 +14,14 @@ use crate::id::SurfaceId;
 
 /// The pointer is on `surface`, since the `enter` with `serial`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Entered {
+pub(crate) struct Entered {
     pub surface: SurfaceId,
     pub serial: u32,
 }
 
 /// Where the pointer is, as far as the host's surfaces go.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PointerFocus {
+pub(crate) enum PointerFocus {
     /// On none of the host's surfaces.
     Nowhere,
     On(Entered),
@@ -29,7 +29,7 @@ pub enum PointerFocus {
 
 impl PointerFocus {
     /// The surface the pointer is on, if any.
-    pub fn surface(self) -> Option<SurfaceId> {
+    pub(crate) fn surface(self) -> Option<SurfaceId> {
         match self {
             PointerFocus::Nowhere => None,
             PointerFocus::On(entered) => Some(entered.surface),
@@ -39,7 +39,7 @@ impl PointerFocus {
 
 /// What a surface's departure (its leave, unmap or close) meant for the record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Departure {
+pub(crate) enum Departure {
     /// The pointer was on it; the record is now `Nowhere`, and the pointer's per-surface state
     /// (zone, held buttons, the document's hover) goes with it.
     Lost,
@@ -49,12 +49,12 @@ pub enum Departure {
 
 /// The record after an `enter` on `surface` with `serial`, whatever it was before: an enter
 /// always names where the pointer is now.
-pub fn enter(surface: SurfaceId, serial: u32) -> PointerFocus {
+pub(crate) fn enter(surface: SurfaceId, serial: u32) -> PointerFocus {
     PointerFocus::On(Entered { surface, serial })
 }
 
 /// The record after `surface` departs, and whether that took the pointer's focus.
-pub fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, Departure) {
+pub(crate) fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, Departure) {
     match focus {
         PointerFocus::On(entered) if entered.surface == surface => {
             (PointerFocus::Nowhere, Departure::Lost)
@@ -67,7 +67,7 @@ pub fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, Departu
 /// close), and whether that took it. Unlike the pointer's record there is no serial to keep —
 /// a surface either holds the keyboard or it does not — so the record is a bare
 /// `Option<SurfaceId>` rather than its own type.
-pub fn depart_keyboard(
+pub(crate) fn depart_keyboard(
     focus: Option<SurfaceId>,
     surface: SurfaceId,
 ) -> (Option<SurfaceId>, Departure) {

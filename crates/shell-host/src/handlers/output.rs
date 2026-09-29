@@ -67,7 +67,10 @@ impl OutputHandler for HostState {
 
 /// The host's view of an sctk output, by its registry name. Pure (delegates the actual
 /// fallback rules to [`resolve_output_info`]).
-pub fn output_info(name: u32, info: &smithay_client_toolkit::output::OutputInfo) -> OutputInfo {
+pub(crate) fn output_info(
+    name: u32,
+    info: &smithay_client_toolkit::output::OutputInfo,
+) -> OutputInfo {
     let current_mode = info.modes.iter().find(|m| m.current);
     resolve_output_info(
         OutputId(name),

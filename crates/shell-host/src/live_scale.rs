@@ -10,7 +10,7 @@ use crate::live::Live;
 use crate::scale::Scale;
 
 /// One surface's current scale, and the waiters for its next change.
-pub type LiveScale = Live<Scale>;
+pub(crate) type LiveScale = Live<Scale>;
 
 #[cfg(test)]
 mod tests {

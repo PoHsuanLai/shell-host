@@ -44,7 +44,7 @@ pub fn buffer_size(logical: Size, scale: Scale) -> Size {
 
 /// One logical dimension converted to its physical (buffer) equivalent at `scale`, rounded half
 /// away from zero.
-pub fn logical_to_physical(value: Px, scale: Scale) -> Px {
+pub(crate) fn logical_to_physical(value: Px, scale: Scale) -> Px {
     round_half_away_from_zero(f64::from(value) * scale.as_f64())
 }
 

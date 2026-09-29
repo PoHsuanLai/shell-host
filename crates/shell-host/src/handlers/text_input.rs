@@ -20,14 +20,14 @@ use crate::state::HostState;
 
 /// The bound manager and the seat's text input.
 #[derive(Debug)]
-pub struct TextInputManager {
+pub(crate) struct TextInputManager {
     pub(crate) manager: ZwpTextInputManagerV3,
     pub(crate) input: Option<ZwpTextInputV3>,
 }
 
 impl TextInputManager {
     /// Bind `zwp_text_input_manager_v3`.
-    pub fn bind(
+    pub(crate) fn bind(
         globals: &GlobalList,
         qh: &QueueHandle<HostState>,
     ) -> Result<TextInputManager, BindError> {
@@ -39,7 +39,7 @@ impl TextInputManager {
     }
 
     /// Create the text input for `seat` (once, on the keyboard capability).
-    pub fn attach(&mut self, seat: &WlSeat, qh: &QueueHandle<HostState>) {
+    pub(crate) fn attach(&mut self, seat: &WlSeat, qh: &QueueHandle<HostState>) {
         if self.input.is_some() {
             return;
         }

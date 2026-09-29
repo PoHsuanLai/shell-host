@@ -3,7 +3,7 @@
 
 /// A scroll offset or distance in logical (CSS) pixels.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
-pub struct Px(pub f64);
+pub(crate) struct Px(pub f64);
 
 /// A scroll axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -14,14 +14,14 @@ pub enum ScrollAxis {
 
 /// A direction along an axis: toward offset 0 or toward the maximum offset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Dir {
+pub(crate) enum Dir {
     Neg,
     Pos,
 }
 
 impl Dir {
     /// The direction of a signed offset change; `None` for no change.
-    pub fn of(delta: f64) -> Option<Dir> {
+    pub(crate) fn of(delta: f64) -> Option<Dir> {
         if delta > 0.0 {
             Some(Dir::Pos)
         } else if delta < 0.0 {
@@ -32,7 +32,7 @@ impl Dir {
     }
 
     /// `+1` or `-1`.
-    pub fn sign(self) -> f64 {
+    pub(crate) fn sign(self) -> f64 {
         match self {
             Dir::Neg => -1.0,
             Dir::Pos => 1.0,
@@ -42,7 +42,7 @@ impl Dir {
 
 /// What scrolls: the document viewport, or an element (a Blitz `NodeId`, versioned, so a removed node never aliases a new one).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Scroller {
+pub(crate) enum Scroller {
     Viewport,
     Node(u64),
 }
@@ -50,14 +50,14 @@ pub enum Scroller {
 /// Whether a scroller stretches past its edges under the fingers (design/11 §11.3.7): only a
 /// container that opts in with `data-overscroll="band"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Elastic {
+pub(crate) enum Elastic {
     Elastic,
     Rigid,
 }
 
 /// One scroller's geometry on one axis, read from the laid-out document.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Geom {
+pub(crate) struct Geom {
     /// The offset written now (raw: outside `0..=max` while stretched).
     pub offset: Px,
     /// The largest in-range offset (content less viewport; 0 when the content fits).
@@ -69,7 +69,7 @@ pub struct Geom {
 
 impl Geom {
     /// Whether the scroller can move from its current offset toward `dir`.
-    pub fn can_move(&self, dir: Dir) -> bool {
+    pub(crate) fn can_move(&self, dir: Dir) -> bool {
         const EPSILON: f64 = 0.5;
         match dir {
             Dir::Neg => self.offset.0 > EPSILON,
@@ -78,12 +78,12 @@ impl Geom {
     }
 
     /// `x` clamped into `0..=max`.
-    pub fn clamp(&self, x: f64) -> f64 {
+    pub(crate) fn clamp(&self, x: f64) -> f64 {
         x.clamp(0.0, self.max.0.max(0.0))
     }
 
     /// The edge offset on the `dir` side.
-    pub fn edge(&self, dir: Dir) -> f64 {
+    pub(crate) fn edge(&self, dir: Dir) -> f64 {
         match dir {
             Dir::Neg => 0.0,
             Dir::Pos => self.max.0.max(0.0),
@@ -94,7 +94,7 @@ impl Geom {
 /// The scroller a gesture moves, chosen once at its start and kept through its momentum and
 /// rebound (design/11 §11.3.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Latch {
+pub(crate) struct Latch {
     pub scroller: Scroller,
     pub axis: ScrollAxis,
 }

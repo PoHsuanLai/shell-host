@@ -1,66 +1,67 @@
 //! Blitz documents on Wayland layer-shell surfaces, xdg popups and xdg toplevels, sharing one
-//! GPU device. Portable to any Wayland compositor; see DESIGN.md for the module map.
+//! GPU device. Portable to any Wayland compositor. `ARCHITECTURE.md` holds the module map, the
+//! layers and the curated root below; every module is private.
 
-pub mod blur;
-pub mod blur_health;
-pub mod bridge;
-pub mod clipboard;
-pub mod clock;
-pub mod config;
-pub mod csd;
-pub mod ctx;
-pub mod cursor;
-pub mod dom;
-pub mod drag;
-pub mod error;
-pub mod event;
-pub mod frame;
-pub mod geometry;
-pub mod gpu;
-pub mod grab;
-pub mod handle;
-pub mod handlers;
+mod blur;
+mod blur_health;
+mod bridge;
+mod clipboard;
+mod clock;
+mod config;
+mod csd;
+mod ctx;
+mod cursor;
+mod dom;
+mod drag;
+mod error;
+mod event;
+mod frame;
+mod geometry;
+mod gpu;
+mod grab;
+mod handle;
+mod handlers;
 #[cfg(feature = "headless")]
 pub mod headless;
-pub mod host;
-pub mod host_handle;
-pub mod id;
-pub mod ime;
+mod host;
+mod host_handle;
+mod id;
+mod ime;
 #[cfg(feature = "debug-inject")]
 pub mod inject;
-pub mod input;
-pub mod layer;
-pub mod live;
-pub mod live_scale;
-pub mod lock;
-pub mod modality;
-pub mod modifiers;
-pub mod msg;
-pub mod output;
-pub mod placement;
-pub mod popup;
-pub mod popup_keyboard;
-pub mod prepaint;
-pub mod region;
-pub mod resolve;
-pub mod role;
-pub mod root;
-pub mod scale;
-pub mod scroll;
-pub mod state;
-pub mod stats;
-pub mod surface;
-pub mod tick;
-pub mod timers;
-pub mod toplevel;
-pub mod wake;
+mod input;
+mod layer;
+mod live;
+mod live_scale;
+mod lock;
+mod modality;
+mod modifiers;
+mod msg;
+mod output;
+mod placement;
+mod popup;
+mod popup_keyboard;
+mod prepaint;
+mod region;
+mod resolve;
+mod role;
+mod root;
+mod scale;
+mod scroll;
+mod state;
+mod stats;
+mod surface;
+mod tick;
+mod timers;
+mod toplevel;
+mod wake;
 
 pub use blitz_kit::adapter::AdapterPref;
 pub use blitz_kit::fonts::FontFaces;
 pub use blitz_traits::shell::ColorScheme;
 pub use blur::BlurSpec;
 pub use bridge::use_watch;
-pub use config::{Backend, HostConfig, registered_families};
+pub use config::{Backend, HostConfig, Ms, registered_families};
 pub use ctx::HostCtx;
 pub use drag::outcome::{DragAction, DragOutcome, DragRefused};
 pub use drag::spec::{BadMime, DragActions, DragIcon, DragPayload, DragSpec, Mime};
@@ -74,10 +75,7 @@ pub use handle::{
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
-pub use id::SurfaceName;
-pub use id::{OutputId, SurfaceId};
-#[cfg(feature = "debug-inject")]
-pub use inject::{Inject, Injected};
+pub use id::{OutputId, SurfaceId, SurfaceName};
 pub use layer::{
     Anchor, ExclusiveZone, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize,
     OutputTarget,
@@ -92,16 +90,17 @@ pub use output::OutputInfo;
 pub use placement::PopupPlacement;
 pub use popup::{
     PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
-    PopupToggle,
+    PopupToggle, offset_rect,
 };
 pub use prepaint::{Prepaint, PrepaintFn};
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::HostRoot;
-pub use scale::{Scale, Size};
+pub use scale::{Scale, Size, buffer_size};
 pub use scroll::cmd::ScrollCmd;
 pub use scroll::config::{
-    NaturalScroll, ScrollConfig, ScrollMomentum, ScrollMomentumModel, ScrollRubberBand,
-    ScrollSettings, ScrollTrackClick, ScrollbarSettings, ScrollbarVisibility,
+    NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs,
+    ScrollPx, ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollTrackClick, ScrollbarSettings,
+    ScrollbarVisibility,
 };
 pub use scroll::engine::ScrollAnimate;
 pub use scroll::geom::ScrollAxis;

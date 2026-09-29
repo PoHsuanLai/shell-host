@@ -7,18 +7,18 @@ use std::io;
 use std::sync::Arc;
 
 /// The most one write offers, so a pipe that is barely writable costs one short write.
-pub const CHUNK: usize = 64 * 1024;
+pub(crate) const CHUNK: usize = 64 * 1024;
 
 /// A payload part-way through a pipe.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Outgoing {
+pub(crate) struct Outgoing {
     bytes: Arc<[u8]>,
     sent: usize,
 }
 
 /// What to do after a write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Step {
+pub(crate) enum Step {
     /// Wait for the pipe to be writable again.
     Wait,
     /// Everything is written: close the pipe, which tells the reader it has it all.
@@ -29,18 +29,18 @@ pub enum Step {
 
 impl Outgoing {
     /// All of `bytes`, none sent yet.
-    pub fn new(bytes: Arc<[u8]>) -> Outgoing {
+    pub(crate) fn new(bytes: Arc<[u8]>) -> Outgoing {
         Outgoing { bytes, sent: 0 }
     }
 
     /// The next chunk to offer the pipe; empty once everything is sent.
-    pub fn chunk(&self) -> &[u8] {
+    pub(crate) fn chunk(&self) -> &[u8] {
         let rest = &self.bytes[self.sent..];
         &rest[..rest.len().min(CHUNK)]
     }
 
     /// Account for one write's `result`, and say what follows.
-    pub fn wrote(&mut self, result: io::Result<usize>) -> Step {
+    pub(crate) fn wrote(&mut self, result: io::Result<usize>) -> Step {
         match result {
             Ok(0) if !self.chunk().is_empty() => Step::Abandon,
             Ok(n) => {

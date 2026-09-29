@@ -14,7 +14,7 @@ use crate::scale::Size;
 /// `set_anchor_rect`, `set_anchor`, `set_gravity` and `set_constraint_adjustment`, all in one
 /// value so a caller can log or test them without touching the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PositionerParams {
+pub(crate) struct PositionerParams {
     pub size: Size,
     pub anchor_rect: Rect,
     pub anchor: PopupEdge,
@@ -26,7 +26,11 @@ pub struct PositionerParams {
 /// values to hand the `xdg_positioner`. `size` is the popup's natural size (already measured,
 /// for `PopupSize::FitContent`, or already fixed, for `PopupSize::Fixed`); `FitContent` only
 /// clamps it to its `max`. The config's `offset` translates the anchor rectangle.
-pub fn positioner_params(config: &PopupConfig, anchor: Rect, size: Size) -> PositionerParams {
+pub(crate) fn positioner_params(
+    config: &PopupConfig,
+    anchor: Rect,
+    size: Size,
+) -> PositionerParams {
     let size = match config.size {
         PopupSize::Fixed => size,
         PopupSize::FitContent { max } => Size {
@@ -57,7 +61,7 @@ pub fn offset_rect(rect: Rect, offset: PopupOffset) -> Rect {
 /// after the layout that produced `content`). `None` for `PopupSize::Fixed` (nothing to fit),
 /// or when the clamped content size already matches `current.size` — the check that stops a
 /// settled popup from repositioning every frame.
-pub fn refit(
+pub(crate) fn refit(
     config: &PopupConfig,
     current: PopupPlacement,
     content: Size,

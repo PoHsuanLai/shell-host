@@ -1,14 +1,11 @@
 //! One surface's document: building it from a `HostRoot`, polling it, feeding it events, and
 //! answering layout questions (element rectangles for regions and popup anchors).
 
-mod first_mouse;
 mod hover;
 mod rects;
 mod resolve;
 
-pub use first_mouse::FirstMouseOptIn;
-pub use hover::HoverShift;
-pub use resolve::Resolved;
+pub(crate) use hover::HoverShift;
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -31,17 +28,17 @@ use crate::root::HostRoot;
 /// hit-test into the content at all (with `html,body` at zero height, hover never reached
 /// the dock icons), and a transparent body is what lets blur and the
 /// desktop show through. Margins and the rest of the reset come from quire's `css/reset.css`.
-pub const UA_STYLESHEET: &str = "html,body{height:100%;background:transparent}";
+pub(crate) const UA_STYLESHEET: &str = "html,body{height:100%;background:transparent}";
 
 /// Zero `<body>`'s margin, added to every document the host builds (the headless path too):
 /// Blitz's default stylesheet gives it `margin: 8px` (`blitz-dom/assets/default.css`), which
 /// kept a bare document, one without quire's reset, from ever reaching its surface's (0, 0)
 /// corner. A user-agent sheet, so any rule of the document's own wins.
-pub const BODY_RESET: &str = "body{margin:0}";
+pub(crate) const BODY_RESET: &str = "body{margin:0}";
 
 /// Everything a document is built with besides its root.
 #[derive(Clone)]
-pub struct DocumentEnv {
+pub(crate) struct DocumentEnv {
     pub shell: Arc<HostShellProvider>,
     /// A clone of the host's one `FontContext` (shares the source cache).
     pub fonts: FontContext,
@@ -66,13 +63,13 @@ const MAX_POLLS: u32 = 8;
 
 /// Whether polling changed the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Polled {
+pub(crate) enum Polled {
     Changed,
     Unchanged,
 }
 
 /// A surface's live document.
-pub struct SurfaceDocument {
+pub(crate) struct SurfaceDocument {
     doc: DioxusDocument,
     head: HeadQueue,
     prepaint: Prepaint,
@@ -86,7 +83,7 @@ impl SurfaceDocument {
     /// Build and initially render `root`: `StyleThreading::Sequential` (every document resolves
     /// on the main thread, blitz #430), the UA stylesheet and the body reset, the head shim as the Dioxus
     /// `Document` context, the `SurfaceHandle` as a root context.
-    pub fn build(root: HostRoot, env: DocumentEnv) -> SurfaceDocument {
+    pub(crate) fn build(root: HostRoot, env: DocumentEnv) -> SurfaceDocument {
         let head = HeadQueue::default();
         let head_document: Rc<dyn dioxus_document::Document> =
             Rc::new(HeadDocument::new(head.clone()));
@@ -125,7 +122,7 @@ impl SurfaceDocument {
     /// after a render would lose the next wake of any task (a frame tick, a `use_watch`
     /// value) and leave the document unpolled until something else woke it. A document still
     /// busy after `MAX_POLLS` wakes itself and is polled again on the next flush.
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Polled {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Polled {
         let waker = cx.waker().clone();
         let mut doc_changed = false;
         let mut settled = false;
@@ -149,14 +146,14 @@ impl SurfaceDocument {
     }
 
     /// Set the physical size, scale and colour scheme.
-    pub fn set_viewport(&mut self, viewport: Viewport) {
+    pub(crate) fn set_viewport(&mut self, viewport: Viewport) {
         self.doc.inner_mut().set_viewport(viewport);
     }
 
     /// Feed one input event, remembering a pointer position for `resolve`'s hover repair. A
     /// pointer or wheel event's page coordinates are its surface-local ones plus the viewport's
     /// scroll (the engine scrolls the viewport; Blitz hit-tests page coordinates).
-    pub fn handle_event(&mut self, event: UiEvent) {
+    pub(crate) fn handle_event(&mut self, event: UiEvent) {
         let event = crate::input::pointer::scrolled(event, self.viewport_scroll());
         self.last_move = remember(std::mem::take(&mut self.last_move), &event);
         self.doc.handle_ui_event(event);
@@ -169,17 +166,17 @@ impl SurfaceDocument {
     }
 
     /// The Blitz document, read (the scroll engine's geometry, `dom::scroll`).
-    pub fn base(&self) -> blitz_dom::DocGuard<'_> {
+    pub(crate) fn base(&self) -> blitz_dom::DocGuard<'_> {
         self.doc.inner()
     }
 
     /// The Blitz document, written (the scroll engine's raw offsets, `dom::scroll`).
-    pub fn base_mut(&mut self) -> blitz_dom::DocGuardMut<'_> {
+    pub(crate) fn base_mut(&mut self) -> blitz_dom::DocGuardMut<'_> {
         self.doc.inner_mut()
     }
 
     /// The underlying Dioxus document, for painting.
-    pub fn dioxus(&mut self) -> &mut DioxusDocument {
+    pub(crate) fn dioxus(&mut self) -> &mut DioxusDocument {
         &mut self.doc
     }
 }

@@ -14,6 +14,7 @@
 //! the mouse (or a palm on the touchpad) in the middle of a Tab walk would otherwise hide the
 //! ring it is following.
 
+#[cfg(feature = "debug-inject")]
 use keyboard_types::Key;
 use smithay_client_toolkit::seat::keyboard::Keysym;
 
@@ -41,44 +42,32 @@ impl InputModality {
 /// Whether a pressed key is a modifier on its own (Shift, Ctrl, Alt, Super, a level shift, a
 /// lock key): usually half of a pointer gesture (Shift+click), so it keeps the modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyKind {
+pub(crate) enum KeyKind {
     Modifier,
     Other,
 }
 
 /// One input event, as far as the modality cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stroke {
+pub(crate) enum Stroke {
     /// A key went down (the first press, not an auto-repeat).
     KeyPress(KeyKind),
-    /// A key came up.
-    KeyRelease,
     /// A pointer button went down (a real `wl_pointer.button`, or an injected press).
     PointerPress,
-    /// A pointer button came up.
-    PointerRelease,
-    /// The pointer moved, entered or left.
-    PointerMotion,
-    /// A wheel or touchpad scroll.
-    Scroll,
 }
 
 /// The modality after `stroke`, from `current`.
-pub fn after(current: InputModality, stroke: Stroke) -> InputModality {
+pub(crate) fn after(current: InputModality, stroke: Stroke) -> InputModality {
     match stroke {
         Stroke::KeyPress(KeyKind::Other) => InputModality::Keyboard,
         Stroke::PointerPress => InputModality::Pointer,
-        Stroke::KeyPress(KeyKind::Modifier)
-        | Stroke::KeyRelease
-        | Stroke::PointerRelease
-        | Stroke::PointerMotion
-        | Stroke::Scroll => current,
+        Stroke::KeyPress(KeyKind::Modifier) => current,
     }
 }
 
 /// Whether the key `keysym` names is a lone modifier (xkb's own list: Shift, Control, Alt,
 /// Meta, Super, Hyper, the ISO level shifts and the lock keys).
-pub fn key_kind(keysym: Keysym) -> KeyKind {
+pub(crate) fn key_kind(keysym: Keysym) -> KeyKind {
     if keysym.is_modifier_key() {
         KeyKind::Modifier
     } else {
@@ -86,8 +75,9 @@ pub fn key_kind(keysym: Keysym) -> KeyKind {
     }
 }
 
+#[cfg(feature = "debug-inject")]
 /// Whether the DOM key `key` is a lone modifier: `key_kind` for a key that has no keysym.
-pub fn key_kind_of(key: &Key) -> KeyKind {
+pub(crate) fn key_kind_of(key: &Key) -> KeyKind {
     match key {
         Key::Alt
         | Key::AltGraph
@@ -145,36 +135,6 @@ mod tests {
                 "a lone Shift keeps keyboard",
                 Keyboard,
                 Stroke::KeyPress(KeyKind::Modifier),
-                Keyboard,
-            ),
-            (
-                "a key release changes nothing",
-                Pointer,
-                Stroke::KeyRelease,
-                Pointer,
-            ),
-            (
-                "a button release changes nothing",
-                Keyboard,
-                Stroke::PointerRelease,
-                Keyboard,
-            ),
-            (
-                "motion keeps the ring",
-                Keyboard,
-                Stroke::PointerMotion,
-                Keyboard,
-            ),
-            (
-                "motion keeps pointer",
-                Pointer,
-                Stroke::PointerMotion,
-                Pointer,
-            ),
-            (
-                "a scroll keeps the ring",
-                Keyboard,
-                Stroke::Scroll,
                 Keyboard,
             ),
         ];
