@@ -354,12 +354,12 @@ step as an API they use.
 3. `palmrest-protocol` exists (palmrest step 1); shell-host depends on it and deletes
    `input/palmrest/wire.rs`; `tests/scroll_palmrest.rs` reads the crate's fixtures. Update
    `check-boundary.sh`.
-4. Bools to enums: `Modifier::of`, `LockKey::of`, `pick`, `elastic`, `requested`,
+4. Bools to enums (done): `Modifier::of`, `LockKey::of`, `pick`, `elastic`, `requested`,
    `set_ime_enabled`.
-5. Splits by concept (section 2 table), one file per commit, tests moving with their code:
+5. Splits by concept (done) (section 2 table), one file per commit, tests moving with their code:
    `ctx/spawn` first, then `debug`, `popup`, `handle`, `input/pointer`, `dom/document`,
    `scroll/indicator`, `ctx/paint`, `resolve`, `csd`, `scroll/engine`, `inject`.
-6. `decide.rs` extractions for the handlers listed in section 6, each with its table test.
+6. `decide.rs` extractions (done) for the handlers listed in section 6, each with its table test.
 7. Add `Inject::Key`, `KeyStroke`, `KeyAction` and the `key` stdin verb; move `debug` command
    parsing into `inject` behind `debug-inject`; sill's keyboard stand-in scripts switch to it.
 8. Public-name renames (section 3) and the curated root: make every module private, list the
