@@ -1,5 +1,5 @@
 //! Phase 4 of the flush: arming and cancelling the timers the handlers and the frame machine
-//! asked for (`timers::TimerRequest`, FINDINGS F9). Each surface has at most one watchdog; the
+//! asked for (`timers::TimerRequest`). Each surface has at most one watchdog; the
 //! key-repeat timer is one per host.
 
 use std::time::{Duration, Instant};

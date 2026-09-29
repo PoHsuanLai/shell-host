@@ -1,8 +1,7 @@
 //! Render a Dioxus root component to `image::RgbaImage` buffers with no Wayland connection,
 //! no window and no GPU surface. This is the CI gate for every future surface: every
 //! `examples/demo_*.rs` and every quire component eventually gets a `render_png` snapshot
-//! test, so this module is real code (not a spike artifact) even though it was written as
-//! part of the Milestone 0 spike.
+//! test.
 //!
 //! Pipeline, per the plan's "Custom host" findings: build a [`DioxusDocument`] from a plain
 //! Dioxus component, drain its initial async work, then for each requested timestamp call
@@ -45,8 +44,7 @@ impl PixelSize {
     }
 }
 
-/// The rendering scale, in 120ths: the host's own [`crate::scale::Scale`] (FINDINGS F6; S3
-/// had a duplicate here with the same meaning).
+/// The rendering scale, in 120ths: the host's own [`crate::scale::Scale`].
 pub use crate::scale::Scale;
 
 /// Which fonts a headless render has available. `Bundled` is the reproducible choice for a
@@ -123,7 +121,7 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
 fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale) -> RgbaImage {
     let mut inner = doc.inner.borrow_mut();
     inner.resolve(t);
-    // The same re-hoist the live path does after every resolve (FINDINGS F69).
+    // The same re-hoist the live path does after every resolve.
     crate::dom::stacking::rehoist(&mut inner);
 
     let buffer = render_to_buffer::<VelloCpuImageRenderer, _>(

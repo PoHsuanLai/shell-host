@@ -25,7 +25,7 @@ use shell_host::input::pointer::{self, PointerPos};
 use shell_host::root::Root;
 
 /// The margin reset quire's `css/reset.css` brings; the host's UA sheet sizes the root
-/// (SPIKE.md S1 finding 2) but leaves margins to the design system.
+/// but leaves margins to the design system.
 const RESET: &str = "html,body{margin:0}";
 
 const CSS: &str = "
@@ -98,7 +98,7 @@ fn feed(doc: &mut SurfaceDocument, events: impl IntoIterator<Item = UiEvent>) {
 }
 
 /// With the UA stylesheet's sized root, a hover over an in-flow dock icon hovers the icon, not
-/// some ancestor (SPIKE.md S1 finding 2).
+/// some ancestor.
 #[test]
 fn hover_reaches_in_flow_content() {
     let mut doc = build();
@@ -427,7 +427,7 @@ fn a_secondary_click_reaches_oncontextmenu_and_a_primary_click_reaches_onclick()
 
 /// A press, a held `PointerMove` and a release: the sequence a scripted drag needs
 /// (`Inject::PointerDown`, one or more `Inject::Pointer` while the button stays down, then
-/// `Inject::PointerUp` — FINDINGS F70, sill's G330: a whole `Inject::Click` has no move in
+/// `Inject::PointerUp`; a whole `Inject::Click` has no move in
 /// between to give it) built from the exact same `input::pointer` functions `handlers/pointer.rs`
 /// calls for a real press, motion and release. A move that stays within Blitz's own 2px drag
 /// threshold (`blitz-dom`'s `handle_pointermove`, checked against `mousedown_position`) still

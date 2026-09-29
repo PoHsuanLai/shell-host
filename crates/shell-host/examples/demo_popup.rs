@@ -1,4 +1,4 @@
-//! Acceptance for `PopupSize::FitContent` (sill FINDINGS G7): after a popup's first layout, the
+//! Acceptance for `PopupSize::FitContent`: after a popup's first layout, the
 //! host measures its document's content and repositions the popup to that size instead of
 //! whatever guess the caller opened it with, and re-fits again if the content grows.
 //!
@@ -19,7 +19,7 @@ use shell_host::{
     use_surface,
 };
 
-/// The margin and padding reset quire's `css/reset.css` would bring (FINDINGS F12).
+/// The margin and padding reset quire's `css/reset.css` would bring.
 const RESET_CSS: &str = "html,body{margin:0;padding:0}";
 
 const BAR_CSS: &str = ".bar{height:32px;box-sizing:border-box;display:flex;align-items:center;\

@@ -1,5 +1,5 @@
 //! The modifier keys held by the seat's keyboard, published to whichever surface has keyboard
-//! focus (`use_modifiers`, FINDINGS F66). Distinct from `input::modifiers::modifiers_from`, which
+//! focus (`use_modifiers`). Distinct from `input::modifiers::modifiers_from`, which
 //! feeds Blitz's own key events their `keyboard_types::Modifiers` bitflags unchanged: this is the
 //! typed, no-`bool` shape the rest of the host's public surface uses.
 

@@ -113,7 +113,7 @@ pub fn classify(frame: &AxisFrame) -> AxisInput {
     let moved = h.px != 0.0 || v.px != 0.0 || h.v120 != 0 || v.v120 != 0;
     // A frame without `axis_source` is a wheel's: a compositor that sends no source sends no
     // `axis_stop` either, so a pan from it could never end (and KWin's fake input, the live
-    // acceptance's wheel, sends exactly this: `axis 15` and nothing else, FINDINGS F63).
+    // acceptance's wheel, sends exactly this: `axis 15` and nothing else).
     let wheel_like = match frame.source {
         AxisSource::Wheel | AxisSource::WheelTilt | AxisSource::Unknown => true,
         AxisSource::Finger | AxisSource::Continuous => false,

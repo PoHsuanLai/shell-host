@@ -163,7 +163,7 @@ impl FrameTicks {
 /// less of the `dt` a 60 Hz test sees. A step that moves `gap * dt / tau` rounded to whole
 /// units moves nothing once the gap is under `tau / (2 dt)` units (30 for `tau` = 60 ms at
 /// 1 ms); with a settle tolerance below that, the motion stalls short of its target and the
-/// drive, and a frame per callback, lives on until a long tick happens along (FINDINGS F36).
+/// drive, and a frame per callback, lives on until a long tick happens along.
 /// Make each step move at least one unit, or integrate in floating point and settle within a
 /// tolerance, and test the settle at a 1 ms `dt` as well as at 16.7 ms.
 #[must_use = "dropping the drive stops the frame requests at once"]

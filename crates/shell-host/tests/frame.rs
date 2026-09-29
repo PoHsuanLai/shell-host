@@ -1,6 +1,6 @@
 //! The frame machine against a simulated compositor: whole sequences, not single steps (the
-//! step table is in `src/frame.rs`). They are the unit-level form of the spike's item (c)
-//! acceptance.
+//! step table is in `src/frame.rs`). They are the unit-level form of render
+//! acceptance item (c).
 //!
 //! `Sim` plays host and compositor at once: time advances in milliseconds, the host flushes
 //! after every event exactly as `HostCtx::flush` does (step `Flush`, render, feed `Presented`),
@@ -213,7 +213,7 @@ fn a_stalled_compositor_is_paced_by_the_watchdog_and_recovers() {
     );
 }
 
-/// An occluded surface whose compositor keeps sending callbacks (KWin, SPIKE.md S1 item c):
+/// An occluded surface whose compositor keeps sending callbacks (KWin):
 /// the watchdog never fires.
 #[test]
 fn callbacks_while_occluded_never_trip_the_watchdog() {

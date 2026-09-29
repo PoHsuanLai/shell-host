@@ -1,4 +1,4 @@
-//! A scrolling surface for real-input acceptance of the host's scroll engine (FINDINGS F63):
+//! A scrolling surface for real-input acceptance of the host's scroll engine:
 //! one 400 x 600 layer surface centred on the output, holding
 //!
 //! - `#list`, a 300 x 600 scroll container (`data-overscroll="band"`) of 60 rows of 50 px,

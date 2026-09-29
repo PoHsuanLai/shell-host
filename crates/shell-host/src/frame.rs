@@ -3,19 +3,19 @@
 //! Pure and table-tested. The host feeds it what happened ([`FrameInput`]) and performs what it
 //! returns ([`FrameAction`]); it never touches a surface, a timer or a clock itself.
 //!
-//! The rules, from the plan's "Frame machine" and SPIKE.md S1:
+//! The rules, from the plan's "Frame machine":
 //!
 //! - At most one frame is in flight. Rendering happens only at the host's flush point, and only
 //!   from `Dirty`; a change while a frame is in flight is remembered as `InFlightDirty`.
 //! - The host's render order is `wl_surface.frame()`, then `queue.submit`, then
-//!   `SurfaceTexture::present()` (the WSI's commit carries the frame request, S1 finding 3), and
-//!   it clears the document's redraw flag after presenting (S1 finding 4).
+//!   `SurfaceTexture::present()` (the WSI's commit carries the frame request), and
+//!   it clears the document's redraw flag after presenting.
 //! - On the frame callback the surface renders again iff it was dirtied meanwhile or the
 //!   document is still animating; otherwise it goes idle, and idle means no timer, no frame and
 //!   no commit.
 //! - A watchdog runs only while a frame is in flight *and* more work is wanted (dirty or
 //!   animating). It covers compositors that stop sending callbacks to a surface (cosmic-comp
-//!   #2777; KWin keeps them flowing even when occluded, S1 item c). It starts at
+//!   #2777; KWin keeps them flowing even when occluded). It starts at
 //!   [`WATCHDOG_MIN`], doubles on every expiry up to [`WATCHDOG_MAX`], and resets on a real
 //!   callback.
 //! - A present that could not happen (no texture, render error) is treated as a frame in flight
@@ -24,8 +24,7 @@
 //! - A redraw a document asks for while its frame renders (a resource load completing on
 //!   another thread) is not the render's own echo: the host feeds it as an `Invalidate` after
 //!   `Presented`, which marks the frame in flight dirty and arms the watchdog, so it is painted
-//!   on the callback or, on a compositor that never sends one, when the watchdog fires
-//!   (FINDINGS F40).
+//!   on the callback or, on a compositor that never sends one, when the watchdog fires.
 
 use std::time::Duration;
 
@@ -344,7 +343,7 @@ mod tests {
         assert_eq!(acts.iter().filter(|a| a.render == Render).count(), 2);
     }
 
-    /// FINDINGS F40: a load that completes while its frame renders reaches the machine as an
+    /// A load that completes while its frame renders reaches the machine as an
     /// `Invalidate` after `Presented` (the host drops only the render's own request). With a
     /// compositor that never calls back, the watchdog paints it once, and then nothing more
     /// happens: no timer is left and no frame follows.

@@ -1,4 +1,4 @@
-//! Whether opening a popup lifts its parent layer's keyboard (FINDINGS F72).
+//! Whether opening a popup lifts its parent layer's keyboard.
 //!
 //! A bar is a `KeyboardMode::None` layer, and cosmic-comp gives a grabbing popup of a layer the
 //! keyboard only when the layer itself takes keyboard input, so the host switches the parent to

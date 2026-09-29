@@ -52,7 +52,7 @@ pub struct Ime {
 /// pending state. The current preedit goes first whenever something other than a new preedit
 /// is pending (an empty `Preedit`, which Blitz takes as "clear the composition"): Blitz inserts
 /// a commit next to a live composition rather than over it, so a commit of the composed text
-/// with the composition still shown doubled it (FINDINGS F71). A lone new preedit replaces
+/// with the composition still shown doubled it. A lone new preedit replaces
 /// the old one by itself. Pure.
 pub fn on_done(pending: PendingIme) -> (Vec<BlitzImeEvent>, PendingIme) {
     let mut events = Vec::new();

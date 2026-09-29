@@ -5,8 +5,7 @@
 //! survives); follow a new size or scale (viewport destination, document viewport, presenter
 //! size); take the document's redraw request; and if the frame machine says render: resolve
 //! (once, with the pre-paint hook), send any changed input and blur region, request the frame callback, present (whose commit
-//! carries all of it), clear the redraw flag, and feed `Presented` back (SPIKE.md S1 findings
-//! 3 and 4).
+//! carries all of it), clear the redraw flag, and feed `Presented` back.
 
 use std::time::Instant;
 
@@ -142,7 +141,7 @@ fn surface_wl(state: &HostState, id: SurfaceId) -> Result<WlSurface> {
         .ok_or(HostError::NoSurface(id))
 }
 
-/// shm buffers that attach to and commit `wl` themselves (`ShmBuffers::for_surface`, H2 gpu).
+/// shm buffers that attach to and commit `wl` themselves (`ShmBuffers::for_surface`).
 fn shm_presenter(state: &HostState, wl: WlSurface, buffer: Size) -> Result<Presenter> {
     // Before its first configure a surface may have no size yet; the configure resizes.
     let buffer = Size {
@@ -217,7 +216,7 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             return Ok(());
         };
         // The scroll engine first: this frame's raw offsets are written before the resolve,
-        // which hoists positioned descendants with the offsets current then (FINDINGS F63).
+        // which hoists positioned descendants with the offsets current then.
         {
             let mut doc = surface.document.base_mut();
             surface.scroll.frame(&mut doc, now_host);
@@ -268,9 +267,9 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             let now = Instant::now();
             surface.stats.presented(now - started, now);
             // Resolve may have asked for a redraw itself; continuation is decided on the
-            // callback by is_animating, or the machine never idles (S1 finding 4). A load that
+            // callback by is_animating, or the machine never idles. A load that
             // completed on another thread meanwhile is not dropped: the next flush takes it
-            // and dirties the frame in flight (FINDINGS F40).
+            // and dirties the frame in flight.
             surface.shell.drop_echo();
             FrameInput::Presented(surface.pacing(now_host))
         }
@@ -287,8 +286,8 @@ fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         state.timers.push(TimerRequest::ScrollWake { id, after });
     }
     if hover == HoverShift::Moved {
-        // The resolve moved the hover (Blitz's `refresh_hover`, and the repair after it,
-        // FINDINGS F59): the `:hover` restyle it asked for is the next frame's, and its redraw
+        // The resolve moved the hover (Blitz's `refresh_hover`, and the repair after it):
+        // the `:hover` restyle it asked for is the next frame's, and its redraw
         // request was just dropped as this render's echo.
         state.frame_input(id, FrameInput::Invalidate);
     }

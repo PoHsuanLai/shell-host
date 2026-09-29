@@ -143,7 +143,7 @@ impl<M: 'static> HostCtx<M> {
     }
 
     /// [`HostCtx::stats`], then start a new sample window, so the next report covers only the
-    /// time since this one (counters stay cumulative, FINDINGS F15).
+    /// time since this one (counters stay cumulative).
     pub fn take_stats(&mut self, id: SurfaceId) -> Option<FrameStats> {
         let stats = self.stats(id)?;
         if let Some(surface) = self.state.surfaces.get_mut(&id) {
@@ -193,7 +193,7 @@ impl<M: 'static> HostCtx<M> {
     /// After every dispatch: poll woken documents, drain head queues, apply queued requests,
     /// step every surface's frame machine (render the dirty ones), arm or cancel the timers the
     /// handlers asked for, then flush the connection. Stops with `HostError::Protocol` once
-    /// the connection has a protocol error (SPIKE.md S1 finding 7).
+    /// the connection has a protocol error.
     pub(crate) fn flush(&mut self) -> Result<Running> {
         flush::run(self)?;
         Ok(self.running)

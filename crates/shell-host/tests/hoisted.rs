@@ -1,5 +1,4 @@
-//! A z-indexed box whose ancestors moved in the same resolve paints where layout put it
-//! (FINDINGS F69, sill G290).
+//! A z-indexed box whose ancestors moved in the same resolve paints where layout put it.
 //!
 //! The shape is sill's widget centre: a column of tiles whose body is `position: relative;
 //! z-index` (quire's `.ds-widget-body`). Tiles added after the first layout used to paint their

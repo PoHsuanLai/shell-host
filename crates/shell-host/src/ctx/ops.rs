@@ -195,7 +195,7 @@ pub(super) fn set_visibility<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, to
 
 fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     close_children(ctx, id);
-    // Before the rebuild, while the old wl_surface is still this id's (FINDINGS F58, G210).
+    // Before the rebuild, while the old wl_surface is still this id's.
     ctx.state.withdraw_pointer(id);
     ctx.state.withdraw_keyboard(id);
     super::timer::cancel_watchdog(ctx, id);
@@ -203,7 +203,7 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     let Some(mut surface) = state.surfaces.remove(&id) else {
         return;
     };
-    // The wgpu surface goes before the wl_surface it presents into (S1 finding 6).
+    // The wgpu surface goes before the wl_surface it presents into.
     surface.presenter = None;
     let old = surface.role;
     match super::spawn::rebuild(state, old) {
@@ -230,7 +230,7 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
 /// `reason`. Unknown ids are ignored.
 pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: CloseReason) {
     close_children(ctx, id);
-    // As for an unmap: the compositor's leave will name a destroyed wl_surface (FINDINGS F58, G210).
+    // As for an unmap: the compositor's leave will name a destroyed wl_surface.
     ctx.state.withdraw_pointer(id);
     ctx.state.withdraw_keyboard(id);
     super::timer::cancel_watchdog(ctx, id);

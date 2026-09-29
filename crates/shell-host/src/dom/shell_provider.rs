@@ -4,11 +4,10 @@
 //!
 //! A redraw request is kept apart by where it came from ([`Origin`]). The host's own thread
 //! asks while the host is resolving the very frame it is about to present; that request is an
-//! echo of the render and is dropped after presenting, or the surface would never idle (SPIKE.md
-//! S1 finding 4). Any other thread is a load completing (an image, a stylesheet, a font, sent
+//! echo of the render and is dropped after presenting, or the surface would never idle.
+//! Any other thread is a load completing (an image, a stylesheet, a font, sent
 //! to the document's channel by Blitz's net handlers): the frame being presented may have been
-//! resolved before it arrived, so it must survive the present and dirty the surface again
-//! (FINDINGS F40).
+//! resolved before it arrived, so it must survive the present and dirty the surface again.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -59,10 +58,10 @@ pub struct HostShellProvider {
     /// The thread the host runs every document on: the one that built this provider.
     host_thread: ThreadId,
     /// Set by a `request_redraw` on the host's thread; the host takes it at flush and drops it
-    /// after presenting (SPIKE.md S1 finding 4).
+    /// after presenting.
     redraw: AtomicBool,
     /// Set by a `request_redraw` from any other thread; only the flush takes it, never the
-    /// present, so a load that lands mid-render is painted by the next frame (FINDINGS F40).
+    /// present, so a load that lands mid-render is painted by the next frame.
     arrived: AtomicBool,
     cursor: Mutex<Option<CursorIcon>>,
     /// Set whenever `set_cursor` is called, so `take_cursor` can report whether the cursor

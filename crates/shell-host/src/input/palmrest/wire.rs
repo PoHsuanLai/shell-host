@@ -4,7 +4,7 @@
 //! `SOCK_SEQPACKET` packet, enums adjacently tagged (`{"kind":"scroll","v":{...}}`), every
 //! name `snake_case`, at most [`MAX_PACKET`] bytes. The first packet of a connection is
 //! `Hello`, whose `version` must be [`PROTOCOL_VERSION`]. The tests hold byte strings produced
-//! by palmrest's own types (FINDINGS F64): a change on either side fails them.
+//! by palmrest's own types: a change on either side fails them.
 
 use serde::{Deserialize, Serialize};
 
@@ -170,8 +170,8 @@ pub fn compat(message: &ToHost) -> Compat {
 mod tests {
     use super::*;
 
-    /// Byte strings printed by palmrest's own `protocol::encode` (master 5baeb41), from a
-    /// throwaway binary depending on the palmrest crate; FINDINGS F64.
+    /// Byte strings printed by palmrest's own `protocol::encode` from a throwaway
+    /// binary depending on the palmrest crate.
     const FROM_PALMREST: &[&str] = &[
         r#"{"kind":"hello","v":{"version":1,"device":{"name":"Magic Mouse","path":"/dev/hidraw3","vendor":76,"product":617}}}"#,
         r#"{"kind":"scroll","v":{"gesture":7,"phase":"changed","dx_px":0.0,"dy_px":-12.25,"fingers":1,"axis":"y","t_ns":123}}"#,

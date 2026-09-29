@@ -1,5 +1,5 @@
 //! A plain `wl_shm` client that asks for compositor blur (`ext-background-effect-v1`) with none
-//! of shell-host in it, to tell a compositor's blur bug from ours (FINDINGS F29). It maps either
+//! of shell-host in it, to tell a compositor's blur bug from ours. It maps either
 //! a 32 px top layer surface (`--role=layer`, default) or a 400x300 xdg toplevel
 //! (`--role=toplevel`), fills it with the demo bar's tint (magenta, alpha 0.55, premultiplied
 //! ARGB8888; `--format=xrgb` for an opaque XRGB8888 buffer), and sets a blur region:

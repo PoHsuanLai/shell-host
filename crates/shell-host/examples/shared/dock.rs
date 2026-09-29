@@ -31,7 +31,7 @@ pub enum Magnify {
     Tick,
 }
 
-/// How many independently region-tracked elements the dock renders (G60): the pill alone
+/// How many independently region-tracked elements the dock renders: the pill alone
 /// (`RegionSpec::Element`), or the pill plus a small card above it, each following its own
 /// strips (`RegionSpec::Elements`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -49,14 +49,14 @@ pub struct DockProps {
 }
 
 /// The margin and padding reset quire's `css/reset.css` would bring; the host's UA sheet sizes
-/// the root but leaves the reset to the design system (FINDINGS F12).
+/// the root but leaves the reset to the design system.
 const RESET_CSS: &str = "html,body{margin:0;padding:0}";
 
-/// `.dock`, `.pill`, `.icon` and `.card`, sized for a dock `height` px tall (`DOCK_HEIGHT` for
-/// one element, `dock_height(Cards::Two)` for two). In-flow layout on purpose, `.card` included:
-/// with the row `position:absolute` Blitz hit-testing never reached the icons (SPIKE.md S1
-/// finding 2), so `flex-direction:column` stacks the card above the pill instead, both centred
-/// and the pill flush with the bottom exactly as the single-element layout was.
+/// `.dock`, `.pill`, `.icon` and `.card`, sized for a dock `height` px tall (`DOCK_HEIGHT` for one
+/// element, `dock_height(Cards::Two)` for two). In-flow layout on purpose, `.card` included: with
+/// the row `position:absolute` Blitz hit-testing never reached the icons, so
+/// `flex-direction:column` stacks the card above the pill instead, both centred and the pill flush
+/// with the bottom exactly as the single-element layout was.
 fn dock_css(height: u32) -> String {
     format!(
         ".dock{{height:{height}px;display:flex;flex-direction:column;align-items:center;\
@@ -89,7 +89,7 @@ const COLOURS: [&str; 12] = [
 ];
 
 /// The pill alone (`Cards::One`), or the pill and the card above it (`Cards::Two`): input and
-/// blur both follow the same elements (G60).
+/// blur both follow the same elements.
 fn dock_region(cards: Cards) -> RegionSpec {
     let pill = ElementRegion {
         id: ElementId::new("dock-pill"),
@@ -136,11 +136,11 @@ pub fn dock_config(layer: Layer, cards: Cards) -> LayerConfig {
 
 /// Presses the card (`Cards::Two`) has received, printed as `dock: card press N` so a real-input
 /// run can check they land only when the card's own region is hit (matching `demo_bar`'s
-/// `bar: press N`, FINDINGS F53).
+/// `bar: press N`).
 static CARD_PRESSES: AtomicU32 = AtomicU32::new(0);
 
 /// The optional second region-tracked element. Never `position:absolute` (see `dock_css`): an
-/// absolutely-positioned sibling here lost pointer hit-testing before (SPIKE.md S1 finding 2).
+/// absolutely-positioned sibling here lost pointer hit-testing.
 fn card(cards: Cards) -> Element {
     match cards {
         Cards::One => rsx! {},
@@ -214,7 +214,7 @@ fn targets(x: Option<f64>) -> Scales {
 /// One tick of motion: each tile closes `1 - exp(-dt / TIME_CONSTANT)` of its gap to
 /// `target`, at least one thousandth, and snaps once within `SETTLED`. The one-unit floor is
 /// what makes it settle at any tick rate: rounded to thousandths, a 1 ms tick (nested
-/// cosmic-comp) would otherwise move nothing once the gap is under 30 (FINDINGS F36).
+/// cosmic-comp) would otherwise move nothing once the gap is under 30.
 fn step(now: Scales, target: Scales, dt: Duration) -> Scales {
     let k = 1.0 - (-dt.as_secs_f64() / TIME_CONSTANT.as_secs_f64()).exp();
     std::array::from_fn(|i| {

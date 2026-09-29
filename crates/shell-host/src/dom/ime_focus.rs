@@ -1,4 +1,4 @@
-//! The IME request a text field focused before its first layout never made (FINDINGS F71).
+//! The IME request a text field focused before its first layout never made.
 //!
 //! Blitz asks the shell for the IME in `Node::focus`, and only when the node already has its
 //! `TextInputData`; that data is built by layout (`create_text_editor`, first `resolve`). A

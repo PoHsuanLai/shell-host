@@ -8,8 +8,7 @@
 //! object the host no longer knows (KWin sends `leave(serial, nil)` for the pointer; the
 //! keyboard's leave names the destroyed or superseded `wl_surface`), so it cannot be matched to
 //! anything. The host therefore ends the stay itself at the unmap or close, while the surface is
-//! still known, and ignores the late leave (FINDINGS F58 for the pointer, G210 for the
-//! keyboard).
+//! still known, and ignores the late leave, for the pointer and the keyboard alike.
 
 use crate::id::SurfaceId;
 

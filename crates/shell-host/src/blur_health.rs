@@ -1,4 +1,4 @@
-//! Whether a compositor that advertises blur actually renders it (FINDINGS F29).
+//! Whether a compositor that advertises blur actually renders it.
 //!
 //! `ext_background_effect_manager_v1.capabilities` only says the compositor accepts a blur
 //! region. cosmic-comp 1.8.0's nested winit backend with NVIDIA's EGL advertises blur, accepts
@@ -11,8 +11,8 @@
 //!
 //! Pure: the facts are gathered by `handlers::render_device` and `HostState`.
 
-/// Which compositor this is, where its behaviour differs: blur (cosmic-comp, F29) and a
-/// grabbing popup's keyboard (KWin, F72, `popup_keyboard`).
+/// Which compositor this is, where its behaviour differs: blur (cosmic-comp) and a
+/// grabbing popup's keyboard (KWin, `popup_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompositorKind {
     Cosmic,
@@ -54,7 +54,8 @@ pub enum BlurHealth {
     Breaks,
 }
 
-/// The verdict for `facts`: only the exact condition F29 reproduced is `Breaks`.
+/// The verdict for `facts`: only the exact condition that loses blurred surfaces (cosmic-comp on
+/// the winit backend with an NVIDIA render device) is `Breaks`.
 pub fn blur_health(facts: CompositorFacts) -> BlurHealth {
     match facts {
         CompositorFacts {

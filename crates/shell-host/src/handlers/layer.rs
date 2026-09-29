@@ -28,7 +28,7 @@ impl LayerShellHandler for HostState {
         close_surface_and_popups(self, id, CloseReason::Compositor);
     }
 
-    /// Record the size (0 on an axis keeps the requested size, F13), mark configured, resize
+    /// Record the size (0 on an axis keeps the requested size), mark configured, resize
     /// the presenter, invalidate (the render that follows sends the regions).
     fn configure(
         &mut self,
@@ -106,7 +106,7 @@ fn record_configure(
 }
 
 /// The logical size to record from a `zwlr_layer_surface_v1.configure`: on each axis, the
-/// compositor's value when it sent one, or (F13) what `requested` asked for on that axis when it
+/// compositor's value when it sent one, or what `requested` asked for on that axis when it
 /// sent 0 — the wire's "you decide" for a fixed-size axis (`Extent::Px`). A stretching axis
 /// (`Extent::Fill`) has no independent size to fall back to; a 0 there means the compositor has
 /// not resolved the stretch yet (a compositor should not normally send this for an anchored,

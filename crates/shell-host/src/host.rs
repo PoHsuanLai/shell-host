@@ -62,7 +62,7 @@ impl<M: Send + 'static> Host<M> {
         )?;
         state.prepaint = config.prepaint;
         // The shell's bundled faces (e.g. quire's `ds::FACES`), registered once so every
-        // surface's, popup's and toplevel's document resolves them (FINDINGS "Colour emoji").
+        // surface's, popup's and toplevel's document resolves them.
         for bytes in &config.fonts.0 {
             state.fonts.register(bytes);
         }
@@ -120,7 +120,7 @@ impl<M: Send + 'static> Host<M> {
             let _entered = runtime.enter();
             let result = drive(&mut event_loop, &mut ctx, &mut on_event);
             // Documents (and their tasks) go while the runtime is still entered; every wgpu
-            // surface before its wl_surface (S1 finding 6).
+            // surface before its wl_surface.
             ctx.state.surfaces.clear();
             // The connection may be dead already; there is nothing left to tell it.
             let _ = ctx.state.conn.flush();
@@ -191,7 +191,7 @@ fn insert_wayland<M: 'static>(
     conn: Connection,
     queue: EventQueue<HostState>,
 ) -> Result<()> {
-    // The queue dispatches into the non-generic `HostState` inside the context (FINDINGS F9).
+    // The queue dispatches into the non-generic `HostState` inside the context.
     handle
         .insert_source(WaylandSource::new(conn, queue), |(), queue, ctx| {
             queue.dispatch_pending(&mut ctx.state)

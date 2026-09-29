@@ -39,13 +39,13 @@ pub struct SeatInput {
     /// When the keyboard focus last arrived, for the first-mouse filter.
     pub(crate) focused_at: Option<Instant>,
     pub(crate) modifiers: Modifiers,
-    /// The seat's modifiers in `use_modifiers`' typed, no-`bool` shape (FINDINGS F66): kept
+    /// The seat's modifiers in `use_modifiers`' typed, no-`bool` shape: kept
     /// alongside `modifiers` because `wl_keyboard.modifiers` may arrive with no surface of ours
-    /// focused (the protocol's own escape hatch for tying modifiers to pointer focus instead,
-    /// F61), so a surface that only just gained keyboard focus can be handed the seat's
+    /// focused (the protocol's own escape hatch for tying modifiers to pointer focus instead),
+    /// so a surface that only just gained keyboard focus can be handed the seat's
     /// already-current state rather than starting from nothing.
     pub(crate) held_modifiers: HeldModifiers,
-    /// Pointer or keyboard, whichever last drove the seat (`modality`, FINDINGS F74): one value
+    /// Pointer or keyboard, whichever last drove the seat (`modality`): one value
     /// for the seat, shared by every surface's `SurfaceHandle` (`use_input_modality`).
     pub(crate) modality: Live<InputModality>,
     /// The serial of the last press, for popup grabs, selections and activation tokens.
@@ -83,7 +83,7 @@ impl SeatHandler for HostState {
 
     /// Pointer: `get_pointer` plus the cursor-shape device. Keyboard: `get_keyboard`, the text
     /// input and the data device (`handlers::devices`). Only when no object for the capability
-    /// is held: a re-announced capability reuses the one it has (FINDINGS F53).
+    /// is held: a re-announced capability reuses the one it has.
     fn new_capability(
         &mut self,
         conn: &Connection,
@@ -93,7 +93,7 @@ impl SeatHandler for HostState {
     ) {
         // sctk calls `new_seat` only for a seat announced after startup; a seat that was
         // already there when the host bound the globals (every seat, in practice) first shows
-        // up here, with its capabilities (FINDINGS F47).
+        // up here, with its capabilities.
         self.adopt_seat(conn, seat.clone());
         if self.input.seat.as_ref() != Some(&seat) {
             return;
@@ -103,7 +103,7 @@ impl SeatHandler for HostState {
 
     /// Release the capability's object (`wl_pointer.release`/`wl_keyboard.release`): dropping
     /// it would leave it live on the compositor's side, delivering every press again once a
-    /// new one exists (FINDINGS F53).
+    /// new one exists.
     fn remove_capability(
         &mut self,
         _conn: &Connection,
@@ -152,7 +152,7 @@ impl HostState {
     }
 }
 
-/// Shared by every input handler in this wave (`pointer`, `keyboard`, `text_input`,
+/// Shared by every input handler (`pointer`, `keyboard`, `text_input`,
 /// `data_device`): none of them has its own registry of surfaces, and each needs to turn a
 /// `wl_surface` into the id it was spawned with, and to invalidate that surface's document after
 /// an event changes it.
@@ -178,7 +178,7 @@ impl HostState {
     }
 
     /// Step `id`'s frame machine on `FrameInput::Invalidate` and queue the watchdog change it
-    /// asks for, if any. Handlers cannot arm calloop timers themselves (F9): they record the
+    /// asks for, if any. Handlers cannot arm calloop timers themselves: they record the
     /// request here and `HostCtx::flush` arms or cancels it after the dispatch that produced it.
     pub(crate) fn invalidate(&mut self, id: SurfaceId) {
         let Some(surface) = self.surfaces.get_mut(&id) else {

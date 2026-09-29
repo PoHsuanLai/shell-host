@@ -81,7 +81,7 @@ const DEFAULT_REPEAT_DELAY: Duration = Duration::from_millis(600);
 const DEFAULT_REPEAT_INTERVAL: Duration = Duration::from_millis(40);
 
 /// Everything the Wayland handlers read and write. Field order is drop order: surfaces (and
-/// with them every wgpu surface) first, the connection last (SPIKE.md S1 finding 6).
+/// with them every wgpu surface) first, the connection last.
 #[derive(Debug)]
 pub struct HostState {
     pub(crate) surfaces: BTreeMap<SurfaceId, HostSurface>,
@@ -99,7 +99,7 @@ pub struct HostState {
     pub(crate) activation: Option<ActivationState>,
     pub(crate) fractional: Option<Fractional>,
     pub(crate) background_effect: Option<BackgroundEffect>,
-    /// The compositor's main render device, for `blur_health` (FINDINGS F29).
+    /// The compositor's main render device, for `blur_health`.
     pub(crate) render_device: Option<RenderDevice>,
     /// cosmic-comp or not, from the globals at bind time.
     pub(crate) compositor_kind: CompositorKind,
@@ -248,7 +248,7 @@ impl HostState {
     }
 
     /// Whether the compositor can blur behind a surface at all: it advertises blur, and it is
-    /// not a compositor known to lose blurred surfaces (FINDINGS F29).
+    /// not a compositor known to lose blurred surfaces.
     pub(crate) fn blur_supported(&self) -> Support {
         let advertised = self
             .background_effect
@@ -279,8 +279,8 @@ impl HostState {
         })
     }
 
-    /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`
-    /// (FINDINGS F9): the held key again, as a `Repeat::Repeated` press, to the focused surface.
+    /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`:
+    /// the held key again, as a `Repeat::Repeated` press, to the focused surface.
     pub(crate) fn key_repeat(&mut self) {
         let (Some(id), Some(held)) = (self.input.keyboard_focus, self.input.repeating.as_ref())
         else {
@@ -309,7 +309,7 @@ impl HostState {
 impl Drop for HostState {
     fn drop(&mut self) {
         // Every wgpu surface must go before its wl_surface and before the connection, even on
-        // a panic; then flush so nothing lingers on screen (SPIKE.md S1 finding 6).
+        // a panic; then flush so nothing lingers on screen.
         self.surfaces.clear();
         let _ = self.conn.flush();
     }

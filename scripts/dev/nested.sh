@@ -20,7 +20,7 @@
 #
 # GPU: the compositor renders with Mesa (the AMD iGPU's EGL vendor, DRI_PRIME=1)
 # by default. On NVIDIA's EGL the winit backend loses every layer surface that
-# has a blur region (FINDINGS F29), so blur can only be seen on Mesa.
+# has a blur region, so blur can only be seen on Mesa.
 # SILL_NESTED_GPU=nvidia keeps the system EGL vendor (NVIDIA here).
 set -euo pipefail
 
@@ -114,10 +114,10 @@ start_nested() {
     "COSMIC_BACKEND=winit"
     "XDG_CONFIG_HOME=$XDG_CONFIG_SEED"
     # With the host display in DPMS off (locked session, screen dark) the NVIDIA GL path
-    # blocks nested cosmic-comp on vblank and it never answers a client (sill F/G6).
+    # blocks nested cosmic-comp on vblank and it never answers a client.
     "__GL_SYNC_TO_VBLANK=${NESTED_GL_SYNC_TO_VBLANK:-0}"
     # Mesa's equivalent: without it a Mesa-rendering nested cosmic-comp blocks on the dark
-    # host display the same way and never answers a screenshot (F29 experiments).
+    # host display the same way and never answers a screenshot.
     "vblank_mode=${NESTED_VBLANK_MODE:-0}"
   )
 
@@ -128,7 +128,7 @@ start_nested() {
       "DRI_PRIME=1"
     )
   else
-    echo "nested.sh: SILL_NESTED_GPU=${SILL_NESTED_GPU} -> system EGL vendor; blurred layer surfaces vanish on NVIDIA (F29)"
+    echo "nested.sh: SILL_NESTED_GPU=${SILL_NESTED_GPU} -> system EGL vendor; blurred layer surfaces vanish on NVIDIA"
   fi
 
   echo "nested.sh: starting cosmic-comp (log: $LOG_FILE)"
@@ -137,7 +137,7 @@ start_nested() {
   local comp_pid=$!
   disown "$comp_pid" 2>/dev/null || true
 
-  # Memory watchdog (FINDINGS F39): a nested cosmic-comp whose EGL surface is lost retries
+  # Memory watchdog: a nested cosmic-comp whose EGL surface is lost retries
   # every frame, leaks on each failure and, with vblank sync off, ran away to 64 GB. Kill it
   # past NESTED_RSS_MAX_MB (default 4096) rather than let it take the machine.
   local rss_max="${NESTED_RSS_MAX_MB:-4096}"
@@ -145,7 +145,7 @@ start_nested() {
     while kill -0 "$comp_pid" 2>/dev/null; do
       rss_kb="$(awk '/^VmRSS:/{print $2}' "/proc/$comp_pid/status" 2>/dev/null || echo 0)"
       if [ "${rss_kb:-0}" -gt $((rss_max * 1024)) ]; then
-        echo "nested.sh watchdog: cosmic-comp pid $comp_pid at $((rss_kb / 1024)) MB > ${rss_max} MB, killing it (F39)" >>"$LOG_FILE"
+        echo "nested.sh watchdog: cosmic-comp pid $comp_pid at $((rss_kb / 1024)) MB > ${rss_max} MB, killing it" >>"$LOG_FILE"
         kill -9 "$comp_pid" 2>/dev/null || true
         break
       fi

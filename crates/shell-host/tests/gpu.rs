@@ -317,7 +317,7 @@ fn a_document_renders_to_a_texture_and_reads_back() {
 
 #[test]
 fn fractional_scale_lands_on_physical_pixels() {
-    // 20 logical px at 1.5x is exactly 30 physical px (SPIKE.md S1 item f).
+    // 20 logical px at 1.5x is exactly 30 physical px.
     let scale = Scale(180);
     let buffer = Size {
         width: 96,
@@ -336,7 +336,7 @@ fn fractional_scale_lands_on_physical_pixels() {
     );
 }
 
-// ---- custom-widget textures (SPIKE.md S3 item d) ------------------------------------------
+// ---- custom-widget textures ---------------------------------------------------------------
 
 /// Times any `Swatch` registered a texture.
 static SWATCH_REGISTRATIONS: AtomicU32 = AtomicU32::new(0);

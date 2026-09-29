@@ -1,7 +1,6 @@
 //! A `NetProvider` that serves local resources only: `data:` URIs and `file:` URLs. Blitz loads
-//! `@font-face`, `mask-image` and background images only through a net provider (quire FINDINGS
-//! S7, S8); a shell surface never fetches from the network, but the wallpaper is
-//! `background-image: url(file:///…)`.
+//! `@font-face`, `mask-image` and background images only through a net provider; a shell surface
+//! never fetches from the network, but the wallpaper is `background-image: url(file:///…)`.
 
 use std::path::{Path, PathBuf};
 

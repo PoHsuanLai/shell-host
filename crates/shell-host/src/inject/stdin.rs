@@ -105,7 +105,7 @@ fn capture_line(path: &std::path::Path, written: &Result<Injected>) -> serde_jso
 }
 
 /// `{"focused": name, "typed": .., "shown": .., "ime": ..}`: surface `id`'s focused text field
-/// and the IME request its document last made (FINDINGS F71).
+/// and the IME request its document last made.
 fn focused_line(state: &HostState, id: SurfaceId) -> serde_json::Value {
     let Some(surface) = state.surfaces.get(&id) else {
         return json!({"focused": null});
@@ -124,7 +124,7 @@ fn focused_line(state: &HostState, id: SurfaceId) -> serde_json::Value {
 }
 
 /// Print surface `id`'s stats and start a new window, so each printed line covers the time
-/// since the previous one (FINDINGS F15).
+/// since the previous one.
 fn print_stats<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
     match ctx.take_stats(id) {
         Some(stats) => print_line(&stats),
@@ -142,7 +142,7 @@ fn host_facts(state: &HostState) -> serde_json::Value {
     let blur = match (advertised, state.blur_health()) {
         (None, _) => "unbound",
         (Some(Support::Supported), BlurHealth::Renders) => "supported",
-        // Advertised, but a known compositor bug would lose the surface (FINDINGS F29).
+        // Advertised, but a known compositor bug would lose the surface.
         (Some(Support::Supported), BlurHealth::Breaks) => "degraded",
         (Some(Support::Unsupported), _) => "unsupported",
     };

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# IME acceptance (FINDINGS F71): Chewing through fcitx5 into a shell-host text field, headless.
+# IME acceptance: Chewing through fcitx5 into a shell-host text field, headless.
 # Never the user's session: kwin-virtual.sh runs KWin with its own runtime directory, private
 # D-Bus bus and private XDG_CONFIG_HOME/XDG_DATA_HOME, and starts its own fcitx5 as KWin's input
 # method (`--inputmethod scripts/dev/ime-fcitx5.sh`, zwp_input_method_v1) with the profile in

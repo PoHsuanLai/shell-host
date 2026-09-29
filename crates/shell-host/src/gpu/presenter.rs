@@ -84,7 +84,7 @@ impl Presenter {
     /// Paint, render and present `doc`, which the caller has just resolved (with its pre-paint
     /// hook, `SurfaceDocument::resolve`): resolving again here would re-round the layout the
     /// hook snapped. The caller has also requested the frame callback (`wl_surface.frame`), so
-    /// the present's commit carries it (SPIKE.md S1 finding 3). Never waits on the device.
+    /// the present's commit carries it. Never waits on the device.
     pub fn present(
         &mut self,
         gpu: Option<&mut GpuContext>,
@@ -154,7 +154,7 @@ fn need_gpu(gpu: Option<&mut GpuContext>) -> Result<&mut GpuContext> {
 }
 
 /// Acquire, render, submit, present: the frame request is already queued, and the present is
-/// the commit (SPIKE.md S1 finding 3).
+/// the commit.
 fn present_wgpu(
     swapchain: &mut Swapchain,
     gpu: &mut GpuContext,

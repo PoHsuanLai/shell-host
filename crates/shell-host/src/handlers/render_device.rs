@@ -1,5 +1,5 @@
 //! The compositor's main render device, from `zwp_linux_dmabuf_v1`'s default feedback (v4+),
-//! for `blur_health` (FINDINGS F29). wgpu does its own dmabuf negotiation; this binds a second
+//! for `blur_health`. wgpu does its own dmabuf negotiation; this binds a second
 //! manager object only to read `main_device`, looks its PCI vendor up in sysfs once, and then
 //! destroys the feedback object.
 

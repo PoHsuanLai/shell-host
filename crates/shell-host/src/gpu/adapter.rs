@@ -1,6 +1,6 @@
 //! Choosing the adapter: rank the candidates by preference, then validate each by a first
 //! present, because a cross-GPU adapter can report the surface as supported and still have its
-//! first dmabuf rejected with a fatal protocol error (SPIKE.md S1: RADV under KWin on this
+//! first dmabuf rejected with a fatal protocol error (RADV under KWin on this
 //! machine, `zwp_linux_dmabuf` error 7, "importing the supplied dmabufs failed"). The probe runs
 //! on a throwaway Wayland connection so the error kills the probe, not the host.
 

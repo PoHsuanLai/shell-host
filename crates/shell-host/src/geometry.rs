@@ -1,4 +1,4 @@
-//! Geometry the host adds to S2's `region` and `scale` types: points, margins, and turning a
+//! Geometry the host adds to the `region` and `scale` types: points, margins, and turning a
 //! laid-out element's fractional bounding box into whole logical pixels.
 //!
 //! Everything is integer logical px ([`Px`]); floats appear only at the Blitz boundary, as

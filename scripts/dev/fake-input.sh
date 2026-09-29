@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Synthetic pointer and keyboard input into the headless KWin of scripts/dev/kwin-virtual.sh,
-# through org_kde_kwin_fake_input (tools/fake-input, FINDINGS F52). Commands on stdin, one per
+# through org_kde_kwin_fake_input (tools/fake-input). Commands on stdin, one per
 # line, each answered with `ok <line>` once it reached the compositor:
 #
 #   move X Y                 absolute pointer position (global logical px)

@@ -16,7 +16,7 @@
 //! 4. **Arm timers.** The watchdog, key-repeat and scroll-thumb changes the handlers and phase
 //!    3 asked for, the loop sources for pipes a drag target asked us to fill (`ctx::drag`), and
 //!    the palmrest socket's source when a connection attempt is due (`ctx::palmrest`).
-//! 5. **Flush the connection**, and stop on a protocol error (SPIKE.md S1 finding 7).
+//! 5. **Flush the connection**, and stop on a protocol error.
 
 use std::task::Context;
 

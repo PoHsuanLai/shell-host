@@ -1,6 +1,6 @@
 //! Custom-widget textures that outlive a frame. A `blitz_dom::Widget` registers its wgpu
 //! texture through the painter's `RenderContext` (`try_register_custom_resource`), and gets the
-//! device from `renderer_specific_context()` (a `wgpu_context::DeviceHandle`; SPIKE.md S3).
+//! device from `renderer_specific_context()` (a `wgpu_context::DeviceHandle`).
 //! `VelloHybridScenePainter` borrows the texture map for one paint; this holds it per device
 //! between paints and turns it into the `TextureBindings` the render needs.
 

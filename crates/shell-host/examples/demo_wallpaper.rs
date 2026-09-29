@@ -1,5 +1,5 @@
-//! A wallpaper-shaped surface whose content changes after its first frame (sill FINDINGS
-//! F171/G21, shell-host FINDINGS F40): `Layer::Background`, anchored to every edge,
+//! A wallpaper-shaped surface whose content changes after its first frame (a resource
+//! load that lands mid-render must still be painted): `Layer::Background`, anchored to every edge,
 //! `ExclusiveZone::Ignore`, an empty input region, no keyboard, no blur. The root paints a
 //! fallback colour, then `SWAP_DELAY` later swaps in content of a known solid colour, so a
 //! screenshot's centre pixel says whether the second paint reached the screen.
@@ -48,7 +48,7 @@ enum Content {
 
 /// The page. `#main` (dioxus-native-dom's mount point) is sized too: without it the root's
 /// `height:100%` resolves against an auto height and the whole page is 0 px tall, so a capture
-/// is transparent and only an `img`'s intrinsic size would ever show (FINDINGS F41).
+/// is transparent and only an `img`'s intrinsic size would ever show.
 fn css() -> String {
     let [fr, fg, fb] = FALLBACK;
     let [ir, ig, ib] = IMAGE;

@@ -1,4 +1,4 @@
-//! An element that arrives under a resting pointer (FINDINGS F59): Blitz's `refresh_hover`
+//! An element that arrives under a resting pointer: Blitz's `refresh_hover`
 //! moves the hover at the end of `resolve` without dispatching, and `SurfaceDocument::resolve`
 //! repairs it, so the arriving element gets its enter and the covered one its leave, once.
 //!

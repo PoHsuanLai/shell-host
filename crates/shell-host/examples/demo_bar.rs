@@ -19,7 +19,7 @@ use shell_host::{
     LayerConfig, LayerSize, Margin, OutputTarget, RegionSpec, Root,
 };
 
-/// The margin and padding reset quire's `css/reset.css` would bring (FINDINGS F12).
+/// The margin and padding reset quire's `css/reset.css` would bring.
 const RESET_CSS: &str = "html,body{margin:0;padding:0}";
 
 /// A magenta tint (item a probes it at (10, 10)) and a 2-logical-px checkerboard at x 200..280,
@@ -51,7 +51,7 @@ fn bar_config(blur: BlurSpec) -> LayerConfig {
 }
 
 /// Presses the bar's document has received, printed as `bar: press N` on each one so a real-input
-/// run can count them against the presses it sent (FINDINGS F53: one press must arrive once).
+/// run can count them against the presses it sent (one press must arrive once).
 static PRESSES: AtomicU32 = AtomicU32::new(0);
 
 /// The bar document: a tinted strip with a label and the checkerboard probe.

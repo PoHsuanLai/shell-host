@@ -32,7 +32,7 @@ pub enum HostError {
         feature: &'static str,
     },
     /// The compositor killed the connection. libwayland fails every later call, so the host
-    /// stops instead of looping (SPIKE.md S1 finding 7).
+    /// stops instead of looping.
     #[error("fatal Wayland protocol error: {0}")]
     Protocol(String),
     /// No adapter could be created for the surface.

@@ -1,7 +1,7 @@
 //! Frame statistics and the debug command language.
 //!
 //! `FrameStats` is what `HostCtx::stats` returns and what the `debug-inject` feature prints as
-//! one JSON line per surface: the spike's `stats` set (SPIKE.md S1, "API changes"), with the
+//! one JSON line per surface: frames, callbacks, commits, sizes, scale and adapter, with the
 //! work time (trigger to present) kept apart from the present-to-present interval, because the
 //! interval's p95 is only the refresh period and says nothing about cost.
 //!
@@ -65,7 +65,7 @@ pub struct FrameCounters {
     pub frames: u64,
     /// Frame callbacks received.
     pub callbacks: u64,
-    /// `wl_surface.commit`s (every present is exactly one commit, SPIKE.md S1 finding 3).
+    /// `wl_surface.commit`s (every present is exactly one commit).
     pub commits: u64,
     /// Frames that were due but could not be presented.
     pub skipped: u64,
@@ -239,8 +239,7 @@ pub enum PointerButton {
 /// `Press`, `Hover` (as a held move) and `Release` script a drag: `Press` at the start point,
 /// `Hover` at each point in between (still with the button down, so it moves like one), then
 /// `Release` at the end point. `Click` is `Press` immediately followed by `Release` at the same
-/// point, with no move between (FINDINGS F70; a real drag cannot be scripted through `Click`,
-/// sill's G330).
+/// point, with no move between (a real drag cannot be scripted through `Click`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DebugAction {
     /// A pointer motion to the point (a plain hover with nothing pressed, or a held move
@@ -259,7 +258,7 @@ pub enum DebugAction {
     /// Render offscreen at the buffer size and write a PNG.
     Capture(PathBuf),
     /// Print the focused text field's text, as typed and as shown (with any composition), and
-    /// what the IME was last asked for (FINDINGS F71).
+    /// what the IME was last asked for.
     Focused,
 }
 
@@ -284,7 +283,7 @@ pub enum CommandError {
 /// Parse one line: `stats`, `quit`, or `<surface> hover X Y`, `<surface> press X Y [button]`,
 /// `<surface> release X Y [button]`, `<surface> click X Y [button]` (`button` is `primary`,
 /// `secondary` or `middle`; primary when omitted — a press, one or more `hover`s and a release
-/// script a drag, FINDINGS F70), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`,
+/// script a drag), `<surface> leave`, `<surface> stats`, `<surface> capture PATH`,
 /// `<surface> focused`.
 /// Global verbs win, so no surface may be named `stats` or `quit`.
 pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
@@ -458,7 +457,7 @@ mod tests {
 
     #[test]
     fn vm_rss_is_read_from_proc_status() {
-        let status = "Name:\tspike_bar\nVmPeak:\t  999 kB\nVmRSS:\t  172800 kB\nThreads:\t9\n";
+        let status = "Name:\tdemo_bar\nVmPeak:\t  999 kB\nVmRSS:\t  172800 kB\nThreads:\t9\n";
         assert_eq!(vm_rss_kib(status), Some(172_800));
         assert_eq!(vm_rss_kib("Name:\tx\n"), None);
     }

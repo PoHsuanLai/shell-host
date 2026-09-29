@@ -1,11 +1,9 @@
 //! The host's one `FontContext`: every document gets a clone, so the source cache is shared and
 //! a face registered once is available on every surface.
 //!
-//! Before `HostConfig::fonts` existed, [`SharedFonts::register`] had no caller: `HostState`
-//! always built [`SharedFonts::system`] alone, so a shell's bundled faces (quire's `ds::FACES`)
-//! were never registered and every document fell back past them to `system-ui`
-//! (FINDINGS "Colour emoji"; sill Q342). `Host::connect` now registers `HostConfig::fonts` into
-//! `HostState::fonts` once, at startup, before the first document is built.
+//! `Host::connect` registers `HostConfig::fonts` (a shell's bundled faces, e.g. quire's
+//! `ds::FACES`) into `HostState::fonts` once, at startup, before the first document is built;
+//! without them every document falls back to fontconfig's faces.
 
 use std::sync::Arc;
 

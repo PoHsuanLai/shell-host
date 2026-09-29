@@ -1,10 +1,10 @@
-//! A notification banner swiped away, for `scripts/dev/accept-swipe.sh` (FINDINGS F73, sill
-//! G410): a 400 x 120 Overlay layer anchored top-right whose blur and input regions both follow
-//! the card `#card` (`RegionSpec::Elements`, radius 0, so each region is one `wl_region.add`).
-//! A press and drag moves the card's wrapper by `translateX(dx)` (quire's `--swipe-dx`); a
-//! release past 40 px starts the card's own exit animation (`translateX(0)` to `(420px)` over
-//! 400 ms, like quire's `banner-out`), a release short of it puts the card back. The regions are
-//! what the acceptance reads, from the client's `WAYLAND_DEBUG` trace.
+//! A notification banner swiped away, for `scripts/dev/accept-swipe.sh`: a 400 x 120 Overlay layer
+//! anchored top-right whose blur and input regions both follow the card `#card`
+//! (`RegionSpec::Elements`, radius 0, so each region is one `wl_region.add`). A press and drag
+//! moves the card's wrapper by `translateX(dx)` (quire's `--swipe-dx`); a release past 40 px starts
+//! the card's own exit animation (`translateX(0)` to `(420px)` over 400 ms, like quire's
+//! `banner-out`), a release short of it puts the card back. The regions are what the acceptance
+//! reads, from the client's `WAYLAND_DEBUG` trace.
 //!
 //! Lines on stdout, one JSON object each: `{"event":"drag","dx":..}` and
 //! `{"event":"released","dx":..,"leaving":..}`. stdin: `quit`.

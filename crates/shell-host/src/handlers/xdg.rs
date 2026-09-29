@@ -112,7 +112,7 @@ impl PopupHandler for HostState {
     }
 
     /// `xdg_popup.popup_done`: `SurfaceClosed{reason: PopupDismissed}`, and restore the parent
-    /// layer's keyboard mode. A client cannot trigger this itself (SPIKE.md S2), so the scripted
+    /// layer's keyboard mode. A client cannot trigger this itself, so the scripted
     /// demos dismiss by hit-testing and closing instead.
     fn done(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, popup: &Popup) {
         let Some(id) = surface_id_by_wl(self, popup.wl_surface()) else {

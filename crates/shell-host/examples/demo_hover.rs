@@ -1,15 +1,15 @@
-//! Two stacked cards for real-input hover acceptance (FINDINGS F57, F58): two 320 x 120 layer
+//! Two stacked cards for real-input hover acceptance: two 320 x 120 layer
 //! surfaces centred on the output, `bottom` on the Top layer and `top` on the Overlay layer
 //! right over it, so the pointer is on `top` until it is hidden and then on `bottom` without
 //! moving. Each card prints `hover: <card> enter` / `hover: <card> leave` from its own
 //! `onmouseenter` / `onmouseleave`, which is what a `kwin-virtual.sh` + `fake-input.sh` run reads.
 //!
-//! A third surface, `slide` (320 x 120 at the output's bottom-left corner), is F59's: a `pad`
-//! filling it, and a `slider` that, 600 ms after the first pointer move on the pad, is placed
-//! under wherever the pointer then rests. Blitz notices the slider only in its own
+//! A third surface, `slide` (320 x 120 at the output's bottom-left corner), is the hover repair's:
+//! a `pad` filling it, and a `slider` that, 600 ms after the first pointer move on the pad, is
+//! placed under wherever the pointer then rests. Blitz notices the slider only in its own
 //! `refresh_hover` at the end of a resolve, which dispatches nothing; the host's repair is what
-//! gives the slider its enter and the pad its leave. Both elements count their
-//! `onpointerenter` / `onpointerleave` and print `hover: slide <element> enter|leave`.
+//! gives the slider its enter and the pad its leave. Both elements count their `onpointerenter` /
+//! `onpointerleave` and print `hover: slide <element> enter|leave`.
 //!
 //! stdin, one command per line: `hide top|bottom` and `show top|bottom` (a
 //! `SurfaceOp::SetVisibility`, printed as `hover: hide top` when applied), `stats` (prints

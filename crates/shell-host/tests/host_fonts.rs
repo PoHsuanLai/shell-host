@@ -1,5 +1,5 @@
-//! `HostConfig::fonts` actually reaches a document (FINDINGS "shell-host never registers a
-//! shell's bundled faces"): a face registered through it is present in
+//! `HostConfig::fonts` actually reaches a document (without it a document falls back
+//! to fontconfig): a face registered through it is present in
 //! `registered_families`, and a document naming that family in `font-family` measures
 //! differently from one naming only `system-ui` — the regression `text_stack_fonts.rs` (quire,
 //! `gate`) pins from the other side, under `SharedFonts::system()` alone.

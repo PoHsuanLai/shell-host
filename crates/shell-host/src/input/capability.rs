@@ -3,7 +3,7 @@
 //!
 //! A compositor re-announces a capability whenever its set of devices changes: KWin drops and
 //! re-adds `pointer` for every `org_kde_kwin_fake_input` client, and a real seat does the same
-//! when a mouse is unplugged and plugged back (FINDINGS F53). Every `wl_pointer` a client has not
+//! when a mouse is unplugged and plugged back. Every `wl_pointer` a client has not
 //! released keeps receiving events, so an object created per announcement, with the old one
 //! merely dropped, delivers each press once per object. The host therefore holds at most one
 //! object per capability: it creates one only when it holds none, and releases the one it holds

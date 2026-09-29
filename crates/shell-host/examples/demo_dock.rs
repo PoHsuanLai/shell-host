@@ -4,7 +4,7 @@
 //! pointer motion until the tiles settle after the pointer leaves), anchored bottom, with its
 //! input and blur regions following the pill (`RegionSpec::Element`). `--cards=two` adds a
 //! second, independently region-tracked element above the pill (`RegionSpec::Elements`),
-//! for verifying on a headless KWin (FINDINGS F52/F55) that fake input reaches each element's
+//! for verifying on a headless KWin that fake input reaches each element's
 //! own strips and nothing in the gap between them. `--layer=bottom` puts it under windows for
 //! the occlusion check. Driven by `dock hover X Y`, `dock leave`, `dock stats`. Render acceptance
 //! item (c): a hover sweep renders once per callback with p95 work under the refresh period,

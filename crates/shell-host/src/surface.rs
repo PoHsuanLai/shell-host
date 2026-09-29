@@ -62,7 +62,7 @@ impl Default for AppliedRegions {
 }
 
 /// A surface. Field order is drop order: the presenter (holding the wgpu surface) goes before
-/// the role (holding the `wl_surface`) (SPIKE.md S1 finding 6).
+/// the role (holding the `wl_surface`).
 #[derive(Debug)]
 pub struct HostSurface {
     pub(crate) presenter: Option<Presenter>,
@@ -96,7 +96,7 @@ pub struct HostSurface {
     /// default forever on any other surface.
     pub(crate) live_toplevel: Live<ToplevelState>,
     /// The modifiers held while this surface has keyboard focus, published to its document
-    /// (`use_modifiers`, FINDINGS F66); reset to `Modifiers::default()` on `wl_keyboard.leave`.
+    /// (`use_modifiers`); reset to `Modifiers::default()` on `wl_keyboard.leave`.
     pub(crate) live_modifiers: Live<Modifiers>,
     /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
     /// the document rather than in the resize band.

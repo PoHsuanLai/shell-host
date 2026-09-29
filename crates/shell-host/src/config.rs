@@ -29,7 +29,7 @@ pub struct HostConfig {
     /// The faces a shell's design system bundles, registered into the shared `FontContext` once
     /// at startup (`Host::connect`) so every surface, popup and toplevel document resolves them —
     /// otherwise a `font-family` naming one falls back past every real face to `system-ui`
-    /// (FINDINGS "Colour emoji"; sill Q342). A shell passes its own faces, e.g. quire's
+    /// (FINDINGS, "HostConfig::fonts"). A shell passes its own faces, e.g. quire's
     /// `ds::FACES` bytes; shell-host bundles none of its own, so the default is empty. Code, not
     /// settings — a face is compiled into the shell binary, not read from a settings file — so
     /// it is never serialized, exactly like `prepaint`.
@@ -87,7 +87,7 @@ pub enum Backend {
 /// Which adapter the GPU backend prefers. A preference, not a guarantee: every candidate is
 /// validated by a first present on a probe surface over a throwaway connection, because a
 /// cross-GPU adapter can pass `is_surface_supported` and still have its first buffer rejected
-/// with a fatal protocol error (SPIKE.md S1: RADV on this machine, `zwp_linux_dmabuf` error 7).
+/// with a fatal protocol error (RADV on this machine, `zwp_linux_dmabuf` error 7).
 /// A candidate that fails is dropped and the next one is tried.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "v", rename_all = "snake_case")]

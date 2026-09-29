@@ -173,7 +173,7 @@ impl SurfaceHandle {
     /// Returns the popup's id at once; the popup appears after the next flush. Opening a
     /// grabbing popup from a `KeyboardMode::None` layer switches the layer to `OnDemand` until
     /// the popup closes, except on KWin, which focuses the popup itself and gives the keyboard
-    /// back to the app on close (`popup_keyboard`, FINDINGS F72). A click on the parent layer
+    /// back to the app on close (`popup_keyboard`). A click on the parent layer
     /// (another item of the same bar) is the shell's to dismiss by: KWin sends no `popup_done`
     /// for a press on the popup's own client.
     pub fn open_popup(
@@ -402,7 +402,7 @@ pub fn use_toplevel_state() -> ReadSignal<ToplevelState> {
 }
 
 /// The modifier keys held by the seat's keyboard while this surface has keyboard focus, as live
-/// state (FINDINGS F66): the component re-renders on every `wl_keyboard.modifiers`, including
+/// state: the component re-renders on every `wl_keyboard.modifiers`, including
 /// the one a compositor sends right after this surface's `wl_keyboard.enter` — so a surface
 /// that gains focus with Super already down (an app switcher's `KeyboardMode::Exclusive`
 /// overlay catching a quick Cmd+Tab release) or with Caps Lock already toggled (a lock screen's
@@ -429,7 +429,7 @@ pub fn use_modifiers() -> ReadSignal<Modifiers> {
     ReadSignal::from(latest)
 }
 
-/// Pointer or keyboard, whichever last drove the seat, as live state (FINDINGS F74): the
+/// Pointer or keyboard, whichever last drove the seat, as live state: the
 /// component re-renders when it changes. A key press other than a lone modifier makes it
 /// `Keyboard`, a pointer button press makes it `Pointer`; motion, scrolls, releases and
 /// auto-repeats leave it (`modality::after`). One value for the seat, shared by every surface,

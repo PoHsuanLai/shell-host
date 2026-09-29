@@ -1,7 +1,7 @@
-//! Pure-table tests for the geometry `resolve.rs` and `layer.rs` add on top of S2's frozen
+//! Pure-table tests for the geometry `resolve.rs` and `layer.rs` add on top of
 //! `region`/`scale`/`popup`, against the public API only: rounding a fractional element rect
 //! outward, inflating it, `resolve::Tracked`'s change detection, and a layer surface's
-//! `configure` -> resolved logical size (F13, `Extent::{Fill, Px}`).
+//! `configure` -> resolved logical size (`Extent::{Fill, Px}`).
 
 use shell_host::geometry::{enclosing_rect, inflate};
 use shell_host::handlers::layer::configured_size;

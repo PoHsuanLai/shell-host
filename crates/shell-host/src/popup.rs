@@ -14,7 +14,7 @@ use wayland_protocols::xdg::shell::client::xdg_positioner::{
 
 /// Where a popup is anchored: an explicit rect, or a DOM element resolved after layout.
 ///
-/// Not `Copy`: `ElementId` owns a `String` (FINDINGS.md F3).
+/// Not `Copy`: `ElementId` owns a `String`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PopupAnchor {
     Rect,
@@ -119,7 +119,7 @@ impl Offset {
 /// content size (those are resolved separately, after layout, and passed to
 /// `positioner_params`).
 ///
-/// Not `Copy`: `anchor` may own an `ElementId` (FINDINGS.md F3).
+/// Not `Copy`: `anchor` may own an `ElementId`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PopupConfig {
     pub anchor: PopupAnchor,
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn positioner_params_ignores_which_kind_of_anchor_the_config_names() {
         // `config.anchor` says *what* the anchor rect was resolved from (an explicit rect or a
-        // named element, FINDINGS.md F3); `positioner_params` only ever sees the already
+        // named element); `positioner_params` only ever sees the already
         // resolved `Rect`, so a `PopupAnchor::Element` config must behave exactly like a
         // `PopupAnchor::Rect` one here.
         let anchor = Rect {

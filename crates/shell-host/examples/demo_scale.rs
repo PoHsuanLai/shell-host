@@ -1,6 +1,6 @@
 //! What a design system's pixel snapping gets from the host: the surface's scale as live state
 //! (`use_surface_scale`) and a pre-paint hook (`HostConfig::prepaint`), here a counter standing
-//! in for quire's `snap_to_device` (FINDINGS F43).
+//! in for quire's `snap_to_device`.
 //!
 //! A 28 px top layer with 1 px rules. Every render of its root prints the scale it read; the
 //! hook counts its calls and records the viewport scale it saw. After 2 s the demo prints a

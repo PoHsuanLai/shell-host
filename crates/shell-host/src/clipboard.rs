@@ -6,8 +6,7 @@
 //! the selection were ours. So nothing is read at paste time: every `wl_data_device.selection`
 //! event starts a read of the new offer on a helper thread ([`PASTE_TIMEOUT`]), which publishes
 //! the text into a [`SharedSelection`] every surface's shell provider holds. A paste in the few
-//! milliseconds between a new selection and its read finishing sees the previous text
-//! (FINDINGS.md, "H2 integration").
+//! milliseconds between a new selection and its read finishing sees the previous text.
 
 use std::io;
 use std::sync::mpsc;

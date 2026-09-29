@@ -1,8 +1,7 @@
 //! Painting a resolved document through the shared renderer: `paint_scene` into the
 //! surface's `vello_hybrid::Scene` via a `VelloHybridScenePainter` borrowing the device's image
 //! cache and widget textures, then `Renderer::render` into the swapchain texture. The frame
-//! callback is requested before this, and `SurfaceTexture::present` after (SPIKE.md S1
-//! finding 3).
+//! callback is requested before this, and `SurfaceTexture::present` after.
 
 use anyrender_vello_hybrid::{ImageManager, VelloHybridScenePainter};
 use blitz_dom::BaseDocument;

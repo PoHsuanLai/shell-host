@@ -1,5 +1,5 @@
 //! Where a laid-out box paints: its layout rectangle carried through its own CSS transform and
-//! every transformed ancestor's (FINDINGS F73, sill G410). The pure part.
+//! every transformed ancestor's. The pure part.
 //!
 //! Blitz's `get_client_bounding_rect` is the layout box: `transform` never moves it (layout
 //! ignores transforms by design), so a region or popup anchor built from it stays where the box
@@ -209,7 +209,7 @@ mod tests {
                 bounds(70.0, 20.0, 100.0, 40.0),
             ),
             (
-                "a parent's translateX(60px) (sill's swipe, the G410 repro)",
+                "a parent's translateX(60px) (sill's swipe)",
                 bounds(0.0, 0.0, 100.0, 40.0),
                 vec![at(0.0, 0.0, Affine2::translate(60.0, 0.0))],
                 bounds(60.0, 0.0, 100.0, 40.0),

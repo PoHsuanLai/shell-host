@@ -7,7 +7,7 @@
 //! the Super keys map to `Key::Meta` (the W3C name for the Windows/Command key, and what
 //! `Modifiers::META` means) instead of winit's `Super`; `space` is `Key::Character(" ")`,
 //! because keyboard-types has no named Space; commented-out rows of the original are omitted.
-//! See FINDINGS.md F5 for the licence note.
+//! FINDINGS.md has the licence note.
 
 use keyboard_types::{Key, Location};
 use smithay_client_toolkit::seat::keyboard::Keysym;

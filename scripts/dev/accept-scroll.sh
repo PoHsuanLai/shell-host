@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real-input scroll acceptance (FINDINGS F63, design/11 §11.8 items 12 and 14):
+# Real-input scroll acceptance (design/11 §11.8 items 12 and 14):
 # examples/demo_scroll on a headless KWin (kwin-virtual.sh), wheel events from fake-input.sh's
 # `axis`. Never the user's session, never a keyboard grab.
 #

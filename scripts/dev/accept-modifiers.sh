@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real-input `use_modifiers` acceptance (FINDINGS F66, F67): examples/demo_switcher's Exclusive-
+# Real-input `use_modifiers` acceptance: examples/demo_switcher's Exclusive-
 # keyboard panel on a headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's
 # session (every client here sources .kwin-env), no keyboard grab.
 #
@@ -16,9 +16,9 @@
 #               then produces a further line with logo released.
 #   caps_lock   Caps Lock tapped (down, up) before `map`: the next line already has caps_lock
 #               locked.
-#   restale     G210: Super held, `map`, `unmap` (still held), Super released while the surface
+#   restale     Super held, `map`, `unmap` (still held), Super released while the surface
 #               is hidden, `map` again with nothing held. `unmap` rebuilds the same surface's
-#               `wl_surface` (FINDINGS F58's unmap, the one G210 covers for the keyboard); a host
+#               `wl_surface` (the unmap that must withdraw the keyboard); a host
 #               that never withdrew the keyboard from it would carry the held-at-unmap modifiers
 #               into this second opening, a line reading logo held where the physical key is up.
 #               `demo_switcher`'s `unmap`/`map` drive this same surface (`Visibility::Hidden`/
@@ -43,7 +43,7 @@ modifiers_lines() { grep -F '"event":"modifiers"' "$1"; }
 
 # Every "focus" line (`HostEvent::KeyboardFocus`), just the Gained/Lost states in order, comma
 # joined: "Gained,Lost,Gained," across an unmap and a remap when the host withdraws the
-# keyboard at the unmap (G210), "Gained,Gained," (no `Lost` between them) when it does not.
+# keyboard at the unmap, "Gained,Gained," (no `Lost` between them) when it does not.
 focus_states() {
   grep -F '"event":"focus"' "$1" | sed -E 's/.*"state":"([A-Za-z]+)".*/\1/' | tr '\n' ','
 }
@@ -148,7 +148,7 @@ caps_lock_case() {
   input "key Caps_Lock down" "sleep 100" "key Caps_Lock up" "sleep 100" || true
 }
 
-# G210: the same surface (`Visibility::Hidden`/`Shown`, not a close and respawn) unmapped while
+# The same surface (`Visibility::Hidden`/`Shown`, not a close and respawn) unmapped while
 # Super is still held, released while it is hidden, then mapped again with nothing held. A host
 # that never withdrew the keyboard at the unmap (never reset the record, never reset the
 # surface's published modifiers) risks a second opening that starts from the first opening's
@@ -166,7 +166,7 @@ restale_case() {
   check restale_seen_on_enter $ok "line 2: $seen_on_enter"
 
   # Unmap while Super is still held (the compositor's own leave, naming the destroyed
-  # wl_surface, can never be matched to anything, FINDINGS F58): a fixed host resets the
+  # wl_surface, can never be matched to anything): a fixed host resets the
   # surface's modifiers to the default right here rather than waiting for it. Super is then
   # released while the surface is hidden — no key event of ours to carry the release, since a
   # hidden surface has no keyboard focus to receive one.
@@ -185,7 +185,7 @@ restale_case() {
   check restale_after_remap $ok "after unmap (Super still held), release while hidden, and remap (nothing held): $final ($total lines total)"
 
   # The directly discriminating signal: a host that withdraws the keyboard at the unmap
-  # (G210's fix) tells the shell `Lost` right there, before the second `Gained`; one that
+  # tells the shell `Lost` right there, before the second `Gained`; one that
   # leaves the record stale goes straight from `Gained` to `Gained` again, since the
   # compositor's own leave (for the destroyed wl_surface) never matches anything either.
   local focus_seq

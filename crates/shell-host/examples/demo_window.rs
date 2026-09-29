@@ -1,4 +1,4 @@
-//! A client-decorated toplevel (FINDINGS F46-F49): a coloured titlebar and a body, drawn by the
+//! A client-decorated toplevel: a coloured titlebar and a body, drawn by the
 //! document, with the host's invisible resize band around them.
 //!
 //! - Pressing the titlebar starts a move (`SurfaceHandle::begin_move`); double-clicking it

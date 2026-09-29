@@ -207,7 +207,7 @@ fn find_output(state: &HostState, output: OutputId) -> Option<(WlOutput, OutputI
 }
 
 /// Remove lock surface `id` without a `SurfaceClosed` (the shell never held its id): the
-/// pointer's stay and the keyboard focus end with it (FINDINGS F58, G210), then the surface
+/// pointer's stay and the keyboard focus end with it, then the surface
 /// (its presenter before its `wl_surface`, and the lock surface object with it).
 fn remove_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     ctx.state.withdraw_pointer(id);

@@ -1,6 +1,6 @@
 //! `wl_data_device`: the selection offer (paste), our own copy source, and our drag's source
 //! (`handlers::drag_source`, which the source events are routed to). Drag and drop *into*
-//! shell surfaces is not supported in v1 (FINDINGS F35); the device's drag callbacks do nothing.
+//! shell surfaces is not supported in v1; the device's drag callbacks do nothing.
 
 use std::io::Write;
 
@@ -170,8 +170,8 @@ impl DataSourceHandler for HostState {
 /// Claim the selection with `text` (`wl_data_device.set_selection`): creates a fresh
 /// `CopyPasteSource` offering [`TEXT_MIME`], sends it with the serial of the seat's last input
 /// event, and updates the cache `Clipboard::copy` maintains. Called by whoever drains
-/// `Request::CopyText` (`HostCtx`, H2 core) — `Clipboard::copy` cannot make the wire request
-/// itself: its frozen signature has neither a queue handle nor an input serial to give it.
+/// `Request::CopyText` (`HostCtx`) — `Clipboard::copy` cannot make the wire request
+/// itself: its signature has neither a queue handle nor an input serial to give it.
 pub(crate) fn claim_selection(state: &mut HostState, qh: &QueueHandle<HostState>, text: String) {
     state.clipboard.copy(text);
     let (Some(manager), Some(device)) = (&state.data_device, &state.input.data_device) else {

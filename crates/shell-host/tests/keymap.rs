@@ -129,7 +129,7 @@ fn repeats_and_releases() {
 
 /// Every row group: a `(name, raw_code, keysym, utf8, want_key, want_code, want_location)`
 /// table spanning letters, digits, function keys, navigation, modifiers on both sides, the
-/// numpad and space (which keyboard-types has no named key for, F5).
+/// numpad and space (which keyboard-types has no named key for).
 struct Case {
     name: &'static str,
     raw_code: u32,

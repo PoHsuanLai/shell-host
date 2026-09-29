@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A bar menu's keyboard under real input (FINDINGS F72): examples/demo_popup_keys (a
+# A bar menu's keyboard under real input: examples/demo_popup_keys (a
 # KeyboardMode::None bar whose "Menu" button opens a grabbing popup on its press) beside
 # examples/demo_window (a toplevel standing in for the app the user was typing in), on a headless
 # KWin (kwin-virtual.sh) driven by fake-input.sh. Never the user's session.
@@ -11,13 +11,13 @@
 #   popup_opens      a real click on the bar's button opens the popup
 #   keys_reach_popup real Tab, Down and x reach the popup's document (its onkeydown), with no
 #                    click inside it first
-#   modality         the popup's use_input_modality (FINDINGS F74) reads pointer as it opens
+#   modality         the popup's use_input_modality reads pointer as it opens
 #                    from the click, keyboard after the Tab, pointer again after a click inside
 #                    it
 #   escape_closes    real Escape closes it
 #   bar_never_keyed  the bar never held the keyboard: the demo's only wl_keyboard.enter is the
-#                    popup's. Before F72 the host lifted the bar to OnDemand, KWin activated it,
-#                    and it kept the keyboard after the popup closed
+#                    popup's. A bar lifted to OnDemand is activated by KWin and keeps the
+#                    keyboard after the popup closed
 #   app_gets_it_back after the close the window has the keyboard again, and a real key typed
 #                    then reaches it
 # Logs and both clients' WAYLAND_DEBUG traces: scripts/dev/out/popup-keys-*.log.

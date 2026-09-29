@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real-input drag-source acceptance (FINDINGS F60): examples/demo_drag's thumbnail on a headless
+# Real-input drag-source acceptance: examples/demo_drag's thumbnail on a headless
 # KWin (kwin-virtual.sh), driven by fake-input.sh, with a foot terminal in the same session as
 # the drop target. Never the user's session (every client here sources .kwin-env), no keyboard
 # grab. demo_drag and foot both run with WAYLAND_DEBUG=1, so each side's protocol traffic is in

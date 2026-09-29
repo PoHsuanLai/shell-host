@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn two_logical_pixels_at_one_point_five_is_three_physical() {
-        // The acceptance check from the plan's spike item (f): a 2-logical-px checkerboard
+        // The acceptance check from render acceptance item (f): a 2-logical-px checkerboard
         // must land on exactly 3 physical pixels at scale 1.5.
         assert_eq!(logical_to_physical(2, Scale::from_wire(180)), 3);
     }

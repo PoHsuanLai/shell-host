@@ -88,7 +88,7 @@ impl PointerHandler for HostState {
                 } => {
                     self.input.last_serial = serial;
                     // Any press, the band's and a swallowed first mouse's too: the person
-                    // reached for the pointer (FINDINGS F74).
+                    // reached for the pointer.
                     self.note_stroke(Stroke::PointerPress);
                     let Some(btn) = pointer::button_from_evdev(button) else {
                         continue;
@@ -184,7 +184,7 @@ impl HostState {
 
     /// Surface `id` is being unmapped or closed by the host. If the pointer is on it, end the
     /// stay now, while the surface is still known: the compositor's leave will name a
-    /// `wl_surface` the host no longer has (FINDINGS F58), and a document left hovering keeps
+    /// `wl_surface` the host no longer has, and a document left hovering keeps
     /// its hover chain into the next mapping, so the element under the pointer then never gets
     /// a `mouseenter`. No invalidation: the surface is going, and a remapped one starts a new
     /// frame machine.

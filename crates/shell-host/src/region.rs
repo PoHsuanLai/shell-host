@@ -58,7 +58,7 @@ impl RoundedRect {
 ///
 /// A string, not a hash: Blitz finds an element only by its `id` attribute string
 /// (`BaseDocument::get_element_by_id(&str)`), so anything else would need an interning table to
-/// get the string back (FINDINGS.md F3, resolved by this newtype).
+/// get the string back (resolved by this newtype).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ElementId(String);
 

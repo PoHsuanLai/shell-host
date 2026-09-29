@@ -38,7 +38,7 @@ impl KeyboardHandler for HostState {
         };
         self.input.keyboard_focus = Some(id);
         self.input.focused_at = Some(Instant::now());
-        // The seat's already-current modifiers (F66): a compositor sends a `modifiers` event
+        // The seat's already-current modifiers: a compositor sends a `modifiers` event
         // right after this one, but a surface that reads `use_modifiers` on its very first
         // render (an Exclusive overlay mapped while Super is held, a lock screen's initial Caps
         // Lock state) must not see empty in the meantime.
@@ -53,7 +53,7 @@ impl KeyboardHandler for HostState {
 
     /// `HostEvent::KeyboardFocus{Lost}`, stop repeating. A leave that names a surface the host
     /// no longer knows — its unmap or close already withdrew the keyboard from it, before the
-    /// rebuild or removal took the `wl_surface` this leave names (FINDINGS F58, G210) — is
+    /// rebuild or removal took the `wl_surface` this leave names — is
     /// ignored.
     fn leave(
         &mut self,
@@ -97,7 +97,7 @@ impl KeyboardHandler for HostState {
 
         // Start (or restart, replacing any key already repeating) the repeat timer; the
         // context re-synthesizes `Repeat::Repeated` presses from `self.input.repeating` on
-        // every firing (F9: sctk's own repeat source is not used, since it must name the
+        // every firing (sctk's own repeat source is not used, since it must name the
         // calloop data type and `delegate_keyboard!` names the non-generic `HostState`).
         self.input.repeating = Some(event);
         self.timers.push(TimerRequest::RepeatStart {
@@ -106,7 +106,7 @@ impl KeyboardHandler for HostState {
         });
     }
 
-    /// Unused: the host does not use sctk's repeat source (F9).
+    /// Unused: the host does not use sctk's repeat source.
     fn repeat_key(
         &mut self,
         _conn: &Connection,
@@ -164,8 +164,8 @@ impl KeyboardHandler for HostState {
         self.input.last_serial = serial;
         // Blitz's own key events (unchanged path): `key::key_event` reads `self.input.modifiers`.
         self.input.modifiers = modifiers_from(modifiers);
-        // `use_modifiers` (F66): the seat-wide cache, and the focused surface's live copy of it.
-        // The compositor may send this with no surface of ours focused (F61), so only the
+        // `use_modifiers`: the seat-wide cache, and the focused surface's live copy of it.
+        // The compositor may send this with no surface of ours focused, so only the
         // second write is conditional.
         self.input.held_modifiers = Modifiers::from_sctk(modifiers);
         if let Some(id) = self.input.keyboard_focus
@@ -227,11 +227,11 @@ impl HostState {
     }
 
     /// Surface `id` is being unmapped or closed by the host, possibly holding the keyboard
-    /// focus. If it does, end the stay now, the same way `withdraw_pointer` ends the pointer's
-    /// (FINDINGS F58): an unmap rebuilds the `wl_surface` and a close destroys it, so the
-    /// compositor's later `wl_keyboard.leave` cannot be matched to anything (G210); the host
+    /// focus. If it does, end the stay now, the same way `withdraw_pointer` ends the pointer's:
+    /// an unmap rebuilds the `wl_surface` and a close destroys it, so the
+    /// compositor's later `wl_keyboard.leave` cannot be matched to anything; the host
     /// resets its own record here instead of waiting for it. A later `enter` on a remapped
-    /// surface proceeds normally and publishes the seat's current modifiers (F66).
+    /// surface proceeds normally and publishes the seat's current modifiers.
     pub(crate) fn withdraw_keyboard(&mut self, id: SurfaceId) {
         if self.depart_keyboard(id) == Departure::Lost {
             self.reset_keyboard_focus(id);
@@ -248,7 +248,7 @@ impl HostState {
     }
 
     /// The effects of surface `id` losing the keyboard, once it is confirmed lost: forget when
-    /// it was focused, stop any repeat, reset its published modifiers to the default (F66) and
+    /// it was focused, stop any repeat, reset its published modifiers to the default and
     /// tell the shell once.
     fn reset_keyboard_focus(&mut self, id: SurfaceId) {
         self.input.focused_at = None;

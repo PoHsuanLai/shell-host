@@ -31,8 +31,8 @@ use crate::state::HostState;
 /// inside its resize band (`csd`), which injection never reaches.
 ///
 /// `PointerDown`, `Pointer` and `PointerUp` script a drag through the same code path a real
-/// `wl_pointer` press, motion and release do (`handlers/pointer.rs`, `HostState::deliver`,
-/// FINDINGS F70): a press, one or more `Pointer` moves while the button is still down (each
+/// `wl_pointer` press, motion and release do (`handlers/pointer.rs`, `HostState::deliver`):
+/// a press, one or more `Pointer` moves while the button is still down (each
 /// carrying the held button, as a real `Motion` would) and a release. `Click` is the
 /// degenerate case that never moves between the two: a whole click, in one call.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +70,7 @@ impl<M: 'static> HostCtx<M> {
     /// Deliver `inject` to surface `id`, through `HostState::deliver` — the same delivery a real
     /// `wl_pointer` press, motion or release uses (`handlers/pointer.rs`, `handlers/band.rs`):
     /// the document's cursor request is read back and the surface invalidated, exactly as for
-    /// real input, so hover, the render loop and the resolve's hover repair (FINDINGS F59) all
+    /// real input, so hover, the render loop and the resolve's hover repair all
     /// see an injected drag the way they would a real one. Input lands in the document at once
     /// and renders on the next flush; a capture renders now and writes the file before
     /// returning. `HostError::NoSurface` for an unknown id; a capture before the surface's first
@@ -267,7 +267,7 @@ mod tests {
     /// shapes as the real seat path (`handlers/pointer.rs`): the move-before-down carries no
     /// buttons yet, a move fed between the press and the release carries the pressed button
     /// (a real `Motion` while it is down would too, `HostState::pointer_moved`), and the button
-    /// is gone again after the release. Sill's G330: this is what a scripted drag needs and a
+    /// is gone again after the release. This is what a scripted drag needs and a
     /// whole `Click` cannot give — a move at the point in between.
     #[test]
     fn a_drag_presses_moves_with_the_button_held_then_releases() {

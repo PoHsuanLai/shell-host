@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Session-lock acceptance (FINDINGS F65): examples/demo_lock locks a throwaway cosmic-comp that
+# Session-lock acceptance: examples/demo_lock locks a throwaway cosmic-comp that
 # runs *inside* the headless KWin of kwin-virtual.sh, and is driven with fake-input.sh. Never
 # the user's session: KWin gets its own runtime directory (KWIN_VIRTUAL_RUNTIME), the nested
 # cosmic-comp puts its socket there too, demo_lock's guard refuses any other socket, and every

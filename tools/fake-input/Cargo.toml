@@ -1,6 +1,6 @@
 # A test-harness client for a nested KWin, outside the shell-host workspace: it needs
 # `wayland-protocols-plasma` (org_kde_kwin_fake_input), which is KDE-specific and not in the
-# pinned dependency block, and it never ships. See scripts/dev/fake-input.sh and FINDINGS F52.
+# pinned dependency block, and it never ships. See scripts/dev/fake-input.sh.
 [package]
 name = "fake-input"
 version = "0.1.0"

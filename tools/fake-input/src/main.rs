@@ -5,7 +5,7 @@
 //! move X Y              absolute pointer position, global logical px
 //! press left|right|middle
 //! release left|right|middle
-//! key KEYSYM down|up    an xkb keysym name (Return, a, Shift_L, F5), in KWin's own keymap
+//! key KEYSYM down|up    an xkb keysym name (Return, a, Shift_L), in KWin's own keymap
 //! type "text"           each character pressed and released, with Shift when the keymap needs it
 //! axis vertical|horizontal VALUE   one `axis` request: VALUE in wl_pointer axis units (KWin
 //!                       turns it into a wheel event; 15 is one detent on libinput's scale)
@@ -13,7 +13,7 @@
 //! ```
 //!
 //! Prints `ok <line>` after each command has reached the compositor (a roundtrip), or `err <line>:
-//! <why>` and carries on. Authorisation (FINDINGS F52): KWin 6 advertises the global only to a
+//! <why>` and carries on. Authorisation: KWin 6 advertises the global only to a
 //! client it trusts (`X-KDE-Wayland-Interfaces` in the client's .desktop file) or to every client
 //! when the compositor runs with `KWIN_WAYLAND_NO_PERMISSION_CHECKS=1`, which is what
 //! `scripts/dev/kwin-virtual.sh` sets; `authenticate` is then still sent first, as the protocol

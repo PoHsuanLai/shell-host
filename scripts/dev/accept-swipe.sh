@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A swiped banner's regions follow it (FINDINGS F73, sill G410): examples/demo_swipe (a 400 x 120
+# A swiped banner's regions follow it: examples/demo_swipe (a 400 x 120
 # Overlay layer anchored top-right whose blur and input regions follow `#card`) on a headless
 # KWin (kwin-virtual.sh), dragged by fake-input.sh. Never the user's session. The regions are
 # read from the demo's WAYLAND_DEBUG trace: each `set_input_region` / `set_blur_region` and the

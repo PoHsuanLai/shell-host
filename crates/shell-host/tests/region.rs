@@ -56,7 +56,7 @@ fn strip_pixels(rect: Rect) -> impl Iterator<Item = (Px, Px)> {
 const CASES: &[(Px, Px, Px, Px, Px)] = &[
     // (x, y, width, height, radius)
     (0, 0, 20, 20, 4),
-    (0, 0, 200, 32, 8),   // roughly the bar shape used by the spike example
+    (0, 0, 200, 32, 8),   // roughly a bar
     (0, 0, 33, 17, 6),    // odd dimensions
     (0, 0, 100, 100, 50), // radius clamps to a full circle
     (5, 5, 40, 40, 1),    // radius of 1, the smallest nontrivial corner

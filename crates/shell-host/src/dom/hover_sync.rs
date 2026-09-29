@@ -1,4 +1,4 @@
-//! Hover changes a resolve makes on its own: the pure part (FINDINGS F59).
+//! Hover changes a resolve makes on its own: the pure part.
 //!
 //! Blitz ends every `resolve` with `refresh_hover()`, which re-hit-tests the last pointer
 //! position against the fresh layout and moves the hovered node without dispatching anything

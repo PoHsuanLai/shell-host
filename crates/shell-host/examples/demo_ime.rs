@@ -1,4 +1,4 @@
-//! A plain text field for the IME acceptance (FINDINGS F71, `scripts/dev/accept-ime.sh`): one
+//! A plain text field for the IME acceptance (`scripts/dev/accept-ime.sh`): one
 //! 480 x 120 Overlay layer surface centred on the output with exclusive keyboard focus, as sill's
 //! launcher panel has, holding a real `<input>` that focuses itself when it mounts (so the field
 //! asks for the IME before the keyboard arrives, as the launcher's does).

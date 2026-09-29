@@ -1,6 +1,6 @@
-//! The two things a popup needs that S2's `PopupConfig` does not carry: the anchor rectangle
+//! The two things a popup needs that `PopupConfig` does not carry: the anchor rectangle
 //! (for `PopupAnchor::Rect`) and the content size (`PopupSize::Fixed`'s size, or
-//! `FitContent`'s first guess before the popup's document is measured). FINDINGS.md F4.
+//! `FitContent`'s first guess before the popup's document is measured).
 
 use crate::region::Rect;
 use crate::scale::Size;

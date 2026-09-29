@@ -75,7 +75,7 @@ fn rounded_rect(
 }
 
 /// Resolve a popup's anchor rectangle: `PopupAnchor::Rect` uses `placement_rect` (the value
-/// carried alongside the config, FINDINGS.md F4) unchanged; `PopupAnchor::Element` looks the
+/// carried alongside the config) unchanged; `PopupAnchor::Element` looks the
 /// element up the same way [`resolve`] does, falling back to `placement_rect` while the element
 /// is not yet laid out (a popup has to anchor somewhere even on its very first configure).
 pub fn resolve_popup_anchor(
@@ -245,7 +245,7 @@ mod tests {
     }
 
     /// A second element for the `Elements` cases: overlaps `PILL_RECT` on purpose (concatenated
-    /// strips are fine for a `wl_region`, G60).
+    /// strips are fine for a `wl_region`).
     const CARD_RECT: Rect = Rect {
         x: 60,
         y: 4,

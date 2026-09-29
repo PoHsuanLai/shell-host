@@ -1,10 +1,10 @@
-//! A bar menu's keyboard, for `scripts/dev/accept-popup-keyboard.sh` (FINDINGS F72): a 32 px
+//! A bar menu's keyboard, for `scripts/dev/accept-popup-keyboard.sh`: a 32 px
 //! `KeyboardMode::None` bar, like sill's, with one "Menu" button that opens a grabbing popup on
 //! its press (as sill's bar items do, so the grab carries the press's serial). The popup's panel
 //! focuses itself when it mounts and prints every key that reaches it; Escape closes it.
 //!
-//! The panel also prints the seat's input modality whenever it changes (`use_input_modality`,
-//! FINDINGS F74): `pointer` when it opens from the click, `keyboard` from the first key.
+//! The panel also prints the seat's input modality whenever it changes (`use_input_modality`):
+//! `pointer` when it opens from the click, `keyboard` from the first key.
 //!
 //! Lines on stdout, one JSON object each: `{"event":"opened"}`, `{"event":"key","key":..}`,
 //! `{"event":"modality","value":..}` and `{"event":"closed"}`. stdin: `quit`.

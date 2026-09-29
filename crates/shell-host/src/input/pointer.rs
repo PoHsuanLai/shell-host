@@ -1,6 +1,6 @@
 //! Pointer input -> Blitz events: the pure part.
 //!
-//! The rules (plan "Input", SPIKE.md S1 finding 2, design/13 §13.3.8):
+//! The rules (plan "Input", design/13 §13.3.8):
 //!
 //! - Buttons are evdev codes 272..=276 (`BTN_LEFT`..`BTN_EXTRA`); anything else is ignored.
 //! - A press is preceded by a synthesized `PointerMove` to the same point, because a surface
@@ -8,7 +8,7 @@
 //!   resolves the press target from its hover state.
 //! - An enter is followed by the same synthesized move to its position: a pointer that reaches
 //!   a surface in one motion gets the enter and no motion, and would hover nothing until it
-//!   moved again (FINDINGS F57).
+//!   moved again.
 //! - Leaving a surface is a move to (-1, -1), which unhovers through Blitz's own hover change
 //!   (so `mouseleave` handlers run), then `clear_hover()` as a backstop; both are the caller's
 //!   effect (`SurfaceDocument::pointer_left`).

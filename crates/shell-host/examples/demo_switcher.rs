@@ -1,18 +1,17 @@
-//! An Exclusive-keyboard layer surface for the modifiers acceptance (FINDINGS F66, F67): a
-//! small centred panel, spawned only on the first `map` stdin command (so a script can hold a
-//! modifier or toggle a lock key before the surface, and its `wl_keyboard.enter`, ever exists).
-//! A later `unmap`/`map` pair hides and re-shows the *same* surface (`Visibility::Hidden` /
-//! `Shown`, not a close and respawn): `unmap` rebuilds its `wl_surface` (FINDINGS F58's unmap,
-//! the one G210 catches for the keyboard) while keeping its `SurfaceId` and document, exactly
-//! the shape a real keyboard-exclusive surface (an app switcher, a lock screen, a power menu)
-//! maps and unmaps in. Its document reads `use_modifiers()` and prints
+//! An Exclusive-keyboard layer surface for the modifiers acceptance: a small centred panel, spawned
+//! only on the first `map` stdin command (so a script can hold a modifier or toggle a lock key
+//! before the surface, and its `wl_keyboard.enter`, ever exists). A later `unmap`/`map` pair hides
+//! and re-shows the *same* surface (`Visibility::Hidden` / `Shown`, not a close and respawn):
+//! `unmap` rebuilds its `wl_surface` (the unmap that must withdraw the keyboard) while keeping its
+//! `SurfaceId` and document, exactly the shape a real keyboard-exclusive surface (an app switcher,
+//! a lock screen, a power menu) maps and unmaps in. Its document reads `use_modifiers()` and prints
 //! `{"event":"modifiers",..}` on its first render and every change: the seat's already-current
-//! state right after `wl_keyboard.enter`, then whatever `wl_keyboard.modifiers` reports next
-//! (a held key released, a lock key toggled), and nothing at all if none of that changes. The
-//! host loop also prints `{"event":"focus","state":"Gained"|"Lost"}` for the surface's own
-//! `HostEvent::KeyboardFocus`: a host that withdraws the keyboard at unmap (G210) prints `Lost`
-//! there, before the next `map`'s `Gained`; one that does not goes straight from `Gained` to
-//! `Gained` again, with no `Lost` between them.
+//! state right after `wl_keyboard.enter`, then whatever `wl_keyboard.modifiers` reports next (a
+//! held key released, a lock key toggled), and nothing at all if none of that changes. The host
+//! loop also prints `{"event":"focus","state":"Gained"|"Lost"}` for the surface's own
+//! `HostEvent::KeyboardFocus`: a host that withdraws the keyboard at unmap prints `Lost` there,
+//! before the next `map`'s `Gained`; one that does not goes straight from `Gained` to `Gained`
+//! again, with no `Lost` between them.
 //!
 //! stdin, one command per line: `map`, `unmap`, `quit`.
 
@@ -112,9 +111,9 @@ fn run() -> Result<(), String> {
         }
         let _ = handle.send(Command::Quit);
     });
-    // `None` until the first `map`; after that the surface stays alive (hidden or shown) for
-    // the rest of the run, so `unmap`/`map` exercise the true unmap-and-rebuild path (F58,
-    // G210) rather than a close and a fresh spawn.
+    // `None` until the first `map`; after that the surface stays alive (hidden or shown) for the
+    // rest of the run, so `unmap`/`map` exercise the true unmap-and-rebuild path rather than a
+    // close and a fresh spawn.
     let mut surface: Option<SurfaceId> = None;
     host.run(move |ctx, event| match event {
         HostEvent::App(Command::Map) => match surface {

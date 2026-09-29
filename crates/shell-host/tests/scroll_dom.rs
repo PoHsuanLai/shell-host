@@ -515,7 +515,7 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     assert_eq!(bench.offset(plain), 80.0);
     // Nothing focused and nothing scrollable under the pointer: the document's key. (Between
     // the boxes: Blitz's hit test does not clip a scroller's overflow, so a point under a
-    // scroller's hidden content hits it; FINDINGS F63.)
+    // scroller's hidden content hits it.)
     let nowhere = Some(PointerPos { x: 210.0, y: 110.0 });
     let mut fresh = keyed_bench();
     assert_eq!(

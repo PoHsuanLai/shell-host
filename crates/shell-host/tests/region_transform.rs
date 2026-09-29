@@ -1,4 +1,4 @@
-//! sill F1010 / G410 (FINDINGS F73): an element region follows where the element paints, not
+//! An element region follows where the element paints, not
 //! its layout box. A box moved by a CSS `transform` (quire's swipe `--swipe-dx`, its
 //! `banner-out` keyframes) resolved to its untransformed rect, so a blur region on it stayed
 //! behind as a grey rectangle while the card was dragged or slid out.

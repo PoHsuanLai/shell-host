@@ -29,15 +29,15 @@ use crate::root::Root;
 use crate::scale::Size;
 
 /// The host's user-agent stylesheet, added to every document. A sized root is what lets Blitz
-/// hit-test into the content at all (SPIKE.md S1 finding 2: with `html,body` at zero height,
-/// hover never reached the dock icons), and a transparent body is what lets blur and the
+/// hit-test into the content at all (with `html,body` at zero height, hover never reached
+/// the dock icons), and a transparent body is what lets blur and the
 /// desktop show through. Margins and the rest of the reset come from quire's `css/reset.css`.
 pub const UA_STYLESHEET: &str = "html,body{height:100%;background:transparent}";
 
 /// Zero `<body>`'s margin, added to every document the host builds (the headless path too):
 /// Blitz's default stylesheet gives it `margin: 8px` (`blitz-dom/assets/default.css`), which
 /// kept a bare document, one without quire's reset, from ever reaching its surface's (0, 0)
-/// corner (FINDINGS F62). A user-agent sheet, so any rule of the document's own wins.
+/// corner. A user-agent sheet, so any rule of the document's own wins.
 pub const BODY_RESET: &str = "body{margin:0}";
 
 /// Everything a document is built with besides its root.
@@ -79,7 +79,7 @@ pub struct SurfaceDocument {
     prepaint: Prepaint,
     /// The last real pointer position the surface fed, for `resolve`'s hover repair.
     last_move: LastMove,
-    /// The document's shell provider, for `resolve`'s IME repair (FINDINGS F71).
+    /// The document's shell provider, for `resolve`'s IME repair.
     shell: Arc<HostShellProvider>,
 }
 
@@ -137,7 +137,7 @@ impl SurfaceDocument {
     ///
     /// `DioxusDocument::poll` renders and returns as soon as the `VirtualDom` has dirty work,
     /// without the `VirtualDom` keeping `cx`'s waker: only a poll that finds nothing to do
-    /// leaves it registered. So this polls until one finds nothing (FINDINGS F33); stopping
+    /// leaves it registered. So this polls until one finds nothing; stopping
     /// after a render would lose the next wake of any task (a frame tick, a `use_watch`
     /// value) and leave the document unpolled until something else woke it. A document still
     /// busy after `MAX_POLLS` wakes itself and is polled again on the next flush.
@@ -211,15 +211,14 @@ impl SurfaceDocument {
     }
 
     /// Resolve style and layout at document time `t` (seconds on the host clock), hoist the
-    /// z-indexed boxes again from the fresh layout (Blitz gathers them from the previous one,
-    /// FINDINGS F69), enable the IME for a text field focused before it had a layout (F71),
-    /// repair the hover the resolve moved, then run the pre-paint hook on the
-    /// result (and hoist once more after it). Resolve and hook are
-    /// one call because Blitz re-rounds the layout on every resolve: a hook that snapped it must
-    /// follow each one, or the paint shows the unsnapped layout. So a frame resolves exactly
-    /// once, here, and paints what this left. The hover repair (FINDINGS F59) touches hover
-    /// state and runs handlers, never layout, so the hook and the paint see the same layout;
-    /// the restyle it causes is the next frame's (`Resolved::hover`).
+    /// z-indexed boxes again from the fresh layout (Blitz gathers them from the previous one),
+    /// enable the IME for a text field focused before it had a layout, repair the hover the resolve
+    /// moved, then run the pre-paint hook on the result (and hoist once more after it). Resolve and
+    /// hook are one call because Blitz re-rounds the layout on every resolve: a hook that snapped
+    /// it must follow each one, or the paint shows the unsnapped layout. So a frame resolves
+    /// exactly once, here, and paints what this left. The hover repair touches hover state and runs
+    /// handlers, never layout, so the hook and the paint see the same layout; the restyle it causes
+    /// is the next frame's (`Resolved::hover`).
     pub fn resolve(&mut self, t: f64) -> Resolved {
         let before = self.hovered();
         self.doc.inner_mut().resolve(t);
@@ -241,7 +240,7 @@ impl SurfaceDocument {
     }
 
     /// Ask for the IME a text field focused before its first layout could not ask for itself
-    /// (`dom::ime_focus`, FINDINGS F71).
+    /// (`dom::ime_focus`).
     fn repair_ime(&self) {
         let focused = ime_focus::focused_field(&self.doc.inner());
         if let Repair::Enable { cursor_area } = ime_focus::repair(self.shell.ime(), focused) {
@@ -305,7 +304,7 @@ impl SurfaceDocument {
 
     /// Where the element `id` names paints, in surface-local logical pixels: its layout box
     /// (`get_client_bounding_rect`) carried through its own and its ancestors' CSS transforms
-    /// (`dom::painted`, FINDINGS F73), rounded outward (`geometry::enclosing_rect`); `None`
+    /// (`dom::painted`), rounded outward (`geometry::enclosing_rect`); `None`
     /// before layout or when absent. What `RegionSpec::Element(s)` and `PopupAnchor::Element`
     /// resolve against, once per rendered frame, so a region follows a transform as it
     /// animates.

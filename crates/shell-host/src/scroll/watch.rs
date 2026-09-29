@@ -2,7 +2,7 @@
 //! offset, extent and phase of every scroller a component watches with [`use_scroll`]. Blitz's
 //! own `onscroll` never fires for the engine's raw writes, so this is the one way to follow a
 //! scroll. (design/11 §11.7 named it `ds-native::use_scroll`; it lives here, next to the engine
-//! that feeds it: FINDINGS F63.)
+//! that feeds it.)
 
 use std::cell::RefCell;
 use std::collections::HashMap;

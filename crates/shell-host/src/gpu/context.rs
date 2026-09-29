@@ -34,8 +34,7 @@ pub struct GpuContext {
     pub(crate) device: DeviceHandle,
     pub(crate) renderer: Renderer,
     pub(crate) resources: Resources,
-    /// Uploaded images by content hash, kept across frames (SPIKE.md S1 finding 5; the spike
-    /// rebuilt it every frame because the types were not in the pinned block).
+    /// Uploaded images by content hash, kept across frames.
     pub(crate) images: FxHashMap<u64, ImageId>,
     pub(crate) widgets: ContextProxy,
     pub(crate) adapter: AdapterFacts,
@@ -149,7 +148,8 @@ fn create(instance: &wgpu::Instance, adapter: wgpu::Adapter) -> Result<GpuContex
     }))
     .map_err(|e| HostError::NoAdapter(format!("{}: no device: {e}", facts.label())))?;
     DEVICES_CREATED.fetch_add(1, Ordering::Relaxed);
-    // The render target size is rewritten by every `render` (SPIKE.md S1 finding 5).
+    // The render target size is rewritten by every `render`, so one renderer serves
+    // surfaces of every size.
     let renderer = Renderer::new(
         &device,
         &RenderTargetConfig {

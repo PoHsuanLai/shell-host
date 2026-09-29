@@ -4,7 +4,7 @@
 //!
 //! Offsets are written raw: `set_viewport_scroll` for the viewport and `scroll_offset_mut` for
 //! an element. Neither clamps, redraws, dispatches `scroll` or shows Blitz's scrollbars, and
-//! nothing in `BaseDocument::resolve` clamps them back (FINDINGS F63). Blitz's own scroll paths
+//! nothing in `BaseDocument::resolve` clamps them back. Blitz's own scroll paths
 //! (`scroll_chain_by` from a forwarded wheel, `scroll_to`, a fling) clamp and would undo a
 //! stretch, so the host never forwards a wheel except to a `data-wheel="capture"` element.
 

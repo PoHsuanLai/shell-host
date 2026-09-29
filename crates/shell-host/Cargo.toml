@@ -39,12 +39,12 @@ image = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
-# Proposed for the pinned block (root Cargo.toml, FINDINGS.md F1): the shared image cache.
+# The per-device image cache (`gpu::context`).
 rustc-hash = { workspace = true }
 vello_common = { workspace = true }
 # The debug-inject JSON stats lines, and the palmrest socket's messages (input::palmrest).
 serde_json = { workspace = true }
-# The overlay scroll thumb's shapes and colour (scroll::paint); in the pinned block since S3.
+# The overlay scroll thumb's shapes and colour (scroll::paint).
 peniko = { workspace = true }
 # SOCK_SEQPACKET for the palmrest socket (std has no seqpacket, and unsafe is not allowed
 # here); in the pinned block since quire b45282a.
@@ -79,27 +79,26 @@ required-features = ["debug-inject"]
 [[example]]
 name = "demo_dock"
 required-features = ["debug-inject"]
-# The tick mode's motion math has unit tests (FINDINGS F36).
+# The tick mode's motion math has unit tests.
 test = true
 
-# G7 acceptance: a `PopupSize::FitContent` popup measures its own content and re-fits when it
-# grows (FINDINGS.md F37).
+# A `PopupSize::FitContent` popup measures its own content and re-fits when it
+# grows.
 [[example]]
 name = "demo_popup"
 required-features = ["debug-inject"]
 
-# A wallpaper-shaped Background surface whose content changes after its first frame
-# (FINDINGS.md F40, sill F171/G21).
+# A wallpaper-shaped Background surface whose content changes after its first frame.
 [[example]]
 name = "demo_wallpaper"
 required-features = ["debug-inject"]
 
-# A client-decorated toplevel: move, resize band, maximize, configure state (FINDINGS F46-F49).
+# A client-decorated toplevel: move, resize band, maximize, configure state.
 [[example]]
 name = "demo_window"
 required-features = ["debug-inject"]
 
-# The session lock's acceptance (FINDINGS F65); its guard against locking a real session is
+# The session lock's acceptance; its guard against locking a real session is
 # table-tested.
 [[example]]
 name = "demo_lock"
@@ -109,15 +108,15 @@ test = true
 name = "headless"
 required-features = ["headless"]
 
-# The IME acceptance (FINDINGS F71): a plain `<input>` on an exclusive-keyboard Overlay layer.
+# The IME acceptance: a plain `<input>` on an exclusive-keyboard Overlay layer.
 [[example]]
 name = "demo_ime"
 
-# The popup keyboard acceptance (FINDINGS F72): a None bar and a grabbing popup that prints its keys.
+# The popup keyboard acceptance: a None bar and a grabbing popup that prints its keys.
 [[example]]
 name = "demo_popup_keys"
 
-# The swipe acceptance (FINDINGS F73): a banner whose blur and input regions follow a card as a
+# The swipe acceptance: a banner whose blur and input regions follow a card as a
 # drag and an exit animation transform it.
 [[example]]
 name = "demo_swipe"

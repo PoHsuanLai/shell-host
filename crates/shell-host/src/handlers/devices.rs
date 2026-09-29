@@ -1,6 +1,6 @@
 //! The seat's device objects (`wl_pointer` with its cursor-shape device, `wl_keyboard`): made
-//! once per capability and released when it goes, as `input::capability` decides (FINDINGS
-//! F53). An object that is dropped without `release` stays live on the compositor's side and
+//! once per capability and released when it goes, as `input::capability` decides.
+//! An object that is dropped without `release` stays live on the compositor's side and
 //! keeps delivering every press, so every path that forgets one releases it here.
 
 use blitz_traits::events::MouseEventButtons;

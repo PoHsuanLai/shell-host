@@ -251,8 +251,8 @@ fn fixed_size_ignores_a_configured_max() {
 
 #[test]
 fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_rect() {
-    // `PopupConfig` is no longer `Copy` once its anchor can own an `ElementId`
-    // (FINDINGS.md F3); this proves the type still builds and positions correctly either way.
+    // `PopupConfig` is no longer `Copy` once its anchor can own an `ElementId`;
+    // this proves the type still builds and positions correctly either way.
     let config = PopupConfig {
         anchor: PopupAnchor::Element(ElementId::new("dock-pill")),
         size: PopupSize::Fixed,
@@ -302,7 +302,7 @@ fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
     assert_eq!(Offset::default(), Offset::ZERO);
 }
 
-/// `popup::refit` (G7): a `FitContent` popup's placement changes, clamped to `max`, exactly
+/// `popup::refit`: a `FitContent` popup's placement changes, clamped to `max`, exactly
 /// when the measured content differs from its current placement.
 #[test]
 fn refit_reflows_a_fit_content_popup_to_its_measured_content_clamped_to_max() {

@@ -1,11 +1,11 @@
-//! The host's body reset (FINDINGS F62): Blitz's default stylesheet gives `<body>` an 8 px
+//! The host's body reset: Blitz's default stylesheet gives `<body>` an 8 px
 //! margin, and the host zeroes it with a user-agent sheet, so a bare document (no quire root,
 //! no stylesheet of its own) reaches its surface's (0, 0) corner, while a document's own body
 //! rule still wins.
 //!
 //! The reset fixes the corner, not the height: an `inset:0` box is placed against its parent,
 //! dioxus-native-dom's `height:auto` `#main`, which an all-positioned document leaves 0 px tall
-//! (sill F172, quire's `RootExtent::Viewport`). A box sized in viewport units covers it all.
+//! (quire's `RootExtent::Viewport`). A box sized in viewport units covers it all.
 
 use std::sync::Arc;
 use std::task::Context;
@@ -77,7 +77,7 @@ fn a_bare_documents_inset_zero_box_starts_at_the_corner_and_spans_the_width() {
     let rect = fill_rect(&doc);
     assert_eq!((rect.x, rect.y), (0, 0));
     assert_eq!(rect.width, WIDTH as i32);
-    // `#main` is as tall as its flow content, none here (sill F172): unchanged by the reset.
+    // `#main` is as tall as its flow content, none here: unchanged by the reset.
     assert_eq!(rect.height, 0);
 }
 

@@ -133,13 +133,13 @@ impl Dispatch<ZwpTextInputV3, ()> for HostState {
 }
 
 /// Apply a document's IME request (`dom::shell_provider::ImeRequest`, read by whoever drains
-/// `HostShellProvider::ime()` at flush — `HostCtx`, H2 core) to the protocol object: `enable` +
+/// `HostShellProvider::ime()` at flush, `HostCtx`) to the protocol object: `enable` +
 /// a default content type, or `disable`, followed by `set_cursor_rectangle` and `commit` (plan
 /// "set_ime_enabled -> enable + content type + commit, cursor area -> set_cursor_rectangle").
 /// Does nothing without a text input object (no `zwp_text_input_manager_v3`, or no keyboard
 /// capability yet). Not gated on the `done` serial matching our own commit count (a compositor
 /// that acknowledges a stale commit is treated the same as one that is current) — a known
-/// simplification, see this crate's H2-input report.
+/// simplification.
 pub(crate) fn apply_ime_request(state: &mut HostState, request: ImeRequest) {
     let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
         return;

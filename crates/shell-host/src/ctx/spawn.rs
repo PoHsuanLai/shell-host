@@ -85,7 +85,7 @@ pub(super) fn toplevel(state: &mut HostState, id: SurfaceId, config: ToplevelCon
 }
 
 /// Create and map popup `id` on `parent`. A grabbing popup lifts a `KeyboardMode::None` parent
-/// layer to `OnDemand` until it closes, except on KWin (`popup_keyboard`, F72).
+/// layer to `OnDemand` until it closes, except on KWin (`popup_keyboard`).
 pub(super) fn popup(
     state: &mut HostState,
     parent: SurfaceId,
@@ -768,7 +768,7 @@ mod tests {
     }
 
     /// One seat modality, two surfaces: a key press the host notes re-renders both documents,
-    /// a repeated value wakes neither, and a pointer press turns both back (FINDINGS F74).
+    /// a repeated value wakes neither, and a pointer press turns both back.
     #[test]
     fn use_input_modality_is_the_seats_across_surfaces() {
         use crate::modality::{self, InputModality, KeyKind, Stroke};

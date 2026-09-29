@@ -1,4 +1,4 @@
-//! The session lock's acceptance demo (FINDINGS F65): on `lock` it locks the session
+//! The session lock's acceptance demo: on `lock` it locks the session
 //! (`HostCtx::lock_session`) with one document per output, a plain password field
 //! (`screen.rs`); typing "letmein" and Enter unlocks through the document's `LockHandle`.
 //!

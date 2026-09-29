@@ -238,7 +238,7 @@ const RAISED_STYLES: &str = "
 ";
 
 /// A document's very first resolve paints its z-indexed boxes in place: Blitz gathers them
-/// before laying out, when every location is still zero (FINDINGS F69), so without the
+/// before laying out, when every location is still zero, so without the
 /// re-hoist the second tile's body painted over the first tile's.
 #[test]
 fn the_first_frame_paints_raised_boxes_where_layout_put_them() {

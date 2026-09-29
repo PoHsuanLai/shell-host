@@ -1,5 +1,5 @@
 //! GPU rendering: one adapter, one device and one `vello_hybrid::Renderer` for every surface
-//! (SPIKE.md S1 item g: the second surface costs ~1.8 MB, so per-surface devices are
+//! (the second surface costs ~1.8 MB, so per-surface devices are
 //! unnecessary), with a CPU `wl_shm` presenter as the fallback.
 
 pub mod adapter;

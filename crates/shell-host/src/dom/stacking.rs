@@ -1,4 +1,4 @@
-//! Re-hoisting z-indexed boxes after layout (FINDINGS F69).
+//! Re-hoisting z-indexed boxes after layout.
 //!
 //! Blitz's `resolve` gathers each stacking context's z-indexed descendants in
 //! `flush_styles_to_layout`, adding up their ancestors' `final_layout().location` and scroll

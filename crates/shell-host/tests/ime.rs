@@ -9,7 +9,7 @@ use shell_host::ime::{DeleteSurrounding, Preedit, on_done};
 
 /// One step in a wire sequence: which buffered field it sets (`PendingIme` is double-buffered,
 /// so later events of the same kind in one cycle replace earlier ones; every `done` resets the
-/// shown preedit, so anything but a lone new preedit starts with a clear, FINDINGS F71).
+/// shown preedit, so anything but a lone new preedit starts with a clear).
 #[derive(Debug, Clone, Default)]
 struct Pending {
     preedit: Option<Preedit>,

@@ -23,7 +23,7 @@ shell-host = { path = "crates/shell-host" }
 # Blitz: git main, pinned by rev (crates.io dioxus-native 0.8 alpha does not build with
 # blitz 0.3.0-beta.2). The in-tree dioxus-native-dom targets dioxus 0.7.x.
 # Blitz comes from our fork (github.com/PoHsuanLai/blitz, branch quire-pin): upstream e99fbdbd plus
-# bf588142, which restyles elements whose animation was cancelled mid-way (sill G295). Move back
+# bf588142, which restyles elements whose animation was cancelled mid-way. Move back
 # to DioxusLabs/blitz when a toolchain-bump wave finds the fix (or its equivalent) upstream.
 blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "bf58814298b829bb42673424e86926cbd2af8f07", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility"] }
 blitz-paint = { git = "https://github.com/PoHsuanLai/blitz", rev = "bf58814298b829bb42673424e86926cbd2af8f07", features = ["custom-widget"] }

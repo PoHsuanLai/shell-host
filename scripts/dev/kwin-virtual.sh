@@ -8,21 +8,21 @@
 # start writes scripts/dev/.kwin-env (WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS, the pids, the
 # log path); `source` it to run clients, `gdbus`, `kscreen-doctor` or the KWin scripts against
 # this instance. The compositor runs with KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 so that
-# scripts/dev/fake-input.sh is offered org_kde_kwin_fake_input (FINDINGS F52); never set that on
+# scripts/dev/fake-input.sh is offered org_kde_kwin_fake_input; never set that on
 # a real session. Its log (QT_LOGGING_RULES enables `js` so KWin scripts' print() lands there)
 # is scripts/dev/out/kwin-virtual.log.
 #
 # The private D-Bus session bus runs on scripts/dev/private-bus.conf, not the stock session
 # config: the stock config's service directories let a client's `Notify` D-Bus-activate KDE's
 # own notification service inside this headless session, which would answer for the shell's own
-# notification banners under test (FINDINGS F56). private-bus.conf has no servicedirs, so
+# notification banners under test. private-bus.conf has no servicedirs, so
 # nothing on this bus is activatable.
 #
 # KWin gets its own empty XDG_CONFIG_HOME (scripts/dev/out/kwin-virtual-config): otherwise it
 # reads the user's kwinrc and runs the user's installed KWin scripts (window rules, tiling or
 # maximize helpers), which would act on the windows under test. Clients keep their own config.
 #
-# stop ends exactly what start started, never the caller (FINDINGS F54). start runs the bus and
+# stop ends exactly what start started, never the caller. start runs the bus and
 # KWin in their own transient systemd --user scope (`systemd-run --user --scope`), so everything
 # they start lands in its cgroup, including D-Bus-activated services (portals, gvfsd, at-spi,
 # fcitx5, ksecretd), which daemonize and are reparented to init; stop is then
@@ -33,17 +33,17 @@
 # A process that merely names the private bus in its environment (a script that sourced
 # .kwin-env, a client it started) is not the helper's to kill: the caller ends its own clients.
 #
-# KWIN_VIRTUAL_INPUTMETHOD=<program> (opt-in; accept-ime.sh, FINDINGS F71) starts KWin with
+# KWIN_VIRTUAL_INPUTMETHOD=<program> (opt-in; accept-ime.sh) starts KWin with
 # `--inputmethod <program>` (fcitx5 over zwp_input_method_v1); the program inherits the private
 # bus and config, and gets private XDG_DATA_HOME, XDG_CACHE_HOME and XDG_STATE_HOME under it.
 # KWIN_VIRTUAL_CONFIG_SEED=<dir> is copied into the empty XDG_CONFIG_HOME first (an fcitx5
 # profile, say).
 #
-# KWIN_VIRTUAL_GLOBAL_SHORTCUTS=1 (opt-in, diagnosis only; FINDINGS F72) drops
+# KWIN_VIRTUAL_GLOBAL_SHORTCUTS=1 (opt-in, diagnosis only) drops
 # --no-global-shortcuts, so a seeded kwinrc's KWin scripts can invoke kglobalaccel shortcuts
 # (the Overview) inside this KWin; its shortcuts act only on this KWin's (fake) input.
 #
-# KWIN_VIRTUAL_RUNTIME=<dir> (opt-in; accept-lock.sh uses it, FINDINGS F65) gives the headless
+# KWIN_VIRTUAL_RUNTIME=<dir> (opt-in; accept-lock.sh uses it) gives the headless
 # KWin its own runtime directory: start makes <dir> (mode 700, it must not exist yet), runs KWin
 # with XDG_RUNTIME_DIR=<dir> so its socket is <dir>/wayland-kwinvirt-<pid>, writes the marker
 # <dir>/.shell-host-virtual-compositor, and .kwin-env then exports that XDG_RUNTIME_DIR and the

@@ -1,6 +1,6 @@
 //! The one module allowed `unsafe`: a wgpu surface from raw Wayland handles, and the
 //! `wl_display` as a `HasDisplayHandle` for `InstanceDescriptor` (GL needs it at instance
-//! creation; SPIKE.md S1 "API changes").
+//! creation).
 #![allow(unsafe_code)]
 
 use std::ffi::c_void;
@@ -20,7 +20,7 @@ use crate::error::{HostError, Result};
 /// Caller contract: the returned surface must drop before `surface` is destroyed and before
 /// `conn` closes. `HostSurface` guarantees the first by declaring its presenter before its role
 /// (fields drop in declaration order); `HostState`'s `Drop` clears every surface before the
-/// connection goes (SPIKE.md S1 finding 6).
+/// connection goes.
 pub fn create_surface(
     instance: &wgpu::Instance,
     conn: &Connection,

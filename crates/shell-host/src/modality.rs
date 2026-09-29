@@ -1,7 +1,7 @@
 //! How the person last drove the seat, pointer or keyboard, published to every surface's
-//! document (`use_input_modality`, FINDINGS F74, sill G390): what a design system's
-//! `:focus-visible`-like focus ring follows. Blitz never matches `:focus-visible` (quire spike
-//! S12), so quire draws its ring under `.ds[data-modality=keyboard]` and asks the host, which
+//! document (`use_input_modality`): what a design system's
+//! `:focus-visible`-like focus ring follows. Blitz never matches `:focus-visible` (a quire
+//! finding), so quire draws its ring under `.ds[data-modality=keyboard]` and asks the host, which
 //! sees the raw input, which modality is current (`ds::HostModality`).
 //!
 //! One value per seat, shared by every surface: a key press in the launcher and a Tab into a

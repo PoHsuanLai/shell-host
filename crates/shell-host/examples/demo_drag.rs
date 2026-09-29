@@ -1,10 +1,10 @@
-//! A draggable thumbnail for real-input drag acceptance (FINDINGS F60) and the modifier probe
-//! of F61: a 64 x 64 layer surface at the output's bottom-right corner (margin 40, so on a
-//! 1920 x 1080 output it covers 1816..1880 x 976..1040, clear of where a compositor places a
-//! first window). A press on it followed by a move of more than 8 px starts a
+//! A draggable thumbnail for real-input drag acceptance and the modifier probe
+//! (`scripts/dev/probe-modifiers.sh`): a 64 x 64 layer surface at the output's bottom-right corner
+//! (margin 40, so on a 1920 x 1080 output it covers 1816..1880 x 976..1040, clear of where a
+//! compositor places a first window). A press on it followed by a move of more than 8 px starts a
 //! `DragPayload::Uris` drag of a temporary file (`SurfaceHandle::start_drag`); the outcome is
-//! printed as `drag: outcome {json}` when the drag ends, and `stats` on stdin prints
-//! `drag: stats {"started":N,"outcome":{json}|null}`.
+//! printed as `drag: outcome {json}` when the drag ends, and `stats` on stdin prints `drag: stats
+//! {"started":N,"outcome":{json}|null}`.
 //!
 //! Every mouse enter prints `drag: mods enter [..]` and every change of the modifiers a move
 //! carries prints `drag: mods move [..]`: the modifier state the host attaches to pointer

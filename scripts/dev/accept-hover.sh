@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Real-input hover acceptance (FINDINGS F57, F58): examples/demo_hover's two stacked cards on a
+# Real-input hover acceptance: examples/demo_hover's two stacked cards on a
 # headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's session, never a
-# nested cosmic-comp (fake input cannot reach it, F52).
+# nested cosmic-comp (fake input cannot reach it).
 #
 #   scripts/dev/accept-hover.sh          builds demo_hover, runs the steps, stops everything
 #   HOVER_TRACE=1 scripts/dev/accept-hover.sh   the same with WAYLAND_DEBUG=1 on demo_hover
 #
 # Steps (the cards are 320 x 120, centred on a 1920 x 1080 output: 800..1120 x 480..600):
-#   enter_one_motion  one motion from the desktop onto `top`: `top enter` (F57)
+#   enter_one_motion  one motion from the desktop onto `top`: `top enter`
 #   unmap_under       `hide top` with the pointer still: `top leave`, then `bottom enter`,
-#                     without the pointer moving (F58, and F57 for the enter KWin sends)
+#                     without the pointer moving (the enter KWin sends carries the position)
 #   remap_under       `show top` with the pointer still: `bottom leave`, `top enter`; the
-#                     re-mapped surface's document hovers afresh (F58)
+#                     re-mapped surface's document hovers afresh
 #   slide_under_resting  the pointer rests on the `slide` surface's pad (bottom-left,
 #                     0..320 x 960..1080); 600 ms later its slider is placed under it; after a
 #                     wait and a 1 px nudge, `stats` must show the slider entered exactly once
-#                     and the pad left once (F59: Blitz's refresh_hover moved the hover silently)
+#                     and the pad left once (Blitz's refresh_hover moved the hover silently)
 # Each step prints PASS/FAIL with the lines demo_hover printed during it; the log is
 # scripts/dev/out/hover.log.
 set -uo pipefail
