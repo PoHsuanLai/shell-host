@@ -43,7 +43,7 @@ dioxus-document = "0.7"
 # Render stack, matched to blitz's lockfile at the rev above.
 anyrender = "0.13"
 anyrender_vello_hybrid = "0.10"
-anyrender_vello_cpu = { version = "0.17", features = ["multithreading"] }
+anyrender_vello_cpu = { version = "0.17", features = ["multithreading", "filters"] }
 vello_hybrid = "0.1"
 wgpu = "29"
 wgpu_context = "0.9"
@@ -110,3 +110,19 @@ latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "43ebf45f244a23c
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
+
+# vello and anyrender come from our forks (github.com/PoHsuanLai/vello and /anyrender, branch
+# quire-filters): the colour matrix filter, multi-threaded filter layers and CSS filter lists, so
+# every CSS `filter` function paints on both backends. Move back to crates.io once upstream has
+# them (blitz-kit docs/blitz-gaps.md tracks the PRs).
+[patch.crates-io]
+vello_common = { git = "https://github.com/PoHsuanLai/vello", rev = "1722f6234e10b95d574d2252698a6cc7cdcadb82" }
+vello_cpu = { git = "https://github.com/PoHsuanLai/vello", rev = "1722f6234e10b95d574d2252698a6cc7cdcadb82" }
+vello_hybrid = { git = "https://github.com/PoHsuanLai/vello", rev = "1722f6234e10b95d574d2252698a6cc7cdcadb82" }
+vello_sparse_shaders = { git = "https://github.com/PoHsuanLai/vello", rev = "1722f6234e10b95d574d2252698a6cc7cdcadb82" }
+glifo = { git = "https://github.com/PoHsuanLai/vello", rev = "1722f6234e10b95d574d2252698a6cc7cdcadb82" }
+anyrender = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a0825ebfc0443f3ef0830c0e09f2d85df3da632b" }
+anyrender_vello_cpu = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a0825ebfc0443f3ef0830c0e09f2d85df3da632b" }
+anyrender_vello_hybrid = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a0825ebfc0443f3ef0830c0e09f2d85df3da632b" }
+wgpu_context = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a0825ebfc0443f3ef0830c0e09f2d85df3da632b" }
+pixels_window_renderer = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a0825ebfc0443f3ef0830c0e09f2d85df3da632b" }
