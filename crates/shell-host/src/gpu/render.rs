@@ -2,6 +2,8 @@
 //! surface's `vello_hybrid::Scene` via a `VelloHybridScenePainter` borrowing the device's image
 //! cache and widget textures, then `Renderer::render` into the swapchain texture. The frame
 //! callback is requested before this, and `SurfaceTexture::present` after.
+//!
+//! See FINDINGS F75.
 
 use anyrender_vello_hybrid::{ImageManager, VelloHybridScenePainter};
 use blitz_dom::BaseDocument;

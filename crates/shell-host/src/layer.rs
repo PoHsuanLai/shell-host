@@ -1,5 +1,7 @@
 //! Layer-shell surfaces: what a shell asks for when it spawns a bar, a dock or an overlay, and
 //! the `zwlr_layer_surface_v1` wire values each choice becomes.
+//!
+//! See FINDINGS F76.
 
 use smithay_client_toolkit::shell::wlr_layer::{
     Anchor as WireAnchor, KeyboardInteractivity, Layer as WireLayer,

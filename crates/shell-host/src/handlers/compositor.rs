@@ -41,8 +41,8 @@ impl CompositorHandler for HostState {
         });
     }
 
-    /// No surface transform support: every surface stays untransformed (this design has no
-    /// scroll/rotation feature placed here — see DESIGN.md), so there is nothing to record.
+    /// No surface transform support: every surface stays untransformed (the host has no
+    /// rotation feature), so there is nothing to record.
     fn transform_changed(
         &mut self,
         _conn: &Connection,

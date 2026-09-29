@@ -1,4 +1,6 @@
 //! Toplevel and popup configure, close and dismissal.
+//!
+//! See FINDINGS F77.
 
 mod decide;
 

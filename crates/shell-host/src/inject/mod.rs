@@ -3,6 +3,8 @@
 //! demos are driven by ([`stdin`], which maps each line onto that API and prints the result).
 //! Frame statistics are not an injection: [`HostCtx::stats`] and [`HostCtx::take_stats`] are
 //! the one source of them, with or without this feature.
+//!
+//! See FINDINGS F78.
 
 mod command;
 mod deliver;

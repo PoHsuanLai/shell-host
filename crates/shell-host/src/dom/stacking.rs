@@ -9,6 +9,8 @@
 //! debug capture (which resolves again) draws it right. Gathering again after the layout reads
 //! the fresh positions; the walk rebuilds only paint order and the hoisted lists, never style or
 //! layout, so it is idempotent and cheap next to the layout itself.
+//!
+//! See FINDINGS F69.
 
 use blitz_dom::{BaseDocument, NodeId};
 

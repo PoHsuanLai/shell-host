@@ -7,6 +7,8 @@
 //! [`Tracked`] is the other half of "the caller's effect": it remembers what was last sent, so a
 //! surface whose element rectangle has not moved does not recommit on every frame (design/10
 //! §10.3.12).
+//!
+//! See design/10 §10.3.12.
 
 mod anchor;
 mod spec;

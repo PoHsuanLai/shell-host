@@ -1,6 +1,8 @@
 //! The pointer handler's half of a client-decorated window (`csd`): which zone the pointer is
 //! in, the document's coordinates, the cursor to show, and the resize a press in the band
 //! starts. Split from `pointer` so the event dispatch stays one screen long.
+//!
+//! See FINDINGS F48, F49.
 
 mod decide;
 

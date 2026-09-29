@@ -1,5 +1,7 @@
 //! The window-management ops of a toplevel: interactive move and resize under the serial rule
 //! (`grab`), maximize, minimize and fullscreen.
+//!
+//! See FINDINGS F46, F49.
 
 use smithay_client_toolkit::shell::xdg::window::Window;
 

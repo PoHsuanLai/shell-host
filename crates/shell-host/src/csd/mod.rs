@@ -13,6 +13,8 @@
 //!   which is what `xdg_positioner` anchors popups against.
 //! - The band exists only while the window floats; maximized, fullscreen or tiled, the surface
 //!   is the frame (there is nothing to resize against an output edge or a neighbour).
+//!
+//! See FINDINGS F48.
 
 mod band;
 mod geometry;

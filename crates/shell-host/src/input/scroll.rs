@@ -3,6 +3,8 @@
 //! double-scroll rule and the `data-wheel="capture"` exception applied first (design/11
 //! §11.3.1, §11.3.14). Every path ends by invalidating the surface when an offset moved or an
 //! animation started, so the frame machine renders.
+//!
+//! See FINDINGS F63, F64.
 
 use std::time::Instant;
 

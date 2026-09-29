@@ -5,6 +5,8 @@
 //! `SurfaceHandle` holds a clone, so a component can draw for the device grid it lands on (a
 //! design system snapping hairlines at 1.25, 1.5 or 1.75). The mechanism is [`crate::live`]'s,
 //! shared with the toplevel state.
+//!
+//! See FINDINGS F43.
 
 use crate::live::Live;
 use crate::scale::Scale;

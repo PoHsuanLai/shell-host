@@ -3,6 +3,8 @@
 //! device from `renderer_specific_context()` (a `wgpu_context::DeviceHandle`).
 //! `VelloHybridScenePainter` borrows the texture map for one paint; this holds it per device
 //! between paints and turns it into the `TextureBindings` the render needs.
+//!
+//! See FINDINGS F77.
 
 use anyrender::ResourceId;
 use rustc_hash::FxHashMap;

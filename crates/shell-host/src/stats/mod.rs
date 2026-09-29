@@ -2,6 +2,8 @@
 //! one JSON line per surface: frames, callbacks, commits, sizes, scale and adapter, with the
 //! work time (trigger to present) kept apart from the present-to-present interval, because the
 //! interval's p95 is only the refresh period and says nothing about cost.
+//!
+//! See FINDINGS F15.
 
 mod frame_stats;
 mod percentile;

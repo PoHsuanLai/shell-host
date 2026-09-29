@@ -6,6 +6,8 @@
 //! before) a configure is read by the Dioxus tree in the same flush that renders the frame: the
 //! first frame at a new scale is drawn by a tree that already knows it. The integer fallback
 //! (`CompositorHandler::scale_factor_changed`) rescales in its handler, which is earlier still.
+//!
+//! See FINDINGS F43.
 
 use crate::id::SurfaceId;
 use crate::state::HostState;

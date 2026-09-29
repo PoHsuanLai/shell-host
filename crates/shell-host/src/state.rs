@@ -1,6 +1,8 @@
 //! The Wayland-side state every handler runs on, and the one list of delegate macros in the
 //! crate. Handler trait impls live in `handlers/*`; this file only wires the protocol objects
 //! to them.
+//!
+//! See FINDINGS F75.
 
 use std::collections::{BTreeMap, VecDeque};
 

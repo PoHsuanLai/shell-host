@@ -18,6 +18,8 @@
 //! - `dt` is the time since the previous tick of the same run, and zero for the first tick
 //!   after a frame that did not tick ([`tick_after`]), so a component never integrates over an
 //!   idle gap.
+//!
+//! See design/10 §10.4; FINDINGS F31.
 
 use std::cell::RefCell;
 use std::future::Future;

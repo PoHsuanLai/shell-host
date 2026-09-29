@@ -5,6 +5,8 @@
 //! (`wl_data_source.send`) is made non-blocking and written from the loop a chunk at a time
 //! whenever it is writable, so a slow or stuck reader never stalls the Wayland thread; the
 //! pipe closes when everything is written or the reader is gone.
+//!
+//! See FINDINGS F60.
 
 use std::fs::File;
 use std::io::{self, Write};

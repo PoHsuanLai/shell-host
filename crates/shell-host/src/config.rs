@@ -1,5 +1,7 @@
 //! What a host is asked to use: which rendering backend and which GPU adapter, and the pass
 //! it runs over every document before painting it.
+//!
+//! See FINDINGS F16.
 
 use blitz_kit::adapter::AdapterPref;
 use blitz_kit::fonts::{FontFaces, SharedFonts};

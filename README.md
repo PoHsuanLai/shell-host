@@ -7,10 +7,10 @@ blur (`ext-background-effect-v1`), fractional scale, input regions that follow D
 wakeups. It is portable to any Wayland compositor with layer-shell; it never depends on
 COSMIC-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
 
-`DESIGN.md` maps the design to the code, `FINDINGS.md` records the standing facts about Blitz,
-the compositors and the protocols that the code relies on and the items still open,
-`ARCHITECTURE.md` gives the crate map and the repo rules, and `CONVENTIONS.md` says how the code
-is written.
+`FINDINGS.md` records the standing facts about Blitz, the compositors and the protocols that the
+code relies on and the items still open (module docs cite them by number), `ARCHITECTURE.md`
+gives the crate map, the modules and the repo rules, and `CONVENTIONS.md` says how the code is
+written.
 
 ## Demos
 
@@ -22,7 +22,7 @@ driven by commands on stdin (`bar stats`, `dock hover 300 64`, `dock leave`, `ba
 cargo run --release -p shell-host --features debug-inject --example demo_bar -- --with-dock
 ```
 
-The stdin protocol (`debug::parse_command`) also has `<surface> press X Y [button]` and
+The stdin protocol (`inject::parse_command`) also has `<surface> press X Y [button]` and
 `<surface> release X Y [button]` (`button` is `primary`, `secondary` or `middle`, primary when
 omitted, same as `click`): a `press`, one or more `hover`s at the points in between (still with
 the button down, so each moves like a real drag step) and a `release` script a drag through the
@@ -30,6 +30,11 @@ exact code path a real `wl_pointer` press, motion and release use (`HostCtx::inj
 `HostState::deliver`), which a whole `click` cannot — there is no move in between it. `click`
 itself is unchanged: a `press` immediately followed by a `release` at the same point (FINDINGS
 F78).
+
+`<surface> key <name>[+mods] [down|up]` presses a key the way a real xkb key arrives (`Inject::Key`,
+`HostState::key_down`): `<surface> key Tab`, `<surface> key k+ctrl`, `<surface> key Tab+shift down`.
+`name` is a W3C key name or `Space`; `mods` are `shift`, `ctrl`, `alt` and `super`; a line with
+neither `down` nor `up` is a tap. The surface need not hold the compositor's keyboard focus.
 
 `demo_bar` takes `--with-dock` (both surfaces in one process) and `--exclusive=N`, and
 `DEMO_BLUR=1` blurs behind the bar; `demo_dock` takes `--mode=transform|width|tick` and

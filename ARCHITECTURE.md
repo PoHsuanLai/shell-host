@@ -92,17 +92,17 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 
 | Group | Names |
 |---|---|
-| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot` (was `Root`), `registered_families` |
-| Events | `HostEvent`, `CloseReason`, `KeyboardFocus` (was `Focus`), `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
-| Layer surface | `LayerConfig`, `LayerLevel` (was `Layer`), `Anchor`, `LayerExtent` (was `Extent`), `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
-| Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge` (was `Edge` and the `Gravity` alias), `PopupToggle` (was `Toggle`), `PopupAdjust` (was `Adjust`), `PopupGrab` (was `Grab`), `PopupOffset` (was `Offset`), `PopupPlacement`, `offset_rect` |
+| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families` |
+| Events | `HostEvent`, `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
+| Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
+| Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |
 | Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused` |
 | Lock | `LockConfig`, `LockError`, `LockId`, `LockHandle`, `LockPhase`, `LockState`, `use_lock`, `use_lock_phase` |
 | Regions and blur | `RegionSpec`, `RoundedRect`, `ElementRegion`, `ElementId`, `BlurSpec` |
 | Geometry | `Px`, `Rect`, `Point`, `Size`, `Margin`, `Scale`, `buffer_size` (`Px`, `Rect`, `Point`, `Size` are the geometry vocabulary and keep their short names) |
 | Input | `Modifiers`, `Modifier`, `LockKey`, `InputModality` |
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
-| Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum` (was `Momentum`), `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand` (was `RubberBand`), `ScrollTrackClick` (was `TrackClick`), `ScrollCmd`, `ScrollAxis` (was `Axis`), `ScrollAnimate` (was `Animate`), `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll` |
+| Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll` |
 | Frames and stats | `FrameDrive`, `FrameTick`, `HostInstant`, `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
 | Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns) |
 
@@ -110,11 +110,11 @@ Feature-gated public modules:
 
 | Module | Feature | Holds |
 |---|---|---|
-| `shell_host::inject` | `debug-inject` | `Inject`, `Injected`, `PointerButton`, `KeyStroke`, `KeyAction`, `DebugCommand`, `DebugAction`, `CommandError`, `parse_command`, `stdin::{install, apply}`; `HostCtx::inject` |
-| `shell_host::headless` | `headless` | `render_png` |
+| `shell_host::inject` | `debug-inject` | `Inject`, `Injected`, `PointerButton`, `KeyStroke`, `KeyAction`, `DebugCommand`, `DebugAction`, `CommandError`, `parse_command`, `parse_key`, `stdin::{install, apply}`; `HostCtx::inject` |
+| `shell_host::headless` | `headless` | `render_png`, `HeadlessConfig`, `PixelSize`, `Fonts`, `bundled_faces` |
 
 The debug command grammar is a `debug-inject` feature; a shipped shell contains no parser. sill
-calls `parse_command` in debug builds only.
+calls `parse_key` and `stdin::{install, apply}` in debug builds only.
 
 `Inject` variants: `Pointer`, `PointerDown`, `PointerUp`, `Click`, `Leave`, `Capture`, and
 `Key { stroke: KeyStroke, action: KeyAction }`. `KeyStroke { key: keyboard_types::Key, code:
@@ -360,10 +360,10 @@ step as an API they use.
    `ctx/spawn` first, then `debug`, `popup`, `handle`, `input/pointer`, `dom/document`,
    `scroll/indicator`, `ctx/paint`, `resolve`, `csd`, `scroll/engine`, `inject`.
 6. `decide.rs` extractions (done) for the handlers listed in section 6, each with its table test.
-7. Add `Inject::Key`, `KeyStroke`, `KeyAction` and the `key` stdin verb; move `debug` command
+7. Add `Inject::Key`, `KeyStroke`, `KeyAction` and the `key` stdin verb (done); move `debug` command
    parsing into `inject` behind `debug-inject`; sill's keyboard stand-in scripts switch to it.
-8. Public-name renames (section 3) and the curated root: make every module private, list the
+8. Public-name renames (section 3) and the curated root (done): make every module private, list the
    root exports, move `tests/*` that reach internals in-crate. Update sill and the demos in the
    same change; sill's `debug`, `inject::stdin`, `scale`, `popup::offset_rect`,
    `scroll::config` paths become root or `inject` paths.
-9. Fold `DESIGN.md` into module docs and this file's tables; delete it.
+9. Fold `DESIGN.md` (done) into module docs and this file's tables; delete it.

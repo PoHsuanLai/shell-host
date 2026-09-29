@@ -2,6 +2,8 @@
 //! document from the shell's factory, with a `LockHandle` context), the documents told before
 //! `unlock_and_destroy`, and `HostEvent::Lock`. The decisions are `lock::machine`'s; this file
 //! only carries them out, in the flush's request phase (`advance`).
+//!
+//! See FINDINGS F65.
 
 use smithay_client_toolkit::compositor::Surface;
 use wayland_client::protocol::wl_output::WlOutput;

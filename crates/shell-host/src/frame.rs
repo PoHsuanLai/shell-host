@@ -25,6 +25,8 @@
 //!   another thread) is not the render's own echo: the host feeds it as an `Invalidate` after
 //!   `Presented`, which marks the frame in flight dirty and arms the watchdog, so it is painted
 //!   on the callback or, on a compositor that never sends one, when the watchdog fires.
+//!
+//! See design/10 §10.7; FINDINGS F75.
 
 use std::time::Duration;
 

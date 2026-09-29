@@ -1,5 +1,7 @@
 //! The shared GPU state: the instance, the one validated adapter and device, the one
 //! `vello_hybrid` renderer with its resources, and the per-device image cache.
+//!
+//! See FINDINGS F1.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 

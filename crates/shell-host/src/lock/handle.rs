@@ -2,6 +2,8 @@
 //! document belongs to and where that lock is (`LockPhase`, live), and it asks for the unlock
 //! once the shell has authenticated the user. The host tells every lock document `Unlocking`
 //! and polls them before it sends `unlock_and_destroy`.
+//!
+//! See FINDINGS F65.
 
 use dioxus::core::{spawn, use_hook};
 use dioxus::hooks::use_signal;

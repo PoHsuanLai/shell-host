@@ -1,5 +1,7 @@
 //! Seats and capabilities: getting the pointer (with its cursor-shape device), the keyboard and
 //! the text input, and the per-seat input state the other handlers share.
+//!
+//! See FINDINGS F47.
 
 use std::time::{Duration, Instant};
 

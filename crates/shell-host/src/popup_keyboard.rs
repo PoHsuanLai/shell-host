@@ -8,6 +8,8 @@
 //! (`LayerShellV1Window::handleAcceptsFocusChanged`), and nothing deactivates it when the host
 //! drops it back to `None`: the bar keeps the keyboard after every menu closes, and the app the
 //! user was typing in never gets it back. Pure.
+//!
+//! See FINDINGS F72.
 
 use crate::blur_health::CompositorKind;
 use crate::layer::KeyboardMode;

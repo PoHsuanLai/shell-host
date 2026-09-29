@@ -12,6 +12,8 @@
 //! The record is shared between the pointer handler (which writes it) and every
 //! `SurfaceHandle` (which checks it synchronously, so `begin_move()` can return the refusal),
 //! on the main thread only, hence `Rc<Cell>`.
+//!
+//! See FINDINGS F49.
 
 use std::cell::Cell;
 use std::rc::Rc;

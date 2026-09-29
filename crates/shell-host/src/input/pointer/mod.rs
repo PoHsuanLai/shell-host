@@ -1,6 +1,8 @@
 //! Pointer input -> Blitz events: the pure part.
 //!
 //! Coordinates are surface-local logical pixels, as `wl_pointer` delivers them.
+//!
+//! See design/13 §13.3.8.
 
 mod button;
 mod events;

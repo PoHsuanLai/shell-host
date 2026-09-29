@@ -1,5 +1,7 @@
 //! `SurfaceHandle`: what a component uses to change its own surface. Provided as a root
 //! context of every surface's `VirtualDom`; read it with [`use_surface`].
+//!
+//! See FINDINGS F31, F43, F46, F60.
 
 mod hooks;
 mod queue;

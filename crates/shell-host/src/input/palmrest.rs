@@ -6,6 +6,8 @@
 //!
 //! The socket I/O is here; registering the reading side with the event loop is the context's
 //! (`ctx::palmrest`), since the loop belongs to `HostCtx`.
+//!
+//! See FINDINGS F64.
 
 pub(crate) mod route;
 

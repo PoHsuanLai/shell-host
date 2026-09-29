@@ -2,6 +2,8 @@
 //! shell-host"). The configuration a window opens with, the window-management vocabulary a
 //! client-decorated frame asks with (move, resize, zoom, minimize, fullscreen), and the state
 //! the compositor answers with in each configure.
+//!
+//! See FINDINGS F46.
 
 use smithay_client_toolkit::shell::xdg::window::{WindowConfigure, WindowDecorations};
 use wayland_protocols::xdg::shell::client::xdg_toplevel;

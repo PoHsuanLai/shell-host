@@ -1,4 +1,6 @@
 //! What kind of surface a `HostSurface` is, with the sctk object that owns its `wl_surface`.
+//!
+//! See FINDINGS F72.
 
 use smithay_client_toolkit::compositor::Surface;
 use smithay_client_toolkit::session_lock::SessionLockSurface;

@@ -1,7 +1,7 @@
 # Findings
 
 Standing facts about Blitz, the compositors and the protocols that the code relies on, and the
-items still open. Numbered so `DESIGN.md`, the README and reviews can cite them; numbers are
+items still open. Numbered so module docs, the README and reviews can cite them; numbers are
 never reused, so gaps are entries that were closed and removed.
 
 ## Rendering and the GPU

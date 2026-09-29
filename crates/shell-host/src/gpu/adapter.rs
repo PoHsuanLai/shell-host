@@ -3,6 +3,8 @@
 //! rejected with a fatal protocol error (RADV under KWin on this machine, `zwp_linux_dmabuf`
 //! error 7, "importing the supplied dmabufs failed"). The probe runs on a throwaway Wayland
 //! connection so the error kills the probe, not the host.
+//!
+//! See FINDINGS F16.
 
 use crate::error::Result;
 use crate::gpu::probe;

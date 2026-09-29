@@ -7,6 +7,8 @@
 //! untouched middle band. `rounded_strips` is the pure geometry; turning the result into a real
 //! `wl_region` (via `wl_compositor.create_region` + repeated `wl_region.add`) is an effect that
 //! belongs to the caller.
+//!
+//! See design/10 §10.3.12.
 
 /// A logical-pixel coordinate or extent, surface-local.
 pub type Px = i32;

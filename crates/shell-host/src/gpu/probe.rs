@@ -2,6 +2,8 @@
 //! connection with one 1x1 transparent surface, mapped as a layer surface where the compositor
 //! offers layer-shell, presented once through the candidate adapter. A rejected buffer is a
 //! fatal protocol error, and it kills this connection instead of the host's.
+//!
+//! See FINDINGS F16.
 
 use std::sync::Mutex;
 

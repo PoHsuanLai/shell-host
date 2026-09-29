@@ -1,5 +1,7 @@
 //! One surface's document: building it from a `HostRoot`, polling it, feeding it events, and
 //! answering layout questions (element rectangles for regions and popup anchors).
+//!
+//! See FINDINGS F12, F62.
 
 mod hover;
 mod rects;

@@ -8,6 +8,8 @@
 //! Any other thread is a load completing (an image, a stylesheet, a font, sent
 //! to the document's channel by Blitz's net handlers): the frame being presented may have been
 //! resolved before it arrived, so it must survive the present and dirty the surface again.
+//!
+//! See FINDINGS F40, F75.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};

@@ -7,6 +7,8 @@
 //! device grid (quire's `ds_native::snap_to_device`) redoes the rounding on it, and it has to run
 //! after *every* resolve, because every resolve re-runs Blitz's rounding. shell-host cannot call
 //! it itself (it stays free of any design-system dependency), so it takes the pass as a hook.
+//!
+//! See FINDINGS F43.
 
 use std::fmt;
 use std::sync::Arc;
