@@ -1,13 +1,12 @@
 # Design map
 
 Which part of the design each module implements. The program plan (section "Design:
-`shell-host` repo"), `SPIKE.md` and quire's `design/10`-`13` are canonical; this file only says
-where in the code a paragraph lives, so a reviewer can go from one to the other. Paths are under
-`crates/shell-host/src/`. This is the merged shape after H2 (all five fills and the
-integration pass): every module is real code. "Pure" marks the modules with no effects, which
+`shell-host` repo"), `FINDINGS.md` and quire's `design/10`-`13` are canonical; this file only
+says where in the code a paragraph lives, so a reviewer can go from one to the other. Paths are
+under `crates/shell-host/src/`. "Pure" marks the modules with no effects, which
 are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the disk or threads.
 
-## Public API (plan "Public API", amended by SPIKE.md S1 "API changes")
+## Public API (plan "Public API")
 
 | Module | Implements | State |
 | --- | --- | --- |
@@ -30,7 +29,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `root.rs` | `Root::new/with_props/context` | effects |
 | `event.rs` | `HostEvent<M>`, `CloseReason`, `Focus`, `widen` | pure |
 | `msg.rs` | `SurfaceOp` (with the window ops and `repaint()`), `Repaint`, `Visibility`, `HostMsg<M>`, `Request` | pure (data) |
-| `config.rs` | `HostConfig{backend, adapter, first_mouse_window_ms, prepaint}`, `Backend`, `AdapterPref` (S1: adapter validated by first present), `Ms`; `first_mouse_window_ms` is the settings key `menus.first_mouse_window_ms` (design/22, proposed, default 100), handed to `HostState` and read by the pointer handler | pure |
+| `config.rs` | `HostConfig{backend, adapter, first_mouse_window_ms, prepaint}`, `Backend`, `AdapterPref` (adapter validated by first present, FINDINGS F16), `Ms`; `first_mouse_window_ms` is the settings key `menus.first_mouse_window_ms` (design/22, proposed, default 100), handed to `HostState` and read by the pointer handler | pure |
 | `error.rs` | `HostError`, `Recovery::{Retry,Fallback,Degrade,Fatal}` (plan "Conventions substitutions") | pure |
 | `id.rs` | `SurfaceId`, `OutputId`, `SurfaceIds` | pure |
 | `output.rs` | `OutputInfo` | pure (data) |
@@ -43,42 +42,42 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `live_scale.rs` | `LiveScale = Live<Scale>` (FINDINGS F43) | shared cell |
 | `lock/machine.rs` | the session lock's state machine: `LockPhase`, `LockState`, `LockInput`, `LockAction`, `start`, `step` (Requested, Locked, Unlocking, Unlocked, Finished; outputs added and removed; the destructor the protocol allows in each phase) | pure |
 | `lock/mod.rs`, `lock/active.rs` | `LockId`, `LockConfig`, `LockError`; `ActiveLock`, the lock in force (the sctk `SessionLock`, the machine, the factory, the surface per output, the inbox) | pure (data) / effects |
-| `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, S1 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
+| `layer.rs` | `LayerConfig`, `Layer` (incl. `Bottom`, FINDINGS F76 item c), `Anchor`, `Extent`/`LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget`; wire mappings. design/13 §13.3.8 (bar and dock never focus) | pure |
 | `toplevel.rs` | `ToplevelConfig`, `Decorations::{Client(ResizeMargin), Server}`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `TileEdges`, `ToplevelState` and their wire mappings; design/20 "All apps are xdg toplevels" (FINDINGS F46) | pure |
 | `csd.rs` | a client-decorated toplevel's geometry: the resize band (`Inset`, only while floating), surface vs frame, `set_window_geometry`, the document's inset in physical px, band strips, `zone_at` and the resize cursors (FINDINGS F48) | pure |
 | `grab.rs` | the move/resize serial rule: `PointerFacts`, `grab_serial`, `GrabRefused`, the shared `GrabRecord` (FINDINGS F49) | pure + shared cell |
 | `prepaint.rs` | `Prepaint::{None, Hook}`: the consumer's pass between the frame's one `resolve` and its paint, for device-pixel snapping (FINDINGS F43) | pure |
-| `popup.rs` | S2: `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
+| `popup.rs` | `PopupConfig` (with `Offset`, design/13 §13.3.2's (-8, +6), FINDINGS F30), positioner params and wire values; design/13 §13.3.2-13.3.4, §13.7 | pure |
 | `popup_keyboard.rs` | Whether a popup lifts its `KeyboardMode::None` parent layer to `OnDemand`: a grabbing one does, never on KWin (FINDINGS F72) | pure |
-| `placement.rs` | `PopupPlacement` (anchor rect and size S2's config does not carry, FINDINGS F4) | pure (data) |
-| `region.rs` | S2: `RegionSpec`, `rounded_strips`; design/10 §10.3.12 | pure |
+| `placement.rs` | `PopupPlacement` (anchor rect and size the config does not carry, FINDINGS F4) | pure (data) |
+| `region.rs` | `RegionSpec`, `rounded_strips`; design/10 §10.3.12 | pure |
 | `resolve.rs` | `RegionSpec` -> strips after layout; `Tracked`, what was last sent, so only a changed region is recommitted; design/10 §10.3.12 "recomputed on every frame whose pill rect changed" | pure |
-| `geometry.rs` | `Point`, `Margin`, `enclosing_rect`, `inflate`, `element_id` (FINDINGS F3) | pure |
+| `geometry.rs` | `Point`, `Margin`, `enclosing_rect`, `inflate`, `element_id` | pure |
 | `blur.rs` | `BlurSpec`; plan "blur (BlurSpec{None,Region})", quire 03-COLOR §17.1 (region is shell-host's) | pure (data) |
-| `scale.rs` | S2: `Scale` in 120ths, `buffer_size`; plan "Scale" | pure |
-| `surface.rs` | `HostSurface` (field order = drop order, S1 finding 6), `AppliedRegions` (two `resolve::Tracked`: input starts unknown, blur starts empty) | effects |
-| `role.rs` | `Role::{Layer,Popup,Toplevel,DragIcon,Lock}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" (not on KWin: `popup_keyboard.rs`, F72) | effects |
+| `scale.rs` | `Scale` in 120ths, `buffer_size`; plan "Scale" | pure |
+| `surface.rs` | `HostSurface` (field order = drop order, FINDINGS F75), `AppliedRegions` (two `resolve::Tracked`: input starts unknown, blur starts empty) | effects |
+| `role.rs` | `Role::{Layer,Popup,Toplevel,DragIcon,Lock}`; plan "Opening a grabbing popup from a `KeyboardMode::None` layer switches it to OnDemand" (not on KWin: `popup_keyboard.rs`, FINDINGS F72) | effects |
 
 ## Frames, time, stats
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `frame.rs` | plan "Frame machine" (Idle/Dirty/InFlight/InFlightDirty, watchdog 50..1000 ms); S1 findings 3, 4; cosmic-comp #2777; design/10 §10.7 "the watchdog applies" | pure |
+| `frame.rs` | plan "Frame machine" (Idle/Dirty/InFlight/InFlightDirty, watchdog 50..1000 ms); FINDINGS F75; cosmic-comp #2777; design/10 §10.7 "the watchdog applies" | pure |
 | `tick.rs` | the frame hook (design/10 §10.4's `Frame`): `FrameTicks` per surface, `FrameDrive`, `FrameTick`, `HostInstant`; `pacing` (animating or driven) and `tick_after` are pure (FINDINGS F31) | pure + shared cell |
 | `timers.rs` | `TimerRequest`: watchdog and key-repeat timers asked for by handlers, armed by `HostCtx` | pure (data) |
 | `clock.rs` | `HostClock` (plan "one HostClock for `resolve(t)`") | pure |
-| `debug.rs` | `FrameStats` (work time apart from interval, S1 "API changes"), `StatsWindow`, `percentiles`, `vm_rss_kib`, per-surface `DebugCommand` grammar | pure |
-| `inject.rs` | feature `debug-inject`: `HostCtx::inject(SurfaceId, Inject) -> Result<Injected>` (pointer move, press, release, click, leave, capture — a press, moves and a release script a drag through `HostState::deliver`, the same code path real `wl_pointer` input uses, FINDINGS F70), returning results, printing nothing (FINDINGS F29) | effects |
+| `debug.rs` | `FrameStats` (work time apart from interval, FINDINGS F15), `StatsWindow`, `percentiles`, `vm_rss_kib`, per-surface `DebugCommand` grammar | pure |
+| `inject.rs` | feature `debug-inject`: `HostCtx::inject(SurfaceId, Inject) -> Result<Injected>` (pointer move, press, release, click, leave, capture — a press, moves and a release script a drag through `HostState::deliver`, the same code path real `wl_pointer` input uses, FINDINGS F78), returning results, printing nothing | effects |
 | `inject/stdin.rs` | the demos' stdin protocol (whole logical px) mapped onto `inject` and `take_stats`, one JSON line per result | effects |
 
 ## Documents (`dom/`)
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `dom/document.rs` | `SurfaceDocument`; `UA_STYLESHEET` (S1 finding 2); `StyleThreading::Sequential`; element rects for `RegionSpec::Element` and `PopupAnchor::Element`; `data-first-mouse` lookup (design/13 §13.3.8) | effects |
+| `dom/document.rs` | `SurfaceDocument`; `UA_STYLESHEET` (FINDINGS F12), `BODY_RESET` (FINDINGS F62); `StyleThreading::Sequential`; element rects for `RegionSpec::Element` and `PopupAnchor::Element`; `data-first-mouse` lookup (design/13 §13.3.8) | effects |
 | `dom/stacking.rs` | `rehoist`: gather z-indexed boxes again after every resolve, from the fresh layout (FINDINGS F69) | effects |
 | `dom/head.rs` | `HeadDocument` shim (plan: `DioxusDocument` ignores `document::Style/Link/Title`) | effects |
-| `dom/shell_provider.rs` | `ShellProvider`: redraw flag (cleared after present, S1 finding 4), cursor, IME; paste answers from the seat's `clipboard::SharedSelection`, copy queues for `ctx::ops::claim_copied` | effects |
+| `dom/shell_provider.rs` | `ShellProvider`: redraw flag (cleared after present, a load from another thread kept, FINDINGS F75, F40), cursor, IME; paste answers from the seat's `clipboard::SharedSelection`, copy queues for `ctx::ops::claim_copied` | effects |
 | `dom/fonts.rs` | one `FontContext` cloned into every document (plan "Fonts") | effects |
 | `dom/net.rs` | `LocalNet`: `data:` decoded and `file:` (absolute paths, empty or `localhost` host) read, both on the host runtime's blocking pool; nothing from the network (quire FINDINGS S7, S8; the wallpaper is `url(file://…)`) | effects |
 | `wake.rs` | per-surface wakers on one shared ping (plan "Event loop") | effects |
@@ -87,17 +86,17 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `gpu/adapter.rs` | adapter ranking and validation by first present on a throwaway connection (S1: RADV dmabuf error 7) | effects |
-| `gpu/probe.rs` | the throwaway connection and surface the first-present validation uses; probe instances live for the process (NVIDIA teardown crash, FINDINGS "H2 gpu") | effects |
+| `gpu/adapter.rs` | adapter ranking and validation by first present on a throwaway connection (FINDINGS F16) | effects |
+| `gpu/probe.rs` | the throwaway connection and surface the first-present validation uses; probe instances live for the process (NVIDIA teardown crash, FINDINGS F16) | effects |
 | `gpu/block_on.rs` | the minimal executor for wgpu's adapter and device futures | effects |
-| `gpu/context.rs` | one device, one `vello_hybrid::Renderer` + `Resources`, the per-device image cache (S1 findings 5, item g), `devices_created` | effects |
-| `gpu/context_proxy.rs` | custom-widget textures across frames (S3 item d) | effects |
-| `gpu/raw_handle.rs` | the one `unsafe` module: surface from raw handles, `WaylandDisplay: HasDisplayHandle` (S1 "API changes") | effects |
+| `gpu/context.rs` | one device, one `vello_hybrid::Renderer` + `Resources`, the per-device image cache (FINDINGS F1), `devices_created` | effects |
+| `gpu/context_proxy.rs` | custom-widget textures across frames (FINDINGS F77) | effects |
+| `gpu/raw_handle.rs` | the one `unsafe` module: surface from raw handles, `WaylandDisplay: HasDisplayHandle` (needed for `InstanceDescriptor::display`) | effects |
 | `gpu/presenter.rs` | `Presenter::{Wgpu, Shm}` (plan "presenter{Wgpu,Shm}"), `capture` | effects |
 | `gpu/swapchain.rs` | Mailbox then Fifo; PreMultiplied, PostMultiplied, else opaque and blur off (plan "GPU") | effects |
 | `gpu/shm.rs` | CPU `wl_shm` fallback (plan "shm/vello_cpu presenter fallback") | effects |
-| `gpu/render.rs` | resolve, paint, render (S1 finding 3 ordering) | effects |
-| `headless.rs` | S3: `render_png` via vello_cpu (plan "Headless") | effects |
+| `gpu/render.rs` | resolve, paint, render (the present ordering in FINDINGS F75) | effects |
+| `headless.rs` | `render_png` via vello_cpu (plan "Headless") | effects |
 
 ## Input (`input/`, handlers)
 
@@ -132,12 +131,12 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 
 | Module | Implements | State |
 | --- | --- | --- |
-| `state.rs` | `HostState`, the delegate macro list (the only file naming sctk delegate macros), `Drop` (S1 finding 6) | effects |
+| `state.rs` | `HostState`, the delegate macro list (the only file naming sctk delegate macros), `Drop` (FINDINGS F75) | effects |
 | `handlers/compositor.rs` | frame callbacks -> `FrameInput::Callback`; integer scale fallback | effects |
 | `handlers/output.rs` | `HostEvent::Output*` | effects |
 | `handlers/layer.rs` | layer configure/closed; configure records the size and invalidates (regions follow on the render) | effects |
 | `handlers/session_lock.rs` | `locked`/`finished` queued for the lock in force; a lock surface's configure (exact size) through `handlers::layer::follow_configure`, shared with layer surfaces | effects |
-| `handlers/xdg.rs` | toplevel and popup configure/close; `popup_done` (not client-drivable, S2) | effects |
+| `handlers/xdg.rs` | toplevel and popup configure/close; `popup_done` (not client-drivable, FINDINGS F77) | effects |
 | `handlers/seat.rs` | capabilities (the first one adopts the seat, FINDINGS F47), `SeatInput` | effects |
 | `handlers/pointer.rs`, `keyboard.rs` | input dispatch; every press and release updates the grab record | effects |
 | `handlers/band.rs` | the pointer's half of `csd`: zone, document coordinates, the document's own cursor vs the band's, the resize a band press starts, dropping buttons at enter/leave (FINDINGS F48, F49) | effects |
@@ -145,14 +144,7 @@ are table-tested; "effects" marks the ones that talk to Wayland, the GPU, the di
 | `handlers/data_device.rs` | selection offers (`Clipboard::follow`), our data source, `claim_selection`; source events of our drag are routed to `drag_source` | effects |
 | `handlers/drag_source.rs` | the drag's state (`Dragging`, `ActiveDrag`), `send` -> a queued pipe write, `action`, and `dnd_finished`/`cancelled` -> the outcome | effects |
 | `handlers/activation.rs` | xdg-activation tokens | effects |
-| `handlers/background_effect.rs`, `fractional.rs` | S2: blur and fractional-scale + viewporter `Dispatch` | effects |
-
-## Design docs 10-13 not placed in H1
-
-| Design paragraph | Where it will live | Why not now |
-| --- | --- | --- |
-| design/10 (dock machine, `magnify`), design/13 menus, switcher, launcher | sill (`sill-surfaces`), quire (`overlay/menu_track.rs`) | not shell-host's; shell-host supplies `layer`, `resolve`, `blur`, `popup`, `frame` |
-| design/13 §13.7 hover-switch between menus | `SurfaceOp::Reposition` (`xdg_popup.reposition`) | in H1 as a signature |
+| `handlers/background_effect.rs`, `fractional.rs` | blur and fractional-scale + viewporter `Dispatch` | effects |
 
 ## Flush order (`ctx/flush.rs::ORDER`)
 
@@ -169,18 +161,18 @@ After every dispatch of the calloop loop, in this order and no other:
    `wl_surface.frame()`, present (its commit carries all of it), clear the redraw flag.
 4. `ArmTimers`: watchdog, key-repeat and scroll-thumb requests from the handlers and step 3;
    the palmrest socket's source when a connection attempt is due.
-5. `FlushConnection`: flush, and stop on a protocol error (S1 finding 7).
+5. `FlushConnection`: flush, and stop on a protocol error (FINDINGS F75).
 
 ## Examples and acceptance
 
-`examples/demo_bar.rs` and `demo_dock.rs` are the spike's bar and dock on the real API
-(feature `debug-inject`); `examples/probe_toplevel.rs` is a plain sctk client (a maximized
-checkerboard window) the acceptance items measure against. `scripts/accept-demo.sh demo
-[kwin-virtual|kwin-virtual@1.7|kwin] <a|b|c|f|g>` runs SPIKE.md S1's items with S1's thresholds;
-results are in SPIKE.md "H2 demos". `examples/spike_popup.rs` (bare-shm popup client, S2) and
-`spike_widget.rs` (custom widget, S3) are kept until a demo covers popups and widgets.
+`examples/demo_bar.rs` and `demo_dock.rs` are a bar and a dock (feature `debug-inject`);
+`examples/probe_toplevel.rs` is a plain sctk client (a maximized checkerboard window) the
+acceptance items measure against. `scripts/accept-demo.sh demo
+[kwin-virtual|kwin-virtual@1.7|kwin|cosmic] <a|b|c|f|g>` runs the render items with their
+thresholds (FINDINGS F76). `examples/demo_popup.rs` and `demo_popup_keys.rs` open popups on the
+real host (FINDINGS F38, F72); custom-widget textures are covered by `tests/gpu.rs`.
 `examples/demo_window.rs` is a client-decorated toplevel (titlebar drag, resize band, zoom,
-configure state) driven from stdin; its runs are FINDINGS F51. `examples/demo_scroll.rs` is a
+configure state) driven from stdin (FINDINGS F46-F49). `examples/demo_scroll.rs` is a
 scroll list (`use_scroll`, `data-overscroll="band"`) and a `data-wheel="capture"` element for
 `scripts/dev/accept-scroll.sh` (FINDINGS F63). `examples/demo_lock/` is the session lock's demo (a password
 field per output; `guard.rs` refuses any compositor but the throwaway one) for

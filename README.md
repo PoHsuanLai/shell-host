@@ -7,9 +7,9 @@ blur (`ext-background-effect-v1`), fractional scale, input regions that follow D
 wakeups. It is portable to any Wayland compositor with layer-shell; it never depends on
 COSMIC-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
 
-`DESIGN.md` maps the design to the code, `FINDINGS.md` records every deviation and seam,
-`CONVENTIONS.md` and `ORCHESTRATION.md` say how the code is written and divided, and
-`SPIKE.md` is the Milestone 0 log with the acceptance results.
+`DESIGN.md` maps the design to the code, `FINDINGS.md` records the standing facts about Blitz,
+the compositors and the protocols that the code relies on and the items still open, and
+`CONVENTIONS.md` says how the code is written.
 
 ## Demos
 
@@ -28,14 +28,14 @@ the button down, so each moves like a real drag step) and a `release` script a d
 exact code path a real `wl_pointer` press, motion and release use (`HostCtx::inject`,
 `HostState::deliver`), which a whole `click` cannot — there is no move in between it. `click`
 itself is unchanged: a `press` immediately followed by a `release` at the same point (FINDINGS
-F70, sill's G330).
+F78).
 
 `demo_bar` takes `--with-dock` (both surfaces in one process) and `--exclusive=N`, and
 `DEMO_BLUR=1` blurs behind the bar; `demo_dock` takes `--mode=transform|width|tick` and
 `--layer=bottom`. `--mode=tick` magnifies from the component itself, once per compositor frame,
 through the frame hook (`use_frame_tick` with a `FrameDrive` held only while the tiles move).
 
-`examples/demo_popup.rs` is `PopupSize::FitContent`'s acceptance (FINDINGS F37): `bar click 20
+`examples/demo_popup.rs` is `PopupSize::FitContent`'s acceptance (FINDINGS F38): `bar click 20
 16` opens a popup whose own list grows from 2 to 6 rows 300 ms after it opens with no further
 command, so `bar/popup stats`' `logical` size shows the fit landing at 160x48 and, a few frames
 later, re-fitting to 160x144.
@@ -180,7 +180,7 @@ TTF/OTF bytes, `#[serde(skip)]` — code, not settings, same as `HostConfig::pre
 so every surface's, popup's and toplevel's document (`state.fonts.for_document()`,
 `ctx/spawn.rs`) resolves them from that point on. Leave `fonts` at its default (empty) and a
 `font-family` naming one of those faces silently falls back past it to `system-ui`
-(FINDINGS F68) — this bit sill once (Q342).
+(FINDINGS F68).
 
 A shell passes its own faces' bytes, e.g.:
 
