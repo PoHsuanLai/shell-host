@@ -13,8 +13,6 @@ publish = false
 
 [workspace.dependencies]
 shell-host = { path = "crates/shell-host" }
-# Sibling repo (portable Blitz repairs); checked out next to this one.
-blitz-kit = { path = "../blitz-kit/crates/blitz-kit" }
 # Sibling repo (the palmrest socket's messages); checked out next to this one.
 palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 
@@ -23,6 +21,10 @@ palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 # dedicated "toolchain bump" wave that runs every repo's gates. Versions of the render stack
 # (anyrender, vello, wgpu, parley) are the ones blitz's own Cargo.lock resolves at this rev;
 # taffy (git) and stylo come through the blitz crates and are never named directly.
+
+# The portable Blitz repairs (own repo, public). Local checkouts redirect it to a sibling path through
+# each workspace root's [patch] (quire/CONSUMING.md section 1); git consumers get this rev.
+blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "54b79083c6744b3767104c3e7646add2170b94b7" }
 
 # Blitz: git main, pinned by rev (crates.io dioxus-native 0.8 alpha does not build with
 # blitz 0.3.0-beta.2). The in-tree dioxus-native-dom targets dioxus 0.7.x.
@@ -111,6 +113,12 @@ latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "43ebf45f244a23c
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
+
+# Local development: one blitz-kit checkout (a sibling of this repo) for every workspace that
+# builds it, including quire and shell-host pulled in by path. A dependency's [patch] is ignored by
+# its consumers, so outside consumers of quire get the git rev above.
+[patch."https://github.com/PoHsuanLai/blitz-kit"]
+blitz-kit = { path = "../blitz-kit/crates/blitz-kit" }
 
 # vello and anyrender come from our forks (github.com/PoHsuanLai/vello and /anyrender, branch
 # quire-filters): the colour matrix filter, multi-threaded filter layers and CSS filter lists, so
