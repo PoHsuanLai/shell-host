@@ -9,10 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::prepaint::Prepaint;
 
-/// The environment variable that names an adapter by substring, as wgpu's own
-/// `initialize_adapter_from_env` reads it. It overrides [`HostConfig::adapter`].
-pub(crate) const ADAPTER_ENV: &str = "WGPU_ADAPTER_NAME";
-
 /// How a host is set up. `Host::connect` takes one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostConfig {

@@ -3,7 +3,6 @@
 //! unnecessary), with a CPU `wl_shm` presenter as the fallback.
 
 pub(crate) mod adapter;
-mod block_on;
 pub(crate) mod context;
 pub(crate) mod context_proxy;
 pub(crate) mod presenter;

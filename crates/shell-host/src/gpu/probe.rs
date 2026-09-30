@@ -21,11 +21,11 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{Connection, Dispatch, EventQueue, QueueHandle, delegate_noop};
 
 use crate::error::{HostError, Result};
-use crate::gpu::block_on::block_on;
 use crate::gpu::context::{SURFACE_FORMAT, enumerate, with_backends};
 use crate::gpu::raw_handle::{self, WaylandDisplay};
 use crate::gpu::swapchain::{choose_alpha, choose_present};
 use blitz_kit::adapter::AdapterFacts;
+use blitz_kit::adapter::block_on;
 
 const NAMESPACE: &str = "shell-host-adapter-probe";
 

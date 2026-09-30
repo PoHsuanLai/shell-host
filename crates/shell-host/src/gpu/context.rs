@@ -5,17 +5,17 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use blitz_kit::adapter::{AdapterFacts, AdapterPref, rank};
+use blitz_kit::adapter::{
+    ADAPTER_ENV, AdapterFacts, AdapterPref, block_on, ranked, request_device,
+};
 use rustc_hash::FxHashMap;
 use vello_common::paint::ImageId;
 use vello_hybrid::{RenderTargetConfig, Renderer, Resources};
 use wayland_client::Connection;
 use wgpu_context::DeviceHandle;
 
-use crate::config::ADAPTER_ENV;
 use crate::error::{HostError, Result};
 use crate::gpu::adapter;
-use crate::gpu::block_on::block_on;
 use crate::gpu::context_proxy::ContextProxy;
 use crate::gpu::raw_handle::WaylandDisplay;
 
@@ -68,7 +68,7 @@ impl GpuContext {
             .filter(|a| a.is_surface_supported(probe_surface))
             .collect();
         let mut rejected = Vec::new();
-        for adapter in ranked(compatible, pref) {
+        for adapter in ranked_by_env(compatible, pref) {
             match adapter::validate(instance, &adapter) {
                 Ok(()) => return create(instance, adapter),
                 Err(error) if error.recovery() == crate::error::Recovery::Fallback => {
@@ -91,7 +91,7 @@ impl GpuContext {
             wgpu::InstanceDescriptor::new_without_display_handle(),
         ));
         let mut failed = Vec::new();
-        for adapter in ranked(enumerate(&instance), pref) {
+        for adapter in ranked_by_env(enumerate(&instance), pref) {
             match create(&instance, adapter) {
                 Ok(gpu) => return Ok(gpu),
                 Err(error) => failed.push(error.to_string()),
@@ -119,15 +119,13 @@ pub(crate) fn enumerate(instance: &wgpu::Instance) -> Vec<wgpu::Adapter> {
     block_on(instance.enumerate_adapters(wgpu::Backends::all()))
 }
 
-/// `adapters` in the order `adapter::rank` gives under the effective preference.
-fn ranked(adapters: Vec<wgpu::Adapter>, pref: &AdapterPref) -> Vec<wgpu::Adapter> {
+/// `adapters` in the order `adapter::rank` gives under the effective preference (the
+/// `WGPU_ADAPTER_NAME` override applied).
+fn ranked_by_env(adapters: Vec<wgpu::Adapter>, pref: &AdapterPref) -> Vec<wgpu::Adapter> {
     let pref = pref
         .clone()
         .with_env(std::env::var(ADAPTER_ENV).ok().as_deref());
-    let facts: Vec<AdapterFacts> = adapters.iter().map(AdapterFacts::of).collect();
-    let order = rank(&pref, &facts);
-    let mut slots: Vec<Option<wgpu::Adapter>> = adapters.into_iter().map(Some).collect();
-    order.into_iter().filter_map(|i| slots[i].take()).collect()
+    ranked(adapters, &pref)
 }
 
 fn no_adapter_reason(reasons: &[String]) -> String {
@@ -141,16 +139,8 @@ fn no_adapter_reason(reasons: &[String]) -> String {
 /// The one device, and the renderer every surface shares.
 fn create(instance: &wgpu::Instance, adapter: wgpu::Adapter) -> Result<GpuContext> {
     let facts = AdapterFacts::of(&adapter);
-    let features =
-        adapter.features() & (wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE);
-    let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        label: Some("shell-host"),
-        required_features: features,
-        required_limits: wgpu::Limits::default(),
-        memory_hints: wgpu::MemoryHints::MemoryUsage,
-        ..Default::default()
-    }))
-    .map_err(|e| HostError::NoAdapter(format!("{}: no device: {e}", facts.label())))?;
+    let (device, queue) = request_device(&adapter, "shell-host")
+        .map_err(|e| HostError::NoAdapter(format!("{}: no device: {e}", facts.label())))?;
     DEVICES_CREATED.fetch_add(1, Ordering::Relaxed);
     // The render target size is rewritten by every `render`, so one renderer serves
     // surfaces of every size.
