@@ -11,22 +11,20 @@
 //! nothing to present and nothing to poll for input.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use anyrender::render_to_buffer;
 use anyrender_vello_cpu::VelloCpuImageRenderer;
-use blitz_dom::{BULLET_FONT, Document, DocumentConfig, FontContext};
+use blitz_dom::{Document, DocumentConfig, FontContext};
 use blitz_paint::paint_scene;
 use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::core::Element;
 use dioxus::core::VirtualDom;
 use dioxus_native_dom::DioxusDocument;
 use image::RgbaImage;
-use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
 
 use crate::dom::document::BODY_RESET;
 use crate::scale::Scale;
-use blitz_kit::fonts::FontFaces;
+use blitz_kit::fonts::{FontFaces, SharedFonts};
 
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
 /// component whose effects never settle (a bug, not a feature) cannot hang a render.
@@ -142,38 +140,17 @@ fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale)
         .expect("anyrender::render_to_buffer returns exactly width * height * 4 bytes")
 }
 
-/// One [`FontContext`] per call: `system_fonts` is a construction-time choice of the
-/// `fontique::Collection`, not a runtime flag, so `Fonts::Bundled` must build its own
-/// collection (`blitz_dom::BaseDocument`'s own default construction hard-codes
-/// `system_fonts` to blitz-dom's own `system-fonts` *cargo* feature, which `shell-host`'s
-/// pinned dependency block always enables — supplying `font_ctx` ourselves is the only way
-/// to turn it off for a reproducible render).
+/// One [`FontContext`] per call: `Fonts::Bundled` builds a collection without system fonts
+/// (`SharedFonts::bundled`), because blitz-dom's own default construction hard-codes
+/// `system_fonts` to its `system-fonts` *cargo* feature, which `shell-host`'s pinned dependency
+/// block always enables; supplying `font_ctx` ourselves is the only way to turn it off for a
+/// reproducible render.
 fn build_font_context(fonts: Fonts) -> FontContext {
-    let system_fonts = matches!(fonts, Fonts::System);
-    let mut font_ctx = FontContext {
-        source_cache: SourceCache::new_shared(),
-        collection: Collection::new(CollectionOptions {
-            shared: false,
-            system_fonts,
-        }),
-    };
-
-    // Registered unconditionally: this is the list-bullet glyph blitz-dom's own default
-    // construction always registers (see `BaseDocument::new`); we bypass that default to
-    // control `system_fonts`, so we register it ourselves to match.
-    font_ctx
-        .collection
-        .register_fonts(Blob::new(Arc::new(BULLET_FONT) as _), None);
-
-    if let Fonts::Bundled(faces) = fonts {
-        for bytes in faces.0 {
-            font_ctx
-                .collection
-                .register_fonts(Blob::new(Arc::new(bytes) as _), None);
-        }
+    match fonts {
+        Fonts::System => SharedFonts::system(),
+        Fonts::Bundled(faces) => SharedFonts::bundled(&faces),
     }
-
-    font_ctx
+    .for_document()
 }
 
 /// A `Fonts::Bundled` face list for shell-host's own examples and tests, which (unlike a real
