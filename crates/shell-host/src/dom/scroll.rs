@@ -9,6 +9,8 @@
 //! stretch, so the host never forwards a wheel except to a `data-wheel="capture"` element.
 
 use blitz_dom::{BaseDocument, Node, NodeId};
+use blitz_kit::hit::element_at;
+use blitz_kit::units::PagePoint;
 
 use crate::region::ElementId;
 use crate::scroll::geom::{Elastic, Geom, Px, ScrollAxis, Scroller};
@@ -56,9 +58,7 @@ fn ancestors(doc: &BaseDocument, id: NodeId) -> impl Iterator<Item = &Node> {
 /// The element under document point `(x, y)` (page coordinates: surface-local plus the
 /// viewport's scroll), lifted out of text and anonymous boxes.
 fn element_under(doc: &BaseDocument, x: f64, y: f64) -> Option<NodeId> {
-    let hit = doc.hit(x as f32, y as f32)?;
-    let id = doc.nearest_non_anonymous_ancestor(hit.node_id)?;
-    ancestors(doc, id).find(|n| n.is_element()).map(|n| n.id)
+    element_at(doc, PagePoint { x, y })
 }
 
 /// Page coordinates of surface-local `(x, y)`.
