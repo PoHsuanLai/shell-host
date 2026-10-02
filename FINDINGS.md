@@ -40,6 +40,36 @@ transparent 1x1 frame on a second connection, round-trips, and checks that conne
   the first present (error 7 or connection reset); llvmpipe passes but ranks last; NVIDIA GL does
   not support the surface.
 
+### F80. The adapter follows the compositor's GPU
+
+`HostConfig::adapter` stays `AdapterPref::Auto`, but `Auto` no longer means "discrete first"
+when the compositor says which GPU it renders on: the host binds `zwp_linux_dmabuf_v1` at v4+,
+reads the default feedback's `main_device` (a `dev_t`) in the roundtrip `Host::connect` runs
+before any surface exists, and maps it through `/sys/dev/char/<major>:<minor>/device/{vendor,
+device}` to PCI ids (`render_gpu`, pure over a sysfs root). `render_gpu::follow_compositor`
+turns `Auto` into `AdapterPref::Device { vendor, device }`, which `blitz_kit::adapter::rank`
+puts first (both backends, Vulkan before GL); the rest keeps the default order.
+
+- Why: on a hybrid machine whose compositor renders on the iGPU, a discrete-first shell renders
+  on the other GPU and every frame is a cross-GPU dmabuf (F16 rejects some outright).
+- Not followed, by design: an explicit `Discrete`, `Integrated` or `Named` in `HostConfig`, and
+  `WGPU_ADAPTER_NAME` (a name substring), which `AdapterPref::with_env` applies last.
+- Falls back to the old order when the compositor offers less than dmabuf v4, the device has no
+  PCI function (virtual or SoC GPUs have no `vendor` file), or no adapter has those ids. Two
+  identical cards share ids; the first present (F16) still validates whichever is tried.
+- The nested cosmic-comp on Mesa (`nested.sh`) advertises no `zwp_linux_dmabuf_v1` at all (its
+  winit backend cannot bind the display to EGL: `EGL_EXT_device_drm` is missing), so nothing is
+  followed there and wgpu's order applies. The headless KWin follows: started on the AMD iGPU
+  (`KWIN_DRM_DEVICES=/dev/dri/card1`, `__EGL_VENDOR_LIBRARY_FILENAMES` set to Mesa's) it reports
+  main device 0xE280, and the shell takes RADV although `Auto` would take the NVIDIA card; on the
+  NVIDIA default it takes NVIDIA; `WGPU_ADAPTER_NAME=llvmpipe` still wins.
+- `scripts/dev/nested.sh`'s `socket_of_pid` let awk exit at its first match, which sometimes
+  SIGPIPEd `ss` and, under `pipefail`, ended the script silently with the compositor running and
+  no `.nested-env`; awk now reads all of `ss`'s output.
+- The first present stays the safety net: a followed adapter that the probe rejects falls
+  through to the next in the ranking. The chosen adapter is printed once on stderr:
+  `shell-host: adapter <name> (<backend>, <driver>) (requested ..., before WGPU_ADAPTER_NAME)`.
+
 ### F75. Presenting: ordering, the redraw flag, drop order, protocol errors
 
 - **The present commits for us, so the frame request goes first**: `wl_surface.frame()`, then

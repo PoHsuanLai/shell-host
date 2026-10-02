@@ -11,6 +11,8 @@
 //!
 //! Pure: the facts are gathered by `handlers::render_device` and `HostState`.
 
+use blitz_kit::adapter::PciVendor;
+
 /// Which compositor this is, where its behaviour differs: blur (cosmic-comp) and a
 /// grabbing popup's keyboard (KWin, `popup_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,40 +98,15 @@ pub(crate) fn output_backend<'a>(names: impl IntoIterator<Item = &'a str>) -> Ou
     }
 }
 
-/// The vendor from a PCI vendor id as sysfs prints it (`0x10de\n`).
-pub(crate) fn render_vendor(sysfs_vendor: &str) -> RenderVendor {
-    match sysfs_vendor.trim() {
-        "0x10de" => RenderVendor::Nvidia,
-        "" => RenderVendor::Unknown,
+/// The vendor from a PCI vendor id (`0x10de` is NVIDIA).
+pub(crate) fn render_vendor(vendor: PciVendor) -> RenderVendor {
+    match vendor {
+        NVIDIA => RenderVendor::Nvidia,
         _ => RenderVendor::Other,
     }
 }
 
-/// A Linux device number, as `zwp_linux_dmabuf_feedback_v1.main_device` carries it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DeviceNumber {
-    pub major: u32,
-    pub minor: u32,
-}
-
-impl DeviceNumber {
-    /// Decode the wire's `dev_t` (native-endian bytes) with glibc's `major`/`minor` split.
-    /// `None` unless it is exactly the 8 bytes of a Linux `dev_t`.
-    pub(crate) fn from_wire(bytes: &[u8]) -> Option<DeviceNumber> {
-        let dev = u64::from_ne_bytes(bytes.try_into().ok()?);
-        let major = ((dev >> 32) & 0xffff_f000) | ((dev >> 8) & 0x0000_0fff);
-        let minor = ((dev >> 12) & 0xffff_ff00) | (dev & 0x0000_00ff);
-        Some(DeviceNumber {
-            major: u32::try_from(major).ok()?,
-            minor: u32::try_from(minor).ok()?,
-        })
-    }
-
-    /// Where sysfs keeps the PCI vendor of this character device.
-    pub(crate) fn sysfs_vendor_path(self) -> std::path::PathBuf {
-        format!("/sys/dev/char/{}:{}/device/vendor", self.major, self.minor).into()
-    }
-}
+const NVIDIA: PciVendor = PciVendor(0x10de);
 
 #[cfg(test)]
 mod tests {
@@ -209,25 +186,8 @@ mod tests {
     }
 
     #[test]
-    fn vendor_ids_as_sysfs_prints_them() {
-        assert_eq!(render_vendor("0x10de\n"), RenderVendor::Nvidia);
-        assert_eq!(render_vendor("0x1002\n"), RenderVendor::Other);
-        assert_eq!(render_vendor(""), RenderVendor::Unknown);
-    }
-
-    #[test]
-    fn device_numbers_decode_like_glibc() {
-        // 0xE280 is 226:128, /dev/dri/renderD128 (wayland-info's `main device: 0xE280`).
-        let cases: &[(u64, Option<(u32, u32)>)] = &[
-            (0xE280, Some((226, 128))),
-            (0xE281, Some((226, 129))),
-            // glibc's makedev(511, 300): a minor above 255 uses bits 20 and up.
-            (0x0011_ff2c, Some((511, 300))),
-        ];
-        for (dev, want) in cases {
-            let got = DeviceNumber::from_wire(&dev.to_ne_bytes()).map(|d| (d.major, d.minor));
-            assert_eq!(got, *want, "{dev:#x}");
-        }
-        assert_eq!(DeviceNumber::from_wire(&[0; 4]), None);
+    fn vendor_ids_are_recognised() {
+        assert_eq!(render_vendor(PciVendor(0x10de)), RenderVendor::Nvidia);
+        assert_eq!(render_vendor(PciVendor(0x1002)), RenderVendor::Other);
     }
 }

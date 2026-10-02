@@ -43,6 +43,7 @@ mod popup;
 mod popup_keyboard;
 mod prepaint;
 mod region;
+mod render_gpu;
 mod resolve;
 mod role;
 mod root;

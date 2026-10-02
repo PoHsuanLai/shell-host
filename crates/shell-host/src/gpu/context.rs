@@ -55,7 +55,8 @@ impl GpuContext {
     }
 
     /// Rank the adapters compatible with `probe_surface` under `pref` (after the
-    /// `WGPU_ADAPTER_NAME` override), validate them in order, and create the device on the
+    /// `WGPU_ADAPTER_NAME` override; the caller resolves `Auto` to the compositor's GPU with
+    /// `render_gpu::follow_compositor`), validate them in order, and create the device on the
     /// first that survives. `HostError::NoAdapter` (a `Fallback`) when none does: the host then
     /// switches to the CPU backend.
     pub(crate) fn new(
@@ -70,7 +71,14 @@ impl GpuContext {
         let mut rejected = Vec::new();
         for adapter in ranked_by_env(compatible, pref) {
             match adapter::validate(instance, &adapter) {
-                Ok(()) => return create(instance, adapter),
+                Ok(()) => {
+                    let gpu = create(instance, adapter)?;
+                    eprintln!(
+                        "shell-host: adapter {} (requested {pref:?}, before WGPU_ADAPTER_NAME)",
+                        gpu.adapter.label()
+                    );
+                    return Ok(gpu);
+                }
                 Err(error) if error.recovery() == crate::error::Recovery::Fallback => {
                     eprintln!("shell-host: {error}; trying the next adapter");
                     rejected.push(error.to_string());

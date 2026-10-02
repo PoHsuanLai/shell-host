@@ -37,10 +37,12 @@ mkdir -p "$OUT_DIR"
 
 cmd="${1:-start}"
 
-# The wayland socket (basename) a process is listening on, if any.
+# The wayland socket (basename) a process is listening on, if any. awk reads all of ss's output:
+# exiting at the first match would SIGPIPE ss, and `pipefail` plus `set -e` then ends the script
+# silently, with the compositor running and no .nested-env written.
 socket_of_pid() {
   ss -xlp 2>/dev/null | awk -v pid="pid=$1," '
-    index($0, pid) { for (i = 1; i <= NF; i++) if ($i ~ /\/wayland-[^ ]*$/ && $i !~ /\.lock$/) { n = split($i, p, "/"); print p[n]; exit } }'
+    !found && index($0, pid) { for (i = 1; i <= NF; i++) if ($i ~ /\/wayland-[^ ]*$/ && $i !~ /\.lock$/) { n = split($i, p, "/"); print p[n]; found = 1; break } }'
 }
 
 list_wayland_sockets() {

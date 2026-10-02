@@ -135,7 +135,7 @@ no design-system type, and takes and returns CSS px `f64` in Blitz's own units.
 | `hover` | `LastMove::{Unknown, At(BlitzPointerEvent)}`, `remember(LastMove, &UiEvent) -> LastMove`, `Shift<N>`, `HoverSync::{Unchanged, Restore(PagePoint), Clear}`, `decide(shift, &LastMove, bounds, hit) -> HoverSync`, `probe_points(Bounds) -> [PagePoint; 5]`, `repair(&mut BaseDocument, &LastMove, Shift<NodeId>) -> Repaired::{Yes, No}` (restores the old hover without dispatch, feeds the last move again so Blitz dispatches the enter/leave diff) | `dom/hover_sync.rs`, `SurfaceDocument::sync_hover` |
 | `net` | `LocalNet` (`NetProvider`: `data:` decoded, absolute `file:` read on the caller's blocking pool, nothing else), `LocalSource::{Data, File, Unservable}`, `LocalSource::of(&Url)` | `dom/net.rs` |
 | `fonts` | `SharedFonts::{system, system_with(&FontFaces), register(&'static [u8]) -> Vec<String>, for_document() -> FontContext}`, `FontFaces` | `dom/fonts.rs`, `HostConfig::fonts` |
-| `adapter` (feature `adapter`) | `DeviceKind`, `GpuBackend`, `AdapterFacts::of(&wgpu::Adapter)`, `AdapterPref`, `rank(&AdapterPref, &[AdapterFacts]) -> Vec<usize>`; the surface-based `validate` stays in shell-host (it needs the Wayland probe) | `gpu/adapter.rs` |
+| `adapter` (feature `adapter`) | `DeviceKind`, `GpuBackend`, `AdapterFacts::of(&wgpu::Adapter)`, `AdapterPref` (`Device { vendor, device }` follows the compositor's GPU), `PciVendor`, `PciDevice`, `rank(&AdapterPref, &[AdapterFacts]) -> Vec<usize>`; the surface-based `validate` stays in shell-host (it needs the Wayland probe) | `gpu/adapter.rs` |
 | `hit` | `element_at(&BaseDocument, PagePoint) -> Option<NodeId>`, `element_of(&BaseDocument, NodeId) -> Option<NodeId>`, `is_content_element` (transform-aware: the point is carried back through each transformed ancestor) | `dom/document.rs` |
 | `paint_rect` | `Affine2`, `Placed`, `painted_bounds(Bounds, &[Placed]) -> Bounds`, `painted_rect(&BaseDocument, NodeId) -> Option<Bounds>` (layout box carried through its own and its ancestors' transforms) | `dom/painted.rs`, `dom/document.rs` |
 | `snap` | `snap_layout(&mut BaseDocument, Scale120)`: whole device pixels for every box after a resolve | consumers' prepaint hooks |
@@ -189,6 +189,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Debug commands, synthetic input | `inject` (feature `debug-inject`) |
 | Delegate macros | `state.rs` (only file naming them) |
 | Blur health and compositor identity | `blur_health` |
+| The compositor's GPU (dev_t to PCI ids) and the adapter following it | `render_gpu` (pure), `handlers/render_device` (the event) |
 | `unsafe` | `gpu/raw_handle.rs` |
 | Ambient inputs (environment, clock, directories) | `HostConfig` and `HostClock` values passed in; no other module reads `std::env` |
 

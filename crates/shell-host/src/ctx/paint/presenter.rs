@@ -10,7 +10,9 @@ use crate::gpu::presenter::Presenter;
 use crate::gpu::raw_handle::create_surface;
 use crate::gpu::shm::ShmBuffers;
 use crate::gpu::swapchain::Swapchain;
+use crate::handlers::render_device::RenderDevice;
 use crate::id::SurfaceId;
+use crate::render_gpu::follow_compositor;
 use crate::scale::Size;
 use crate::state::HostState;
 
@@ -60,7 +62,9 @@ fn gpu_presenter<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<Pres
     };
     let wgpu_surface = create_surface(instance, conn, surface.role.wl_surface())?;
     if state.gpu.is_none() {
-        state.gpu = Some(GpuContext::new(instance, &wgpu_surface, &ctx.adapter)?);
+        let compositor = state.render_device.as_ref().and_then(RenderDevice::ids);
+        let pref = follow_compositor(&ctx.adapter, compositor);
+        state.gpu = Some(GpuContext::new(instance, &wgpu_surface, &pref)?);
     }
     Ok(Presenter::Wgpu(Box::new(Swapchain::new(wgpu_surface))))
 }
