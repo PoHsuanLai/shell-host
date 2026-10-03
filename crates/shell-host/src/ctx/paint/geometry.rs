@@ -30,12 +30,12 @@ pub(super) fn sync_geometry(state: &mut HostState, id: SurfaceId) {
         Some(fractional) => fractional.set_destination(&wl, now.logical.width, now.logical.height),
         None => wl.set_buffer_scale(integer_scale(now.scale)),
     }
-    surface.document.set_viewport(viewport(
-        now.logical,
-        now.inset,
-        now.scale,
-        state.color_scheme,
-    ));
+    // The scheme the document is at, not the host's: a root that follows its own appearance
+    // would otherwise be flipped back by every resize and rebuilt again.
+    let scheme = surface.document.scheme();
+    surface
+        .document
+        .set_viewport(viewport(now.logical, now.inset, now.scale, scheme));
     let buffer = surface.buffer();
     if let Some(presenter) = surface.presenter.as_mut() {
         presenter.resize(state.gpu.as_ref(), buffer);

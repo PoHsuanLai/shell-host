@@ -184,6 +184,25 @@ hit-tests the stale lists; the hover repair (F59) runs after the re-hoist. `test
 `tests/headless.rs`. Upstream fix: gather hoisted children after `resolve_layout`; once a Blitz
 rev with it is pinned, `rehoist` can go. Not filed.
 
+### F81. A colour-only restyle keeps the old ink; the host follows the root's scheme
+
+Blitz bakes a text run's colour into its inline layout and an `<svg>`'s `currentColor` into its
+parsed tree when the box is built; a `color` change builds neither again. A root switched from
+Light to Dark while it is up keeps drawing its glyphs and text in the old ink.
+
+`dom/scheme.rs::follow_root` runs once per frame, before the resolve (`SurfaceDocument::resolve`
+and the headless `render_frame`). It reads `data-theme` on the outermost `.ds`, points the
+viewport's colour scheme at it, and on a change turns incremental layout off, so every resolve
+rebuilds every box; it stays off while a transition runs (a box built mid-transition bakes that
+frame's colour) and the first frame after the last transition turns it back on. It is the rule of
+quire's `ds_blitz::scheme::follow_root`, written against `blitz-dom` because the host may not
+depend on a quire crate. A document with no `.ds` keeps the scheme the host gave it
+(`HostCtx::set_color_scheme`); the scroll thumb's ink and a resize's new viewport read the
+document's scheme, so they follow the root too. `dom/tests/scheme_follow.rs` reads the painted
+pixels across a live switch with the same nodes. Upstream fix: mark colour-dependent boxes damaged
+on a `color` change (blitz-kit `docs/blitz-gaps.md`, not filed); once a Blitz rev has it,
+`dom/scheme.rs` can shrink to the viewport copy.
+
 ### F77. Blitz and sctk API facts
 
 - `blitz_paint::paint_scene` drives custom widgets only when built with
@@ -686,7 +705,7 @@ setting).
   `max / (track - thumb)` px per thumb px, clamped, never stretched, design/11 §11.3.12).
   `scrollbars = Always` still shows one thumb at a time, and the vertical track never stops short
   for a horizontal one (`scrollbar.other_axis_offset_px` is parsed and read by nothing).
-- The thumb's colour follows the host's colour scheme; quire's `--scroll-thumb` is not readable
+- The thumb's colour follows the document's colour scheme (F81); quire's `--scroll-thumb` is not readable
   from the host.
 - The viewport is rigid: `html`/`body` cannot carry `data-overscroll="band"` from Dioxus.
 - Not proven live: touchpad, keyboard, palmrest, hover expansion, the thumb on screen.

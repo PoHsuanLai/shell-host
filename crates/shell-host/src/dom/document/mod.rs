@@ -20,10 +20,11 @@ use blitz_kit::hover::{LastMove, remember};
 use blitz_kit::net::LocalNet;
 use blitz_traits::events::UiEvent;
 use blitz_traits::net::NetProvider;
-use blitz_traits::shell::{ShellProvider, Viewport};
+use blitz_traits::shell::{ColorScheme, ShellProvider, Viewport};
 use dioxus_native_dom::DioxusDocument;
 
 use crate::dom::head::{HeadDocument, HeadElement, HeadQueue};
+use crate::dom::scheme;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::prepaint::Prepaint;
 use crate::root::HostRoot;
@@ -152,6 +153,18 @@ impl SurfaceDocument {
     /// Set the physical size, scale and colour scheme.
     pub(crate) fn set_viewport(&mut self, viewport: Viewport) {
         self.doc.inner_mut().set_viewport(viewport);
+    }
+
+    /// The colour scheme the viewport is at: the root's once it has mounted one, else the host's.
+    pub(crate) fn scheme(&self) -> ColorScheme {
+        self.doc.inner().viewport().color_scheme
+    }
+
+    /// Point the viewport at the host's colour scheme and repaint the glyphs and text in it. A
+    /// root that resolves its own scheme takes the viewport back on the next resolve
+    /// (`dom::scheme`).
+    pub(crate) fn set_scheme(&mut self, scheme: ColorScheme) {
+        scheme::switch_to(&mut self.doc.inner_mut(), scheme);
     }
 
     /// Feed one input event, remembering a pointer position for `resolve`'s hover repair. A

@@ -116,6 +116,8 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
 
 fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale) -> RgbaImage {
     let mut inner = doc.inner.borrow_mut();
+    // The live path's order: the root's scheme first, so a switch rebuilds every box.
+    crate::dom::scheme::follow_root(&mut inner);
     inner.resolve(t);
     // The same re-hoist the live path does after every resolve.
     crate::dom::stacking::rehoist(&mut inner);

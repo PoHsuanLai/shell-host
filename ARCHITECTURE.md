@@ -58,7 +58,7 @@ a higher one. When something needs a higher layer, move the shared piece down or
 | L1 role configs | `layer`, `toplevel`, `popup`, `region`, `placement`, `csd`, `drag/{spec,offer,serial,pipe,outcome}`, `prepaint`, `lock/{config,machine}` | pure: configs, wire mappings, geometry |
 | L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,geom,latch,engine,animate,momentum,velocity,rubber,smooth,keys,indicator,source,suppress,cmd}` | pure, table-tested |
 | L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/watch` | values shared with documents; no Wayland |
-| L4 documents | `dom/{document,head,shell_provider,stacking,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
+| L4 documents | `dom/{document,head,shell_provider,stacking,scheme,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
 | L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,block_on,raw_handle}` | effects |
 | L6 Wayland effects | `state`, `surface`, `role`, `handlers/*`, `clipboard`, `cursor`, `ime`, `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
 | L7 orchestration | `ctx/*`, `host`, `inject` | effects; the loop and the flush |
@@ -177,6 +177,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Scroll view of Blitz (scroller chain, raw offsets) | `dom/scroll` |
 | Hover repair, net provider, fonts, adapter ranking, transform-aware hit and rect, pixel snap | `blitz-kit` |
 | One document per surface | `dom/document` |
+| The viewport's colour scheme follows the root's; a switch rebuilds every box (F81) | `dom/scheme` |
 | Shell provider (redraw flag, cursor, IME, clipboard hooks) | `dom/shell_provider` |
 | Head elements (`document::Style`, `Link`, `Title`) | `dom/head` |
 | GPU device, renderer, image cache | `gpu/context` |

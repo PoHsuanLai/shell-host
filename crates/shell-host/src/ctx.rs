@@ -173,15 +173,15 @@ impl<M: 'static> HostCtx<M> {
             .set_scroll_tuning(crate::scroll::tuning::Tuning::new(config));
     }
 
-    /// Set every document's `prefers-color-scheme`.
+    /// Set every document's `prefers-color-scheme`, and the scheme of every surface created
+    /// after. A document whose root resolves its own scheme (a `.ds` carrying `data-theme`)
+    /// follows that instead, from its next frame (`dom::scheme`).
     pub fn set_color_scheme(&mut self, scheme: ColorScheme) {
         self.state.color_scheme = scheme;
-        // Forgetting the applied geometry makes the next flush set every viewport again, with
-        // the new scheme, and repaint.
         let ids: Vec<SurfaceId> = self.state.surfaces.keys().copied().collect();
         for id in ids {
             if let Some(surface) = self.state.surfaces.get_mut(&id) {
-                surface.geometry = None;
+                surface.document.set_scheme(scheme);
             }
             self.state.frame_input(id, FrameInput::Invalidate);
         }

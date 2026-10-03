@@ -72,7 +72,7 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     };
     let overlay = Overlay {
         thumbs: surface.scroll.overlay(&surface.document.base(), now_host),
-        scheme: state.color_scheme,
+        scheme: surface.document.scheme(),
     };
     let Some(presenter) = surface.presenter.as_mut() else {
         return Ok(());

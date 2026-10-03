@@ -9,7 +9,7 @@ use super::hover::HoverShift;
 #[cfg(feature = "debug-inject")]
 use crate::dom::ime_focus::FieldText;
 use crate::dom::ime_focus::{self, Repair};
-use crate::dom::stacking;
+use crate::dom::{scheme, stacking};
 use crate::frame::Animation;
 use crate::prepaint::Prepainted;
 
@@ -29,9 +29,11 @@ impl SurfaceDocument {
     /// it must follow each one, or the paint shows the unsnapped layout. So a frame resolves
     /// exactly once, here, and paints what this left. The hover repair touches hover state and runs
     /// handlers, never layout, so the hook and the paint see the same layout; the restyle it causes
-    /// is the next frame's (`Resolved::hover`).
+    /// is the next frame's (`Resolved::hover`). Before any of that the viewport follows the root's
+    /// colour scheme (`dom::scheme`), so a switch is laid out with every box rebuilt.
     pub(crate) fn resolve(&mut self, t: f64) -> Resolved {
         let before = self.hovered();
+        scheme::follow_root(&mut self.doc.inner_mut());
         self.doc.inner_mut().resolve(t);
         stacking::rehoist(&mut self.doc.inner_mut());
         self.repair_ime();
