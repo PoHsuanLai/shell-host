@@ -9,13 +9,16 @@
 //! Lines on stdout, one JSON object each: `{"event":"drag","dx":..}` and
 //! `{"event":"released","dx":..,"leaving":..}`. stdin: `quit`.
 
+#[path = "shared/harness.rs"]
+mod harness;
+
 use std::io::{BufRead, Write};
 
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Host, HostConfig, HostEvent,
-    HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
+    Anchor, BlurSpec, ElementId, ElementRegion, ExclusiveZone, Host, HostEvent, HostRoot,
+    KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
     RegionSpec,
 };
 
@@ -121,7 +124,7 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let host = Host::<()>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<()>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

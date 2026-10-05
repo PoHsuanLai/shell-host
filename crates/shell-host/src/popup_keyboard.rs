@@ -7,7 +7,9 @@
 //! keyboard back to the active window. Lifting there makes KWin *activate* the bar
 //! (`LayerShellV1Window::handleAcceptsFocusChanged`), and nothing deactivates it when the host
 //! drops it back to `None`: the bar keeps the keyboard after every menu closes, and the app the
-//! user was typing in never gets it back. Pure.
+//! user was typing in never gets it back. casement behaves as KWin does there (an xdg_popup grab
+//! takes the keyboard from the layer under it and gives it back on the dismiss), so it takes the
+//! same arm. Pure.
 //!
 //! See FINDINGS F72.
 
@@ -24,15 +26,15 @@ pub(crate) enum ParentKeyboard {
     Keep,
 }
 
-/// The rule: a grabbing popup of a `None` layer lifts it, except on KWin. `parent` is the
-/// layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
+/// The rule: a grabbing popup of a `None` layer lifts it, except on KWin and casement. `parent`
+/// is the layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
 pub(crate) fn parent_keyboard(
     kind: CompositorKind,
     grab: PopupGrab,
     parent: KeyboardMode,
 ) -> ParentKeyboard {
     match (kind, grab, parent) {
-        (CompositorKind::Kwin, _, _) => ParentKeyboard::Keep,
+        (CompositorKind::Kwin | CompositorKind::Casement, _, _) => ParentKeyboard::Keep,
         (_, PopupGrab::Grabbed, KeyboardMode::None) => ParentKeyboard::Lift,
         _ => ParentKeyboard::Keep,
     }
@@ -43,7 +45,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_a_grabbing_popup_of_a_keyboardless_layer_lifts_it_and_never_on_kwin() {
+    fn only_a_grabbing_popup_of_a_keyboardless_layer_lifts_it_and_never_on_kwin_or_casement() {
         use CompositorKind as K;
         use KeyboardMode as M;
         use ParentKeyboard::{Keep, Lift};
@@ -58,6 +60,9 @@ mod tests {
             (K::Cosmic, Grabbed, M::Exclusive, Keep),
             (K::Other, Grabbed, M::OnDemand, Keep),
             (K::Kwin, Grabbed, M::Exclusive, Keep),
+            (K::Casement, Grabbed, M::None, Keep),
+            (K::Casement, Ungrabbed, M::None, Keep),
+            (K::Casement, Grabbed, M::OnDemand, Keep),
         ];
         for (kind, grab, parent, want) in cases {
             assert_eq!(

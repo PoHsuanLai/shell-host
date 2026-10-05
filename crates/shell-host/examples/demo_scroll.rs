@@ -11,14 +11,17 @@
 //! frame counters, the list's offset as `use_scroll` last reported it, and the capture count),
 //! `quit` exits.
 
+#[path = "shared/harness.rs"]
+mod harness;
+
 use std::io::{BufRead, Write};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use dioxus::prelude::*;
 use shell_host::{
-    Anchor, BlurSpec, ElementId, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot,
-    KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget,
-    RegionSpec, SurfaceId, use_scroll,
+    Anchor, BlurSpec, ElementId, ExclusiveZone, Host, HostEvent, HostRoot, KeyboardMode,
+    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, RegionSpec, SurfaceId,
+    use_scroll,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0;background:rgb(240,240,240)}\
@@ -96,7 +99,7 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let host = Host::<Command>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<Command>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

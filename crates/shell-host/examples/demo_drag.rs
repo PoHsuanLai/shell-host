@@ -14,6 +14,9 @@
 //! pointer), `--keyboard=none|on-demand` (the layer's `KeyboardMode`, default `none`).
 //! stdin, one command per line: `stats`, `quit`.
 
+#[path = "shared/harness.rs"]
+mod harness;
+
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -22,8 +25,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use dioxus::prelude::*;
 use shell_host::{
     Anchor, BlurSpec, DragActions, DragIcon, DragOutcome, DragPayload, DragSpec, ExclusiveZone,
-    Host, HostConfig, HostEvent, HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel,
-    LayerSize, Margin, OutputTarget, RegionSpec, Size, use_surface,
+    Host, HostEvent, HostRoot, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize,
+    Margin, OutputTarget, RegionSpec, Size, use_surface,
 };
 
 const CSS: &str = "html,body{margin:0;padding:0}\
@@ -221,7 +224,7 @@ fn run() -> Result<(), String> {
     let (icon, keyboard) = options()?;
     let file = temp_file()?;
     say(&format!("file {}", file.display()));
-    let host = Host::<Command>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<Command>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

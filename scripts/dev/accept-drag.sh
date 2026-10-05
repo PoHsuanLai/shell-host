@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Real-input drag-source acceptance: examples/demo_drag's thumbnail on a headless
 # KWin (kwin-virtual.sh), driven by fake-input.sh, with a foot terminal in the same session as
-# the drop target. Never the user's session (every client here sources .kwin-env), no keyboard
+# the drop target. Never the user's session (every client here sources the compositor's env file), no keyboard
 # grab. demo_drag and foot both run with WAYLAND_DEBUG=1, so each side's protocol traffic is in
 # its own log.
 #
 #   scripts/dev/accept-drag.sh              builds demo_drag, runs the steps, stops everything
 #   DRAG_ICON=root scripts/dev/accept-drag.sh   the same with a DragIcon::Root document
+#   COMPOSITOR=casement scripts/dev/accept-drag.sh   the same on casement, in a jail
 #
 # foot: `foot` on PATH, or FOOT=/path/to/foot; failing both, the Fedora packages foot and fcft
-# are fetched with `dnf download` (no root) and unpacked into scripts/dev/out/foot.
+# are fetched with `dnf download` (no root) and unpacked into scripts/dev/out/foot. That happens
+# before a jail is entered (nothing in the jail has the network), and never in the jail.
 #
 # The thumbnail is 64 x 64 at the output's bottom-right corner (margin 40): 1816..1880 x
 # 976..1040 on the 1920 x 1080 output. Steps:
@@ -25,18 +27,19 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
-mkdir -p "$OUT"
-LOG="$OUT/drag.log"
-FOOT_LOG="$OUT/drag-foot.log"
-TYPED="$OUT/drag-foot-typed.txt"
-BIN="$ROOT/target/debug/examples/demo_drag"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+FOOT_ROOT="$DEV/out"
 DEMO="" INPUT="" FOOT_PID=""
 
 find_foot() {
   if [ -n "${FOOT:-}" ]; then echo "$FOOT"; return 0; fi
   if command -v foot >/dev/null; then command -v foot; return 0; fi
-  local dir="$OUT/foot"
+  local dir="$FOOT_ROOT/foot"
+  if comp_in_jail && [ ! -x "$dir/usr/bin/foot" ]; then
+    echo "no foot in the jail: set FOOT=/path/to/foot, or run this script once outside it" >&2
+    return 1
+  fi
   if [ ! -x "$dir/usr/bin/foot" ]; then
     mkdir -p "$dir" && (cd "$dir" && timeout 300 dnf download --arch x86_64 foot fcft >&2 \
       && for rpm in ./*.rpm; do rpm2cpio "$rpm" | cpio -idm 2>/dev/null; done) || return 1
@@ -45,10 +48,18 @@ find_foot() {
 }
 FOOT_BIN="$(find_foot)" || { echo "no foot: set FOOT=/path/to/foot" >&2; exit 1; }
 FOOT_LIBS="$(dirname "$(dirname "$FOOT_BIN")")/lib64"
+export FOOT="$FOOT_BIN"
 
-cargo build --manifest-path "$ROOT/Cargo.toml" --example demo_drag >&2 || exit 1
+comp_build --manifest-path "$ROOT/Cargo.toml" --example demo_drag || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
+mkdir -p "$OUT"
+LOG="$OUT/drag.log"
+FOOT_LOG="$OUT/drag-foot.log"
+TYPED="$OUT/drag-foot-typed.txt"
+BIN="$ROOT/target/debug/examples/demo_drag"
 
-"$DEV/kwin-virtual.sh" start 1920x1080 >&2 || exit 1
+comp_start 1920x1080 || exit 1
 
 stop_all() {
   exec 3>&- 4>&- 2>/dev/null
@@ -58,7 +69,7 @@ stop_all() {
   done
   [ -n "$FOOT_PID" ] && kill "$FOOT_PID" 2>/dev/null
   rm -f "$OUT/drag-input.fifo" "$OUT/drag-demo.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 trap stop_all EXIT
 
@@ -67,8 +78,7 @@ mkfifo "$OUT/drag-input.fifo" "$OUT/drag-demo.fifo"
 : >"$LOG"
 : >"$TYPED"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   export WAYLAND_DEBUG=1
   # shellcheck disable=SC2086
   exec "$BIN" --icon="${DRAG_ICON:-none}" <"$OUT/drag-demo.fifo" >>"$LOG" 2>&1
@@ -76,8 +86,7 @@ mkfifo "$OUT/drag-input.fifo" "$OUT/drag-demo.fifo"
 DEMO=$!
 exec 4>"$OUT/drag-demo.fifo"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   export WAYLAND_DEBUG=1 LD_LIBRARY_PATH="$FOOT_LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   unset DISPLAY
   # Whatever foot's terminal receives, byte for byte (no line discipline, no echo).
@@ -85,7 +94,7 @@ exec 4>"$OUT/drag-demo.fifo"
     sh -c 'stty raw -echo; exec cat >"$0"' "$TYPED" >"$FOOT_LOG" 2>&1
 ) &
 FOOT_PID=$!
-"$DEV/fake-input.sh" <"$OUT/drag-input.fifo" >"$OUT/drag-input.log" 2>&1 &
+"$DEV/lib/input.sh" <"$OUT/drag-input.fifo" >"$OUT/drag-input.log" 2>&1 &
 INPUT=$!
 exec 3>"$OUT/drag-input.fifo"
 
@@ -131,7 +140,7 @@ has() { grep -E "$1" >/dev/null; }
 status=0
 sleep 2.5
 input "move 900 500" "sleep 200" "move 901 500" "sleep 300" || exit 1
-frame=$("$DEV/kwin-windows.sh" --class drag-target | sed -n 's/.*"frame":\[\([^]]*\)\].*/\1/p' | head -n 1)
+frame=$("$DEV/lib/windows.sh" --class drag-target | sed -n 's/.*"frame":\[\([^]]*\)\].*/\1/p' | head -n 1)
 if [ -z "$frame" ]; then echo "FAIL setup: no foot window (see $FOOT_LOG)"; exit 1; fi
 IFS=, read -r FX FY FW FH <<<"$frame"
 echo "     foot frame: $FX,$FY ${FW}x$FH"

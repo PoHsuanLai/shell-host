@@ -805,6 +805,33 @@ prints window geometry through a KWin script.
   (`COSMIC_BACKEND=winit`) receives it; there it needs the system EGL vendor (the headless KWin
   hands it the NVIDIA render node; the Mesa override draws nothing).
 
+### F82. casement is a second acceptance compositor
+
+`COMPOSITOR=casement scripts/dev/accept-<name>.sh` runs the real-input scripts on casement
+(`casement --backend headless`, started by casement's `dev/up.sh`) inside `~/desktop/harness/jail.sh`
+instead of on a headless KWin; `scripts/dev/lib/compositor.sh` is the one place that knows the
+difference (the script re-executes itself in the jail after its cargo builds, `comp_start`,
+`comp_source`, `lib/input.sh`, `lib/windows.sh`). Facts the port found:
+
+- `CompositorKind::Casement` is recognised by `quire_window_manager_v1`; it takes KWin's arm in
+  `popup_keyboard` (a grabbing popup of a `None` layer is not lifted).
+- The jail has no GPU: the demos run `Backend::Cpu` (`SHELL_HOST_BACKEND=cpu`, set by the lib;
+  `examples/shared/harness.rs`). With `SHELL_HOST_BACKEND=gpu` and a casement that offers no
+  dma-buf the host takes wgpu's own order (llvmpipe through lavapipe) and paints (F80's
+  fallback; `accept-hover.sh` asserts it).
+- casement's wheel is `axis_source` wheel with `value120`: one `axis vertical 15` is one detent
+  and the scroll engine's 60 px (design/11 §11.8) holds.
+- Input method: fcitx5 is a plain client of casement and binds `zwp_input_method_v2`
+  (`WAYLANDIM V2`); there is no `--inputmethod`.
+- The lock needs no nested compositor: casement implements `ext_session_lock_v1`. It runs in a
+  private runtime directory with the guard's marker. casement has no screenshot yet
+  (`casementctl shot` is P1-C1), so "the session is covered" is read from its input (a click on the
+  session's window does not activate it while locked, does after the unlock).
+- Open on casement: a popup of a layer surface gets no pointer (the hit test lists root surfaces
+  only) and, once it is dismissed, the keyboard goes to the layer, not to the window it came from
+  (smithay's popup grab returns it to the popup's root). `accept-popup-keyboard.sh` fails
+  `modality`, `bar_never_keyed` and `app_gets_it_back` until casement fixes both.
+
 ### F54. `kwin-virtual.sh stop` stops the scope `start` made
 
 D-Bus activation daemonizes (parent pid 1) into the caller's login cgroup, so neither a

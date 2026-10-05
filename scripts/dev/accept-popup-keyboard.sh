@@ -5,6 +5,7 @@
 # KWin (kwin-virtual.sh) driven by fake-input.sh. Never the user's session.
 #
 #   scripts/dev/accept-popup-keyboard.sh
+#   COMPOSITOR=casement scripts/dev/accept-popup-keyboard.sh   the same on casement, in a jail
 #
 # Steps, each PASS/FAIL:
 #   app_focused      a real click on the window gives it the keyboard (its wl_keyboard.enter)
@@ -24,10 +25,13 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+comp_build --manifest-path "$ROOT/Cargo.toml" -p shell-host --features debug-inject \
+  --example demo_popup_keys --example demo_window || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
 mkdir -p "$OUT"
-cargo build --manifest-path "$ROOT/Cargo.toml" -p shell-host --features debug-inject \
-  --example demo_popup_keys --example demo_window >&2 || exit 1
 DEMO_BIN="$ROOT/target/debug/examples/demo_popup_keys"
 WIN_BIN="$ROOT/target/debug/examples/demo_window"
 KEYS="$OUT/popup-keys-demo.log"
@@ -36,7 +40,7 @@ WTRACE="$OUT/popup-keys-window-trace.log"
 INPUT_LOG="$OUT/popup-keys-input.log"
 DEMO="" WIN="" INPUT=""
 
-"$DEV/kwin-virtual.sh" start 1280x800 >&2 || exit 1
+comp_start 1280x800 || exit 1
 
 stop_all() {
   [ -n "$DEMO" ] && printf 'quit\n' >&4 2>/dev/null
@@ -47,7 +51,7 @@ stop_all() {
     kill "$pid" 2>/dev/null
   done
   rm -f "$OUT/popup-keys-input.fifo" "$OUT/popup-keys-demo.fifo" "$OUT/popup-keys-win.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 trap stop_all EXIT
 
@@ -55,20 +59,18 @@ rm -f "$OUT/popup-keys-input.fifo" "$OUT/popup-keys-demo.fifo" "$OUT/popup-keys-
 mkfifo "$OUT/popup-keys-input.fifo" "$OUT/popup-keys-demo.fifo" "$OUT/popup-keys-win.fifo"
 : >"$KEYS"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   WAYLAND_DEBUG=1 exec "$WIN_BIN" <"$OUT/popup-keys-win.fifo" >/dev/null 2>"$WTRACE"
 ) &
 WIN=$!
 exec 5>"$OUT/popup-keys-win.fifo"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   WAYLAND_DEBUG=1 exec "$DEMO_BIN" <"$OUT/popup-keys-demo.fifo" >"$KEYS" 2>"$TRACE"
 ) &
 DEMO=$!
 exec 4>"$OUT/popup-keys-demo.fifo"
-"$DEV/fake-input.sh" <"$OUT/popup-keys-input.fifo" >"$INPUT_LOG" 2>&1 &
+"$DEV/lib/input.sh" <"$OUT/popup-keys-input.fifo" >"$INPUT_LOG" 2>&1 &
 INPUT=$!
 exec 3>"$OUT/popup-keys-input.fifo"
 sleep 2.5
@@ -102,16 +104,16 @@ wait_for() {
 }
 enters() { grep -c 'wl_keyboard#[0-9]*\.enter(' "$1"; }
 
-# The window's frame centre (KWin places it); the bar's button is at (47, 16).
+# The window's frame centre (the compositor places it); the bar's button is at (47, 16).
 frame=""
 for _ in $(seq 20); do
-  frame=$("$DEV/kwin-windows.sh" --class demo_window | sed -n 's/.*"frame":\[\([^]]*\)\].*/\1/p' | head -n 1)
+  frame=$("$DEV/lib/windows.sh" --class demo_window | sed -n 's/.*"frame":\[\([^]]*\)\].*/\1/p' | head -n 1)
   [ -n "$frame" ] && break
   sleep 0.5
 done
 IFS=, read -r fx fy fw fh <<<"$frame"
 if [ -z "${fh:-}" ]; then
-  echo "FAIL setup: no demo_window frame from kwin-windows.sh" >&2
+  echo "FAIL setup: no demo_window frame from lib/windows.sh" >&2
   exit 1
 fi
 wx=$(( ${fx%.*} + ${fw%.*} / 2 )) wy=$(( ${fy%.*} + ${fh%.*} / 2 ))

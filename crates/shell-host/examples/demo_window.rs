@@ -10,14 +10,17 @@
 //!   `resize` go through the same `SurfaceHandle` calls, so they need a button held on the
 //!   window (a real or synthetic press), and print the refusal otherwise.
 
+#[path = "shared/harness.rs"]
+mod harness;
+
 use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Decorations, Fullscreen, GrabRefused, Host, HostConfig, HostEvent, HostRoot, Maximize,
-    ResizeEdge, Size, SurfaceHandle, SurfaceId, ToplevelConfig, use_surface, use_toplevel_state,
+    Decorations, Fullscreen, GrabRefused, Host, HostEvent, HostRoot, Maximize, ResizeEdge, Size,
+    SurfaceHandle, SurfaceId, ToplevelConfig, use_surface, use_toplevel_state,
 };
 
 /// The titlebar's colour, which the acceptance finds on screen to locate the frame.
@@ -144,7 +147,7 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let host = Host::<Command>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<Command>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

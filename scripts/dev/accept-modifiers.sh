@@ -4,10 +4,11 @@
 # session (every client here sources .kwin-env), no keyboard grab.
 #
 #   scripts/dev/accept-modifiers.sh
+#   COMPOSITOR=casement scripts/dev/accept-modifiers.sh   the same on casement, in a jail
 #
-# Three cases, each its own kwin-virtual.sh instance (so neither's modifier state leaks into the
-# other) and its own demo_switcher, mapped only after the modifier state is set up first. Every
-# run prints a "modifiers" line at the panel's very first render, always the default (nothing
+# Three cases, each its own compositor instance (kwin-virtual.sh; casement: its own dev/up.sh
+# run, so neither's modifier state leaks into the other) and its own demo_switcher, mapped only
+# after the modifier state is set up first. Every run prints a "modifiers" line at the panel's very first render, always the default (nothing
 # held or locked yet: it predates the surface's first configure, let alone a keyboard event) —
 # that is `use_modifiers`' documented default, not the thing under test. What is under test is
 # the *next* line, from `wl_keyboard.enter` and the `modifiers` event beside it:
@@ -27,10 +28,13 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+comp_build --manifest-path "$ROOT/Cargo.toml" --example demo_switcher || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
 mkdir -p "$OUT"
 BIN="$ROOT/target/debug/examples/demo_switcher"
-cargo build --manifest-path "$ROOT/Cargo.toml" --example demo_switcher >&2 || exit 1
 
 status=0
 check() {
@@ -54,19 +58,18 @@ focus_states() {
 run_case() {
   local name=$1 fn=$2
   local log="$OUT/modifiers-$name.log"
-  "$DEV/kwin-virtual.sh" start 1280x800 >&2 || return 1
+  comp_start 1280x800 || return 1
   rm -f "$OUT/mods-input.fifo" "$OUT/mods-demo.fifo"
   mkfifo "$OUT/mods-input.fifo" "$OUT/mods-demo.fifo"
   : >"$log"
   (
-    # shellcheck disable=SC1091
-    source "$DEV/.kwin-env"
+    comp_source
     export WAYLAND_DEBUG=1
     exec "$BIN" <"$OUT/mods-demo.fifo" >>"$log" 2>&1
   ) &
   local demo=$!
   exec 4>"$OUT/mods-demo.fifo"
-  "$DEV/fake-input.sh" <"$OUT/mods-input.fifo" >"$OUT/mods-input.log" 2>&1 &
+  "$DEV/lib/input.sh" <"$OUT/mods-input.fifo" >"$OUT/mods-input.log" 2>&1 &
   local input=$!
   exec 3>"$OUT/mods-input.fifo"
 
@@ -83,7 +86,7 @@ run_case() {
     kill "$pid" 2>/dev/null
   done
   rm -f "$OUT/mods-input.fifo" "$OUT/mods-demo.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 
 # The fake-input commands "$@"; returns once each is answered (`ok <line>`).

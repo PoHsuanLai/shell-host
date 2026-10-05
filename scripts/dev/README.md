@@ -94,6 +94,31 @@ clients can be developed and screenshotted without a real COSMIC login.
 - `probe-modifiers.sh` — which `wl_keyboard.modifiers` a keyboard-less layer surface gets while
   Super is held (FINDINGS F61); prints, does not judge.
 
+## The same scripts on casement
+
+`COMPOSITOR=casement scripts/dev/accept-<name>.sh` (hover, scroll, drag, ime, lock, modifiers,
+popup-keyboard, swipe) runs a script against casement, our compositor, instead of a headless
+KWin. The script builds its demos outside the jail, then `lib/compositor.sh` re-executes it in
+`~/desktop/harness/jail.sh` (no GPU, no network, no `/dev/input`, no session), where casement's
+`dev/up.sh` starts `casement --backend headless` on a private bus and the script's input goes
+through `casementctl debug inject` (`lib/input.sh`; a superset of `fake-input.sh`'s grammar). State
+lives in the jail's scratch directory `scripts/dev/out/casement-<name>/` (logs under `out/`,
+casement's under `casement/`), never in the checkout otherwise.
+
+- `CASEMENT_DIR` (default `../casement`) is the casement checkout; its tools must be built
+  first, outside the jail: `$CASEMENT_DIR/dev/bootstrap.sh --build-only` (`CASEMENT_TOOLS` moves
+  the directory).
+- `SHELL_HOST_BACKEND` is `cpu` by default under casement (the demos paint into `wl_shm`);
+  `gpu` runs the library default (lavapipe in the jail), which with `CASEMENT_DMABUF=none` (the
+  default) is the F80 fallback; `accept-hover.sh` adds an `f80_fallback` step then.
+- `CASEMENT_CLOCK` is `wall` by default (the demos run on the wall clock; `stepped` is for casement's
+  own tests).
+- `lib/input.sh` and `lib/windows.sh [--class APP_ID]` are the compositor-neutral forms of
+  `fake-input.sh` and `kwin-windows.sh`.
+- `accept-ime.sh` starts fcitx5 as a client (input-method v2); `accept-lock.sh` locks casement
+  directly and reads "covered" from the compositor's input, since casement has no screenshot yet;
+  `accept-drag.sh` fetches foot before the jail is entered (`dnf download`, no root).
+
 ## Real input on a headless KWin
 
 ```sh

@@ -6,6 +6,7 @@
 # `wl_region.add` that built it.
 #
 #   scripts/dev/accept-swipe.sh
+#   COMPOSITOR=casement scripts/dev/accept-swipe.sh   the same on casement, in a jail
 #
 # Steps, each PASS/FAIL:
 #   at_rest        the input region is the card's laid-out box, (20, 20) 300x80
@@ -19,9 +20,12 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+comp_build --manifest-path "$ROOT/Cargo.toml" -p shell-host --example demo_swipe || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
 mkdir -p "$OUT"
-cargo build --manifest-path "$ROOT/Cargo.toml" -p shell-host --example demo_swipe >&2 || exit 1
 DEMO_BIN="$ROOT/target/debug/examples/demo_swipe"
 LOG="$OUT/swipe-demo.log"
 TRACE="$OUT/swipe-demo-trace.log"
@@ -29,7 +33,7 @@ INPUT_LOG="$OUT/swipe-input.log"
 DEMO="" INPUT=""
 WIDTH=1280
 
-"$DEV/kwin-virtual.sh" start "${WIDTH}x800" >&2 || exit 1
+comp_start "${WIDTH}x800" || exit 1
 
 stop_all() {
   [ -n "$DEMO" ] && printf 'quit\n' >&4 2>/dev/null
@@ -39,7 +43,7 @@ stop_all() {
     kill "$pid" 2>/dev/null
   done
   rm -f "$OUT/swipe-input.fifo" "$OUT/swipe-demo.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 trap stop_all EXIT
 
@@ -47,13 +51,12 @@ rm -f "$OUT/swipe-input.fifo" "$OUT/swipe-demo.fifo"
 mkfifo "$OUT/swipe-input.fifo" "$OUT/swipe-demo.fifo"
 : >"$LOG"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   WAYLAND_DEBUG=1 exec "$DEMO_BIN" <"$OUT/swipe-demo.fifo" >"$LOG" 2>"$TRACE"
 ) &
 DEMO=$!
 exec 4>"$OUT/swipe-demo.fifo"
-"$DEV/fake-input.sh" <"$OUT/swipe-input.fifo" >"$INPUT_LOG" 2>&1 &
+"$DEV/lib/input.sh" <"$OUT/swipe-input.fifo" >"$INPUT_LOG" 2>&1 &
 INPUT=$!
 exec 3>"$OUT/swipe-input.fifo"
 sleep 2.5

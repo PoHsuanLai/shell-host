@@ -9,14 +9,17 @@
 //! Lines on stdout, one JSON object each: `{"event":"opened"}`, `{"event":"key","key":..}`,
 //! `{"event":"modality","value":..}` and `{"event":"closed"}`. stdin: `quit`.
 
+#[path = "shared/harness.rs"]
+mod harness;
+
 use std::io::{BufRead, Write};
 
 use dioxus::prelude::*;
 use serde_json::json;
 use shell_host::{
-    Anchor, BlurSpec, ExclusiveZone, Host, HostConfig, HostEvent, HostRoot, KeyboardMode,
-    LayerConfig, LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect,
-    RegionSpec, Size, use_input_modality, use_surface,
+    Anchor, BlurSpec, ExclusiveZone, Host, HostEvent, HostRoot, KeyboardMode, LayerConfig,
+    LayerExtent, LayerLevel, LayerSize, Margin, OutputTarget, PopupPlacement, Rect, RegionSpec,
+    Size, use_input_modality, use_surface,
 };
 use shell_host::{
     PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
@@ -126,7 +129,7 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let host = Host::<()>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<()>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

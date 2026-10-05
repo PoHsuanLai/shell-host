@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Real-input hover acceptance: examples/demo_hover's two stacked cards on a
 # headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's session, never a
-# nested cosmic-comp (fake input cannot reach it).
+# nested cosmic-comp (fake input cannot reach it). COMPOSITOR=casement runs it on casement in
+# the jail instead (lib/compositor.sh).
 #
 #   scripts/dev/accept-hover.sh          builds demo_hover, runs the steps, stops everything
 #   HOVER_TRACE=1 scripts/dev/accept-hover.sh   the same with WAYLAND_DEBUG=1 on demo_hover
+#   COMPOSITOR=casement scripts/dev/accept-hover.sh   the same on casement, in a jail
+#   SHELL_HOST_BACKEND=gpu COMPOSITOR=casement scripts/dev/accept-hover.sh
+#                      the same with the demo on the GPU backend (lavapipe in the jail) and a
+#                      casement that offers no dma-buf: one more step, f80_fallback
 #
 # Steps (the cards are 320 x 120, centred on a 1920 x 1080 output: 800..1120 x 480..600):
 #   enter_one_motion  one motion from the desktop onto `top`: `top enter`
@@ -21,16 +26,18 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+comp_build --manifest-path "$ROOT/Cargo.toml" --example demo_hover || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
 mkdir -p "$OUT"
 LOG="$OUT/hover.log"
 BIN="$ROOT/target/debug/examples/demo_hover"
 CX=960 CY=540
 DEMO="" INPUT=""
 
-cargo build --manifest-path "$ROOT/Cargo.toml" --example demo_hover >&2 || exit 1
-
-"$DEV/kwin-virtual.sh" start 1920x1080 >&2 || exit 1
+comp_start 1920x1080 || exit 1
 
 stop_all() {
   exec 3>&- 4>&- 2>/dev/null
@@ -39,7 +46,7 @@ stop_all() {
     kill "$pid" 2>/dev/null
   done
   rm -f "$OUT/hover-input.fifo" "$OUT/hover-demo.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 trap stop_all EXIT
 
@@ -47,14 +54,13 @@ rm -f "$OUT/hover-input.fifo" "$OUT/hover-demo.fifo"
 mkfifo "$OUT/hover-input.fifo" "$OUT/hover-demo.fifo"
 : >"$LOG"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   [ "${HOVER_TRACE:-}" = 1 ] && export WAYLAND_DEBUG=1
   exec "$BIN" <"$OUT/hover-demo.fifo" >>"$LOG" 2>&1
 ) &
 DEMO=$!
 exec 4>"$OUT/hover-demo.fifo"
-"$DEV/fake-input.sh" <"$OUT/hover-input.fifo" >"$OUT/hover-input.log" 2>&1 &
+"$DEV/lib/input.sh" <"$OUT/hover-input.fifo" >"$OUT/hover-input.log" 2>&1 &
 INPUT=$!
 exec 3>"$OUT/hover-input.fifo"
 
@@ -126,6 +132,21 @@ if printf '%s' "$stats" | grep -q '"pad":{"enter":1,"leave":1},"slider":{"enter"
 else
   echo "FAIL slide_counts: $stats (wanted pad enter 1 leave 1, slider enter 1 leave 0)"
   status=1
+fi
+
+# F80 (the adapter follows the compositor's GPU) must fall back cleanly when the compositor
+# offers no dma-buf at all: casement started with --dmabuf none (the default here), the demo on
+# the GPU backend (SHELL_HOST_BACKEND=gpu): it picks the adapter by wgpu's own order and paints.
+if [ "$COMPOSITOR" = casement ] && [ "${SHELL_HOST_BACKEND:-}" = gpu ] \
+  && [ "${CASEMENT_DMABUF:-none}" = none ]; then
+  adapter=$(grep '^shell-host: adapter ' "$LOG" | head -n 1)
+  offered=$( (comp_source; wayland-info 2>/dev/null) | grep -c "interface: 'zwp_linux_dmabuf_v1'")
+  if [ -n "$adapter" ] && [ "$offered" = 0 ] && ! grep -q 'panicked' "$LOG"; then
+    echo "PASS f80_fallback: no zwp_linux_dmabuf_v1 offered; ${adapter#shell-host: }"
+  else
+    echo "FAIL f80_fallback: dmabuf offered $offered times; adapter line '${adapter:-none}'"
+    status=1
+  fi
 fi
 
 echo quit >&4

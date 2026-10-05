@@ -17,13 +17,15 @@
 //! - `quit`: unlock first when locked, then exit once the host reports the end.
 
 mod guard;
+#[path = "../shared/harness.rs"]
+mod harness;
 mod screen;
 
 use std::io::{BufRead, Write};
 
 use shell_host::{
-    Host, HostConfig, HostCtx, HostEvent, HostRoot, KeyboardFocus, LockConfig, LockId, LockState,
-    OutputInfo, SurfaceId,
+    Host, HostCtx, HostEvent, HostRoot, KeyboardFocus, LockConfig, LockId, LockState, OutputInfo,
+    SurfaceId,
 };
 
 use guard::Permit;
@@ -93,7 +95,7 @@ fn run() -> Result<(), String> {
         Permit::Granted => say("guard granted"),
         Permit::Refused(why) => say(&format!("guard refused: {why}")),
     }
-    let host = Host::<Command>::connect(HostConfig::default()).map_err(|e| e.to_string())?;
+    let host = Host::<Command>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {

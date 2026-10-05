@@ -5,6 +5,10 @@
 #
 #   scripts/dev/accept-scroll.sh              builds demo_scroll, runs the steps, stops everything
 #   SCROLL_TRACE=1 scripts/dev/accept-scroll.sh   the same with WAYLAND_DEBUG=1 on demo_scroll
+#   COMPOSITOR=casement scripts/dev/accept-scroll.sh   the same on casement, in a jail
+#
+# On casement `axis vertical 15` is one wheel detent (axis_source wheel, value120 120): the same
+# 60 px per detent is asserted, now from the compositor's own value120.
 #
 # The surface is 400 x 600, centred on a 1920 x 1080 output: 760..1160 x 240..840. Its list
 # (`#list`, 300 x 600, 3000 px of rows) is at 760..1060; `#capture` (`data-wheel="capture"`) is
@@ -21,16 +25,18 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
-OUT="$DEV/out"
+# shellcheck source=scripts/dev/lib/compositor.sh
+source "$DEV/lib/compositor.sh"
+comp_build --manifest-path "$ROOT/Cargo.toml" --example demo_scroll || exit 1
+comp_enter "$0" "$@"
+OUT="$(comp_out)"
 mkdir -p "$OUT"
 LOG="$OUT/scroll.log"
 BIN="$ROOT/target/debug/examples/demo_scroll"
 LIST_X=900 LIST_Y=500 CAP_X=1110 CAP_Y=290
 DEMO="" INPUT=""
 
-cargo build --manifest-path "$ROOT/Cargo.toml" --example demo_scroll >&2 || exit 1
-
-"$DEV/kwin-virtual.sh" start 1920x1080 >&2 || exit 1
+comp_start 1920x1080 || exit 1
 
 stop_all() {
   exec 3>&- 4>&- 2>/dev/null
@@ -39,7 +45,7 @@ stop_all() {
     kill "$pid" 2>/dev/null
   done
   rm -f "$OUT/scroll-input.fifo" "$OUT/scroll-demo.fifo"
-  "$DEV/kwin-virtual.sh" stop >&2
+  comp_stop
 }
 trap stop_all EXIT
 
@@ -47,14 +53,13 @@ rm -f "$OUT/scroll-input.fifo" "$OUT/scroll-demo.fifo"
 mkfifo "$OUT/scroll-input.fifo" "$OUT/scroll-demo.fifo"
 : >"$LOG"
 (
-  # shellcheck disable=SC1091
-  source "$DEV/.kwin-env"
+  comp_source
   [ "${SCROLL_TRACE:-}" = 1 ] && export WAYLAND_DEBUG=1
   exec "$BIN" <"$OUT/scroll-demo.fifo" >>"$LOG" 2>&1
 ) &
 DEMO=$!
 exec 4>"$OUT/scroll-demo.fifo"
-"$DEV/fake-input.sh" <"$OUT/scroll-input.fifo" >"$OUT/scroll-input.log" 2>&1 &
+"$DEV/lib/input.sh" <"$OUT/scroll-input.fifo" >"$OUT/scroll-input.log" 2>&1 &
 INPUT=$!
 exec 3>"$OUT/scroll-input.fifo"
 

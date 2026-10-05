@@ -14,11 +14,13 @@
 use blitz_kit::adapter::PciVendor;
 
 /// Which compositor this is, where its behaviour differs: blur (cosmic-comp) and a
-/// grabbing popup's keyboard (KWin, `popup_keyboard`).
+/// grabbing popup's keyboard (KWin, casement; `popup_keyboard`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompositorKind {
     Cosmic,
     Kwin,
+    /// casement, our own compositor.
+    Casement,
     Other,
 }
 
@@ -71,10 +73,11 @@ pub(crate) fn blur_health(facts: CompositorFacts) -> BlurHealth {
 
 /// cosmic-comp, recognised by any of its private globals (`zcosmic_*`, `cosmic_*`); KWin by
 /// `org_kde_plasma_shell` (wlroots compositors offer some `org_kde_kwin_*` globals, never this
-/// one).
+/// one); casement by `quire_window_manager_v1` (advertised from its first phase, C50).
 pub(crate) fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> CompositorKind {
     let cosmic = |name: &str| name.starts_with("zcosmic_") || name.starts_with("cosmic_");
     let kwin = |name: &str| name == "org_kde_plasma_shell";
+    let casement = |name: &str| name == "quire_window_manager_v1";
     interfaces
         .into_iter()
         .find_map(|name| {
@@ -82,6 +85,8 @@ pub(crate) fn compositor_kind<'a>(interfaces: impl IntoIterator<Item = &'a str>)
                 Some(CompositorKind::Cosmic)
             } else if kwin(name) {
                 Some(CompositorKind::Kwin)
+            } else if casement(name) {
+                Some(CompositorKind::Casement)
             } else {
                 None
             }
@@ -125,6 +130,8 @@ mod tests {
             (K::Cosmic, B::Other, V::Nvidia, BlurHealth::Renders),
             (K::Other, B::Winit, V::Nvidia, BlurHealth::Renders),
             (K::Other, B::Other, V::Nvidia, BlurHealth::Renders),
+            (K::Casement, B::Winit, V::Nvidia, BlurHealth::Renders),
+            (K::Casement, B::Other, V::Unknown, BlurHealth::Renders),
         ];
         for (kind, backend, vendor, want) in cases {
             let facts = CompositorFacts {
@@ -137,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn cosmic_and_kwin_are_recognised_by_their_private_globals() {
+    fn cosmic_kwin_and_casement_are_recognised_by_their_private_globals() {
         let cases: &[(&[&str], CompositorKind)] = &[
             (
                 &["wl_compositor", "zcosmic_output_manager_v1"],
@@ -160,6 +167,11 @@ mod tests {
                 ],
                 CompositorKind::Kwin,
             ),
+            (
+                &["wl_compositor", "quire_window_manager_v1", "xdg_wm_base"],
+                CompositorKind::Casement,
+            ),
+            (&["quire_window_v1"], CompositorKind::Other),
             (&[], CompositorKind::Other),
         ];
         for (interfaces, want) in cases {
