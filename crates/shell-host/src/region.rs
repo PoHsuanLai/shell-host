@@ -10,6 +10,8 @@
 //!
 //! See design/10 §10.3.12.
 
+pub use blitz_kit::element_id::ElementId;
+
 /// A logical-pixel coordinate or extent, surface-local.
 pub type Px = i32;
 
@@ -52,27 +54,6 @@ impl RoundedRect {
             .max(0)
             .min(self.rect.width / 2)
             .min(self.rect.height / 2)
-    }
-}
-
-/// A DOM element's `id` attribute, resolved to a `Rect` after layout by the caller
-/// (`get_element_by_id(id.as_str())` + its bounding rect).
-///
-/// A string, not a hash: Blitz finds an element only by its `id` attribute string
-/// (`BaseDocument::get_element_by_id(&str)`), so anything else would need an interning table to
-/// get the string back (resolved by this newtype).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ElementId(String);
-
-impl ElementId {
-    /// The element whose `id` attribute is `id`.
-    pub fn new(id: impl Into<String>) -> ElementId {
-        ElementId(id.into())
-    }
-
-    /// The `id` attribute this names.
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 

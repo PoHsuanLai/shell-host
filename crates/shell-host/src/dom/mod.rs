@@ -6,7 +6,6 @@ pub(crate) mod document;
 pub(crate) mod head;
 pub(crate) mod ime_focus;
 pub(crate) mod scheme;
-pub(crate) mod scroll;
 pub(crate) mod shell_provider;
 pub(crate) mod stacking;
 

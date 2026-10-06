@@ -15,8 +15,8 @@ use dioxus::signals::{ReadSignal, WritableExt};
 use crate::handle::use_surface;
 use crate::live::Live;
 use crate::region::ElementId;
-use crate::scroll::engine::{Engine, latch_of};
-use crate::scroll::geom::Scroller;
+use blitz_kit::scroll::engine::{Engine, latch_of};
+use blitz_kit::scroll::geom::Scroller;
 
 /// A scroll position in logical px; raw, so out of range while rubber-banding.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -128,7 +128,6 @@ mod tests {
     use super::*;
     use crate::clipboard::SharedSelection;
     use crate::dom::document::{DocumentEnv, SurfaceDocument};
-    use crate::dom::scroll as dom;
     use crate::dom::shell_provider::HostShellProvider;
     use crate::grab::GrabRecord;
     use crate::handle::{HandleParts, RequestQueue, SurfaceHandle};
@@ -138,13 +137,14 @@ mod tests {
     use crate::role::RoleKind;
     use crate::root::HostRoot;
     use crate::scale::Scale;
-    use crate::scroll::geom::ScrollAxis;
     use crate::scroll::surface::SurfaceScroll;
     use crate::scroll::tuning::Tuning;
     use crate::tick::FrameTicks;
     use crate::toplevel::ToplevelState;
     use blitz_kit::fonts::SharedFonts;
     use blitz_kit::net::LocalNet;
+    use blitz_kit::scroll::doc as dom;
+    use blitz_kit::scroll::geom::ScrollAxis;
 
     /// Shows a scroll box's offset as text, through `use_scroll`.
     fn watcher() -> Element {

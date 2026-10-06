@@ -13,8 +13,8 @@ use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::HostRoot;
-use crate::scroll::cmd::ScrollCmd;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge};
+use blitz_kit::scroll::cmd::ScrollCmd;
 
 /// A change to one surface. Applied after the documents are polled and before painting, so a
 /// region change lands in the same commit as the frame that caused it. An op that does not fit

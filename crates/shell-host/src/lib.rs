@@ -59,6 +59,9 @@ mod wake;
 
 pub use blitz_kit::adapter::AdapterPref;
 pub use blitz_kit::fonts::FontFaces;
+pub use blitz_kit::scroll::cmd::ScrollCmd;
+pub use blitz_kit::scroll::engine::ScrollAnimate;
+pub use blitz_kit::scroll::geom::ScrollAxis;
 pub use blitz_traits::shell::ColorScheme;
 pub use blur::BlurSpec;
 pub use bridge::use_watch;
@@ -97,14 +100,11 @@ pub use prepaint::{Prepaint, PrepaintFn};
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::HostRoot;
 pub use scale::{Scale, Size, buffer_size};
-pub use scroll::cmd::ScrollCmd;
 pub use scroll::config::{
     NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs,
     ScrollPx, ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollTrackClick, ScrollbarSettings,
     ScrollbarVisibility,
 };
-pub use scroll::engine::ScrollAnimate;
-pub use scroll::geom::ScrollAxis;
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
 pub use stats::{FrameStats, Percentiles};
 pub use tick::{FrameDrive, FrameTick, HostInstant};

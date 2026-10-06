@@ -1,6 +1,6 @@
-//! One surface's scrolling: the engine, the thumb and the source trackers, applied to the
-//! surface's Blitz document through `dom::scroll`. The host calls these from its input handlers
-//! and its render; everything they decide is the pure modules'.
+//! One surface's scrolling: the engine's driver (`blitz_kit::scroll::driver`), the thumb and the
+//! palmrest tracker, applied to the surface's Blitz document. The host calls these from its
+//! input handlers and its render; everything they decide is the pure modules'.
 
 mod key_input;
 mod pointer_input;
@@ -8,34 +8,17 @@ mod thumb;
 
 use blitz_dom::BaseDocument;
 
-use crate::dom::scroll as dom;
 use crate::frame::Animation;
-use crate::scroll::engine::{self, Engine, Motion, ScrollIn, ScrollOut};
-use crate::scroll::geom::{Latch, ScrollAxis};
 use crate::scroll::indicator::{Indicator, Wake};
-use crate::scroll::latch::WheelBurst;
-use crate::scroll::source::Pad;
 use crate::scroll::suppress::Driven;
 use crate::scroll::tuning::{Env, Tuning};
-use crate::scroll::velocity::SampleTime;
 use crate::scroll::watch::ScrollBoard;
 use crate::tick::HostInstant;
-
-/// What a step did to the document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Moved {
-    Moved,
-    Still,
-}
-
-impl Moved {
-    fn or(self, other: Moved) -> Moved {
-        match (self, other) {
-            (Moved::Still, Moved::Still) => Moved::Still,
-            _ => Moved::Moved,
-        }
-    }
-}
+pub(crate) use blitz_kit::scroll::driver::Moved;
+use blitz_kit::scroll::driver::{Claim, Moves, ScrollDriver};
+use blitz_kit::scroll::engine::{Engine, Motion, ScrollIn};
+use blitz_kit::scroll::geom::ScrollAxis;
+use blitz_kit::scroll::velocity::SampleTime;
 
 /// Whether a key reached the engine or belongs to the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,14 +65,10 @@ pub(crate) enum PalmScroll {
 /// One surface's scroll state.
 #[derive(Debug, Clone)]
 pub(crate) struct SurfaceScroll {
-    engine: Engine,
+    scroll: ScrollDriver,
     indicator: Indicator,
-    pad: Pad,
-    burst: WheelBurst,
     palm: PalmGesture,
     driver: Driver,
-    /// The scroller the last gesture latched: the keyboard's target while under the pointer.
-    last_gesture: Option<Latch>,
     board: ScrollBoard,
     tuning: Tuning,
 }
@@ -98,13 +77,10 @@ impl SurfaceScroll {
     /// A surface's scrolling, publishing to `board` (shared with its `SurfaceHandle`).
     pub(crate) fn new(board: ScrollBoard, tuning: Tuning) -> SurfaceScroll {
         SurfaceScroll {
-            engine: Engine::Idle,
+            scroll: ScrollDriver::default(),
             indicator: Indicator::default(),
-            pad: Pad::Idle,
-            burst: WheelBurst::default(),
             palm: PalmGesture::Idle,
             driver: Driver::Other,
-            last_gesture: None,
             board,
             tuning,
         }
@@ -124,24 +100,25 @@ impl SurfaceScroll {
     /// The engine, for tests.
     #[cfg(test)]
     pub(crate) fn engine(&self) -> &Engine {
-        &self.engine
+        self.scroll.engine()
     }
 
     /// Step the engine with `input` and write what it says.
     fn run(&mut self, doc: &mut BaseDocument, input: ScrollIn, env: Env<'_>) -> Moved {
-        let target = engine::target(&self.engine, &input);
-        let geom = target.and_then(|latch| dom::geom(doc, latch.scroller, latch.axis));
-        let current = std::mem::take(&mut self.engine);
-        let (next, outs) = engine::step(current, input, env.now, geom, env.physics);
-        self.engine = next;
-        outs.into_iter().fold(Moved::Still, |moved, out| match out {
-            ScrollOut::SetOffset { latch, raw } => {
-                dom::write(doc, latch.scroller, latch.axis, raw.0);
-                self.indicator = self.indicator.changed(latch, env.now);
-                Moved::Moved
-            }
-            ScrollOut::Notify { .. } => moved,
-        })
+        let moves = self.scroll.run(doc, input, env.kit());
+        self.applied(moves, env.now)
+    }
+
+    /// Show the thumb for what `moves` wrote, and remember who drove the engine when it took the
+    /// input.
+    fn applied(&mut self, moves: Moves, now: HostInstant) -> Moved {
+        for latch in moves.written() {
+            self.indicator = self.indicator.changed(*latch, now);
+        }
+        if moves.claim() == Claim::Took {
+            self.driver = Driver::Other;
+        }
+        moves.moved()
     }
 
     /// A frame is rendered at `env.now`: advance the animation. Called before the resolve, so
@@ -159,7 +136,7 @@ impl SurfaceScroll {
         let fading =
             self.indicator
                 .wake(&env.config.scrollbar, env.config.scroll.scrollbars, env.now);
-        match (engine::motion(&self.engine), fading) {
+        match (self.scroll.motion(), fading) {
             (Motion::Animating, _) | (_, Wake::Frames) => Motion::Animating,
             _ => Motion::Still,
         }
@@ -183,7 +160,7 @@ impl SurfaceScroll {
 
     /// Whether palmrest drove what the engine is doing now (for the double-scroll rule).
     pub(crate) fn driven(&self) -> Driven {
-        let busy = !matches!(self.engine, Engine::Idle);
+        let busy = !matches!(self.scroll.engine(), Engine::Idle);
         match (self.driver, busy) {
             (Driver::Palmrest, true) => Driven::Running,
             _ => Driven::Settled,

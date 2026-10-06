@@ -14,8 +14,8 @@ use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::HostRoot;
-use crate::scroll::cmd::ScrollCmd;
 use crate::tick::{FrameDrive, FrameTick};
+use blitz_kit::scroll::cmd::ScrollCmd;
 
 impl SurfaceHandle {
     /// Blur behind this surface (`SurfaceOp::SetBlur`).

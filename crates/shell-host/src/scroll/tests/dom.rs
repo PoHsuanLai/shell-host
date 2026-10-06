@@ -10,21 +10,21 @@ use std::time::Duration;
 use dioxus::prelude::*;
 
 use crate::dom::document::SurfaceDocument;
-use crate::dom::scroll::{self as dom, KeyFocus, WheelRoute};
 use crate::dom::tests::env::test_env;
 use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
 use crate::region::ElementId;
 use crate::root::HostRoot;
-use crate::scroll::engine::{Engine, Motion};
-use crate::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller};
-use crate::scroll::keys::ScrollKey;
 use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
 use crate::scroll::surface::{KeyUse, PalmScroll, SurfaceScroll};
 use crate::scroll::tuning::Tuning;
-use crate::scroll::velocity::SampleTime;
 use crate::scroll::watch::ScrollBoard;
 use crate::tick::HostInstant;
+use blitz_kit::scroll::doc::{self as dom, KeyFocus, WheelRoute};
+use blitz_kit::scroll::engine::{Engine, Motion};
+use blitz_kit::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller, ViewPoint};
+use blitz_kit::scroll::keys::ScrollKey;
+use blitz_kit::scroll::velocity::SampleTime;
 
 const WIDTH: u32 = 400;
 const HEIGHT: u32 = 600;
@@ -183,7 +183,14 @@ fn only_an_opted_in_container_is_elastic() {
         Elastic::Rigid,
         "the viewport is not opted in"
     );
-    let chain = dom::chain_at(&bench.doc.base(), OVER_LIST.x, OVER_LIST.y, ScrollAxis::Y);
+    let chain = dom::chain_at(
+        &bench.doc.base(),
+        ViewPoint {
+            x: OVER_LIST.x,
+            y: OVER_LIST.y,
+        },
+        ScrollAxis::Y,
+    );
     let order: Vec<Scroller> = chain.iter().map(|c| c.scroller).collect();
     assert_eq!(order, vec![bench.scroller("list"), Scroller::Viewport]);
 }
@@ -349,11 +356,11 @@ fn item_15_natural_palmrest_content_follows_the_finger() {
 fn a_capturing_element_gets_the_raw_wheel() {
     let bench = Bench::new();
     assert_eq!(
-        dom::wheel_route(&bench.doc.base(), 350.0, 130.0),
+        dom::wheel_route(&bench.doc.base(), ViewPoint { x: 350.0, y: 130.0 }),
         WheelRoute::Capture
     );
     assert_eq!(
-        dom::wheel_route(&bench.doc.base(), 150.0, 250.0),
+        dom::wheel_route(&bench.doc.base(), ViewPoint { x: 150.0, y: 250.0 }),
         WheelRoute::Engine
     );
 }
@@ -519,7 +526,7 @@ fn a_capturing_element_that_is_not_a_scroller_gets_the_wheel_as_before() {
     let mut bench = keyed_bench();
     let at = PointerPos { x: 240.0, y: 140.0 };
     assert_eq!(
-        dom::wheel_route(&bench.doc.base(), at.x, at.y),
+        dom::wheel_route(&bench.doc.base(), ViewPoint { x: at.x, y: at.y }),
         WheelRoute::Capture
     );
     // One notch down, as a compositor sends it: the delta Blitz was fed before the engine.

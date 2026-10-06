@@ -16,20 +16,20 @@ use rustix::net::{
 };
 
 use crate::dom::document::SurfaceDocument;
-use crate::dom::scroll as dom;
 use crate::dom::tests::env::test_env;
 use crate::input::palmrest::route::route;
 use crate::input::palmrest::{Palmrest, read_all, socket_path};
 use crate::input::pointer::PointerPos;
 use crate::root::HostRoot;
-use crate::scroll::engine::Motion;
-use crate::scroll::geom::{ScrollAxis, Scroller};
 use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
 use crate::scroll::suppress::{AxisKind, Suppress, Verdict};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
 use crate::tick::HostInstant;
+use blitz_kit::scroll::doc as dom;
+use blitz_kit::scroll::engine::Motion;
+use blitz_kit::scroll::geom::{ScrollAxis, Scroller};
 use palmrest_protocol::{ActiveTouch, Axis as WireAxis, GestureId, Phase, ToHost};
 
 const FRAME: Duration = Duration::from_micros(8333);

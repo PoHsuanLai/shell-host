@@ -4,12 +4,12 @@
 use blitz_dom::BaseDocument;
 
 use super::{Moved, SurfaceScroll};
-use crate::dom::scroll as dom;
 use crate::input::pointer::PointerPos;
-use crate::scroll::geom::ScrollAxis;
 use crate::scroll::indicator::{self, Metrics, ThumbPaint};
 use crate::scroll::watch::{ScrollExtent, ScrollPoint, ScrollState, phase_of};
 use crate::tick::HostInstant;
+use blitz_kit::scroll::doc as dom;
+use blitz_kit::scroll::geom::ScrollAxis;
 
 impl SurfaceScroll {
     /// The pointer moved to `pos`: expand or collapse the thumb. `Moved` when that starts an
@@ -85,7 +85,7 @@ impl SurfaceScroll {
                     viewport_width: x.viewport.0,
                     viewport_height: y.viewport.0,
                 },
-                phase: phase_of(&self.engine, scroller),
+                phase: phase_of(self.scroll.engine(), scroller),
             });
         }
     }

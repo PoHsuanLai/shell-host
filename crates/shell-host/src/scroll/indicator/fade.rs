@@ -2,9 +2,9 @@
 
 use super::geometry::{Metrics, ThumbPaint, geometry};
 use crate::scroll::config::{ScrollbarSettings, ScrollbarVisibility};
-use crate::scroll::geom::Latch;
-use crate::scroll::smooth;
 use crate::tick::HostInstant;
+use blitz_kit::scroll::geom::Latch;
+use blitz_kit::scroll::smooth;
 
 /// Whether the pointer is over the thumb's track zone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -175,7 +175,7 @@ impl Indicator {
 mod tests {
     use super::super::geometry::tests::metrics;
     use super::*;
-    use crate::scroll::geom::{ScrollAxis, Scroller};
+    use blitz_kit::scroll::geom::{ScrollAxis, Scroller};
     use std::time::Duration;
 
     fn at(ms: u64) -> HostInstant {

@@ -40,6 +40,9 @@ dependencies, as sill's are on shell-host.
 | `dom/hover_sync.rs` (`LastMove`, `Shift`, `HoverSync`, `decide`, `probe_points`) | `blitz-kit::hover` |
 | `dom/painted.rs` (`Affine2`, `Placed`, `painted_bounds`) and the transform-chain walk in `dom/document.rs` (`transform_chain`, `bounds_of`, `element_at`) | `blitz-kit::paint_rect`, `blitz-kit::hit` |
 | `dom/net.rs` (`LocalNet`, `LocalSource`) | `blitz-kit::net` |
+| `scroll/{geom,latch,engine,animate,momentum,velocity,rubber,smooth,keys,cmd}` and the physics part of `scroll/config` | `blitz-kit::scroll` |
+| `dom/scroll.rs` (scrollers under a point, geometry, raw writes, `data-wheel` and key markers) | `blitz-kit::scroll::doc` |
+| `ElementId` (`region.rs`) | `blitz-kit::element_id` |
 | `dom/fonts.rs` (`SharedFonts`) | `blitz-kit::fonts` |
 | `gpu/adapter.rs` (`DeviceKind`, `GpuBackend`, `AdapterFacts`, `rank`, `validate`) | `blitz-kit::adapter` |
 | `input/palmrest/wire.rs` | `palmrest-protocol` (re-declaration deleted; shell-host imports the crate) |
@@ -56,7 +59,7 @@ a higher one. When something needs a higher layer, move the shared piece down or
 |---|---|---|
 | L0 vocabulary | `id`, `geometry`, `scale`, `output`, `error`, `modifiers`, `config`, `blur`, `event`, `msg`, `stats` | pure data |
 | L1 role configs | `layer`, `toplevel`, `popup`, `region`, `placement`, `csd`, `drag/{spec,offer,serial,pipe,outcome}`, `prepaint`, `lock/{config,machine}` | pure: configs, wire mappings, geometry |
-| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,geom,latch,engine,animate,momentum,velocity,rubber,smooth,keys,indicator,source,suppress,cmd}` | pure, table-tested |
+| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,indicator,source,suppress}` | pure, table-tested |
 | L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/watch` | values shared with documents; no Wayland |
 | L4 documents | `dom/{document,head,shell_provider,stacking,scheme,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
 | L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,block_on,raw_handle}` | effects |
@@ -80,7 +83,7 @@ pure decision behind an effectful handler), `wire.rs` (mapping to protocol enums
 | `ctx/paint.rs` (437) | `ctx/paint/{mod.rs (step_all, step_one), presenter.rs, geometry.rs (sync_geometry, viewport), render.rs, regions.rs (send_regions, region_of, in_surface), capture.rs}` |
 | `resolve.rs` (437) | `resolve/{mod.rs, spec.rs (resolve, rounded_rect), anchor.rs (resolve_popup_anchor), tracked.rs (Tracked, Change)}` |
 | `csd.rs` (404) | `csd/{mod.rs (Inset, inset_for), geometry.rs (surface_of, frame_of, window_geometry, content_px, to_document, to_surface), band.rs (Zone, band, zone_at, cursor_for)}` |
-| `scroll/engine.rs` (401) | `scroll/engine/{mod.rs (Engine, step), types.rs (ScrollIn, ScrollOut, Motion, Track, Flight, ...), phases.rs (may_begin, began, changed, lifted)}` |
+| `scroll/engine.rs` (401) | `blitz_kit::scroll::engine::{mod.rs (Engine, step), types.rs (ScrollIn, ScrollOut, Motion, Track, Flight, ...), phases.rs (may_begin, began, changed, lifted)}` |
 | `inject.rs` (308) + `inject/stdin.rs` | `inject/{mod.rs, request.rs (Inject, Injected, KeyStroke), deliver.rs, command.rs, stdin.rs}` |
 
 `input/keysym.rs` (507) is a table and stays whole. Tests that move with a split go beside the
@@ -173,7 +176,9 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Input modality (keyboard vs pointer) | `modality` |
 | Palmrest socket client | `input/palmrest` (socket), `input/palmrest/route` (meaning) |
 | Palmrest messages | `palmrest-protocol` |
-| Scroll physics, config, latch, indicator | `scroll/*` (pure), `scroll/surface` (applied to a document) |
+| Scroll physics, latching, document side, driver | `blitz_kit::scroll` (shared with `ds-blitz`) |
+| Scroll settings (engine part) | `blitz_kit::scroll::config::ScrollSettings`; `scroll/config` holds `ScrollConfig` (it and the thumb's settings) |
+| Scroll thumb, palmrest and Wayland axis input, double-scroll rule | `scroll/{indicator,source,suppress,paint}`, `scroll/surface` (the surface's driver, thumb and palmrest tracker) |
 | Scroll view of Blitz (scroller chain, raw offsets) | `dom/scroll` |
 | Hover repair, net provider, fonts, adapter ranking, transform-aware hit and rect, pixel snap | `blitz-kit` |
 | One document per surface | `dom/document` |

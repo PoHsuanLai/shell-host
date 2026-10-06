@@ -3,17 +3,18 @@
 
 use blitz_dom::BaseDocument;
 
-use super::{Driver, Moved, PalmGesture, PalmScroll, SurfaceScroll};
-use crate::dom::scroll as dom;
+use super::{Moved, PalmGesture, PalmScroll, SurfaceScroll};
 use crate::input::pointer::PointerPos;
-use crate::scroll::engine::{self, Engine, Kinetic, ScrollIn};
-use crate::scroll::geom::{Dir, Px, ScrollAxis};
-use crate::scroll::latch::{self, Latched};
-use crate::scroll::rubber::AtEdge;
-use crate::scroll::source::{self, AxisFrame, AxisInput, PadEvent};
-use crate::scroll::tuning::Env;
-use crate::scroll::velocity::SampleTime;
+use crate::scroll::source::{self, AxisFrame};
 use crate::tick::HostInstant;
+use blitz_kit::scroll::engine::{Kinetic, ScrollIn};
+use blitz_kit::scroll::geom::{Dir, Px, ScrollAxis, ViewPoint};
+use blitz_kit::scroll::pad::natural;
+
+/// `pos` as the engine's view point.
+pub(super) fn view_point(pos: PointerPos) -> ViewPoint {
+    ViewPoint { x: pos.x, y: pos.y }
+}
 
 impl SurfaceScroll {
     /// A `wl_pointer` axis frame at surface-local `pos`.
@@ -26,115 +27,10 @@ impl SurfaceScroll {
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        match source::classify(frame) {
-            AxisInput::Detents { axis, steps } => self.detents(doc, axis, steps, pos, env),
-            input @ (AxisInput::Pan { .. } | AxisInput::Stop) => {
-                let (pad, event) = self.pad.feed(input);
-                self.pad = pad;
-                match event {
-                    Some(event) => self.pad_event(doc, event, pos, env),
-                    None => Moved::Still,
-                }
-            }
-            AxisInput::Nothing => Moved::Still,
-        }
-    }
-
-    fn detents(
-        &mut self,
-        doc: &mut BaseDocument,
-        axis: ScrollAxis,
-        steps: f64,
-        pos: PointerPos,
-        env: Env<'_>,
-    ) -> Moved {
-        let px = steps * env.config.scroll.wheel_detent_px.get();
-        let Some(dir) = Dir::of(px) else {
-            return Moved::Still;
-        };
-        let window = env.config.scroll.wheel_burst_window_ms.duration();
-        let latch = self
-            .burst
-            .current(axis, env.now, window)
-            .or_else(|| latch::latch_rigid(&dom::chain_at(doc, pos.x, pos.y, axis), axis, dir));
-        let Some(latch) = latch else {
-            return Moved::Still;
-        };
-        self.burst = self.burst.record(latch, env.now);
-        self.driver = Driver::Other;
-        self.run(doc, ScrollIn::Step { latch, by: Px(px) }, env)
-    }
-
-    fn pad_event(
-        &mut self,
-        doc: &mut BaseDocument,
-        event: PadEvent,
-        pos: PointerPos,
-        env: Env<'_>,
-    ) -> Moved {
-        let at = SampleTime(env.now.0);
-        match event {
-            PadEvent::Began {
-                axis,
-                dir,
-                delta,
-                kinetic,
-            } => {
-                self.driver = Driver::Other;
-                self.begin(doc, axis, dir, kinetic, pos, env).or(self.run(
-                    doc,
-                    ScrollIn::Changed {
-                        delta: Px(delta),
-                        at,
-                    },
-                    env,
-                ))
-            }
-            PadEvent::Changed { delta } => self.run(
-                doc,
-                ScrollIn::Changed {
-                    delta: Px(delta),
-                    at,
-                },
-                env,
-            ),
-            PadEvent::Ended => self.run(doc, ScrollIn::Ended { at }, env),
-        }
-    }
-
-    /// Latch a gesture on `axis` toward `dir` from the scrollers under `pos`.
-    fn begin(
-        &mut self,
-        doc: &mut BaseDocument,
-        axis: ScrollAxis,
-        dir: Dir,
-        kinetic: Kinetic,
-        pos: PointerPos,
-        env: Env<'_>,
-    ) -> Moved {
-        let chain = dom::chain_at(doc, pos.x, pos.y, axis);
-        let latched = match kinetic {
-            Kinetic::Momentum => latch::latch(&chain, axis, dir),
-            Kinetic::Plain => latch::latch_rigid(&chain, axis, dir).map(|latch| Latched {
-                latch,
-                began: AtEdge::Inside,
-            }),
-        };
-        let Some(latched) = latched else {
-            // Nothing can move: the gesture is consumed with no effect.
-            self.engine = Engine::Idle;
-            return Moved::Still;
-        };
-        self.last_gesture = Some(latched.latch);
-        self.run(
-            doc,
-            ScrollIn::Began {
-                latched,
-                dir,
-                kinetic,
-            },
-            env,
-        )
+        let moves = self
+            .scroll
+            .pointer(doc, source::classify(frame), view_point(pos), env.kit());
+        self.applied(moves, now)
     }
 
     /// A palmrest scroll event while the pointer is at `pos` on this surface.
@@ -147,7 +43,7 @@ impl SurfaceScroll {
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        self.driver = Driver::Palmrest;
+        self.driver = super::Driver::Palmrest;
         match event {
             PalmScroll::MayBegin => {
                 self.palm = PalmGesture::Idle;
@@ -158,10 +54,10 @@ impl SurfaceScroll {
                 Moved::Still
             }
             PalmScroll::Changed { dx, dy, at } => {
-                let natural = env.config.scroll.natural;
+                let setting = env.config.scroll.natural;
                 let axis = match self.palm {
                     PalmGesture::Waiting(axis) => axis,
-                    PalmGesture::Latched => match engine::latch_of(&self.engine) {
+                    PalmGesture::Latched => match self.scroll.latch() {
                         Some(latch) => latch.axis,
                         None => return Moved::Still,
                     },
@@ -171,23 +67,23 @@ impl SurfaceScroll {
                     ScrollAxis::X => dx,
                     ScrollAxis::Y => dy,
                 };
-                let delta = source::natural(finger, natural);
+                let delta = natural(finger, setting);
                 let began = match (self.palm, Dir::of(delta)) {
                     (PalmGesture::Waiting(_), Some(dir)) => {
                         self.palm = PalmGesture::Latched;
-                        self.begin(doc, axis, dir, Kinetic::Momentum, pos, env)
+                        let at = view_point(pos);
+                        self.scroll
+                            .begin(doc, axis, dir, Kinetic::Momentum, at, env.kit())
                     }
                     (PalmGesture::Waiting(_), None) => return Moved::Still,
-                    _ => Moved::Still,
+                    _ => blitz_kit::scroll::driver::Moves::none(),
                 };
-                began.or(self.run(
-                    doc,
-                    ScrollIn::Changed {
-                        delta: Px(delta),
-                        at,
-                    },
-                    env,
-                ))
+                let changed = ScrollIn::Changed {
+                    delta: Px(delta),
+                    at,
+                };
+                let moves = began.then(self.scroll.run(doc, changed, env.kit()));
+                self.applied(moves, now)
             }
             PalmScroll::Ended { at } => {
                 self.palm = PalmGesture::Idle;

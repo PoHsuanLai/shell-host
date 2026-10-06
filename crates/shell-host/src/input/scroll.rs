@@ -12,21 +12,22 @@ use blitz_traits::events::BlitzKeyEvent;
 use smithay_client_toolkit::seat::pointer::AxisScroll;
 use wayland_client::protocol::wl_pointer;
 
-use crate::dom::scroll::{self as dom, WheelRoute};
 use crate::frame::Animation;
 use crate::id::SurfaceId;
 use crate::input::focus::PointerFocus;
 use crate::input::key::Repeat;
 use crate::input::palmrest::route::{Route, route};
 use crate::input::pointer::{self, PointerPos};
-use crate::scroll::cmd::ScrollCmd;
-use crate::scroll::keys::scroll_key;
 use crate::scroll::source::{AxisSource, Stop};
 use crate::scroll::suppress::{AxisKind, Driven, Verdict};
 use crate::scroll::surface::{KeyUse, Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
 use crate::state::HostState;
 use crate::tick::HostInstant;
+use blitz_kit::scroll::cmd::ScrollCmd;
+use blitz_kit::scroll::doc::{self as dom, WheelRoute};
+use blitz_kit::scroll::geom::ViewPoint;
+use blitz_kit::scroll::keys::scroll_key;
 use palmrest_protocol::ToHost;
 
 impl HostState {
@@ -85,7 +86,7 @@ impl HostState {
         let Some(surface) = self.surfaces.get_mut(&id) else {
             return;
         };
-        let route = dom::wheel_route(&surface.document.base(), at.x, at.y);
+        let route = dom::wheel_route(&surface.document.base(), ViewPoint { x: at.x, y: at.y });
         if route == WheelRoute::Capture {
             if let Some(delta) = pointer::wheel_delta(horizontal, vertical) {
                 let event =

@@ -3,10 +3,10 @@
 
 use std::time::Duration;
 
-use crate::scroll::geom::ScrollAxis;
 use crate::scroll::suppress::Fingers;
 use crate::scroll::surface::PalmScroll;
-use crate::scroll::velocity::SampleTime;
+use blitz_kit::scroll::geom::ScrollAxis;
+use blitz_kit::scroll::velocity::SampleTime;
 use palmrest_protocol::{ActiveTouch, Axis as WireAxis, Phase, ToHost};
 
 /// A message's effects.

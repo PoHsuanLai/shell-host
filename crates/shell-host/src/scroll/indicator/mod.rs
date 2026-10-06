@@ -6,4 +6,4 @@ mod fade;
 mod geometry;
 
 pub(crate) use fade::{Indicator, Wake};
-pub(crate) use geometry::{Area, Metrics, ThumbPaint, in_zone};
+pub(crate) use geometry::{Metrics, ThumbPaint, in_zone};

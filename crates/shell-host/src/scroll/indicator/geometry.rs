@@ -2,19 +2,10 @@
 
 use super::fade::Hover;
 use crate::scroll::config::{ScrollbarSettings, ScrollbarVisibility};
-use crate::scroll::geom::ScrollAxis;
+use blitz_kit::scroll::geom::{Area, ScrollAxis};
 
 /// The thumb sits this far inside its track, px.
 const INSET: f64 = 2.0;
-
-/// A rectangle in document logical pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub(crate) struct Area {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-}
 
 /// One scroller's metrics on the thumb's axis.
 #[derive(Debug, Clone, Copy, PartialEq)]

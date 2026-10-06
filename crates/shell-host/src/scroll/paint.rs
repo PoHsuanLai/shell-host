@@ -6,7 +6,8 @@ use blitz_traits::shell::ColorScheme;
 use peniko::kurbo::{Affine, RoundedRect};
 use peniko::{Color, Fill};
 
-use crate::scroll::indicator::{Area, ThumbPaint};
+use crate::scroll::indicator::ThumbPaint;
+use blitz_kit::scroll::geom::Area;
 
 /// The thumb: ink at 0.5 alpha under a 0.8 layer opacity (design/11 R19), so 0.4.
 const THUMB_ALPHA: f32 = 0.4;
