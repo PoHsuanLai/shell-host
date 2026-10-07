@@ -1,6 +1,7 @@
 //! The `key` verb's spelling of a keystroke: `<name>[+mod[+mod]]`, where `name` is a W3C key
 //! value (`Tab`, `Enter`, `Escape`, `ArrowDown`, `F5`, `a`, `Shift`) or `Space`, and a `mod` is
-//! `shift`, `ctrl`, `alt` or `super`. `+` splits, so it cannot itself be a key name.
+//! `shift`, `ctrl`, `alt` or `super`. `+` splits, so it cannot itself be a key name. A shifted
+//! symbol (`@`, `!`, `_`, `:` …) is typed as its US key with Shift held, which the spec adds itself.
 
 use std::str::FromStr;
 
@@ -15,7 +16,7 @@ pub fn parse_key(spec: &str) -> Result<KeyStroke, CommandError> {
     let name = parts.next().unwrap_or_default();
     let key = key_named(name).ok_or_else(|| CommandError::NotAKey(name.to_owned()))?;
     let code = code_of(&key).ok_or_else(|| CommandError::NotAKey(name.to_owned()))?;
-    let mods = parts.try_fold(Modifiers::empty(), |held, word| {
+    let mods = parts.try_fold(shift_of(&key), |held, word| {
         modifier(word)
             .map(|one| held | one)
             .ok_or_else(|| CommandError::NotAModifier(word.to_owned()))
@@ -27,6 +28,18 @@ fn key_named(name: &str) -> Option<Key> {
     match name {
         "Space" => Some(Key::Character(" ".to_owned())),
         _ => Key::from_str(name).ok(),
+    }
+}
+
+/// Shift for a symbol that a US layout types with Shift held (`@` is Shift+2), else nothing.
+fn shift_of(key: &Key) -> Modifiers {
+    match key {
+        Key::Character(text) if text.chars().count() == 1 => text
+            .chars()
+            .next()
+            .filter(|c| SHIFTED.iter().any(|(ch, _)| ch == c))
+            .map_or(Modifiers::empty(), |_| Modifiers::SHIFT),
+        _ => Modifiers::empty(),
     }
 }
 
@@ -66,6 +79,7 @@ fn code_of_char(c: char) -> Option<Code> {
         _ => {
             return PUNCTUATION
                 .iter()
+                .chain(SHIFTED)
                 .find(|(ch, _)| *ch == c)
                 .map(|(_, code)| *code);
         }
@@ -85,6 +99,31 @@ const PUNCTUATION: &[(char, Code)] = &[
     (',', Code::Comma),
     ('.', Code::Period),
     ('/', Code::Slash),
+];
+
+/// The symbols a US layout types with Shift held, and the key under each (`+` is not here: it
+/// splits a spec).
+const SHIFTED: &[(char, Code)] = &[
+    ('!', Code::Digit1),
+    ('@', Code::Digit2),
+    ('#', Code::Digit3),
+    ('$', Code::Digit4),
+    ('%', Code::Digit5),
+    ('^', Code::Digit6),
+    ('&', Code::Digit7),
+    ('*', Code::Digit8),
+    ('(', Code::Digit9),
+    (')', Code::Digit0),
+    ('_', Code::Minus),
+    ('{', Code::BracketLeft),
+    ('}', Code::BracketRight),
+    ('|', Code::Backslash),
+    (':', Code::Semicolon),
+    ('"', Code::Quote),
+    ('~', Code::Backquote),
+    ('<', Code::Comma),
+    ('>', Code::Period),
+    ('?', Code::Slash),
 ];
 
 #[cfg(test)]
@@ -120,6 +159,17 @@ mod tests {
                 Ok(stroke(ch(" "), Code::Space, Modifiers::empty())),
             ),
             (",", Ok(stroke(ch(","), Code::Comma, Modifiers::empty()))),
+            ("@", Ok(stroke(ch("@"), Code::Digit2, Modifiers::SHIFT))),
+            ("_", Ok(stroke(ch("_"), Code::Minus, Modifiers::SHIFT))),
+            (":", Ok(stroke(ch(":"), Code::Semicolon, Modifiers::SHIFT))),
+            (
+                "@+ctrl",
+                Ok(stroke(
+                    ch("@"),
+                    Code::Digit2,
+                    Modifiers::SHIFT | Modifiers::CONTROL,
+                )),
+            ),
             (
                 "Shift",
                 Ok(stroke(Key::Shift, Code::ShiftLeft, Modifiers::empty())),
