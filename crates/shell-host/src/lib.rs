@@ -75,7 +75,7 @@ pub use geometry::{Margin, Point};
 pub use grab::GrabRefused;
 pub use handle::{
     SurfaceHandle, use_frame_tick, use_input_modality, use_modifiers, use_surface,
-    use_surface_scale, use_toplevel_state,
+    use_surface_scale, use_toplevel_state, use_wheel,
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
@@ -106,6 +106,7 @@ pub use scroll::config::{
     ScrollbarVisibility,
 };
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
+pub use scroll::wheel::{WheelEvent, WheelMotion, WheelPhase, WheelSource};
 pub use stats::{FrameStats, Percentiles};
 pub use tick::{FrameDrive, FrameTick, HostInstant};
 pub use toplevel::{

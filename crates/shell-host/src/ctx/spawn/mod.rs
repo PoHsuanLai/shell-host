@@ -33,6 +33,8 @@ use crate::root::HostRoot;
 use crate::scale::{Scale, Size};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::watch::ScrollBoard;
+use crate::scroll::wheel::WheelRun;
+use crate::scroll::wheel_feed::WheelFeed;
 use crate::state::HostState;
 use crate::stats::StatsWindow;
 use crate::surface::{AppliedRegions, Configured, HostSurface};
@@ -85,6 +87,7 @@ pub(super) fn insert(
     let live_toplevel = Live::new(ToplevelState::default());
     let live_modifiers = Live::new(Modifiers::default());
     let scrolls = ScrollBoard::default();
+    let wheels = WheelFeed::default();
     let parts = HandleParts {
         requests: state.requests.clone(),
         ids: state.ids.clone(),
@@ -93,6 +96,7 @@ pub(super) fn insert(
         toplevel: live_toplevel.clone(),
         grab: state.input.grab.clone(),
         scrolls: scrolls.clone(),
+        wheels: wheels.clone(),
         modifiers: live_modifiers.clone(),
         modality: state.input.modality.clone(),
     };
@@ -130,6 +134,8 @@ pub(super) fn insert(
             live_scale,
             live_toplevel,
             live_modifiers,
+            wheels,
+            wheel_run: WheelRun::default(),
             doc_cursor: Some(cursor_icon::CursorIcon::Default),
             scroll: SurfaceScroll::new(scrolls, state.scroll),
         },

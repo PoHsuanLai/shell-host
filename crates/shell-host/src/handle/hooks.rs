@@ -1,13 +1,14 @@
 //! Every `use_*` hook: each reads the `SurfaceHandle` from the root context and subscribes.
 
 use dioxus::core::{spawn, use_hook};
-use dioxus::hooks::use_signal;
+use dioxus::hooks::{use_callback, use_signal};
 use dioxus::signals::{ReadSignal, WritableExt};
 
 use super::SurfaceHandle;
 use crate::modality::InputModality;
 use crate::modifiers::Modifiers;
 use crate::scale::Scale;
+use crate::scroll::wheel::WheelEvent;
 use crate::tick::FrameTick;
 use crate::toplevel::ToplevelState;
 
@@ -135,6 +136,28 @@ pub fn use_input_modality() -> ReadSignal<InputModality> {
         });
     });
     ReadSignal::from(latest)
+}
+
+/// Hear the wheel and touchpad of this surface for as long as the component lives: one
+/// [`WheelEvent`] per `wl_pointer.frame` that scrolls, with its source (`Wheel`, `Finger`,
+/// `Continuous`), its phase (a touchpad run is `Began`, `Changed`, `Ended`; a wheel is `Changed`
+/// only), the distance the content moves, the pointer and the modifiers held. For a component
+/// that moves its own content (an image or PDF canvas) and needs what the engine's scrolling
+/// hides, such as the lift of the fingers; it does not stop the engine scrolling what is under
+/// the pointer, and it hears a frame the engine drops as a double scroll no more than the
+/// engine does. Every event is delivered in order, even to a component rendering slower than the
+/// compositor sends them.
+pub fn use_wheel(on_wheel: impl FnMut(WheelEvent) + 'static) {
+    let callback = use_callback(on_wheel);
+    let feed = use_surface().wheels;
+    use_hook(move || {
+        let listener = feed.listen();
+        spawn(async move {
+            loop {
+                callback.call(listener.next().await);
+            }
+        });
+    });
 }
 
 /// The handle of the surface this component renders in. Panics outside a host surface (a

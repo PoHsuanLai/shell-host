@@ -24,6 +24,8 @@ use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{Scale, Size, buffer_size};
 use crate::scroll::surface::SurfaceScroll;
+use crate::scroll::wheel::WheelRun;
+use crate::scroll::wheel_feed::WheelFeed;
 use crate::stats::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow};
 use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
 use crate::toplevel::ToplevelState;
@@ -101,6 +103,10 @@ pub(crate) struct HostSurface {
     /// The modifiers held while this surface has keyboard focus, published to its document
     /// (`use_modifiers`); reset to `Modifiers::default()` on `wl_keyboard.leave`.
     pub(crate) live_modifiers: Live<Modifiers>,
+    /// The wheel events this surface's components listen to (`use_wheel`).
+    pub(crate) wheels: WheelFeed,
+    /// Whether a touchpad run is under way, for the phase of the next frame.
+    pub(crate) wheel_run: WheelRun,
     /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
     /// the document rather than in the resize band.
     pub(crate) doc_cursor: Option<CursorIcon>,

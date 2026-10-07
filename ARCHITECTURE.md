@@ -59,8 +59,8 @@ a higher one. When something needs a higher layer, move the shared piece down or
 |---|---|---|
 | L0 vocabulary | `id`, `geometry`, `scale`, `output`, `error`, `modifiers`, `config`, `blur`, `event`, `msg`, `stats` | pure data |
 | L1 role configs | `layer`, `toplevel`, `popup`, `region`, `placement`, `csd`, `drag/{spec,offer,serial,pipe,outcome}`, `prepaint`, `lock/{config,machine}` | pure: configs, wire mappings, geometry |
-| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,indicator,source,suppress}` | pure, table-tested |
-| L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/watch` | values shared with documents; no Wayland |
+| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,indicator,source,suppress,wheel}` | pure, table-tested |
+| L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/{watch,wheel_feed}` | values shared with documents; no Wayland |
 | L4 documents | `dom/{document,head,shell_provider,stacking,scheme,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
 | L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,block_on,raw_handle}` | effects |
 | L6 Wayland effects | `state`, `surface`, `role`, `handlers/*`, `clipboard`, `cursor`, `ime`, `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
@@ -105,9 +105,9 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Geometry | `Px`, `Rect`, `Point`, `Size`, `Margin`, `Scale`, `buffer_size` (`Px`, `Rect`, `Point`, `Size` are the geometry vocabulary and keep their short names) |
 | Input | `Modifiers`, `Modifier`, `LockKey`, `InputModality` |
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
-| Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll` |
+| Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll`, `WheelEvent`, `WheelSource`, `WheelPhase`, `WheelMotion`, `use_wheel` |
 | Frames and stats | `FrameDrive`, `FrameTick`, `HostInstant`, `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
-| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns) |
+| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns) |
 
 Feature-gated public modules:
 
@@ -179,6 +179,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Scroll physics, latching, document side, driver | `blitz_kit::scroll` (shared with `ds-blitz`) |
 | Scroll settings (engine part) | `blitz_kit::scroll::config::ScrollSettings`; `scroll/config` holds `ScrollConfig` (it and the thumb's settings) |
 | Scroll thumb, palmrest and Wayland axis input, double-scroll rule | `scroll/{indicator,source,suppress,paint}`, `scroll/surface` (the surface's driver, thumb and palmrest tracker) |
+| What a component hears of a wheel or touchpad (source, phase, distance) | `scroll/wheel` (the meaning), `scroll/wheel_feed` (the queue), `use_wheel` |
 | Scroll view of Blitz (scroller chain, raw offsets) | `dom/scroll` |
 | Hover repair, net provider, fonts, adapter ranking, transform-aware hit and rect, pixel snap | `blitz-kit` |
 | One document per surface | `dom/document` |

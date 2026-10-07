@@ -10,7 +10,7 @@ mod window;
 
 pub use hooks::{
     use_frame_tick, use_input_modality, use_modifiers, use_surface, use_surface_scale,
-    use_toplevel_state,
+    use_toplevel_state, use_wheel,
 };
 pub(crate) use queue::RequestQueue;
 
@@ -24,6 +24,7 @@ use crate::msg::{Request, SurfaceOp};
 use crate::role::RoleKind;
 use crate::scale::Scale;
 use crate::scroll::watch::ScrollBoard;
+use crate::scroll::wheel_feed::WheelFeed;
 use crate::tick::FrameTicks;
 use crate::toplevel::ToplevelState;
 
@@ -39,6 +40,7 @@ pub struct SurfaceHandle {
     toplevel: Live<ToplevelState>,
     grab: GrabRecord,
     scrolls: ScrollBoard,
+    wheels: WheelFeed,
     modifiers: Live<Modifiers>,
     modality: Live<InputModality>,
 }
@@ -54,6 +56,7 @@ pub(crate) struct HandleParts {
     pub(crate) toplevel: Live<ToplevelState>,
     pub(crate) grab: GrabRecord,
     pub(crate) scrolls: ScrollBoard,
+    pub(crate) wheels: WheelFeed,
     pub(crate) modifiers: Live<Modifiers>,
     /// The seat's, shared by every surface (not a per-surface copy like `modifiers`).
     pub(crate) modality: Live<InputModality>,
@@ -70,6 +73,7 @@ impl SurfaceHandle {
             toplevel,
             grab,
             scrolls,
+            wheels,
             modifiers,
             modality,
         } = parts;
@@ -83,6 +87,7 @@ impl SurfaceHandle {
             toplevel,
             grab,
             scrolls,
+            wheels,
             modifiers,
             modality,
         }

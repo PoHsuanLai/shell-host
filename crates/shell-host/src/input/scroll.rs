@@ -13,15 +13,18 @@ use smithay_client_toolkit::seat::pointer::AxisScroll;
 use wayland_client::protocol::wl_pointer;
 
 use crate::frame::Animation;
+use crate::geometry::Point;
 use crate::id::SurfaceId;
 use crate::input::focus::PointerFocus;
 use crate::input::key::Repeat;
 use crate::input::palmrest::route::{Route, route};
 use crate::input::pointer::{self, PointerPos};
+use crate::region::Px;
 use crate::scroll::source::{AxisSource, Stop};
 use crate::scroll::suppress::{AxisKind, Driven, Verdict};
 use crate::scroll::surface::{KeyUse, Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
+use crate::scroll::wheel::{WheelContext, wheel_event};
 use crate::state::HostState;
 use crate::tick::HostInstant;
 use blitz_kit::scroll::cmd::ScrollCmd;
@@ -83,9 +86,24 @@ impl HostState {
         if verdict == Verdict::Drop {
             return;
         }
+        let held = self.input.held_modifiers;
+        let detent_px = self.scroll.config.scroll.wheel_detent_px.get();
         let Some(surface) = self.surfaces.get_mut(&id) else {
             return;
         };
+        let context = WheelContext {
+            at: Point {
+                x: at.x.round() as Px,
+                y: at.y.round() as Px,
+            },
+            held,
+            detent_px,
+        };
+        let (run, event) = wheel_event(surface.wheel_run, &frame, context);
+        surface.wheel_run = run;
+        if let Some(event) = event {
+            surface.wheels.publish(event);
+        }
         let route = dom::wheel_route(&surface.document.base(), ViewPoint { x: at.x, y: at.y });
         if route == WheelRoute::Capture {
             if let Some(delta) = pointer::wheel_delta(horizontal, vertical) {

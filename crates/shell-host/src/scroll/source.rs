@@ -77,7 +77,7 @@ pub(crate) struct AxisFrame {
 }
 
 /// The detents a wheel axis carries: `value120`, else `discrete`, else its degrees.
-fn steps(axis: &AxisValue) -> f64 {
+pub(crate) fn steps(axis: &AxisValue) -> f64 {
     if axis.v120 != 0 {
         f64::from(axis.v120) / 120.0
     } else if axis.discrete != 0 {

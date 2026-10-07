@@ -4,7 +4,7 @@
 //! overlay thumb.
 //!
 //! The physics and the document side are `blitz_kit::scroll` (shared with every Blitz host).
-//! Here, pure and table-tested: `config`, `indicator`, `source`, `suppress`. Touching Blitz or a
+//! Here, pure and table-tested: `config`, `indicator`, `source`, `suppress`, `wheel` (what a component hears of a wheel). Touching Blitz or a
 //! scene: `surface` (through `blitz_kit::scroll::driver`), `paint`, `watch` (the `use_scroll` hook).
 
 pub(crate) mod config;
@@ -15,6 +15,8 @@ pub(crate) mod suppress;
 pub(crate) mod surface;
 pub(crate) mod tuning;
 pub(crate) mod watch;
+pub(crate) mod wheel;
+pub(crate) mod wheel_feed;
 
 #[cfg(test)]
 mod tests;

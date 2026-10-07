@@ -35,6 +35,7 @@ fn parts(requests: RequestQueue, ticks: FrameTicks, scale: LiveScale) -> HandleP
         toplevel: Live::new(ToplevelState::default()),
         grab: GrabRecord::default(),
         scrolls: crate::scroll::watch::ScrollBoard::default(),
+        wheels: crate::scroll::wheel_feed::WheelFeed::default(),
         modifiers: Live::new(crate::modifiers::Modifiers::default()),
         modality: Live::new(crate::modality::InputModality::default()),
     }
@@ -330,6 +331,58 @@ fn use_toplevel_state_follows_each_configure() {
     assert_eq!(document.poll(&mut cx), Polled::Changed);
     assert_eq!(text(&mut document), "Set");
     assert_eq!(handle.current_toplevel_state(), zoomed);
+}
+
+fn wheel_phases() -> Element {
+    let mut seen = use_signal(Vec::new);
+    crate::handle::use_wheel(move |event| seen.write().push((event.phase, event.by.y)));
+    rsx! { div { "{seen():?}" } }
+}
+
+/// A wheel event the host publishes reaches the component through its own task and waker, in
+/// order, and a run's phases arrive as they were published.
+#[test]
+fn use_wheel_hears_every_event_in_order() {
+    use crate::geometry::Point;
+    use crate::scroll::wheel::{WheelEvent, WheelMotion, WheelPhase, WheelSource};
+    let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
+    let feed = crate::scroll::wheel_feed::WheelFeed::default();
+    let handle = SurfaceHandle::new(
+        SurfaceId(21),
+        RoleKind::Toplevel,
+        HandleParts {
+            wheels: feed.clone(),
+            ..parts(
+                RequestQueue::new(ping.clone()),
+                FrameTicks::default(),
+                LiveScale::new(Scale::ONE),
+            )
+        },
+    );
+    let env = test_env(ping, Prepaint::None);
+    let mut document = SurfaceDocument::build(HostRoot::new(wheel_phases).context(handle), env);
+    let wakes = Arc::new(Wakes::default());
+    let waker = std::task::Waker::from(Arc::clone(&wakes));
+    let mut cx = std::task::Context::from_waker(&waker);
+    document.poll(&mut cx);
+    assert_eq!(text(&mut document), "[]");
+    wakes.take();
+    let event = |phase, y| WheelEvent {
+        source: WheelSource::Finger,
+        phase,
+        by: WheelMotion { x: 0.0, y },
+        at: Point::default(),
+        held: crate::modifiers::Modifiers::default(),
+    };
+    feed.publish(event(WheelPhase::Began, 3.0));
+    feed.publish(event(WheelPhase::Ended, 0.0));
+    assert!(wakes.take() > 0, "an event wakes the document");
+    assert_eq!(document.poll(&mut cx), Polled::Changed);
+    assert_eq!(
+        text(&mut document),
+        "[(Began, 3.0), (Ended, 0.0)]",
+        "both events, in order, from one poll"
+    );
 }
 
 fn modality_text() -> Element {

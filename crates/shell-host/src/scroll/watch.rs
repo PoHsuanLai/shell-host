@@ -176,6 +176,7 @@ mod tests {
             toplevel: Live::new(ToplevelState::default()),
             grab: GrabRecord::default(),
             scrolls: board.clone(),
+            wheels: crate::scroll::wheel_feed::WheelFeed::default(),
             modifiers: Live::new(crate::modifiers::Modifiers::default()),
             modality: Live::new(crate::modality::InputModality::default()),
         };
