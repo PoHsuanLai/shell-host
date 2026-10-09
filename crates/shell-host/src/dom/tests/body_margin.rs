@@ -54,10 +54,12 @@ fn fill_rect(doc: &SurfaceDocument) -> Rect {
         .expect("#fill is laid out")
 }
 
+/// name, document, (x, y), width, height (None: not pinned)
+type Case = (&'static str, fn() -> Element, (i32, i32), i32, Option<i32>);
+
 #[test]
 fn the_body_reset_puts_a_box_at_the_corner_unless_the_document_sets_its_own_margin() {
-    // name, document, (x, y), width, height (None: not pinned)
-    let cases: &[(&str, fn() -> Element, (i32, i32), i32, Option<i32>)] = &[
+    let cases: &[Case] = &[
         (
             // `#main` is as tall as its flow content, none here: unchanged by the reset.
             "a bare document's inset-zero box starts at the corner and spans the width",

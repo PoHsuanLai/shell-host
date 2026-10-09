@@ -82,10 +82,13 @@ fn overlay_content_app() -> Element {
 /// default stylesheet, and always body's first child in this codebase's rsx convention) and
 /// measures the actual content element after it, including absolutely placed descendants (a
 /// menu adds nothing to its parent's size but paints where it paints).
+/// name, document, the measured size
+type Case = (&'static str, fn() -> Element, Option<crate::scale::Size>);
+
 #[test]
 fn content_size_measures_the_content_where_it_paints() {
     use crate::scale::Size;
-    let cases: &[(&str, fn() -> Element, Option<Size>)] = &[
+    let cases: &[Case] = &[
         (
             "the #card div, not the #main mount point (which fills the 200px-wide viewport)",
             sized_content_app,
