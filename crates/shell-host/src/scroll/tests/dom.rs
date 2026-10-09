@@ -446,47 +446,45 @@ impl Bench {
 }
 
 #[test]
-fn a_menu_that_handles_keys_keeps_arrow_down() {
-    let mut bench = keyed_bench();
-    bench.focus("menu");
-    let wrap = bench.scroller("menuwrap");
-    assert_eq!(
-        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
-        KeyUse::Passed
-    );
-    bench.settle(&[wrap]);
-    assert_eq!(bench.offset(wrap), 0.0);
-}
-
-#[test]
-fn a_focused_scroller_with_its_own_keydown_keeps_down() {
-    let mut bench = keyed_bench();
-    bench.focus("column");
-    assert_eq!(
-        bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
-        KeyUse::Passed
-    );
-    assert_eq!(bench.offset(bench.scroller("column")), 0.0);
-}
-
-#[test]
-fn a_focused_root_with_keydown_keeps_left_and_right_over_a_banded_sheet() {
-    let mut bench = keyed_bench();
-    bench.focus("power");
-    for dir in [Dir::Pos, Dir::Neg] {
-        assert_eq!(
-            bench.press(ScrollKey::Line(ScrollAxis::X, dir), None),
-            KeyUse::Passed
-        );
-    }
-    let sheet = bench.scroller("sheet");
-    assert_eq!(
-        dom::geom(&bench.doc.base(), sheet, ScrollAxis::X)
+fn a_focused_element_that_handles_its_own_keys_keeps_the_arrows() {
+    use ScrollAxis::{X, Y};
+    // The focused element, the arrows pressed on it, the scroller that must stay at 0 and the
+    // axis it would have moved on.
+    let cases = [
+        ("a menu", "menu", vec![(Y, Dir::Pos)], "menuwrap", Y),
+        (
+            "a scroller with its own keydown",
+            "column",
+            vec![(Y, Dir::Pos)],
+            "column",
+            Y,
+        ),
+        (
+            "a focused root with keydown, over a banded sheet",
+            "power",
+            vec![(X, Dir::Pos), (X, Dir::Neg)],
+            "sheet",
+            X,
+        ),
+    ];
+    for (name, focus, keys, watched, axis) in cases {
+        let mut bench = keyed_bench();
+        bench.focus(focus);
+        let scroller = bench.scroller(watched);
+        for (key_axis, dir) in keys {
+            assert_eq!(
+                bench.press(ScrollKey::Line(key_axis, dir), None),
+                KeyUse::Passed,
+                "{name}"
+            );
+        }
+        bench.settle(&[scroller]);
+        let offset = dom::geom(&bench.doc.base(), scroller, axis)
             .expect("geom")
             .offset
-            .0,
-        0.0
-    );
+            .0;
+        assert_eq!(offset, 0.0, "{name}");
+    }
 }
 
 #[test]

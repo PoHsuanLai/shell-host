@@ -88,6 +88,16 @@ mod tests {
                 rect(0, 0, 48, 48),
             ),
             (
+                "fractional on every edge rounds out, never in",
+                (10.2, 4.8, 79.4, 23.1),
+                rect(10, 4, 80, 24),
+            ),
+            (
+                "a sub-pixel box still covers at least one pixel",
+                (0.1, 0.1, 0.2, 0.2),
+                rect(0, 0, 1, 1),
+            ),
+            (
                 "negative origin",
                 (-0.5, -2.2, 1.0, 1.0),
                 rect(-1, -3, 2, 2),

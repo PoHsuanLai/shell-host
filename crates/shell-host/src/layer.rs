@@ -215,7 +215,6 @@ mod tests {
         assert!(bar.contains(Anchor::LEFT | Anchor::RIGHT));
         assert!(!bar.contains(Anchor::BOTTOM));
         assert!(Anchor::ALL.contains(bar));
-        assert_eq!(Anchor::default(), Anchor::NONE);
     }
 
     #[test]

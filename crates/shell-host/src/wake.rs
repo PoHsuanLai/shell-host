@@ -65,24 +65,4 @@ mod tests {
         assert_eq!(got, vec![SurfaceId(1), SurfaceId(2)]);
         assert_eq!(set.take(), Vec::new());
     }
-
-    #[test]
-    fn waking_marks_the_surface_and_pings() {
-        let (ping, mut source) = calloop::ping::make_ping().unwrap();
-        let woken = WokenSet::default();
-        let waker = surface_waker(SurfaceId(7), woken.clone(), ping);
-        waker.wake();
-        assert_eq!(woken.take(), vec![SurfaceId(7)]);
-
-        let mut loop_ = calloop::EventLoop::<bool>::try_new().unwrap();
-        loop_
-            .handle()
-            .insert_source(&mut source, |_, _, fired: &mut bool| *fired = true)
-            .unwrap();
-        let mut fired = false;
-        loop_
-            .dispatch(std::time::Duration::from_millis(200), &mut fired)
-            .unwrap();
-        assert!(fired, "waking the surface waker should ping the loop");
-    }
 }

@@ -161,3 +161,26 @@ fn a_second_done_only_sees_what_was_buffered_since_the_first() {
     let (second_events, _) = on_done(after_first);
     assert_eq!(second_events, vec![clear()]);
 }
+
+/// Chewing's `s u 3 c l 3` then Return, as fcitx5 sends it: the preedit 你好 is replaced by
+/// nothing and 你好 is committed in one `done`. Committing with the composition still shown
+/// doubled it (你好你好).
+#[test]
+fn a_commit_of_the_composed_text_clears_the_composition_first() {
+    let (events, _) = on_done(pending(Pending {
+        preedit: Some(Preedit {
+            text: String::new(),
+            cursor: Some((0, 0)),
+        }),
+        commit: Some("你好"),
+        ..Pending::default()
+    }));
+    assert_eq!(
+        events,
+        vec![
+            clear(),
+            BlitzImeEvent::Commit("你好".to_owned()),
+            BlitzImeEvent::Preedit(String::new(), Some((0, 0))),
+        ]
+    );
+}

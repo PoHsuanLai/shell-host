@@ -117,6 +117,14 @@ mod tests {
                 },
             ),
             (
+                "caps lock locked is a lock, not a held modifier",
+                state(|s| s.caps_lock = true),
+                Modifiers {
+                    caps_lock: LockKey::Locked,
+                    ..Modifiers::default()
+                },
+            ),
+            (
                 "alt held",
                 state(|s| s.alt = true),
                 Modifiers {
@@ -160,19 +168,5 @@ mod tests {
         for (name, input, want) in cases {
             assert_eq!(Modifiers::from_sctk(input), want, "{name}");
         }
-    }
-
-    /// The distinction the two enums exist for: a plain modifier held down (Ctrl) is `Modifier`,
-    /// a lock key toggled on (Caps Lock) is `LockKey`, and the two are not the same field even
-    /// though sctk reports both as a bare `bool`.
-    #[test]
-    fn locked_caps_is_not_a_held_modifier() {
-        let held_ctrl = Modifiers::from_sctk(state(|s| s.ctrl = true));
-        assert_eq!(held_ctrl.ctrl, Modifier::Held);
-        assert_eq!(held_ctrl.caps_lock, LockKey::Unlocked);
-
-        let locked_caps = Modifiers::from_sctk(state(|s| s.caps_lock = true));
-        assert_eq!(locked_caps.caps_lock, LockKey::Locked);
-        assert_eq!(locked_caps.ctrl, Modifier::Released);
     }
 }

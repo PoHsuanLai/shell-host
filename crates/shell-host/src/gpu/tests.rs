@@ -197,47 +197,49 @@ fn half_pink() -> Element {
 }
 
 #[test]
-fn a_document_renders_to_a_texture_and_reads_back() {
-    let buffer = Size {
-        width: 64,
-        height: 16,
-    };
-    let image = render(
-        &mut document(half_pink, buffer, Scale::ONE),
-        buffer,
-        Scale::ONE,
-    );
-    let cases: &[(&str, u32, [u8; 4])] = &[
-        ("inside the bar", 5, [255, 0, 128, 255]),
-        ("last bar column", 19, [255, 0, 128, 255]),
-        ("first column past the bar, transparent", 20, [0, 0, 0, 0]),
-        ("far right, transparent", 60, [0, 0, 0, 0]),
+fn a_document_renders_to_a_texture_at_each_scale_and_reads_back() {
+    const PINK: [u8; 4] = [255, 0, 128, 255];
+    const CLEAR: [u8; 4] = [0, 0, 0, 0];
+    type Probe = (&'static str, u32, [u8; 4]);
+    const ONE_X: &[Probe] = &[
+        ("inside the bar", 5, PINK),
+        ("last bar column", 19, PINK),
+        ("first column past the bar, transparent", 20, CLEAR),
+        ("far right, transparent", 60, CLEAR),
     ];
-    for (name, x, want) in cases {
-        let got = pixel(&image, *x, 8);
-        assert!(close(got, *want), "{name}: x={x} got {got:?} want {want:?}");
+    const ONE_AND_A_HALF_X: &[Probe] = &[
+        ("last bar column at 1.5x", 29, PINK),
+        ("first column past the bar at 1.5x", 30, CLEAR),
+    ];
+    // scale, buffer, the row probed, probes (x, expected). At 1.5x the 20 logical px bar is
+    // exactly 30 physical px.
+    let cases: &[(Scale, Size, u32, &[Probe])] = &[
+        (
+            Scale::ONE,
+            Size {
+                width: 64,
+                height: 16,
+            },
+            8,
+            ONE_X,
+        ),
+        (
+            Scale(180),
+            Size {
+                width: 96,
+                height: 24,
+            },
+            12,
+            ONE_AND_A_HALF_X,
+        ),
+    ];
+    for &(scale, buffer, row, probes) in cases {
+        let image = render(&mut document(half_pink, buffer, scale), buffer, scale);
+        for &(name, x, want) in probes {
+            let got = pixel(&image, x, row);
+            assert!(close(got, want), "{name}: x={x} got {got:?} want {want:?}");
+        }
     }
-}
-
-#[test]
-fn fractional_scale_lands_on_physical_pixels() {
-    // 20 logical px at 1.5x is exactly 30 physical px.
-    let scale = Scale(180);
-    let buffer = Size {
-        width: 96,
-        height: 24,
-    };
-    let image = render(&mut document(half_pink, buffer, scale), buffer, scale);
-    assert!(
-        close(pixel(&image, 29, 12), [255, 0, 128, 255]),
-        "{:?}",
-        pixel(&image, 29, 12)
-    );
-    assert!(
-        close(pixel(&image, 30, 12), [0, 0, 0, 0]),
-        "{:?}",
-        pixel(&image, 30, 12)
-    );
 }
 
 // ---- custom-widget textures ---------------------------------------------------------------

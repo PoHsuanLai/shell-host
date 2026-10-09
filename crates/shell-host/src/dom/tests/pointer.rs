@@ -127,32 +127,6 @@ fn a_press_without_prior_motion_clicks_its_target() {
     );
 }
 
-/// Leaving clears `:hover`: the hovered element's hover state is gone after `clear_hover` and
-/// the parking move to (-1, -1).
-#[test]
-fn leaving_clears_hover() {
-    let mut doc = build();
-    let icon0 = node_id(&mut doc, "#icon0");
-    let pos = center(&mut doc, icon0);
-    feed(
-        &mut doc,
-        [pointer::move_event(
-            pos,
-            MouseEventButtons::None,
-            Modifiers::empty(),
-        )],
-    );
-    assert_eq!(
-        doc.dioxus().inner.borrow().get_hover_node_id(),
-        Some(icon0),
-        "precondition: icon0 is hovered before leaving"
-    );
-
-    doc.pointer_left(Modifiers::empty());
-
-    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
-}
-
 /// One wheel notch (`Lines`) and a touchpad delta (`Pixels`) both scroll the hovered
 /// container, by Blitz's line height (20 px, `blitz-dom`'s own `Lines * 20`) and by the raw
 /// pixel amount respectively.

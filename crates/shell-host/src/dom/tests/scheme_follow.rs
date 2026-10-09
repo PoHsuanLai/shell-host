@@ -128,51 +128,38 @@ impl Switchable {
 }
 
 #[tokio::test]
-async fn a_live_switch_to_dark_repaints_the_glyph_and_the_text_in_light_ink() {
-    let mut up = Switchable::up("light");
-    let before = paint(&mut up.doc);
-    let glyph_before = opaque_ink(&before, GLYPH);
-    let word_before = opaque_ink(&before, WORD);
-    assert!(
-        !glyph_before.is_empty() && !word_before.is_empty(),
-        "the Light picture draws a glyph and text"
-    );
-    assert!(
-        glyph_before.iter().chain(&word_before).all(|&red| red == 0),
-        "Light ink is black"
-    );
-    let glyph_node = up.doc.dioxus().inner().get_element_by_id("glyph");
+async fn a_live_switch_repaints_the_glyph_and_the_text_in_the_new_ink() {
+    // start, switched to, the red channel of the ink after the switch (Light ink is black).
+    let switches = [("light", "dark", 255u8), ("dark", "light", 0u8)];
+    for (start, to, ink) in switches {
+        let mut up = Switchable::up(start);
+        let before = paint(&mut up.doc);
+        for band in [GLYPH, WORD] {
+            let old = opaque_ink(&before, band);
+            assert!(!old.is_empty(), "{start}: {band:?} is drawn");
+            assert!(
+                old.iter().all(|&red| red == 255 - ink),
+                "{start}: {band:?} is in the starting ink"
+            );
+        }
+        let glyph_node = up.doc.dioxus().inner().get_element_by_id("glyph");
 
-    up.switch_to("dark");
+        up.switch_to(to);
 
-    let after = paint(&mut up.doc);
-    assert!(
-        opaque_ink(&after, GLYPH).iter().all(|&red| red == 255),
-        "the glyph's currentColor follows the switch"
-    );
-    let word_after = opaque_ink(&after, WORD);
-    assert!(!word_after.is_empty(), "the Dark picture draws text");
-    assert!(
-        word_after.iter().all(|&red| red == 255),
-        "the text's colour follows the switch"
-    );
-    assert_eq!(
-        up.doc.dioxus().inner().get_element_by_id("glyph"),
-        glyph_node,
-        "the same node, not a remount"
-    );
-}
-
-#[tokio::test]
-async fn a_live_switch_back_to_light_repaints_in_dark_ink() {
-    let mut up = Switchable::up("dark");
-    up.switch_to("light");
-
-    let image = paint(&mut up.doc);
-    for band in [GLYPH, WORD] {
-        let ink = opaque_ink(&image, band);
-        assert!(!ink.is_empty(), "{band:?} is drawn");
-        assert!(ink.iter().all(|&red| red == 0), "{band:?} is Light ink");
+        let after = paint(&mut up.doc);
+        for band in [GLYPH, WORD] {
+            let new = opaque_ink(&after, band);
+            assert!(!new.is_empty(), "{to}: {band:?} is drawn");
+            assert!(
+                new.iter().all(|&red| red == ink),
+                "{to}: {band:?} follows the switch"
+            );
+        }
+        assert_eq!(
+            up.doc.dioxus().inner().get_element_by_id("glyph"),
+            glyph_node,
+            "{to}: the same node, not a remount"
+        );
     }
 }
 

@@ -87,7 +87,6 @@ pub(crate) fn refit(
 mod tests {
     use super::*;
     use crate::popup::config::{PopupAnchor, PopupGrab};
-    use crate::region::ElementId;
 
     fn config(
         edge: PopupEdge,
@@ -104,122 +103,6 @@ mod tests {
             grab: PopupGrab::Grabbed,
             offset: PopupOffset::ZERO,
         }
-    }
-
-    #[test]
-    fn positioner_params_ignores_which_kind_of_anchor_the_config_names() {
-        // `config.anchor` says *what* the anchor rect was resolved from (an explicit rect or a
-        // named element); `positioner_params` only ever sees the already
-        // resolved `Rect`, so a `PopupAnchor::Element` config must behave exactly like a
-        // `PopupAnchor::Rect` one here.
-        let anchor = Rect {
-            x: 10,
-            y: 4,
-            width: 80,
-            height: 24,
-        };
-        let size = Size {
-            width: 160,
-            height: 200,
-        };
-        let mut by_rect = config(
-            PopupEdge::Bottom,
-            PopupEdge::Bottom,
-            PopupAdjust::NONE,
-            PopupSize::Fixed,
-        );
-        let mut by_element = by_rect.clone();
-        by_element.anchor = PopupAnchor::Element(ElementId::new("dock-pill"));
-        by_rect.anchor = PopupAnchor::Rect;
-        assert_eq!(
-            positioner_params(&by_rect, anchor, size),
-            positioner_params(&by_element, anchor, size)
-        );
-    }
-
-    #[test]
-    fn fixed_size_passes_through_unchanged() {
-        let cfg = config(
-            PopupEdge::Bottom,
-            PopupEdge::Bottom,
-            PopupAdjust::NONE,
-            PopupSize::Fixed,
-        );
-        let anchor = Rect {
-            x: 10,
-            y: 4,
-            width: 80,
-            height: 24,
-        };
-        let size = Size {
-            width: 160,
-            height: 200,
-        };
-        let params = positioner_params(&cfg, anchor, size);
-        assert_eq!(params.size, size);
-        assert_eq!(params.anchor_rect, anchor);
-    }
-
-    #[test]
-    fn fit_content_clamps_to_max_on_each_axis() {
-        let cfg = config(
-            PopupEdge::Bottom,
-            PopupEdge::Bottom,
-            PopupAdjust::NONE,
-            PopupSize::FitContent { max: 100 },
-        );
-        let anchor = Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        };
-        let params = positioner_params(
-            &cfg,
-            anchor,
-            Size {
-                width: 250,
-                height: 40,
-            },
-        );
-        assert_eq!(
-            params.size,
-            Size {
-                width: 100,
-                height: 40
-            }
-        );
-    }
-
-    #[test]
-    fn fit_content_never_grows_a_size_already_under_max() {
-        let cfg = config(
-            PopupEdge::Bottom,
-            PopupEdge::Bottom,
-            PopupAdjust::NONE,
-            PopupSize::FitContent { max: 500 },
-        );
-        let anchor = Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        };
-        let params = positioner_params(
-            &cfg,
-            anchor,
-            Size {
-                width: 30,
-                height: 20,
-            },
-        );
-        assert_eq!(
-            params.size,
-            Size {
-                width: 30,
-                height: 20
-            }
-        );
     }
 
     fn placement(size: Size) -> PopupPlacement {

@@ -82,28 +82,26 @@ mod tests {
             "pending kept the last real rect"
         );
         assert_eq!(t.update(&a), Change::Changed, "b -> a is a real change");
-    }
 
-    #[test]
-    fn a_tracker_that_has_never_recorded_anything_treats_pending_as_no_change() {
-        let mut t = Tracked::new();
-        assert_eq!(t.update(&Resolved::Pending), Change::Same);
-    }
-
-    #[test]
-    fn a_tracker_holding_nothing_does_not_resend_nothing() {
-        let mut t = Tracked::holding(Vec::new());
+        let mut never_recorded = Tracked::new();
         assert_eq!(
-            t.update(&Resolved::Strips(vec![])),
+            never_recorded.update(&Resolved::Pending),
             Change::Same,
-            "still empty"
+            "a tracker that has never recorded anything treats pending as no change"
+        );
+
+        let mut holding_nothing = Tracked::holding(Vec::new());
+        assert_eq!(
+            holding_nothing.update(&Resolved::Strips(vec![])),
+            Change::Same,
+            "a tracker holding nothing does not resend nothing"
         );
         assert_eq!(
-            t.update(&Resolved::Strips(vec![PILL_RECT])),
+            holding_nothing.update(&Resolved::Strips(vec![PILL_RECT])),
             Change::Changed
         );
         assert_eq!(
-            t.update(&Resolved::Strips(vec![])),
+            holding_nothing.update(&Resolved::Strips(vec![])),
             Change::Changed,
             "cleared"
         );

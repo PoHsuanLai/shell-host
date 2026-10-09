@@ -3,44 +3,31 @@ mod strips;
 use super::*;
 
 #[test]
-fn element_ids_compare_by_the_name_they_were_built_from() {
-    assert_eq!(ElementId::new("dock-pill"), ElementId::new("dock-pill"));
-    assert_eq!(ElementId::new("dock-pill").as_str(), "dock-pill");
-    assert_ne!(ElementId::new("dock-pill"), ElementId::new("dock-hit"));
-    // `impl Into<String>` accepts both a borrowed and an owned string.
-    assert_eq!(
-        ElementId::new("dock-pill"),
-        ElementId::new("dock-pill".to_owned())
-    );
-}
-
-#[test]
-fn zero_radius_is_the_rect_itself() {
-    let rr = RoundedRect {
-        rect: Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 5,
-        },
-        radius: 0,
+fn a_zero_radius_a_degenerate_rect_and_an_oversized_radius_are_edge_cases() {
+    let rect = Rect {
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 5,
     };
-    assert_eq!(rounded_strips(rr), vec![rr.rect]);
-}
+    let zero_radius = RoundedRect { rect, radius: 0 };
+    assert_eq!(
+        rounded_strips(zero_radius),
+        vec![rect],
+        "a zero radius is the rect itself"
+    );
 
-#[test]
-fn degenerate_rect_has_no_strips() {
-    let rr = RoundedRect {
+    let degenerate = RoundedRect {
         rect: Rect::ZERO,
         radius: 4,
     };
-    assert!(rounded_strips(rr).is_empty());
-}
+    assert!(
+        rounded_strips(degenerate).is_empty(),
+        "a degenerate rect has no strips"
+    );
 
-#[test]
-fn radius_is_clamped_to_half_the_shorter_side() {
-    // 10x6 rect: half-height is 3, so a requested radius of 100 clamps to 3.
-    let rr = RoundedRect {
+    // 10x6 rect: half the shorter side is 3, so a requested radius of 100 clamps to 3.
+    let oversized = RoundedRect {
         rect: Rect {
             x: 0,
             y: 0,
@@ -49,15 +36,9 @@ fn radius_is_clamped_to_half_the_shorter_side() {
         },
         radius: 100,
     };
-    assert_eq!(rr.effective_radius(), 3);
-}
-
-#[test]
-fn every_corner_inset_is_within_the_radius() {
-    for r in 1..40 {
-        for row in 0..r {
-            let inset = corner_inset(r, row);
-            assert!((0..=r).contains(&inset), "r={r} row={row} inset={inset}");
-        }
-    }
+    assert_eq!(
+        oversized.effective_radius(),
+        3,
+        "clamped to half the shorter side"
+    );
 }

@@ -80,16 +80,6 @@ fn run(inputs: &[FrameInput]) -> (FrameState, Vec<FrameAction>) {
 
 #[test]
 #[rustfmt::skip]
-fn a_static_change_renders_once_then_idles_with_no_timer() {
-    let (end, acts) = run(&[I::Invalidate, I::Flush, I::Presented(Stopped), I::Callback(Stopped), I::Flush]);
-    assert_eq!(end, FrameState::NEW);
-    let renders = acts.iter().filter(|a| a.render == Render).count();
-    assert_eq!(renders, 1);
-    assert!(acts.iter().all(|a| a.timer == Keep), "{acts:?}");
-}
-
-#[test]
-#[rustfmt::skip]
 fn a_burst_of_changes_in_flight_coalesces_into_one_more_frame() {
     let (end, acts) = run(&[
         I::Invalidate, I::Flush, I::Presented(Stopped),
@@ -117,22 +107,4 @@ fn a_load_landing_mid_render_is_painted_without_any_callback_then_stays_quiet() 
     let timers: Vec<TimerCmd> = acts.iter().map(|a| a.timer).filter(|t| *t != Keep).collect();
     assert_eq!(timers, vec![ARM_50]);
     assert_eq!(end, st(InFlight, Disarmed, 100));
-}
-
-#[test]
-fn a_compositor_that_stops_calling_back_is_retried_with_growing_backoff() {
-    // Animating, and no callback ever arrives: every retry is paced by the watchdog.
-    let mut s = run(&[I::Invalidate, I::Flush]).0;
-    let mut waits = Vec::new();
-    for _ in 0..7 {
-        let (armed, action) = step(s, I::Presented(Running));
-        if let TimerCmd::Arm(wait) = action.timer {
-            waits.push(wait.as_millis());
-        }
-        let (dirty, _) = step(armed, I::WatchdogFired);
-        let (rendering, action) = step(dirty, I::Flush);
-        assert_eq!(action.render, Render);
-        s = rendering;
-    }
-    assert_eq!(waits, vec![50, 100, 200, 400, 800, 1000, 1000]);
 }

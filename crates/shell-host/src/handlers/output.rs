@@ -149,83 +149,84 @@ mod tests {
     }
 
     #[test]
-    fn prefers_xdg_output_logical_geometry_over_the_core_protocol_fields() {
-        let got = resolve_output_info(
-            OutputId(3),
-            OutputFacts {
-                name: Some("HDMI-A-2".to_owned()),
-                description: Some("A monitor".to_owned()),
-                location: (10, 20),
-                logical_position: Some((30, 40)),
-                logical_size: Some((1920, 1080)),
-                current_mode_dimensions: Some((3840, 2160)),
-                current_mode_refresh_mhz: Some(60_000),
-                scale_factor: 2,
-            },
-        );
-        assert_eq!(got.id, OutputId(3));
-        assert_eq!(got.name.as_deref(), Some("HDMI-A-2"));
-        assert_eq!(got.description.as_deref(), Some("A monitor"));
-        assert_eq!(
-            got.logical,
-            Rect {
-                x: 30,
-                y: 40,
-                width: 1920,
-                height: 1080
-            }
-        );
-        assert_eq!(got.scale, Scale(240));
-        assert_eq!(got.refresh_mhz, 60_000);
-    }
-
-    #[test]
-    fn falls_back_to_location_and_the_current_mode_without_xdg_output() {
-        let got = resolve_output_info(
-            OutputId(7),
-            OutputFacts {
-                location: (5, 6),
-                current_mode_dimensions: Some((1280, 720)),
-                current_mode_refresh_mhz: Some(59_940),
-                ..facts()
-            },
-        );
-        assert_eq!(
-            got.logical,
-            Rect {
-                x: 5,
-                y: 6,
-                width: 1280,
-                height: 720
-            }
-        );
-        assert_eq!(got.refresh_mhz, 59_940);
-    }
-
-    #[test]
-    fn no_current_mode_is_an_unknown_refresh_rate_and_a_zero_size() {
-        let got = resolve_output_info(OutputId(1), facts());
-        assert_eq!(got.refresh_mhz, 0);
-        assert_eq!(
-            got.logical,
-            Rect {
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 0
-            }
-        );
-    }
-
-    #[test]
-    fn a_scale_factor_of_zero_or_less_never_produces_a_zero_scale() {
-        let got = resolve_output_info(
-            OutputId(1),
-            OutputFacts {
-                scale_factor: 0,
-                ..facts()
-            },
-        );
-        assert_eq!(got.scale, Scale(120));
+    fn output_facts_resolve_to_logical_geometry_refresh_and_scale() {
+        // name, facts, logical rect, refresh mHz, scale
+        let cases: Vec<(&str, OutputFacts, Rect, u32, Scale)> = vec![
+            (
+                "xdg-output's logical geometry wins over the core protocol's fields",
+                OutputFacts {
+                    name: Some("HDMI-A-2".to_owned()),
+                    description: Some("A monitor".to_owned()),
+                    location: (10, 20),
+                    logical_position: Some((30, 40)),
+                    logical_size: Some((1920, 1080)),
+                    current_mode_dimensions: Some((3840, 2160)),
+                    current_mode_refresh_mhz: Some(60_000),
+                    scale_factor: 2,
+                },
+                Rect {
+                    x: 30,
+                    y: 40,
+                    width: 1920,
+                    height: 1080,
+                },
+                60_000,
+                Scale(240),
+            ),
+            (
+                "without xdg-output it falls back to the location and the current mode",
+                OutputFacts {
+                    location: (5, 6),
+                    current_mode_dimensions: Some((1280, 720)),
+                    current_mode_refresh_mhz: Some(59_940),
+                    ..facts()
+                },
+                Rect {
+                    x: 5,
+                    y: 6,
+                    width: 1280,
+                    height: 720,
+                },
+                59_940,
+                Scale(120),
+            ),
+            (
+                "no current mode is an unknown refresh rate and a zero size",
+                facts(),
+                Rect {
+                    x: 0,
+                    y: 0,
+                    width: 0,
+                    height: 0,
+                },
+                0,
+                Scale(120),
+            ),
+            (
+                "a scale factor of zero or less never produces a zero scale",
+                OutputFacts {
+                    scale_factor: 0,
+                    ..facts()
+                },
+                Rect {
+                    x: 0,
+                    y: 0,
+                    width: 0,
+                    height: 0,
+                },
+                0,
+                Scale(120),
+            ),
+        ];
+        for (name, facts, logical, refresh_mhz, scale) in cases {
+            let (label, description) = (facts.name.clone(), facts.description.clone());
+            let got = resolve_output_info(OutputId(3), facts);
+            assert_eq!(got.id, OutputId(3), "{name}: id");
+            assert_eq!(got.name, label, "{name}: name");
+            assert_eq!(got.description, description, "{name}: description");
+            assert_eq!(got.logical, logical, "{name}: logical");
+            assert_eq!(got.refresh_mhz, refresh_mhz, "{name}: refresh");
+            assert_eq!(got.scale, scale, "{name}: scale");
+        }
     }
 }

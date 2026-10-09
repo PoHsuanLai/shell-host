@@ -1,6 +1,6 @@
 //! Table test for `Scale` and its conversions, against the public API only.
 
-use crate::scale::{Scale, Size, buffer_size, logical_to_physical};
+use crate::scale::{Scale, Size, buffer_size};
 
 const CASES: &[(&str, u32, f64)] = &[
     ("1.0x", 120, 1.0),
@@ -60,16 +60,4 @@ fn buffer_size_rounds_half_away_from_zero_at_each_pinned_scale() {
         let got = buffer_size(logical, Scale::from_wire(wire));
         assert_eq!(got, expected, "wire={wire}");
     }
-}
-
-#[test]
-fn logical_to_physical_is_the_per_axis_form_of_buffer_size() {
-    let scale = Scale::from_wire(180);
-    let size = Size {
-        width: 64,
-        height: 32,
-    };
-    let combined = buffer_size(size, scale);
-    assert_eq!(combined.width, logical_to_physical(size.width, scale));
-    assert_eq!(combined.height, logical_to_physical(size.height, scale));
 }

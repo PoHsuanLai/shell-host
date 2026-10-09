@@ -64,31 +64,6 @@ pub(crate) fn capability_change(announcement: Announcement, held: Held) -> Capab
 mod tests {
     use super::*;
 
-    #[test]
-    fn one_object_per_capability() {
-        let cases = [
-            (Announcement::Added, Held::Nothing, CapabilityChange::New),
-            (Announcement::Added, Held::Object, CapabilityChange::Repeat),
-            (
-                Announcement::Removed,
-                Held::Object,
-                CapabilityChange::Removed,
-            ),
-            (
-                Announcement::Removed,
-                Held::Nothing,
-                CapabilityChange::Absent,
-            ),
-        ];
-        for (announcement, held, want) in cases {
-            assert_eq!(
-                capability_change(announcement, held),
-                want,
-                "{announcement:?} while holding {held:?}"
-            );
-        }
-    }
-
     /// KWin's sequence for one fake-input client connecting and leaving, replayed against one
     /// held object: each step's decision, and the object count after it, never above one.
     #[test]

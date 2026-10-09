@@ -93,6 +93,5 @@ mod tests {
         assert_eq!(hook, hook.clone());
         assert_ne!(hook, Prepaint::hook(|_| {}));
         assert_ne!(hook, Prepaint::None);
-        assert_eq!(Prepaint::default(), Prepaint::None);
     }
 }

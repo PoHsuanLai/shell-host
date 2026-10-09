@@ -55,29 +55,40 @@ fn fill_rect(doc: &SurfaceDocument) -> Rect {
 }
 
 #[test]
-fn a_bare_documents_inset_zero_box_starts_at_the_corner_and_spans_the_width() {
-    let doc = resolved(bare_inset);
-    let rect = fill_rect(&doc);
-    assert_eq!((rect.x, rect.y), (0, 0));
-    assert_eq!(rect.width, WIDTH as i32);
-    // `#main` is as tall as its flow content, none here: unchanged by the reset.
-    assert_eq!(rect.height, 0);
-}
-
-#[test]
-fn a_bare_documents_viewport_box_covers_the_whole_surface() {
-    let doc = resolved(bare_viewport);
-    let rect = fill_rect(&doc);
-    assert_eq!((rect.x, rect.y), (0, 0));
-    assert_eq!((rect.width, rect.height), (WIDTH as i32, HEIGHT as i32));
-}
-
-#[test]
-fn a_documents_own_body_margin_still_wins() {
-    let doc = resolved(own_margin);
-    let rect = fill_rect(&doc);
-    assert_eq!((rect.x, rect.y), (4, 4));
-    assert_eq!(rect.width, WIDTH as i32 - 8);
+fn the_body_reset_puts_a_box_at_the_corner_unless_the_document_sets_its_own_margin() {
+    // name, document, (x, y), width, height (None: not pinned)
+    let cases: &[(&str, fn() -> Element, (i32, i32), i32, Option<i32>)] = &[
+        (
+            // `#main` is as tall as its flow content, none here: unchanged by the reset.
+            "a bare document's inset-zero box starts at the corner and spans the width",
+            bare_inset,
+            (0, 0),
+            WIDTH as i32,
+            Some(0),
+        ),
+        (
+            "a bare document's viewport box covers the whole surface",
+            bare_viewport,
+            (0, 0),
+            WIDTH as i32,
+            Some(HEIGHT as i32),
+        ),
+        (
+            "a document's own body margin still wins",
+            own_margin,
+            (4, 4),
+            WIDTH as i32 - 8,
+            None,
+        ),
+    ];
+    for &(name, app, origin, width, height) in cases {
+        let rect = fill_rect(&resolved(app));
+        assert_eq!((rect.x, rect.y), origin, "{name}: origin");
+        assert_eq!(rect.width, width, "{name}: width");
+        if let Some(height) = height {
+            assert_eq!(rect.height, height, "{name}: height");
+        }
+    }
 }
 
 /// The headless path gets the same reset: a bare viewport-sized red box paints both corners.

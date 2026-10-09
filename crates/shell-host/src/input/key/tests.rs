@@ -84,22 +84,6 @@ fn super_is_meta_everywhere() {
     assert_eq!(with_meta_held.modifiers, Modifiers::META);
 }
 
-/// Keypad Enter: key `Enter`, code `NumpadEnter`, location `Numpad`.
-#[test]
-fn keypad_enter_is_enter_on_the_numpad() {
-    let event = press(96, Keysym::KP_Enter, Some("\r"));
-    let got = key_event(
-        &event,
-        Modifiers::empty(),
-        blitz_traits::events::KeyState::Pressed,
-        Repeat::First,
-        Composing::Idle,
-    );
-    assert_eq!(got.key, Key::Enter);
-    assert_eq!(got.code, Code::NumpadEnter);
-    assert_eq!(got.location, Location::Numpad);
-}
-
 /// A repeated press sets `is_auto_repeating`; a release has no text.
 #[test]
 fn repeats_and_releases() {
@@ -240,6 +224,15 @@ fn cases() -> Vec<Case> {
             want_key: Key::CapsLock,
             want_code: Code::CapsLock,
             want_location: Location::Standard,
+        },
+        Case {
+            name: "keypad enter is enter on the numpad",
+            raw_code: 96,
+            keysym: Keysym::KP_Enter,
+            utf8: Some("\r"),
+            want_key: Key::Enter,
+            want_code: Code::NumpadEnter,
+            want_location: Location::Numpad,
         },
         Case {
             name: "numpad 0",

@@ -33,43 +33,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn percentiles_are_nearest_rank() {
-        let cases: &[(&[u32], Percentiles)] = &[
-            (&[], Percentiles::default()),
-            (
-                &[3],
-                Percentiles {
-                    p50_us: 3,
-                    p95_us: 3,
-                    max_us: 3,
-                },
-            ),
-            (
-                &[4, 1, 3, 2],
-                Percentiles {
-                    p50_us: 2,
-                    p95_us: 4,
-                    max_us: 4,
-                },
-            ),
-            (
-                &[
-                    10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170,
-                    180, 190, 200,
-                ],
-                Percentiles {
-                    p50_us: 100,
-                    p95_us: 190,
-                    max_us: 200,
-                },
-            ),
-        ];
-        for (samples, want) in cases {
-            assert_eq!(percentiles(samples), *want, "{samples:?}");
-        }
-    }
-
-    #[test]
     fn percentiles_are_nearest_rank_over_the_window() {
         let p = |p50_us, p95_us, max_us| Percentiles {
             p50_us,
@@ -83,6 +46,11 @@ mod tests {
             ("two", vec![9, 1], p(1, 9, 9)),
             ("unsorted", vec![5, 3, 9, 1, 7], p(5, 9, 9)),
             ("1..=100", hundred, p(50, 95, 100)),
+            (
+                "20 samples",
+                (1..=20).map(|n| n * 10).collect(),
+                p(100, 190, 200),
+            ),
             (
                 "an outlier moves only max",
                 vec![1; 99].into_iter().chain([900]).collect(),

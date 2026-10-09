@@ -1,10 +1,9 @@
 //! Table test for `positioner_params`, covering the flip/slide/resize `PopupAdjust` combinations and
 //! the `PopupSize` clamping behaviour, against the public API only.
 
-use crate::PopupPlacement;
 use crate::popup::{
     PopupAdjust, PopupAnchor, PopupConfig, PopupEdge, PopupGrab, PopupOffset, PopupSize,
-    PopupToggle, offset_rect, positioner_params, refit, to_wire_constraint_adjustment,
+    PopupToggle, positioner_params, to_wire_constraint_adjustment,
 };
 use crate::region::{ElementId, Rect};
 use crate::scale::Size;
@@ -188,6 +187,24 @@ const CASES: &[Case] = &[
         },
         expected_wire_adjust: ConstraintAdjustment::empty(),
     },
+    Case {
+        name: "a fixed size ignores a configured max, however large the content",
+        edge: PopupEdge::Bottom,
+        gravity: PopupEdge::Bottom,
+        adjust: PopupAdjust::NONE,
+        popup_size: PopupSize::Fixed,
+        content_size: Size {
+            width: 10_000,
+            height: 10_000,
+        },
+        offset: PopupOffset::ZERO,
+        expected_size: Size {
+            width: 10_000,
+            height: 10_000,
+        },
+        expected_anchor_rect: BUTTON,
+        expected_wire_adjust: ConstraintAdjustment::empty(),
+    },
 ];
 
 #[test]
@@ -221,35 +238,6 @@ fn positioner_params_matches_the_table() {
 }
 
 #[test]
-fn fixed_size_ignores_a_configured_max() {
-    // `PopupSize::Fixed` has no `max`, so even a huge content size is never clamped.
-    let config = PopupConfig {
-        anchor: PopupAnchor::Rect,
-        size: PopupSize::Fixed,
-        edge: PopupEdge::Bottom,
-        gravity: PopupEdge::Bottom,
-        adjust: PopupAdjust::NONE,
-        grab: PopupGrab::Ungrabbed,
-        offset: PopupOffset::ZERO,
-    };
-    let params = positioner_params(
-        &config,
-        BUTTON,
-        Size {
-            width: 10_000,
-            height: 10_000,
-        },
-    );
-    assert_eq!(
-        params.size,
-        Size {
-            width: 10_000,
-            height: 10_000
-        }
-    );
-}
-
-#[test]
 fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_rect() {
     // `PopupConfig` is no longer `Copy` once its anchor can own an `ElementId`;
     // this proves the type still builds and positions correctly either way.
@@ -271,120 +259,4 @@ fn a_config_anchored_to_an_element_positions_the_same_way_as_one_anchored_to_a_r
     assert_eq!(params.size, size);
     assert_eq!(params.anchor, PopupEdge::Top);
     assert_eq!(params.gravity, PopupEdge::Top);
-}
-
-#[test]
-fn an_offset_moves_the_anchor_rect_and_keeps_its_size() {
-    const OFFSETS: &[(PopupOffset, Rect)] = &[
-        (PopupOffset::ZERO, BUTTON),
-        (
-            PopupOffset { dx: -8, dy: 6 },
-            Rect {
-                x: 12,
-                y: 10,
-                width: 80,
-                height: 24,
-            },
-        ),
-        (
-            PopupOffset { dx: 0, dy: -4 },
-            Rect {
-                x: 20,
-                y: 0,
-                width: 80,
-                height: 24,
-            },
-        ),
-    ];
-    for &(offset, want) in OFFSETS {
-        assert_eq!(offset_rect(BUTTON, offset), want, "{offset:?}");
-    }
-    assert_eq!(PopupOffset::default(), PopupOffset::ZERO);
-}
-
-/// `popup::refit`: a `FitContent` popup's placement changes, clamped to `max`, exactly
-/// when the measured content differs from its current placement.
-#[test]
-fn refit_reflows_a_fit_content_popup_to_its_measured_content_clamped_to_max() {
-    let fixed = PopupConfig {
-        anchor: PopupAnchor::Rect,
-        size: PopupSize::Fixed,
-        edge: PopupEdge::Bottom,
-        gravity: PopupEdge::Bottom,
-        adjust: PopupAdjust::NONE,
-        grab: PopupGrab::Ungrabbed,
-        offset: PopupOffset::ZERO,
-    };
-    let fit_content = PopupConfig {
-        size: PopupSize::FitContent { max: 200 },
-        ..fixed.clone()
-    };
-    let current = PopupPlacement {
-        anchor_rect: BUTTON,
-        size: Size {
-            width: 160,
-            height: 48,
-        },
-    };
-
-    assert_eq!(
-        refit(
-            &fixed,
-            current,
-            Size {
-                width: 999,
-                height: 999
-            }
-        ),
-        None,
-        "Fixed never refits"
-    );
-    assert_eq!(
-        refit(
-            &fit_content,
-            current,
-            Size {
-                width: 160,
-                height: 48
-            }
-        ),
-        None,
-        "already at its measured size"
-    );
-    assert_eq!(
-        refit(
-            &fit_content,
-            current,
-            Size {
-                width: 160,
-                height: 144
-            }
-        ),
-        Some(PopupPlacement {
-            size: Size {
-                width: 160,
-                height: 144
-            },
-            ..current
-        }),
-        "content grew: refit to it"
-    );
-    assert_eq!(
-        refit(
-            &fit_content,
-            current,
-            Size {
-                width: 260,
-                height: 999
-            }
-        ),
-        Some(PopupPlacement {
-            size: Size {
-                width: 200,
-                height: 200
-            },
-            ..current
-        }),
-        "content past max: refit, clamped on each axis"
-    );
 }

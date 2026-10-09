@@ -75,28 +75,25 @@ fn pixel(image: &[u8], x: u32, y: u32) -> [u8; 4] {
 const RED: [u8; 4] = [255, 0, 0, 255];
 const BLUE: [u8; 4] = [0, 0, 255, 255];
 
-/// The frame the host presents after the change (one resolve) paints every body inside its own
-/// tile, and above each body the tile's own blue, not a body drawn at the column's top.
+/// Tiles added after the first layout: the frame the host presents (one resolve) paints every
+/// body inside its own tile, the capture (another resolve first) paints the same pixels, and
+/// hit testing reads the same hoisted positions.
 #[test]
-fn the_first_frame_after_tiles_are_added_paints_their_bodies_in_place() {
-    let mut doc = grown();
-    doc.resolve(0.0);
-    let image = paint(&mut doc);
-    for i in 0..3 {
-        let body = TILE * i + BODY_TOP + BODY_HEIGHT / 2;
-        let above = TILE * i + BODY_TOP / 2;
-        assert_eq!(pixel(&image, 50, body), RED, "tile {i}'s body");
-        assert_eq!(pixel(&image, 50, above), BLUE, "tile {i} above its body");
-    }
-}
-
-/// The live path (one resolve) and the capture path (another resolve first) paint the same
-/// pixels.
-#[test]
-fn a_frame_and_a_capture_of_it_are_identical() {
+fn tiles_added_after_the_first_layout_paint_and_hit_where_layout_put_them() {
     let mut doc = grown();
     doc.resolve(0.0);
     let frame = paint(&mut doc);
+    for i in 0..3 {
+        let body = TILE * i + BODY_TOP + BODY_HEIGHT / 2;
+        let above = TILE * i + BODY_TOP / 2;
+        assert_eq!(pixel(&frame, 50, body), RED, "frame: tile {i}'s body");
+        assert_eq!(
+            pixel(&frame, 50, above),
+            BLUE,
+            "frame: tile {i} above its body"
+        );
+    }
+
     doc.resolve(0.0);
     let capture = paint(&mut doc);
     let differing = frame
@@ -105,16 +102,13 @@ fn a_frame_and_a_capture_of_it_are_identical() {
         .filter(|(a, b)| a != b)
         .count();
     assert_eq!(differing, 0, "pixels that differ between frame and capture");
-}
 
-/// Hit testing reads the same hoisted positions: the pointer over tile 2's body finds it.
-#[test]
-fn the_pointer_over_a_new_tiles_body_hits_that_body() {
-    let mut doc = grown();
-    doc.resolve(0.0);
     let base = doc.base();
     let y = (TILE * 2 + BODY_TOP + BODY_HEIGHT / 2) as f32;
     let hit = base.element_from_point(50.0, y);
     let body = base.get_element_by_id("body2");
-    assert_eq!(hit, body);
+    assert_eq!(
+        hit, body,
+        "the pointer over a new tile's body hits that body"
+    );
 }

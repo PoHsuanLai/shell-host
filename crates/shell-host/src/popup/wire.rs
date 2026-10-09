@@ -67,40 +67,31 @@ mod tests {
     // Table-tested flip/slide/resize combinations, at the wire level: this is the part of
     // `positioner_params` most likely to have a transcription bug (an `PopupAdjust` flag mapped to
     // the wrong `ConstraintAdjustment` bit).
-    const EDGE_CASES: &[(PopupEdge, Anchor)] = &[
-        (PopupEdge::None, Anchor::None),
-        (PopupEdge::Top, Anchor::Top),
-        (PopupEdge::Bottom, Anchor::Bottom),
-        (PopupEdge::Left, Anchor::Left),
-        (PopupEdge::Right, Anchor::Right),
-        (PopupEdge::TopLeft, Anchor::TopLeft),
-        (PopupEdge::BottomLeft, Anchor::BottomLeft),
-        (PopupEdge::TopRight, Anchor::TopRight),
-        (PopupEdge::BottomRight, Anchor::BottomRight),
+    const EDGE_CASES: &[(PopupEdge, Anchor, WireGravity)] = &[
+        (PopupEdge::None, Anchor::None, WireGravity::None),
+        (PopupEdge::Top, Anchor::Top, WireGravity::Top),
+        (PopupEdge::Bottom, Anchor::Bottom, WireGravity::Bottom),
+        (PopupEdge::Left, Anchor::Left, WireGravity::Left),
+        (PopupEdge::Right, Anchor::Right, WireGravity::Right),
+        (PopupEdge::TopLeft, Anchor::TopLeft, WireGravity::TopLeft),
+        (
+            PopupEdge::BottomLeft,
+            Anchor::BottomLeft,
+            WireGravity::BottomLeft,
+        ),
+        (PopupEdge::TopRight, Anchor::TopRight, WireGravity::TopRight),
+        (
+            PopupEdge::BottomRight,
+            Anchor::BottomRight,
+            WireGravity::BottomRight,
+        ),
     ];
 
     #[test]
-    fn every_edge_maps_to_its_wire_anchor() {
-        for &(edge, expected) in EDGE_CASES {
-            assert_eq!(to_wire_anchor(edge), expected, "{edge:?}");
-        }
-    }
-
-    #[test]
-    fn every_gravity_maps_to_its_wire_gravity() {
-        let table: &[(PopupEdge, WireGravity)] = &[
-            (PopupEdge::None, WireGravity::None),
-            (PopupEdge::Top, WireGravity::Top),
-            (PopupEdge::Bottom, WireGravity::Bottom),
-            (PopupEdge::Left, WireGravity::Left),
-            (PopupEdge::Right, WireGravity::Right),
-            (PopupEdge::TopLeft, WireGravity::TopLeft),
-            (PopupEdge::BottomLeft, WireGravity::BottomLeft),
-            (PopupEdge::TopRight, WireGravity::TopRight),
-            (PopupEdge::BottomRight, WireGravity::BottomRight),
-        ];
-        for &(gravity, expected) in table {
-            assert_eq!(to_wire_gravity(gravity), expected, "{gravity:?}");
+    fn every_edge_maps_to_its_wire_anchor_and_gravity() {
+        for &(edge, anchor, gravity) in EDGE_CASES {
+            assert_eq!(to_wire_anchor(edge), anchor, "{edge:?}: anchor");
+            assert_eq!(to_wire_gravity(edge), gravity, "{edge:?}: gravity");
         }
     }
 

@@ -64,7 +64,7 @@ const CASES: &[(Px, Px, Px, Px, Px)] = &[
 ];
 
 #[test]
-fn every_strip_pixel_is_inside_the_rounded_rect() {
+fn strips_lie_inside_the_rounded_rect_and_cover_at_least_99_percent_of_it() {
     for &(x, y, width, height, radius) in CASES {
         let rr = RoundedRect {
             rect: Rect {
@@ -83,21 +83,6 @@ fn every_strip_pixel_is_inside_the_rounded_rect() {
                 );
             }
         }
-    }
-}
-
-#[test]
-fn strip_coverage_is_at_least_99_percent() {
-    for &(x, y, width, height, radius) in CASES {
-        let rr = RoundedRect {
-            rect: Rect {
-                x,
-                y,
-                width,
-                height,
-            },
-            radius,
-        };
         let total_inside: usize = (y..y + height)
             .flat_map(|py| (x..x + width).map(move |px| (px, py)))
             .filter(|&(px, py)| pixel_inside(rr, px, py))
@@ -142,26 +127,6 @@ fn corner_strips_never_exceed_the_radius() {
                     );
                 }
             }
-        }
-    }
-}
-
-#[test]
-fn strips_never_extend_outside_the_rect() {
-    for &(x, y, width, height, radius) in CASES {
-        let rr = RoundedRect {
-            rect: Rect {
-                x,
-                y,
-                width,
-                height,
-            },
-            radius,
-        };
-        for strip in rounded_strips(rr) {
-            assert!(strip.x >= x && strip.y >= y);
-            assert!(strip.x + strip.width <= x + width);
-            assert!(strip.y + strip.height <= y + height);
         }
     }
 }

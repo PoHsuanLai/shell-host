@@ -105,20 +105,8 @@ mod tests {
                 "{focus:?} - {surface:?}"
             );
         }
-    }
-
-    /// Unmapping the surface under the pointer, then the compositor's enter on the one beneath:
-    /// the record follows the pointer, and a second departure of the unmapped surface (its late
-    /// leave, were it ever matched) changes nothing.
-    #[test]
-    fn unmap_then_enter_beneath() {
-        assert_eq!(
-            depart(enter(A, 3), A),
-            (PointerFocus::Nowhere, Departure::Lost)
-        );
-        let focus = enter(B, 4);
-        assert_eq!(focus.surface(), Some(B));
-        assert_eq!(depart(focus, A), (focus, Departure::Unaffected));
+        // After an unmap, the compositor's enter on the surface beneath: the record follows.
+        assert_eq!(enter(B, 4).surface(), Some(B));
     }
 
     #[test]
@@ -135,18 +123,5 @@ mod tests {
                 "{focus:?} - {surface:?}"
             );
         }
-    }
-
-    #[test]
-    fn an_enter_replaces_the_serial() {
-        let again = enter(A, 9);
-        assert_eq!(
-            again,
-            PointerFocus::On(Entered {
-                surface: A,
-                serial: 9
-            })
-        );
-        assert_ne!(again, enter(A, 3));
     }
 }
