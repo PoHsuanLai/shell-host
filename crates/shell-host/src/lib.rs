@@ -1,6 +1,22 @@
 //! Blitz documents on Wayland layer-shell surfaces, xdg popups and xdg toplevels, sharing one
 //! GPU device. Portable to any Wayland compositor. `ARCHITECTURE.md` holds the module map, the
 //! layers and the curated root below; every module is private.
+//!
+//! # Using it
+//!
+//! A shell builds a [`HostConfig`], calls [`Host::connect`] (which binds the Wayland globals and
+//! owns a small tokio runtime for Dioxus tasks), keeps a [`HostHandle`] for messages from other
+//! threads, and calls [`Host::run`] with one callback. The callback receives [`HostEvent`]s (the
+//! first is `Started`, after the initial outputs) and a [`HostCtx`], through which it spawns
+//! surfaces (layer-shell, popups, toplevels, the session lock), each rendering a Dioxus
+//! [`HostRoot`] as a Blitz document on one shared GPU device.
+//!
+//! # Features
+//!
+//! - `headless`: `headless::render_png`, a document to pixels with no window, no Wayland
+//!   connection and no GPU surface (render tests).
+//! - `debug-inject`: per-surface debug commands on stdin and `HostCtx::inject` (acceptance
+//!   scripts; off in a shipped shell).
 
 mod blur;
 mod blur_health;
