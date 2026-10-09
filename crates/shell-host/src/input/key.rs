@@ -3,7 +3,7 @@
 
 use blitz_traits::SmolStr;
 use blitz_traits::events::{BlitzKeyEvent, KeyState};
-use keyboard_types::Modifiers;
+use keyboard_types::{Key, Modifiers};
 use smithay_client_toolkit::seat::keyboard::KeyEvent;
 
 use crate::input::{keycode, keysym};
@@ -36,8 +36,10 @@ pub(crate) fn key_event(
         KeyState::Pressed => printable(event.utf8.as_deref()).map(SmolStr::from),
         KeyState::Released => None,
     };
+    let key = keysym::logical_key(event.keysym, event.utf8.as_deref());
     BlitzKeyEvent {
-        key: keysym::logical_key(event.keysym, event.utf8.as_deref()),
+        key_without_modifiers: unshifted(&key),
+        key,
         code: keycode::code_from_evdev(event.raw_code),
         modifiers: mods,
         location: keysym::location(event.keysym),
@@ -45,6 +47,15 @@ pub(crate) fn key_event(
         is_composing: composing == Composing::Active,
         state,
         text,
+    }
+}
+
+/// `key` with Shift taken off, as far as the keysym tells: a letter is lower case. The layout's
+/// unshifted symbol for other keys (`!` on `1`) is not in the keysym, so those stay as they are.
+pub(crate) fn unshifted(key: &Key) -> Key {
+    match key {
+        Key::Character(text) if text.chars().count() == 1 => Key::Character(text.to_lowercase()),
+        other => other.clone(),
     }
 }
 

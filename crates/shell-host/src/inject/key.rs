@@ -7,7 +7,7 @@ use keyboard_types::{Code, Key, Location, Modifiers};
 
 use super::{KeyAction, KeyStroke};
 use crate::id::SurfaceId;
-use crate::input::key::Composing;
+use crate::input::key::{Composing, unshifted};
 use crate::modality::{Stroke, key_kind_of};
 use crate::state::HostState;
 
@@ -69,6 +69,7 @@ fn blitz_key(stroke: &KeyStroke, state: KeyState, composing: Composing) -> Blitz
         _ => None,
     };
     BlitzKeyEvent {
+        key_without_modifiers: unshifted(&stroke.key),
         key: stroke.key.clone(),
         code: stroke.code,
         modifiers: stroke.mods,
