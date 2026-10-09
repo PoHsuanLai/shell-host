@@ -181,7 +181,7 @@ screen.
 resolve (and after the pre-paint hook when one ran); the walk only rebuilds paint order and the
 hoisted lists, so repeating it is idempotent. Blitz's own `refresh_hover` inside `resolve` still
 hit-tests the stale lists; the hover repair (F59) runs after the re-hoist. `tests/hoisted.rs`,
-`tests/headless.rs`. Upstream fix: gather hoisted children after `resolve_layout`; once a Blitz
+`tests/shell_host/headless.rs`. Upstream fix: gather hoisted children after `resolve_layout`; once a Blitz
 rev with it is pinned, `rehoist` can go. Not filed.
 
 ### F81. A colour-only restyle keeps the old ink; the host follows the root's scheme

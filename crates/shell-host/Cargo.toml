@@ -82,8 +82,6 @@ required-features = ["debug-inject"]
 [[example]]
 name = "demo_dock"
 required-features = ["debug-inject"]
-# The tick mode's motion math has unit tests.
-test = true
 
 # A `PopupSize::FitContent` popup measures its own content and re-fits when it
 # grows.
@@ -101,15 +99,10 @@ required-features = ["debug-inject"]
 name = "demo_window"
 required-features = ["debug-inject"]
 
-# The session lock's acceptance; its guard against locking a real session is
-# table-tested.
+# The session lock's acceptance; its guard against locking a real session is table-tested in
+# tests/shell_host (`guard.rs` is included there).
 [[example]]
 name = "demo_lock"
-test = true
-
-[[test]]
-name = "headless"
-required-features = ["headless"]
 
 # The IME acceptance: a plain `<input>` on an exclusive-keyboard Overlay layer.
 [[example]]
