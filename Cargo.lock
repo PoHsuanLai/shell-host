@@ -427,6 +427,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "casement-protocols"
+version = "0.1.0"
+source = "git+https://github.com/PoHsuanLai/casement-protocols.git?rev=b59d1d7da33e0aa1f4460ea515e64d5e4f51f112#b59d1d7da33e0aa1f4460ea515e64d5e4f51f112"
+dependencies = [
+ "bitflags",
+ "serde",
+ "thiserror",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-scanner",
+]
+
+[[package]]
 name = "cc"
 version = "1.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2922,6 +2936,7 @@ dependencies = [
  "blitz-traits",
  "calloop",
  "calloop-wayland-source",
+ "casement-protocols",
  "cursor-icon",
  "dioxus",
  "dioxus-document",

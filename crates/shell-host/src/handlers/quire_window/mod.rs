@@ -29,8 +29,6 @@ use crate::role::Role;
 use crate::state::HostState;
 use crate::window_placement::{PlacementSupport, WindowPlacement};
 
-pub(crate) use decide::PlacementRefused;
-
 /// The bound manager and the extension object of every toplevel that asked for a placement.
 #[derive(Debug)]
 pub(crate) struct QuireWindows {
