@@ -4,8 +4,8 @@
 //! (`keysym_to_key`, `keysym_location`), Copyright the winit contributors, licensed under the
 //! Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). Changes from the original:
 //! it targets keyboard-types 0.7's `Key`/`Location` instead of winit's `NamedKey`/`KeyLocation`;
-//! the Super keys map to `Key::Meta` (the W3C name for the Windows/Command key, and what
-//! `Modifiers::META` means) instead of winit's `Super`; `space` is `Key::Character(" ")`,
+//! the Super keys map to `Key::Super` (as in winit), which our desktop treats as the Command
+//! key and which pairs with `Modifiers::SUPER`; `space` is `Key::Character(" ")`,
 //! because keyboard-types has no named Space; commented-out rows of the original are omitted.
 //! FINDINGS.md has the licence note.
 
@@ -137,8 +137,8 @@ pub(crate) fn named_key(keysym: Keysym) -> Option<Key> {
         Keysym::Caps_Lock => Key::CapsLock,
         Keysym::Alt_L => Key::Alt,
         Keysym::Alt_R => Key::Alt,
-        Keysym::Super_L => Key::Meta,
-        Keysym::Super_R => Key::Meta,
+        Keysym::Super_L => Key::Super,
+        Keysym::Super_R => Key::Super,
         Keysym::Hyper_L => Key::Hyper,
         Keysym::Hyper_R => Key::Hyper,
 
@@ -408,15 +408,15 @@ mod tests {
     }
 
     #[test]
-    fn modifier_keys_and_super_is_meta() {
+    fn modifier_keys_and_super_is_super() {
         check(
             "modifiers",
             &[
                 (Keysym::Shift_L, Key::Shift),
                 (Keysym::Control_R, Key::Control),
                 (Keysym::Alt_L, Key::Alt),
-                (Keysym::Super_L, Key::Meta),
-                (Keysym::Super_R, Key::Meta),
+                (Keysym::Super_L, Key::Super),
+                (Keysym::Super_R, Key::Super),
                 (Keysym::Hyper_L, Key::Hyper),
                 (Keysym::ISO_Level3_Shift, Key::AltGraph),
                 (Keysym::ISO_Left_Tab, Key::Tab),

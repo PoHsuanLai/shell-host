@@ -56,9 +56,9 @@ fn ctrl_c_is_the_letter_not_the_control_character() {
     assert_eq!(got.text, None);
 }
 
-/// The Super key: key `Meta`, code `MetaLeft`, location `Left`, and `META` set on the next key.
+/// The Super key: key `Super`, code `MetaLeft`, location `Left`, and `SUPER` set on the next key.
 #[test]
-fn super_is_meta_everywhere() {
+fn super_is_super_everywhere() {
     let super_l = press(125, Keysym::Super_L, None);
     let got = key_event(
         &super_l,
@@ -67,21 +67,21 @@ fn super_is_meta_everywhere() {
         Repeat::First,
         Composing::Idle,
     );
-    assert_eq!(got.key, Key::Meta);
+    assert_eq!(got.key, Key::Super);
     assert_eq!(got.code, Code::MetaLeft);
     assert_eq!(got.location, Location::Left);
 
-    // Meta does not shift letter case the way Shift does.
+    // Super does not shift letter case the way Shift does.
     let tab = press(15, Keysym::Tab, None);
-    let with_meta_held = key_event(
+    let with_super_held = key_event(
         &tab,
-        Modifiers::META,
+        Modifiers::SUPER,
         blitz_traits::events::KeyState::Pressed,
         Repeat::First,
         Composing::Idle,
     );
-    assert_eq!(with_meta_held.key, Key::Tab);
-    assert_eq!(with_meta_held.modifiers, Modifiers::META);
+    assert_eq!(with_super_held.key, Key::Tab);
+    assert_eq!(with_super_held.modifiers, Modifiers::SUPER);
 }
 
 /// A repeated press sets `is_auto_repeating`; a release has no text.

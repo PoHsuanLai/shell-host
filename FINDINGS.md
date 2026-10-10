@@ -624,9 +624,22 @@ owner closes its end. Blitz's own copy is queued and claimed in the flush's requ
 both files carry the attribution and a list of changes, as Apache-2.0 §4 requires, and a
 NOTICE-style mention belongs in any binary distribution. Open: accept that, or re-derive the
 tables from `linux/input-event-codes.h` and the xkbcommon keysym list (both facts, not
-expression). Two deliberate changes from winit and blitz-shell: the Super keys are `Key::Meta`,
-`Code::MetaLeft/Right` and `Modifiers::META` (the W3C names `metaKey` reads), and `space` is
+expression). Two deliberate changes from winit and blitz-shell: the Super keys' codes are
+`Code::MetaLeft/Right` (the W3C names; the key and flag are `Key::Super`/`Modifiers::SUPER`, F83), and `space` is
 `Key::Character(" ")` (keyboard-types 0.7 has no named Space).
+
+### F83. The logo key is SUPER end to end; the embedder fills Blitz's text-action resolver
+
+`input::modifiers::modifiers_from` maps the logo key to `Modifiers::SUPER` and `keysym::named_key`
+maps `Super_L`/`Super_R` to `Key::Super` (they were `META` and `Key::Meta`), because Blitz's text
+actions and quire's key normaliser both read Command as SUPER. `Modifiers::META` is still
+accepted when an injected key's flags become the seat's `logo` (`with_dom`), and `Key::Meta`
+(an actual Meta keysym) still holds `META`. shell-host does not depend on quire, so it does not
+fill the Blitz text-action resolver (`blitz_dom::DocumentConfig::text_action_resolver`): Blitz's
+default resolver, unchanged from before, treats SUPER (and META) as Command and CONTROL as
+Command off macOS. The embedder that links quire (sill) builds the `TextActionResolver` from
+quire's key resolution (ds-blitz) and passes it in the `DocumentConfig` it hands the host, so a
+chord quire does not map to a text action (Ctrl+C on our desktop) is not a copy.
 
 ## Drag source
 

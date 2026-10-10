@@ -179,6 +179,10 @@ mod tests {
                 Ok(stroke(ch("k"), Code::KeyK, Modifiers::CONTROL)),
             ),
             (
+                "Super",
+                Ok(stroke(Key::Super, Code::MetaLeft, Modifiers::empty())),
+            ),
+            (
                 "Tab+shift",
                 Ok(stroke(Key::Tab, Code::Tab, Modifiers::SHIFT)),
             ),

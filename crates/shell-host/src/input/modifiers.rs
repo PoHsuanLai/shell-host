@@ -3,14 +3,15 @@
 use keyboard_types::Modifiers;
 use smithay_client_toolkit::seat::keyboard::Modifiers as SctkModifiers;
 
-/// The keyboard-types set for sctk's modifier state. The logo key is `META`, the W3C name
-/// (what `KeyboardEvent.metaKey` reports), matching `keysym::named_key`'s `Key::Meta`.
+/// The keyboard-types set for sctk's modifier state. The logo key is `SUPER`: on our
+/// desktop it is Command, and Blitz's text actions and quire's normaliser read Command as
+/// `SUPER`. Matches `keysym::named_key`'s `Key::Super`.
 pub(crate) fn modifiers_from(state: SctkModifiers) -> Modifiers {
     [
         (state.ctrl, Modifiers::CONTROL),
         (state.alt, Modifiers::ALT),
         (state.shift, Modifiers::SHIFT),
-        (state.logo, Modifiers::META),
+        (state.logo, Modifiers::SUPER),
         (state.caps_lock, Modifiers::CAPS_LOCK),
         (state.num_lock, Modifiers::NUM_LOCK),
     ]
@@ -36,7 +37,7 @@ mod tests {
             ("ctrl", state(|s| s.ctrl = true), Modifiers::CONTROL),
             ("alt", state(|s| s.alt = true), Modifiers::ALT),
             ("shift", state(|s| s.shift = true), Modifiers::SHIFT),
-            ("logo is meta", state(|s| s.logo = true), Modifiers::META),
+            ("logo is super", state(|s| s.logo = true), Modifiers::SUPER),
             ("caps", state(|s| s.caps_lock = true), Modifiers::CAPS_LOCK),
             ("num", state(|s| s.num_lock = true), Modifiers::NUM_LOCK),
             (
@@ -46,7 +47,7 @@ mod tests {
                     s.shift = true;
                     s.logo = true;
                 }),
-                Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::META,
+                Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::SUPER,
             ),
         ];
         for (name, input, want) in cases {

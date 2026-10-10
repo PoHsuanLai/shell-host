@@ -41,6 +41,7 @@ fn flag_of(key: &Key) -> Modifiers {
         Key::Control => Modifiers::CONTROL,
         Key::Shift => Modifiers::SHIFT,
         Key::Meta => Modifiers::META,
+        Key::Super => Modifiers::SUPER,
         _ => Modifiers::empty(),
     }
 }
@@ -202,6 +203,10 @@ mod tests {
         let held = HeldModifiers::default().with_dom(Modifiers::ALT);
         assert_eq!(held.alt, Modifier::Held);
         assert_eq!(held.shift, Modifier::Released);
+        assert_eq!(
+            HeldModifiers::default().with_dom(Modifiers::SUPER).logo,
+            Modifier::Held
+        );
     }
 
     #[test]
