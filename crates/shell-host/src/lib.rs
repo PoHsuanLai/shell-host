@@ -63,6 +63,7 @@ mod render_gpu;
 mod resolve;
 mod role;
 mod root;
+mod route;
 mod scale;
 mod scroll;
 mod state;
@@ -72,6 +73,7 @@ mod tick;
 mod timers;
 mod toplevel;
 mod wake;
+mod window_placement;
 
 pub use blitz_kit::adapter::AdapterPref;
 pub use blitz_kit::fonts::FontFaces;
@@ -115,6 +117,7 @@ pub use popup::{
 pub use prepaint::{Prepaint, PrepaintFn};
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::HostRoot;
+pub use route::WaylandRoute;
 pub use scale::{Scale, Size, buffer_size};
 pub use scroll::config::{
     NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs,
@@ -129,3 +132,4 @@ pub use toplevel::{
     Activation, Decorations, Fullscreen, Maximize, ResizeEdge, ResizeMargin, Tile, TileEdges,
     ToplevelConfig, ToplevelState,
 };
+pub use window_placement::{PlacementSupport, WindowPlacement};

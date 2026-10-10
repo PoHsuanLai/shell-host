@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::dom::document::HoverShift;
 use crate::error::{Recovery, Result};
+use crate::event::HostEvent;
 use crate::frame::FrameInput;
 use crate::gpu::presenter::{FrameTarget, Overlay};
 use crate::handlers::background_effect::Support;
@@ -15,7 +16,7 @@ use crate::role::Role;
 use crate::scroll::indicator::Wake;
 use crate::state::HostState;
 use crate::stats::AlphaMode;
-use crate::surface::HostSurface;
+use crate::surface::{HostSurface, Mapped};
 use crate::timers::TimerRequest;
 
 use super::regions::send_regions;
@@ -94,7 +95,11 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             FrameInput::PresentFailed
         }
     };
+    let first_frame = presented.is_ok();
     state.frame_input(id, input);
+    if first_frame {
+        announce_mapped(state, id);
+    }
     if let Some(surface) = state.surfaces.get(&id)
         && let Wake::At(at) = surface.scroll.wake(now_host)
     {
@@ -114,6 +119,17 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             Ok(())
         }
         Ok(()) => Ok(()),
+    }
+}
+
+/// Tell the shell surface `id` is on screen, once per map.
+fn announce_mapped(state: &mut HostState, id: SurfaceId) {
+    let Some(surface) = state.surfaces.get_mut(&id) else {
+        return;
+    };
+    if surface.mapped == Mapped::Pending {
+        surface.mapped = Mapped::Announced;
+        state.events.push_back(HostEvent::SurfaceMapped { id });
     }
 }
 

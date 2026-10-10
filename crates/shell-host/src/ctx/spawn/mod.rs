@@ -20,7 +20,7 @@ use crate::csd::Inset;
 use crate::dom::document::DocumentEnv;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::FrameState;
-use crate::handle::{HandleParts, SurfaceHandle};
+use crate::handle::{HandleParts, SurfaceHandle, WlCell};
 use crate::id::SurfaceId;
 use crate::id::SurfaceName;
 use crate::live::Live;
@@ -37,7 +37,7 @@ use crate::scroll::wheel::WheelRun;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::state::HostState;
 use crate::stats::StatsWindow;
-use crate::surface::{AppliedRegions, Configured, HostSurface};
+use crate::surface::{AppliedRegions, Configured, HostSurface, Mapped};
 use crate::tick::FrameTicks;
 use crate::toplevel::ToplevelState;
 use blitz_kit::net::LocalNet;
@@ -88,6 +88,7 @@ pub(super) fn insert(
     let live_modifiers = Live::new(Modifiers::default());
     let scrolls = ScrollBoard::default();
     let wheels = WheelFeed::default();
+    let wl = WlCell::new(role.wl_surface().clone());
     let parts = HandleParts {
         requests: state.requests.clone(),
         ids: state.ids.clone(),
@@ -99,6 +100,8 @@ pub(super) fn insert(
         wheels: wheels.clone(),
         modifiers: live_modifiers.clone(),
         modality: state.input.modality.clone(),
+        wl: wl.clone(),
+        placement: state.placement_support(),
     };
     let handle = SurfaceHandle::new(id, role.kind(), parts);
     let env = DocumentEnv {
@@ -121,6 +124,8 @@ pub(super) fn insert(
             frame: FrameState::NEW,
             watchdog: None,
             configured: Configured::Pending,
+            mapped: Mapped::Pending,
+            wl,
             visibility: Visibility::Shown,
             logical,
             inset,

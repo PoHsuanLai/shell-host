@@ -37,11 +37,11 @@ pub struct Host<M> {
 }
 
 impl<M: Send + 'static> Host<M> {
-    /// Connect to the Wayland display, bind the globals (layer-shell, blur, fractional scale,
+    /// Connect to the Wayland display (the session's, or the socket `HostConfig::route` hands over), bind the globals (layer-shell, blur, fractional scale,
     /// text input, cursor shape and activation are optional and degrade), and choose the
     /// backend. The GPU device is created on the first surface, validated by a first present.
     pub fn connect(config: HostConfig) -> Result<Host<M>> {
-        let conn = Connection::connect_to_env().map_err(|e| HostError::Connect(e.to_string()))?;
+        let conn = config.route.connect()?;
         let (globals, mut queue) = registry_queue_init::<HostState>(&conn)
             .map_err(|e| HostError::Connect(e.to_string()))?;
         let event_loop = EventLoop::<HostCtx<M>>::try_new().map_err(loop_error)?;

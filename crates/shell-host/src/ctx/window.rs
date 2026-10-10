@@ -47,7 +47,9 @@ pub(super) fn send(state: &HostState, id: SurfaceId, window: &Window, op: &Surfa
         | SurfaceOp::SetAnchor(_)
         | SurfaceOp::SetLayer(_)
         | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_) => Ok(()),
+        | SurfaceOp::Reposition(_)
+        // Needs `&mut HostState` for its protocol object: `ops::apply` takes it first.
+        | SurfaceOp::RequestPlacement(_) => Ok(()),
     };
     if let Err(refused) = started {
         eprintln!("shell-host: {op:?} on {id:?} refused: {refused}");

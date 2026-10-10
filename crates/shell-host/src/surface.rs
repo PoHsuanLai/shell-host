@@ -13,6 +13,7 @@ use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
+use crate::handle::WlCell;
 use crate::id::SurfaceId;
 use crate::id::SurfaceName;
 use crate::live::Live;
@@ -35,6 +36,13 @@ use crate::toplevel::ToplevelState;
 pub(crate) enum Configured {
     Pending,
     Done,
+}
+
+/// Whether the shell has been told the surface is on screen (`HostEvent::SurfaceMapped`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mapped {
+    Pending,
+    Announced,
 }
 
 /// The size and scale the viewport, the document and the presenter were last set up for.
@@ -80,6 +88,10 @@ pub(crate) struct HostSurface {
     pub(crate) frame: FrameState,
     pub(crate) watchdog: Option<RegistrationToken>,
     pub(crate) configured: Configured,
+    /// Set at the first present after a map; reset when the role is rebuilt.
+    pub(crate) mapped: Mapped,
+    /// The current `wl_surface`, shared with this surface's `SurfaceHandle`.
+    pub(crate) wl: WlCell,
     pub(crate) visibility: Visibility,
     /// The surface's logical size, including a client-decorated toplevel's resize band.
     pub(crate) logical: Size,
@@ -256,7 +268,8 @@ fn record_layer(
         | SurfaceOp::BeginResize(_)
         | SurfaceOp::SetMaximized(_)
         | SurfaceOp::Minimize
-        | SurfaceOp::SetFullscreen(_) => {}
+        | SurfaceOp::SetFullscreen(_)
+        | SurfaceOp::RequestPlacement(_) => {}
     }
 }
 

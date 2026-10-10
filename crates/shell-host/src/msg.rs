@@ -14,6 +14,7 @@ use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
 use crate::root::HostRoot;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge};
+use crate::window_placement::WindowPlacement;
 use blitz_kit::scroll::cmd::ScrollCmd;
 
 /// A change to one surface. Applied after the documents are polled and before painting, so a
@@ -54,6 +55,9 @@ pub enum SurfaceOp {
     /// Toplevels only: `xdg_toplevel.set_fullscreen` on the compositor's choice of output, or
     /// `unset_fullscreen`.
     SetFullscreen(Fullscreen),
+    /// Toplevels only: `quire_window_v1.request_placement` with the seat's latest input serial.
+    /// Dropped (logged when there is no input yet) on a compositor without the protocol.
+    RequestPlacement(WindowPlacement),
 }
 
 /// Whether applying an op must repaint the surface.
@@ -74,7 +78,8 @@ impl SurfaceOp {
             | SurfaceOp::BeginResize(_)
             | SurfaceOp::SetMaximized(_)
             | SurfaceOp::Minimize
-            | SurfaceOp::SetFullscreen(_) => Repaint::NotNeeded,
+            | SurfaceOp::SetFullscreen(_)
+            | SurfaceOp::RequestPlacement(_) => Repaint::NotNeeded,
             SurfaceOp::SetBlur(_)
             | SurfaceOp::SetInputRegion(_)
             | SurfaceOp::SetKeyboard(_)

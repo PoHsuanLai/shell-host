@@ -5,6 +5,7 @@ use crate::grab::GrabRefused;
 use crate::msg::SurfaceOp;
 use crate::role::RoleKind;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge, ToplevelState};
+use crate::window_placement::{PlacementSupport, WindowPlacement};
 
 impl SurfaceHandle {
     /// Start moving this toplevel with the pointer (`xdg_toplevel.move`): call it from the
@@ -44,6 +45,19 @@ impl SurfaceHandle {
     /// Ask for fullscreen on the compositor's choice of output, or leave it.
     pub fn set_fullscreen(&self, fullscreen: Fullscreen) {
         self.apply(SurfaceOp::SetFullscreen(fullscreen));
+    }
+
+    /// Whether the compositor takes [`SurfaceHandle::request_placement`]. A menu offers Left,
+    /// Right and Centre only when this is `Offered` (FINDINGS F50).
+    pub fn placement_support(&self) -> PlacementSupport {
+        self.placement
+    }
+
+    /// Ask the compositor to place this toplevel (`quire_window_v1.request_placement`), as the
+    /// person just chose from the zoom button's menu: the seat's latest input serial goes
+    /// with it. Dropped on a compositor without the protocol.
+    pub fn request_placement(&self, placement: WindowPlacement) {
+        self.apply(SurfaceOp::RequestPlacement(placement));
     }
 
     /// This toplevel's state as of its last configure, without subscribing: for an event

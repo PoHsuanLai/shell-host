@@ -7,6 +7,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use blitz_traits::shell::ColorScheme;
+use casement_protocols::client::quire_window_v1::quire_window_manager_v1::QuireWindowManagerV1;
+use casement_protocols::client::quire_window_v1::quire_window_v1::QuireWindowV1;
 use smithay_client_toolkit::activation::ActivationState;
 use smithay_client_toolkit::compositor::CompositorState;
 use smithay_client_toolkit::data_device_manager::DataDeviceManagerState;
@@ -60,6 +62,7 @@ use crate::handlers::activation::ActivationRequest;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
 use crate::handlers::drag_source::Dragging;
 use crate::handlers::fractional::Fractional;
+use crate::handlers::quire_window::QuireWindows;
 use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
@@ -101,6 +104,8 @@ pub(crate) struct HostState {
     pub(crate) activation: Option<ActivationState>,
     pub(crate) fractional: Option<Fractional>,
     pub(crate) background_effect: Option<BackgroundEffect>,
+    /// `quire_window_manager_v1`, only where the compositor advertises it (casement).
+    pub(crate) quire_window: Option<QuireWindows>,
     /// The compositor's main render device, for `blur_health`.
     pub(crate) render_device: Option<RenderDevice>,
     /// cosmic-comp or not, from the globals at bind time.
@@ -195,6 +200,7 @@ impl HostState {
             activation: ActivationState::bind(globals, &qh).ok(),
             fractional: Fractional::bind(globals, &qh).ok(),
             background_effect: BackgroundEffect::bind(globals, &qh).ok(),
+            quire_window: QuireWindows::bind(globals, &qh).ok(),
             render_device: RenderDevice::bind(globals, &qh).ok(),
             compositor_kind: globals.contents().with_list(|list| {
                 compositor_kind(list.iter().map(|global| global.interface.as_str()))
@@ -373,6 +379,8 @@ delegate_dispatch!(HostState: [WpViewporter: ()] => Fractional);
 delegate_dispatch!(HostState: [WpViewport: ()] => Fractional);
 delegate_dispatch!(HostState: [ExtBackgroundEffectManagerV1: ()] => BackgroundEffect);
 delegate_dispatch!(HostState: [ExtBackgroundEffectSurfaceV1: ()] => BackgroundEffect);
+delegate_dispatch!(HostState: [QuireWindowManagerV1: ()] => QuireWindows);
+delegate_dispatch!(HostState: [QuireWindowV1: ()] => QuireWindows);
 delegate_dispatch!(HostState: [ZwpLinuxDmabufV1: ()] => RenderDevice);
 delegate_dispatch!(HostState: [ZwpLinuxDmabufFeedbackV1: ()] => RenderDevice);
 // zwp_text_input_v3 is dispatched by `handlers::text_input` directly on `HostState`: sctk has no

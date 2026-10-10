@@ -19,6 +19,12 @@ pub enum HostEvent<M> {
         id: SurfaceId,
         reason: CloseReason,
     },
+    /// The surface's first frame is on screen (also after a hidden surface is shown again, with
+    /// a new `wl_surface`). From here `SurfaceHandle::wl_surface` and `HostCtx::wl_surface`
+    /// name the object the compositor shows, for a `quire_*` object the shell creates on it.
+    SurfaceMapped {
+        id: SurfaceId,
+    },
     /// Keyboard focus entered or left a surface.
     KeyboardFocus {
         id: SurfaceId,
@@ -73,6 +79,7 @@ pub(crate) fn widen<M>(event: ShellEvent) -> HostEvent<M> {
         HostEvent::OutputChanged(info) => HostEvent::OutputChanged(info),
         HostEvent::OutputRemoved(id) => HostEvent::OutputRemoved(id),
         HostEvent::SurfaceClosed { id, reason } => HostEvent::SurfaceClosed { id, reason },
+        HostEvent::SurfaceMapped { id } => HostEvent::SurfaceMapped { id },
         HostEvent::KeyboardFocus { id, focus } => HostEvent::KeyboardFocus { id, focus },
         HostEvent::Lock { id, state } => HostEvent::Lock { id, state },
         HostEvent::App(never) => match never {},
@@ -100,6 +107,10 @@ mod tests {
                     id: SurfaceId(2),
                     reason: CloseReason::PopupDismissed,
                 },
+            ),
+            (
+                HostEvent::SurfaceMapped { id: SurfaceId(5) },
+                HostEvent::SurfaceMapped { id: SurfaceId(5) },
             ),
             (
                 HostEvent::KeyboardFocus {

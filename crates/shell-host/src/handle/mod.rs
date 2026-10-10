@@ -7,12 +7,14 @@ mod hooks;
 mod queue;
 mod surface;
 mod window;
+mod wl;
 
 pub use hooks::{
     use_frame_tick, use_input_modality, use_modifiers, use_surface, use_surface_scale,
     use_toplevel_state, use_wheel,
 };
 pub(crate) use queue::RequestQueue;
+pub(crate) use wl::WlCell;
 
 use crate::grab::GrabRecord;
 use crate::id::{SurfaceId, SurfaceIds};
@@ -27,6 +29,8 @@ use crate::scroll::watch::ScrollBoard;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::tick::FrameTicks;
 use crate::toplevel::ToplevelState;
+use crate::window_placement::PlacementSupport;
+use wayland_client::protocol::wl_surface::WlSurface;
 
 /// One surface, as seen from inside its document.
 #[derive(Debug, Clone)]
@@ -43,6 +47,8 @@ pub struct SurfaceHandle {
     wheels: WheelFeed,
     modifiers: Live<Modifiers>,
     modality: Live<InputModality>,
+    wl: WlCell,
+    placement: PlacementSupport,
 }
 
 /// The host's shared state a `SurfaceHandle` reads, besides its queue: built by the host when
@@ -60,6 +66,10 @@ pub(crate) struct HandleParts {
     pub(crate) modifiers: Live<Modifiers>,
     /// The seat's, shared by every surface (not a per-surface copy like `modifiers`).
     pub(crate) modality: Live<InputModality>,
+    /// This surface's `wl_surface`, refreshed when the host rebuilds the role.
+    pub(crate) wl: WlCell,
+    /// Whether the compositor takes placement requests (the same for every surface).
+    pub(crate) placement: PlacementSupport,
 }
 
 impl SurfaceHandle {
@@ -76,6 +86,8 @@ impl SurfaceHandle {
             wheels,
             modifiers,
             modality,
+            wl,
+            placement,
         } = parts;
         SurfaceHandle {
             id,
@@ -90,6 +102,8 @@ impl SurfaceHandle {
             wheels,
             modifiers,
             modality,
+            wl,
+            placement,
         }
     }
 
@@ -102,6 +116,15 @@ impl SurfaceHandle {
     /// or a task. A component that draws for the scale reads [`use_surface_scale`] instead.
     pub fn current_scale(&self) -> Scale {
         self.scale.get()
+    }
+
+    /// This surface's `wl_surface`, for a protocol the host does not wrap (a `quire_*` object
+    /// the app's own code creates on the shell's connection). It is replaced when the surface
+    /// is hidden and shown again, so read it again after `HostEvent::SurfaceMapped`.
+    pub fn wl_surface(&self) -> WlSurface {
+        self.wl
+            .get()
+            .expect("a hosted surface always has a wl_surface")
     }
 
     /// Any other op, as `HostCtx::apply` would apply it.

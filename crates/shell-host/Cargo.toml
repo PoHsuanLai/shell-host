@@ -20,6 +20,8 @@ xkbcommon = { workspace = true }
 raw-window-handle = { workspace = true }
 keyboard-types = { workspace = true }
 cursor-icon = { workspace = true }
+# `quire_window_v1`'s client bindings and the wire vocab (`handlers::quire_window`).
+casement-protocols = { workspace = true }
 # Documents and rendering
 blitz-kit = { workspace = true, features = ["adapter", "settings"] }
 blitz-dom = { workspace = true }

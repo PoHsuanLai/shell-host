@@ -15,6 +15,7 @@ pub(crate) mod keyboard;
 pub(crate) mod layer;
 pub(crate) mod output;
 pub(crate) mod pointer;
+pub(crate) mod quire_window;
 pub(crate) mod render_device;
 pub(crate) mod seat;
 pub(crate) mod session_lock;
@@ -74,6 +75,7 @@ pub(crate) fn close_surface_and_popups(state: &mut HostState, id: SurfaceId, rea
     // focus end with the surface.
     state.withdraw_pointer(id);
     state.withdraw_keyboard(id);
+    state.forget_quire_window(id);
     if state.surfaces.remove(&id).is_some() {
         state
             .events

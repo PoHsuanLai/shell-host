@@ -22,7 +22,7 @@ Allowed edges (everything else is forbidden):
 
 | From | May depend on |
 |---|---|
-| `shell-host` | `blitz-kit`, `palmrest-protocol`, and the pinned third-party block (blitz-*, dioxus, sctk, wayland-*, calloop, wgpu, vello, parley, rustix, tokio, serde) |
+| `shell-host` | `blitz-kit`, `palmrest-protocol`, `casement-protocols` (feature `client`: `quire_window_v1`'s bindings and the wire vocab, git rev pin), and the pinned third-party block (blitz-*, dioxus, sctk, wayland-*, calloop, wgpu, vello, parley, rustix, tokio, serde) |
 | `blitz-kit` | `blitz-dom`, `blitz-traits`, `parley`, `wgpu` (feature `adapter`), `thiserror` |
 | `palmrest-protocol` | `serde`, `serde_json`, `thiserror` |
 
@@ -95,11 +95,11 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 
 | Group | Names |
 |---|---|
-| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families` |
-| Events | `HostEvent`, `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
+| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
+| Events | `HostEvent` (incl. `SurfaceMapped { id }`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
 | Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
 | Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |
-| Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused` |
+| Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused`, `WindowPlacement`, `PlacementSupport` |
 | Lock | `LockConfig`, `LockError`, `LockId`, `LockHandle`, `LockPhase`, `LockState`, `use_lock`, `use_lock_phase` |
 | Regions and blur | `RegionSpec`, `RoundedRect`, `ElementRegion`, `ElementId`, `BlurSpec` |
 | Geometry | `Px`, `Rect`, `Point`, `Size`, `Margin`, `Scale`, `buffer_size` (`Px`, `Rect`, `Point`, `Size` are the geometry vocabulary and keep their short names) |
@@ -107,7 +107,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
 | Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll`, `WheelEvent`, `WheelSource`, `WheelPhase`, `WheelMotion`, `use_wheel` |
 | Frames and stats | `FrameDrive`, `FrameTick`, `HostInstant`, `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
-| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns) |
+| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns; `wl_surface()`, `request_placement`, `placement_support`); `HostCtx::wl_surface(id)` |
 
 Feature-gated public modules:
 
@@ -218,6 +218,18 @@ implementations are swapped at a boundary.
 `Presenter` (`Wgpu`, `Shm`), `Backend`, `HostEvent`, `HostMsg`, `Request`, `SurfaceOp`, `Inject`,
 `RegionSpec`, `BlurSpec`, `Prepaint`, `ScrollIn`, `ScrollOut`, `Engine`, `FrameInput`,
 `TimerRequest`.
+
+### Optional `quire_*` globals
+
+A `quire_*` protocol is bound only where the compositor advertises it (`Option<..>` on
+`HostState`, bound with `.ok()`), and every request that needs it is a silent no-op without it,
+so the same binary runs on KWin, wlroots, COSMIC and casement. `handlers/quire_window` binds
+`quire_window_manager_v1` and sends `request_placement` (`decide.rs` maps a `WindowPlacement`
+and the seat's latest input serial to the wire request, or refuses with no serial);
+`SurfaceHandle::placement_support` tells a menu whether to show the choices. The shell's own
+`quire_*` objects (`quire_shell_v1`, on the connection it was handed) are created on
+`HostCtx::wl_surface` / `SurfaceHandle::wl_surface` after `HostEvent::SurfaceMapped`; a hidden
+surface that is shown again gets a new `wl_surface`, and the handle follows it.
 
 ### The compositor-effects seam
 

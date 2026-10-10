@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, VecDeque};
 use blitz_traits::shell::ColorScheme;
 use calloop::{LoopHandle, RegistrationToken};
 use tokio::sync::oneshot;
+use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::config::Backend;
 use crate::error::Result;
@@ -185,6 +186,15 @@ impl<M: 'static> HostCtx<M> {
             }
             self.state.frame_input(id, FrameInput::Invalidate);
         }
+    }
+
+    /// Surface `id`'s `wl_surface` (F34): the object a shell creates a `quire_*` extension on.
+    /// It changes when a hidden surface is shown again; read it after `HostEvent::SurfaceMapped`.
+    pub fn wl_surface(&self, id: SurfaceId) -> Option<WlSurface> {
+        self.state
+            .surfaces
+            .get(&id)
+            .map(|surface| surface.role.wl_surface().clone())
     }
 
     /// Close every surface and return from `Host::run` after this event.

@@ -489,7 +489,7 @@ Once the compositor takes the grab, the release goes to the compositor, so the p
 when `move`/`resize` is sent, and buttons and press are dropped at every `enter` and `leave` (a
 leave with a button held means a grab took the pointer).
 
-### F50. Open: no compositor offers a client "Left half", "Right half" or "Centre"
+### F50. Open on KWin and COSMIC: no compositor offers a client "Left half", "Right half" or "Centre"
 
 xdg-shell's `tiled_*` states are compositor-to-client only. cosmic-comp 1.8 has no
 `xdg_toplevel_tag_manager_v1`, and `zcosmic_toplevel_manager_v1` (v4) offers maximize, minimize,
@@ -498,6 +498,8 @@ KWin 6.7.5 offers `xdg_toplevel_tag_manager_v1` (a name for window rules, no pla
 `org_kde_plasma_surface.set_position` (absolute, KDE-only, not in the pinned block); quick tile
 is D-Bus/scripting only. The host implements maximize (the menu's Fill) and nothing for
 Left/Right/Centre; quire's menu hides them until a compositor offers a request.
+Since p2-z-sh the host sends `quire_window_v1.request_placement` where that global is advertised
+(casement).
 
 ## Input
 
@@ -894,3 +896,33 @@ default feedback `main_device`); the host then sends no blur region and the debu
 `blur: degraded`. `nested.sh` renders on Mesa by default (`SILL_NESTED_GPU=nvidia` for the old
 path). Open: no shell can ask whether blur is on (proposed: `HostCtx::blur() -> Support`); a
 cosmic-comp issue with `blur_probe` as the repro is not filed; re-test on a real cosmic session.
+
+## p2-z-sh
+
+P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented whole.
+
+- **Handed connection.** `HostConfig::route: WaylandRoute` (`Environment` by default, or
+  `Handed(OwnedFd)`), applied only in `Host::connect` (`route.rs`): `Connection::from_socket`
+  over the descriptor, else `connect_to_env`. A descriptor is not settings, so the field is
+  `#[serde(skip)]`. `Clone` duplicates the descriptor (falling back to `Environment` when the
+  process is out of descriptors); equality compares descriptor numbers.
+- **F34, the shell's own protocol objects.** `HostCtx::wl_surface(id) -> Option<WlSurface>`,
+  `SurfaceHandle::wl_surface() -> WlSurface` and `HostEvent::SurfaceMapped { id }`, raised once
+  at the first successful present after a map. Hiding a surface rebuilds its role with a new
+  `wl_surface`, so the handle reads it through a cell (`handle/wl.rs`) that `ops::unmap`
+  refreshes, and `SurfaceMapped` is raised again after the next show.
+- **`quire_window_v1`** (`handlers/quire_window`, `decide.rs` table-tested): the manager is bound
+  only if advertised. `SurfaceHandle::request_placement(WindowPlacement)` queues
+  `SurfaceOp::RequestPlacement`; `ops::apply` takes it (it needs `&mut HostState` for the
+  per-toplevel `quire_window_v1` object, created on first use and destroyed before the toplevel
+  closes or is hidden) and sends `request_placement` with `input.last_serial`, the serial of the
+  latest key or button the seat delivered. No serial yet means no request (logged). Emphasis and
+  placement events are ignored until P3 (`use_toplevel_state`).
+- **Dependency.** `casement-protocols` (feature `client`), git rev
+  b59d1d7da33e0aa1f4460ea515e64d5e4f51f112, the pin sill and cua use (workspace root, outside the
+  quire-pinned block). Its `rust-version` is 1.92 against this workspace's 1.91.
+- **F50.** Closed on a compositor that advertises `quire_window_manager_v1` (casement), as far as
+  the host goes: the request exists and is sent. It stays open on KWin and COSMIC (nothing to
+  send), where `placement_support()` is `Absent` and quire's menu keeps hiding Left, Right and
+  Centre. Whether casement acts on the request is its own lane (H lanes).
+- **Not run.** Written without a build; the orchestrator's gate is the first compile.

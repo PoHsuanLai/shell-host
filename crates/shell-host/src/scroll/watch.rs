@@ -179,6 +179,8 @@ mod tests {
             wheels: crate::scroll::wheel_feed::WheelFeed::default(),
             modifiers: Live::new(crate::modifiers::Modifiers::default()),
             modality: Live::new(crate::modality::InputModality::default()),
+            wl: crate::handle::WlCell::detached(),
+            placement: crate::window_placement::PlacementSupport::Absent,
         };
         let handle = SurfaceHandle::new(SurfaceId(3), RoleKind::Toplevel, parts);
         let env = DocumentEnv {

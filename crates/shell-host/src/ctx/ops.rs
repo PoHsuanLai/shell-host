@@ -16,7 +16,7 @@ use crate::placement::PopupPlacement;
 use crate::popup::{PopupGrab, positioner_params};
 use crate::role::Role;
 use crate::state::HostState;
-use crate::surface::{AppliedRegions, Configured, VisibilityChange, visibility_change};
+use crate::surface::{AppliedRegions, Configured, Mapped, VisibilityChange, visibility_change};
 
 /// The `xdg_popup.reposition` token. The host never matches `repositioned` events to requests,
 /// so one value serves.
@@ -82,6 +82,10 @@ pub(super) fn claim_copied<M: 'static>(ctx: &mut HostCtx<M>) {
 pub(super) fn apply<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, op: SurfaceOp) {
     if let SurfaceOp::SetVisibility(visibility) = op {
         set_visibility(ctx, id, visibility);
+        return;
+    }
+    if let SurfaceOp::RequestPlacement(placement) = op {
+        ctx.state.request_placement(id, placement);
         return;
     }
     let state = &mut ctx.state;
@@ -157,7 +161,8 @@ fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op
         | SurfaceOp::BeginResize(_)
         | SurfaceOp::SetMaximized(_)
         | SurfaceOp::Minimize
-        | SurfaceOp::SetFullscreen(_) => {}
+        | SurfaceOp::SetFullscreen(_)
+        | SurfaceOp::RequestPlacement(_) => {}
     }
 }
 
@@ -198,6 +203,7 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     // Before the rebuild, while the old wl_surface is still this id's.
     ctx.state.withdraw_pointer(id);
     ctx.state.withdraw_keyboard(id);
+    ctx.state.forget_quire_window(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
     let Some(mut surface) = state.surfaces.remove(&id) else {
@@ -208,7 +214,9 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     let old = surface.role;
     match super::spawn::rebuild(state, old) {
         Ok(role) => {
+            surface.wl.set(role.wl_surface().clone());
             surface.role = role;
+            surface.mapped = Mapped::Pending;
             surface.visibility = Visibility::Hidden;
             surface.configured = Configured::Pending;
             surface.frame = FrameState::NEW;
@@ -233,6 +241,7 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     // As for an unmap: the compositor's leave will name a destroyed wl_surface.
     ctx.state.withdraw_pointer(id);
     ctx.state.withdraw_keyboard(id);
+    ctx.state.forget_quire_window(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
     let Some(surface) = state.surfaces.remove(&id) else {

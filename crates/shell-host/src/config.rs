@@ -8,6 +8,7 @@ use blitz_kit::fonts::{FontFaces, SharedFonts};
 use serde::{Deserialize, Serialize};
 
 use crate::prepaint::Prepaint;
+use crate::route::WaylandRoute;
 
 /// How a host is set up. `Host::connect` takes one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +36,10 @@ pub struct HostConfig {
     /// it is never serialized, exactly like `prepaint`.
     #[serde(skip)]
     pub fonts: FontFaces,
+    /// Which connection `Host::connect` uses: the session's (default) or a socket the
+    /// compositor handed over. A descriptor is not settings, so it is never serialized.
+    #[serde(skip)]
+    pub route: WaylandRoute,
 }
 
 impl Default for HostConfig {
@@ -45,6 +50,7 @@ impl Default for HostConfig {
             first_mouse_window_ms: Ms::first_mouse_window(),
             prepaint: Prepaint::None,
             fonts: FontFaces::default(),
+            route: WaylandRoute::Environment,
         }
     }
 }
@@ -111,6 +117,7 @@ mod tests {
                 first_mouse_window_ms: Ms(100),
                 prepaint: Prepaint::None,
                 fonts: FontFaces::default(),
+                route: WaylandRoute::Environment,
             }
         );
     }
