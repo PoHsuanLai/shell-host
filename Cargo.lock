@@ -235,7 +235,7 @@ dependencies = [
 [[package]]
 name = "blitz-dom"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 dependencies = [
  "accesskit",
  "anyrender",
@@ -246,7 +246,7 @@ dependencies = [
  "color",
  "cssparser",
  "cursor-icon",
- "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533)",
+ "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3)",
  "euclid",
  "html-escape",
  "image",
@@ -292,7 +292,7 @@ dependencies = [
 [[package]]
 name = "blitz-paint"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 dependencies = [
  "anyrender",
  "anyrender_svg",
@@ -313,7 +313,7 @@ dependencies = [
 [[package]]
 name = "blitz-traits"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 dependencies = [
  "atomic_refcell",
  "bitflags",
@@ -732,7 +732,7 @@ checksum = "da220af51a1a335e9a930beaaef53d261e41ea9eecfb3d973a3ddae1a7284b9c"
 [[package]]
 name = "debug_timer"
 version = "0.1.3"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 
 [[package]]
 name = "derive_more"
@@ -907,7 +907,7 @@ dependencies = [
 [[package]]
 name = "dioxus-native-dom"
 version = "0.7.0"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 dependencies = [
  "blitz-dom",
  "blitz-traits",
@@ -3280,7 +3280,7 @@ dependencies = [
 [[package]]
 name = "stylo_taffy"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=2e44d7534de341b9037ffa92c0da49b29adea533#2e44d7534de341b9037ffa92c0da49b29adea533"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=61e00c6a1534b8350c1ed70d3e85452bbc323ac3#61e00c6a1534b8350c1ed70d3e85452bbc323ac3"
 dependencies = [
  "bitflags",
  "stylo",
