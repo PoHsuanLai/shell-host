@@ -5,11 +5,11 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use anyrender_vello_hybrid::ImageUploads;
 use blitz_kit::adapter::{
     ADAPTER_ENV, AdapterFacts, AdapterPref, block_on, ranked, request_device,
 };
 use rustc_hash::FxHashMap;
-use vello_common::paint::ImageId;
 use vello_hybrid::{RenderTargetConfig, Renderer, Resources};
 use wayland_client::Connection;
 use wgpu_context::DeviceHandle;
@@ -38,7 +38,7 @@ pub(crate) struct GpuContext {
     pub(crate) renderer: Renderer,
     pub(crate) resources: Resources,
     /// Uploaded images by content hash, kept across frames.
-    pub(crate) images: FxHashMap<u64, ImageId>,
+    pub(crate) images: ImageUploads,
     pub(crate) widgets: ContextProxy,
     pub(crate) adapter: AdapterFacts,
 }

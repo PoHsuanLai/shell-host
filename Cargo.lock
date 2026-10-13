@@ -67,7 +67,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "anyrender"
 version = "0.13.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a0825ebfc0443f3ef0830c0e09f2d85df3da632b#a0825ebfc0443f3ef0830c0e09f2d85df3da632b"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
 dependencies = [
  "kurbo",
  "peniko",
@@ -91,7 +91,7 @@ dependencies = [
 [[package]]
 name = "anyrender_vello_cpu"
 version = "0.17.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a0825ebfc0443f3ef0830c0e09f2d85df3da632b#a0825ebfc0443f3ef0830c0e09f2d85df3da632b"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
 dependencies = [
  "anyrender",
  "bytemuck",
@@ -107,7 +107,7 @@ dependencies = [
 [[package]]
 name = "anyrender_vello_hybrid"
 version = "0.10.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a0825ebfc0443f3ef0830c0e09f2d85df3da632b#a0825ebfc0443f3ef0830c0e09f2d85df3da632b"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
 dependencies = [
  "anyrender",
  "debug_timer 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1338,7 +1338,7 @@ dependencies = [
 [[package]]
 name = "glifo"
 version = "0.2.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=1722f6234e10b95d574d2252698a6cc7cdcadb82#1722f6234e10b95d574d2252698a6cc7cdcadb82"
+source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
 dependencies = [
  "bytemuck",
  "foldhash 0.2.0",
@@ -3724,7 +3724,7 @@ checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 [[package]]
 name = "vello_common"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=1722f6234e10b95d574d2252698a6cc7cdcadb82#1722f6234e10b95d574d2252698a6cc7cdcadb82"
+source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
 dependencies = [
  "bytemuck",
  "fearless_simd",
@@ -3739,7 +3739,7 @@ dependencies = [
 [[package]]
 name = "vello_cpu"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=1722f6234e10b95d574d2252698a6cc7cdcadb82#1722f6234e10b95d574d2252698a6cc7cdcadb82"
+source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
 dependencies = [
  "bytemuck",
  "crossbeam-channel",
@@ -3754,7 +3754,7 @@ dependencies = [
 [[package]]
 name = "vello_hybrid"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=1722f6234e10b95d574d2252698a6cc7cdcadb82#1722f6234e10b95d574d2252698a6cc7cdcadb82"
+source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
 dependencies = [
  "bytemuck",
  "glifo",
@@ -3769,7 +3769,7 @@ dependencies = [
 [[package]]
 name = "vello_sparse_shaders"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=1722f6234e10b95d574d2252698a6cc7cdcadb82#1722f6234e10b95d574d2252698a6cc7cdcadb82"
+source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
 dependencies = [
  "wesl",
  "wesl-macros",
@@ -4236,7 +4236,7 @@ dependencies = [
 [[package]]
 name = "wgpu_context"
 version = "0.9.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a0825ebfc0443f3ef0830c0e09f2d85df3da632b#a0825ebfc0443f3ef0830c0e09f2d85df3da632b"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
 dependencies = [
  "futures-intrusive",
  "wgpu",
@@ -4588,4 +4588,4 @@ dependencies = [
 [[patch.unused]]
 name = "pixels_window_renderer"
 version = "0.8.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a0825ebfc0443f3ef0830c0e09f2d85df3da632b#a0825ebfc0443f3ef0830c0e09f2d85df3da632b"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
