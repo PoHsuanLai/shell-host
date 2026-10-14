@@ -195,7 +195,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Frame statistics | `stats` (`HostCtx::stats` is the one source) |
 | Debug commands, synthetic input | `inject` (feature `debug-inject`) |
 | Delegate macros | `state.rs` (only file naming them) |
-| Blur health and compositor identity | `blur_health` |
+| Compositor identity | `compositor_kind` |
 | The compositor's GPU (dev_t to PCI ids) and the adapter following it | `render_gpu` (pure), `handlers/render_device` (the event) |
 | `unsafe` | `gpu/raw_handle.rs` |
 | Ambient inputs (environment, clock, directories) | `HostConfig` and `HostClock` values passed in; no other module reads `std::env` |

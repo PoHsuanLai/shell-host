@@ -1,5 +1,5 @@
 //! The compositor's main render device, from `zwp_linux_dmabuf_v1`'s default feedback (v4+),
-//! for `blur_health` and for the adapter choice (`render_gpu`). wgpu does its own dmabuf
+//! for the adapter choice (`render_gpu`). wgpu does its own dmabuf
 //! negotiation; this binds a second manager object only to read `main_device`, looks its PCI
 //! ids up in sysfs once, and then destroys the feedback object. The event arrives in the
 //! roundtrip `Host::connect` runs before any surface exists, so the ids are known when the GPU
