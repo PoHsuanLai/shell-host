@@ -138,7 +138,7 @@ inside() {
   local im=()
   if [ -n "${KWIN_VIRTUAL_INPUTMETHOD:-}" ]; then
     # The input method KWin starts reads the private config, and keeps its data and cache
-    # (Chewing's user dictionary) out of the user's home too.
+    # (the input method's user phrases) out of the user's home too.
     export XDG_DATA_HOME="$config/.data" XDG_CACHE_HOME="$config/.cache" XDG_STATE_HOME="$config/.state"
     im=(--inputmethod "$KWIN_VIRTUAL_INPUTMETHOD")
   fi

@@ -599,7 +599,7 @@ enable `zwp_text_input_v3`, and raw keys would reach it. After each resolve the 
 focused text field whose request is still disabled, at its content box (`dom/ime_focus.rs`); a
 resend on `enter` covers the other order. fcitx5 commits with `preedit_string(nil) +
 commit_string + done`, and the protocol resets the preedit on every `done`, so `on_done` clears
-it first unless a lone new preedit replaces it. Chewing commits with Return; Space opens the
+it first unless a lone new preedit replaces it. McBopomofo (Chewing before 2026-10-14) commits with Return; Space opens the
 candidate list. `scripts/dev/accept-ime.sh`.
 
 ### F22. Paste reads the selection ahead of time; the text can be a few ms stale

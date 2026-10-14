@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# IME acceptance: Chewing through fcitx5 into a shell-host text field, headless.
+# IME acceptance: Bopomofo (McBopomofo) through fcitx5 into a shell-host text field, headless.
 # Never the user's session: kwin-virtual.sh runs KWin with its own runtime directory, private
 # D-Bus bus and private XDG_CONFIG_HOME/XDG_DATA_HOME, and starts its own fcitx5 as KWin's input
 # method (`--inputmethod scripts/dev/ime-fcitx5.sh`, zwp_input_method_v1) with the profile in
-# scripts/dev/ime-config (Chewing, active by default: no toggle key needed). The user's fcitx5,
+# scripts/dev/ime-config (McBopomofo, active by default: no toggle key needed). The user's fcitx5,
 # its bus name and its config are never touched.
 #
 # COMPOSITOR=casement: casement has no `--inputmethod`; the script starts the same fcitx5 (same
@@ -16,11 +16,11 @@
 # Steps on examples/demo_ime (a plain <input> focused on mount, on an exclusive-keyboard
 # Overlay layer), each PASS/FAIL:
 #   enable     zwp_text_input_v3.enable is sent after the text input's enter
-#   compose    s u 3 c l 3 (Chewing for 你好) then Return: the field's value (its oninput) is
+#   compose    s u 3 c l 3 (Bopomofo, standard layout, for 你好) then Return: the field's value (its oninput) is
 #              你好, and no letter reached the document as a raw key
 #   backspace  s u, then BackSpace twice mid-preedit, then Return: the value is unchanged (no
 #              stray ㄋ, ㄧ or letters)
-# Chewing commits with Return; Space opens the candidate list instead of committing.
+# McBopomofo commits its composing buffer with Return; Space opens the candidate list instead.
 #
 # SILL_DIR=<sill checkout> (optional) repeats compose and backspace on that checkout's
 # launcher_demo (`cargo build -p sill-surfaces --example launcher_demo` there first; it links
@@ -38,8 +38,8 @@ DEMO_BIN="$ROOT/target/debug/examples/demo_ime"
 DEMO="" INPUT="" LAUNCHER="" IME=""
 
 command -v fcitx5 >/dev/null || { echo "FAIL setup: no fcitx5 on PATH" >&2; exit 1; }
-[ -f /usr/lib64/fcitx5/libchewing.so ] || [ -f /usr/lib/fcitx5/libchewing.so ] \
-  || { echo "FAIL setup: fcitx5-chewing is not installed" >&2; exit 1; }
+[ -f /usr/lib64/fcitx5/mcbopomofo.so ] || [ -f /usr/lib/fcitx5/mcbopomofo.so ] \
+  || { echo "FAIL setup: fcitx5-mcbopomofo is not installed" >&2; exit 1; }
 comp_build --manifest-path "$ROOT/Cargo.toml" -p shell-host --example demo_ime || exit 1
 if [ -n "${SILL_DIR:-}" ] && [ ! -x "$SILL_DIR/target/debug/examples/launcher_demo" ]; then
   echo "FAIL setup: no $SILL_DIR/target/debug/examples/launcher_demo" >&2
@@ -147,7 +147,7 @@ tap() {
   input "${cmds[@]}"
 }
 
-# Chewing for 你好, committed.
+# Bopomofo, standard layout, for 你好, committed.
 compose() { tap s u 3 c l 3 && sleep 0.5 && tap Return && sleep 0.8; }
 # ㄋㄧ composed, then both taken back mid-preedit, then a Return with nothing composed.
 retract() { tap s u && sleep 0.3 && tap BackSpace BackSpace && sleep 0.3 && tap Return && sleep 0.8; }

@@ -1,4 +1,4 @@
 [Behavior]
-# Every new input context starts on Chewing: no Ctrl+Space toggle in the acceptance.
+# Every new input context starts on McBopomofo: no Ctrl+Space toggle in the acceptance.
 ActiveByDefault=True
 ShareInputState=No

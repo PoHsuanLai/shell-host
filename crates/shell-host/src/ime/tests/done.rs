@@ -162,7 +162,7 @@ fn a_second_done_only_sees_what_was_buffered_since_the_first() {
     assert_eq!(second_events, vec![clear()]);
 }
 
-/// Chewing's `s u 3 c l 3` then Return, as fcitx5 sends it: the preedit 你好 is replaced by
+/// Bopomofo's `s u 3 c l 3` then Return, as fcitx5 sends it: the preedit 你好 is replaced by
 /// nothing and 你好 is committed in one `done`. Committing with the composition still shown
 /// doubled it (你好你好).
 #[test]
