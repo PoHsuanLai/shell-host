@@ -16,7 +16,6 @@ use calloop::{Interest, Mode, PostAction};
 use serde_json::json;
 
 use super::{DebugAction, DebugCommand, Inject, Injected, parse_command};
-use crate::blur_health::BlurHealth;
 use crate::ctx::HostCtx;
 use crate::dom::shell_provider::ImeRequest;
 use crate::error::{HostError, Result};
@@ -138,12 +137,10 @@ fn host_facts(state: &HostState) -> serde_json::Value {
         .background_effect
         .as_ref()
         .map(|effect| effect.capabilities().blur);
-    let blur = match (advertised, state.blur_health()) {
-        (None, _) => "unbound",
-        (Some(Support::Supported), BlurHealth::Renders) => "supported",
-        // Advertised, but a known compositor bug would lose the surface.
-        (Some(Support::Supported), BlurHealth::Breaks) => "degraded",
-        (Some(Support::Unsupported), _) => "unsupported",
+    let blur = match advertised {
+        None => "unbound",
+        Some(Support::Supported) => "supported",
+        Some(Support::Unsupported) => "unsupported",
     };
     json!({"host": {
         "blur": blur,

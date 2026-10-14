@@ -2,7 +2,7 @@
 //!
 //! `xdg_toplevel.move` and `.resize` take a seat and the serial of the user action that started
 //! them, and a compositor starts the grab only while that action is still going on: smithay
-//! (cosmic-comp) checks that the pointer's current implicit grab began with that serial, KWin
+//! checks that the pointer's current implicit grab began with that serial, KWin
 //! that the serial is the pointer's latest button press. A request with any other serial is
 //! ignored without an error, which would leave a titlebar that silently does not drag. So the
 //! host keeps, per seat, the serial of the last button press and the surface it landed on, and

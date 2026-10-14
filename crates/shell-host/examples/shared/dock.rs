@@ -213,8 +213,8 @@ fn targets(x: Option<f64>) -> Scales {
 
 /// One tick of motion: each tile closes `1 - exp(-dt / TIME_CONSTANT)` of its gap to
 /// `target`, at least one thousandth, and snaps once within `SETTLED`. The one-unit floor is
-/// what makes it settle at any tick rate: rounded to thousandths, a 1 ms tick (nested
-/// cosmic-comp) would otherwise move nothing once the gap is under 30.
+/// what makes it settle at any tick rate: rounded to thousandths, a 1 ms tick (a
+/// compositor that calls back at once) would otherwise move nothing once the gap is under 30.
 fn step(now: Scales, target: Scales, dt: Duration) -> Scales {
     let k = 1.0 - (-dt.as_secs_f64() / TIME_CONSTANT.as_secs_f64()).exp();
     std::array::from_fn(|i| {
@@ -360,7 +360,7 @@ mod tests {
         None
     }
 
-    /// Nested cosmic-comp calls back every 1-2 ms (mailbox, no vblank), KWin at 60 Hz: the
+    /// A compositor may call back every 1-2 ms (mailbox, no vblank), KWin at 60 Hz: the
     /// tiles settle, and the drive is dropped, at every rate, within a few time constants.
     #[test]
     fn the_tiles_settle_at_any_tick_rate() {

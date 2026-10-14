@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Real-input hover acceptance: examples/demo_hover's two stacked cards on a
-# headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's session, never a
-# nested cosmic-comp (fake input cannot reach it). COMPOSITOR=casement runs it on casement in
+# headless KWin (kwin-virtual.sh), driven by fake-input.sh. Never the user's session. COMPOSITOR=casement runs it on casement in
 # the jail instead (lib/compositor.sh).
 #
 #   scripts/dev/accept-hover.sh          builds demo_hover, runs the steps, stops everything

@@ -48,8 +48,7 @@
 # with XDG_RUNTIME_DIR=<dir> so its socket is <dir>/wayland-kwinvirt-<pid>, writes the marker
 # <dir>/.shell-host-virtual-compositor, and .kwin-env then exports that XDG_RUNTIME_DIR and the
 # socket's absolute path as WAYLAND_DISPLAY (so a client can never fall back to wayland-0).
-# Every compositor nested in it that its clients start (cosmic-comp for the lock acceptance)
-# puts its socket there too. stop removes <dir> after KWin is gone.
+# stop removes <dir> after KWin is gone.
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Prints whether the nested compositor (started by nested.sh) advertises the
+# Prints whether the headless KWin (started by kwin-virtual.sh) advertises the
 # Wayland protocols shell-host depends on, and at what version.
 #
 # Usage: scripts/dev/globals.sh
 set -euo pipefail
 
 DEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$DEV_DIR/.nested-env"
+ENV_FILE="$DEV_DIR/.kwin-env"
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "globals.sh: $ENV_FILE not found. Run scripts/dev/nested.sh first." >&2
+  echo "globals.sh: $ENV_FILE not found. Run scripts/dev/kwin-virtual.sh start first." >&2
   exit 1
 fi
 
@@ -28,15 +28,14 @@ fi
 
 dump="$(WAYLAND_DISPLAY="$WAYLAND_DISPLAY" wayland-info 2>&1)"
 
-# interfaces shell-host and <shell> care about; either name in an either-or
-# pair (cosmic vs ext workspace manager) counts.
+# interfaces shell-host and the shell care about.
 INTERFACES=(
   zwlr_layer_shell_v1
   ext_background_effect_manager_v1
   wp_fractional_scale_manager_v1
   wp_viewporter
-  zcosmic_toplevel_info_v1
-  "ext_workspace_manager_v1|zcosmic_workspace_manager_v2"
+  ext_foreign_toplevel_list_v1
+  ext_workspace_manager_v1
   zwp_text_input_manager_v3
 )
 

@@ -3,9 +3,6 @@
 
 # nested-compositor dev harness (scripts/dev/): run-time output, never checked in
 /scripts/dev/out/
-/scripts/dev/.nested-env
-# cosmic-comp writes its own state into the seeded config dir
-scripts/dev/xdg-config/cosmic/com.system76.CosmicComp/
 /tools/*/target
 # scripts/dev/kwin-virtual.sh run-time state
 /scripts/dev/.kwin-env

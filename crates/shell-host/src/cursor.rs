@@ -1,4 +1,4 @@
-//! The pointer cursor, through `wp_cursor_shape_v1` (KWin and cosmic-comp both have v2). A
+//! The pointer cursor, through `wp_cursor_shape_v1` (KWin has v2). A
 //! compositor without it keeps whatever cursor it shows; there is no themed-surface fallback.
 
 use cursor_icon::CursorIcon;

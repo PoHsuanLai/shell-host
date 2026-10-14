@@ -1,7 +1,7 @@
 //! The pointer events a press, release, move and leave produce.
 //!
 //! - A press is preceded by a synthesized `PointerMove` to the same point, because a surface
-//!   under a still pointer may never have received a motion (cosmic-comp #2230), and Blitz
+//!   under a still pointer may never have received a motion, and Blitz
 //!   resolves the press target from its hover state.
 //! - An enter is followed by the same synthesized move to its position: a pointer that reaches
 //!   a surface in one motion gets the enter and no motion, and would hover nothing until it

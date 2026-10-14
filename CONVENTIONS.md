@@ -26,7 +26,7 @@ quietly.
    A lower layer never names a higher one. If what you need lives above you, the design is
    wrong: move the shared piece down, or pass it in. *Because:* the design system's base
    vocabulary lived in its top layer, and six cycles followed.
-4. **Find the repo.** Portable code (any desktop, any OS) never lives in the COSMIC shell. A
+4. **Find the repo.** Portable code (any desktop, any OS) never lives in the shell. A
    missing primitive in another repo is added there first, never patched locally. If you
    cannot edit that repo, stop and report.
 

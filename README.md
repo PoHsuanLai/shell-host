@@ -5,7 +5,7 @@ overlays), xdg popups and xdg toplevels, all sharing one GPU device and one rend
 blur (`ext-background-effect-v1`), fractional scale, input regions that follow DOM elements
 (where they paint, transforms included), IME, clipboard and a frame machine that is idle at zero
 wakeups. It is portable to any Wayland compositor with layer-shell; it never depends on
-COSMIC-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
+compositor-specific crates (`scripts/check-boundary.sh`). The shell (sill) and every bundled app are built on it.
 
 `FINDINGS.md` records the standing facts about Blitz, the compositors and the protocols that the
 code relies on and the items still open (module docs cite them by number), `ARCHITECTURE.md`
@@ -62,18 +62,18 @@ scripts/accept-demo.sh demo kwin-virtual a      # or b, c, f, g
 scripts/accept-demo.sh demo kwin-virtual@1.7 f
 ```
 
-### On a nested cosmic-comp
+### On a headless KWin
 
-`scripts/dev/` runs a throwaway `cosmic-comp` in a window of the current session (see
-`scripts/dev/README.md`):
+`scripts/dev/kwin-virtual.sh` runs a throwaway `kwin_wayland --virtual` on a private socket and bus
+(see `scripts/dev/README.md`):
 
 ```sh
-scripts/dev/install-cosmic.sh   # prints the dnf command for anything missing
-scripts/dev/nested.sh           # start; writes scripts/dev/.nested-env
-scripts/dev/globals.sh          # which protocols it offers
-scripts/dev/run.sh target/release/examples/demo_bar --with-dock
+scripts/dev/kwin-virtual.sh start   # writes scripts/dev/.kwin-env
+source scripts/dev/.kwin-env
+scripts/dev/globals.sh              # which protocols it offers
+target/release/examples/demo_bar --with-dock &
 scripts/dev/shot.sh scripts/dev/out/demo.png
-scripts/dev/nested.sh stop
+scripts/dev/kwin-virtual.sh stop
 ```
 
 `examples/demo_drag.rs` is the drag source's acceptance (FINDINGS F60): a 64 x 64 thumbnail
@@ -91,7 +91,7 @@ headless KWin and reads the regions from its `WAYLAND_DEBUG` trace.
 `examples/demo_lock/` is the session lock's acceptance (FINDINGS F65): on `lock` it locks with
 `HostCtx::lock_session`, one document per output with a password field; "letmein" + Enter
 unlocks through `use_lock().unlock()`; `stats` prints JSON. It refuses to lock anything but the
-throwaway compositor `scripts/dev/accept-lock.sh` starts (a cosmic-comp inside a headless KWin,
+throwaway compositor `scripts/dev/accept-lock.sh` starts (casement in a jail,
 in a runtime directory of its own); never run it against your session.
 
 ## Consuming: the session lock
@@ -128,7 +128,7 @@ frame's. Inside the window's document, `let window = use_surface();`:
 
 The host owns the resize band: it is transparent surface outside the frame, the document never
 receives input there and needs no markup for it, and it disappears whenever the window is
-maximized, fullscreen or tiled (on cosmic-comp 1.8 that is always, FINDINGS F48). The document's
+maximized, fullscreen or tiled (on some compositors that is always, FINDINGS F48). The document's
 origin is the frame's corner, its viewport the frame's size, and region specs and popup anchors
 are in the same coordinates. Every call is also a `SurfaceOp` (`BeginMove`,
 `BeginResize(edge)`, `SetMaximized`, `Minimize`, `SetFullscreen`) for `HostCtx::apply` or

@@ -1,3 +1,0 @@
-{
-    (modifiers: [Ctrl, Alt], key: "space"): Spawn("sill launcher toggle"),
-}

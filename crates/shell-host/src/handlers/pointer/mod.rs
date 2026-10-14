@@ -58,8 +58,8 @@ impl PointerHandler for HostState {
                     // pointer, would hover nothing until the next motion. Deliver the move
                     // here, as a press is preceded by one (`input::pointer`); it also gives
                     // the document's cursor to the `show_cursor` below. Some compositors send
-                    // no enter at all to a surface mapped under a still pointer (cosmic-comp
-                    // #2230); there the press's own move still covers the click.
+                    // no enter at all to a surface mapped under a still pointer;
+                    // there the press's own move still covers the click.
                     self.pointer_moved(id, pos);
                     // A fresh `enter` invalidates any earlier serial, even for the same shape:
                     // force `Cursor::set` past its no-op-when-unchanged check.

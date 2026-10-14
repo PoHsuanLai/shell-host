@@ -10,12 +10,12 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# shell-host is portable to any Wayland compositor: nothing COSMIC, D-Bus or PulseAudio. It
+# shell-host is portable to any Wayland compositor: nothing compositor-specific, D-Bus or PulseAudio. It
 # also stands below the design system and the gesture daemon: nothing of quire's or palmrest's
 # daemon. The palmrest socket's messages come from the `palmrest-protocol` crate, which is not the
 # daemon (`palmrest`, forbidden below) and depends on serde and thiserror only.
 RULES=(
-  "shell-host: cosmic-client-toolkit cosmic-protocols zbus libpulse-binding ds-native ds-settings ds-core palmrest"
+  "shell-host: zbus libpulse-binding ds-native ds-settings ds-core palmrest"
 )
 fail=0
 

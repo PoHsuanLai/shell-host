@@ -183,7 +183,7 @@ fn idle_after_a_change_is_silent() {
     assert_eq!(sim.state, FrameState::NEW);
 }
 
-/// A compositor that stops calling back while the document animates (cosmic-comp #2777): the
+/// A compositor that stops calling back while the document animates: the
 /// watchdog keeps the animation moving, backing off 50, 100, ... 1000 ms, and one real
 /// callback resets the backoff to 50 ms.
 #[test]

@@ -14,8 +14,8 @@
 //!   document is still animating; otherwise it goes idle, and idle means no timer, no frame and
 //!   no commit.
 //! - A watchdog runs only while a frame is in flight *and* more work is wanted (dirty or
-//!   animating). It covers compositors that stop sending callbacks to a surface (cosmic-comp
-//!   #2777; KWin keeps them flowing even when occluded). It starts at
+//!   animating). It covers compositors that stop sending callbacks to a surface (some stop
+//!   them for an occluded surface; KWin keeps them flowing). It starts at
 //!   [`WATCHDOG_MIN`], doubles on every expiry up to [`WATCHDOG_MAX`], and resets on a real
 //!   callback.
 //! - A present that could not happen (no texture, render error) is treated as a frame in flight

@@ -3,7 +3,7 @@
 //! other compositor offers (FINDINGS F50). The rest of the protocol (first-mouse regions,
 //! frame, emphasis, placement mark) is P3.
 //!
-//! The manager is bound only when the compositor advertises it (KWin, wlroots and COSMIC do
+//! The manager is bound only when the compositor advertises it (KWin and wlroots do
 //! not); without it every request here is a silent no-op. A hand-written `Dispatch`, shaped
 //! like `background_effect`'s.
 //!

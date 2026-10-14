@@ -1,43 +1,32 @@
 #!/usr/bin/env bash
-# Session-lock acceptance: examples/demo_lock locks a throwaway cosmic-comp that
-# runs *inside* the headless KWin of kwin-virtual.sh, and is driven with fake-input.sh. Never
-# the user's session: KWin gets its own runtime directory (KWIN_VIRTUAL_RUNTIME), the nested
-# cosmic-comp puts its socket there too, demo_lock's guard refuses any other socket, and every
-# exit path unlocks and stops both compositors.
+# Session-lock acceptance: examples/demo_lock locks casement (it implements ext-session-lock-v1; KWin 6.7
+# does not, so there is no KWin form of this script) in a jail, driven with lib/input.sh. Never the user's
+# session: the compositor's socket lives in a private runtime directory with a marker file, demo_lock's
+# guard refuses any other socket, the jail is the second wall, and every exit path unlocks and stops
+# the compositor.
 #
-#   scripts/dev/accept-lock.sh
-#   COMPOSITOR=casement scripts/dev/accept-lock.sh   on casement, in a jail
+#   COMPOSITOR=casement scripts/dev/accept-lock.sh   (the default here)
 #
-# COMPOSITOR=casement has no nested compositor: casement itself implements ext-session-lock-v1,
-# so demo_lock locks it directly (its socket in a private runtime directory with the marker, so
-# the same guard applies; the jail is the second wall). There is no `unsupported` step, and no
-# screenshots: casementctl has no `shot` until P1-C1, so what the pixel checks proved (the lock
-# covers the session; the session shows again after the unlock) is read from the compositor's
+# There is no screenshot: casementctl has no `shot` until P1-C1, so what a pixel check would prove (the
+# lock covers the session; the session shows again after the unlock) is read from the compositor's
 # input instead: while locked, a real click on the session's probe window must not activate it
-# (`casementctl debug windows`: active), and after the unlock the same click must. The steps,
-# their names and the lock-surface, typing, idle and crash checks are the same.
-#
-# KWin 6.7 has no ext-session-lock-v1, so the lock itself needs cosmic-comp (winit backend, a
-# window of the headless KWin: fake input reaches it as KWin input and cosmic-comp forwards it
-# to its own seat). Steps:
-#   unsupported   demo_lock on the headless KWin itself: `lock` answers LockError::Unsupported
-#   lock          on cosmic-comp: `locked` from the host, a lock surface per output (stats),
-#                 and a KWin screenshot of cosmic-comp's window that shows the lock document
-#                 where the probe window was
+# (`casementctl debug windows`: active), and after the unlock the same click must. Steps:
+#   lock          `locked` from the host, a lock surface per output (stats), the session covered
 #   finished      a second demo_lock's lock while the first holds it: LockState::Finished
 #   typing        "abc" with no click reaches the focused lock surface's field
-#   wrong         Enter on "abc": rejected, still locked, the screenshot still the lock's
+#   wrong         Enter on "abc": rejected, still locked, the session still covered
 #   idle          0 frames on every lock surface over 3 s
-#   unlock        "letmein" + Enter: `unlocked`, the lock surfaces gone, the screenshot shows
-#                 the probe window again
+#   unlock        "letmein" + Enter: `unlocked`, the lock surfaces gone, the session answers input again
 #   crash         a locker killed while locked: the session stays hidden; what a new locker
-#                 gets (locked and unlocks, or finished) is reported, as cosmic-comp's policy
-# Each step prints PASS/FAIL; logs and screenshots are in scripts/dev/out/lock-*.
+#                 gets (locked and unlocks, or finished) is reported, as the compositor's policy
+# Each step prints PASS/FAIL; logs are in scripts/dev/out/lock-*.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV="$ROOT/scripts/dev"
+COMPOSITOR="${COMPOSITOR:-casement}"
 # shellcheck source=scripts/dev/lib/compositor.sh
 source "$DEV/lib/compositor.sh"
+[ "$COMPOSITOR" = casement ] || { echo "accept-lock.sh runs on casement only: KWin has no ext-session-lock-v1" >&2; exit 64; }
 comp_build --manifest-path "$ROOT/Cargo.toml" -p shell-host --example demo_lock || exit 1
 comp_build --manifest-path "$ROOT/Cargo.toml" -p shell-host --features debug-inject \
   --example probe_toplevel || exit 1
@@ -48,19 +37,13 @@ LOG="$OUT/lock.log"
 DEMO_BIN="$ROOT/target/debug/examples/demo_lock"
 PROBE_BIN="$ROOT/target/debug/examples/probe_toplevel"
 SESSION_RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-RUNTIME="$SESSION_RUNTIME/shell-host-lock-$$"
-DEMO="" INPUT="" COMP="" PROBE="" KWIN_SOCKET="" COSMIC_SOCKET="" LOCK_SOCKET=""
+DEMO="" INPUT="" PROBE="" COMP_SOCKET="" LOCK_SOCKET=""
 
-case "$COMPOSITOR" in
-  kwin) KWIN_VIRTUAL_RUNTIME="$RUNTIME" comp_start 1920x1080 || exit 1 ;;
-  casement)
-    # The marker file the guard wants; the jail's own runtime directory is the login session's
-    # `/run/user/<uid>` as far as the guard can tell, which it refuses.
-    RUNTIME="$JAIL_SCRATCH/lock-runtime"
-    mkdir -m 700 "$RUNTIME" && : >"$RUNTIME/.shell-host-virtual-compositor" || exit 1
-    COMP_RUNTIME="$RUNTIME" comp_start 1920x1080 || exit 1
-    ;;
-esac
+# The marker file the guard wants; the jail's own runtime directory is the login session's
+# `/run/user/<uid>` as far as the guard can tell, which it refuses.
+RUNTIME="$JAIL_SCRATCH/lock-runtime"
+mkdir -m 700 "$RUNTIME" && : >"$RUNTIME/.shell-host-virtual-compositor" || exit 1
+COMP_RUNTIME="$RUNTIME" comp_start 1920x1080 || exit 1
 
 stop_all() {
   # The demo unlocks before it quits (its `quit`); give it the time, then make sure.
@@ -73,16 +56,15 @@ stop_all() {
     for _ in $(seq 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
     kill "$pid" 2>/dev/null
   done
-  [ -n "$COMP" ] && kill "$COMP" 2>/dev/null
   rm -f "$OUT/lock-input.fifo" "$OUT/lock-demo.fifo" "$OUT/lock-probe.fifo"
   comp_stop
 }
 trap stop_all EXIT
 
-KWIN_SOCKET="$(comp_socket)"
-case "$KWIN_SOCKET" in
+COMP_SOCKET="$(comp_socket)"
+case "$COMP_SOCKET" in
   "$RUNTIME"/*) ;;
-  *) echo "FAIL setup: the compositor's socket $KWIN_SOCKET is not in $RUNTIME" >&2; exit 1 ;;
+  *) echo "FAIL setup: the compositor's socket $COMP_SOCKET is not in $RUNTIME" >&2; exit 1 ;;
 esac
 
 status=0
@@ -97,52 +79,11 @@ demo_env() {
     "${@:2}"
 }
 
-if [ "$COMPOSITOR" = kwin ]; then
-  # --- unsupported: the headless KWin has no ext_session_lock_manager_v1 -------------------------
-  got=$( (echo lock; sleep 2; echo quit) | demo_env "$KWIN_SOCKET" timeout 30 "$DEMO_BIN" 2>&1 \
-    | grep '^lock: ')
-  echo "$got" >"$OUT/lock-unsupported.log"
-  if printf '%s' "$got" | grep -q 'guard granted' \
-     && printf '%s' "$got" | grep -q 'error the compositor does not provide ext_session_lock_manager_v1'; then
-    pass unsupported "$(printf '%s' "$got" | grep error)"
-  else
-    fail unsupported "$(printf '%s' "$got" | tr '\n' '|')"
-  fi
-
-  # --- cosmic-comp inside the headless KWin ----------------------------------------------------
-  (
-    comp_source
-    # The system EGL vendor: Mesa (nested.sh's default) is handed the NVIDIA render node the
-    # headless KWin advertises and draws nothing ("pci id ... driver (null)", BAD_SURFACE).
-    exec env COSMIC_BACKEND=winit XDG_CONFIG_HOME="$DEV/xdg-config" __GL_SYNC_TO_VBLANK=0 \
-      vblank_mode=0 cosmic-comp --no-xwayland
-  ) >"$OUT/lock-comp.log" 2>&1 &
-  COMP=$!
-  for _ in $(seq 100); do
-    for s in "$RUNTIME"/wayland-[0-9]*; do
-      case "$s" in *.lock) continue ;; esac
-      [ -S "$s" ] && COSMIC_SOCKET="$s"
-    done
-    [ -n "$COSMIC_SOCKET" ] && break
-    sleep 0.1
-  done
-  if [ -z "$COSMIC_SOCKET" ]; then
-    echo "FAIL setup: no cosmic-comp socket in $RUNTIME; see $OUT/lock-comp.log" >&2
-    exit 1
-  fi
-  case "$(basename "$COSMIC_SOCKET")" in
-    wayland-0) echo "FAIL setup: refusing a socket named wayland-0" >&2; exit 1 ;;
-  esac
-  echo "cosmic-comp: $COSMIC_SOCKET" >&2
-  sleep 2
-  LOCK_SOCKET="$COSMIC_SOCKET"
-else
-  # No nested compositor: casement is the compositor that locks.
-  LOCK_SOCKET="$KWIN_SOCKET"
-  case "$(basename "$LOCK_SOCKET")" in
-    wayland-0) echo "FAIL setup: refusing a socket named wayland-0" >&2; exit 1 ;;
-  esac
-fi
+# casement is the compositor that locks.
+LOCK_SOCKET="$COMP_SOCKET"
+case "$(basename "$LOCK_SOCKET")" in
+  wayland-0) echo "FAIL setup: refusing a socket named wayland-0" >&2; exit 1 ;;
+esac
 
 rm -f "$OUT/lock-input.fifo" "$OUT/lock-demo.fifo" "$OUT/lock-probe.fifo"
 mkfifo "$OUT/lock-input.fifo" "$OUT/lock-demo.fifo" "$OUT/lock-probe.fifo"
@@ -197,40 +138,10 @@ stats() {
   grep '^lock: stats ' "$LOG" | tail -n 1 | sed 's/^lock: stats //'
 }
 
-# What cosmic-comp shows on its output (grim, its screencopy), and the headless KWin's whole
-# screen beside it as <name>-kwin.png, for the record. (KWin only.)
-shot() {
-  rm -f "$1"
-  env WAYLAND_DISPLAY="$LOCK_SOCKET" XDG_RUNTIME_DIR="$SESSION_RUNTIME" timeout 10 grim "$1" \
-    >/dev/null 2>&1
-  (
-    comp_source
-    timeout 20 spectacle -b -n -f -o "${1%.png}-kwin.png" >/dev/null 2>&1
-  )
-  [ -s "$1" ]
-}
-
-# The colour at x,y of image $1 as "r,g,b".
-pixel() {
-  magick "$1" -format "%[fx:int(255*p{$2,$3}.r)],%[fx:int(255*p{$2,$3}.g)],%[fx:int(255*p{$2,$3}.b)]\n" info:
-}
-
-# How many pixels differ between images $1 and $2.
-differing() {
-  compare -metric AE "$1" "$2" null: 2>&1 | sed 's/ .*//'
-}
-
-# cosmic-comp's window in KWin: its frame as "x y w h".
-comp_frame() {
-  "$DEV/kwin-windows.sh" | grep -v '"class":"org.kde' | head -n 1 \
-    | sed -n 's/.*"frame":\[\([-0-9]*\),\([-0-9]*\),\([0-9]*\),\([0-9]*\)\].*/\1 \2 \3 \4/p'
-}
-
-# --- what "the session is covered" means, per compositor -----------------------------------------
-# KWin: the nested cosmic-comp's screenshot (grim). casement has no screenshot until P1-C1
-# (`casementctl shot`), so the cover is read from its input: a real click on the session's probe
-# window must not activate it while the session is locked, and must once it is not
-# (`casementctl debug windows`: active). Each check sets EVIDENCE.
+# --- what "the session is covered" means ---------------------------------------------------------
+# casement has no screenshot until P1-C1 (`casementctl shot`), so the cover is read from its input: a
+# real click on the session's probe window must not activate it while the session is locked, and must
+# once it is not (`casementctl debug windows`: active). Each check sets EVIDENCE.
 EVIDENCE=""
 
 # probe_frame: the probe window's frame as "x y w h" (the first one `windows.sh` lists).
@@ -252,78 +163,33 @@ click_probe() {
 
 # covered TAG: the session is hidden behind the lock.
 covered() {
-  case "$COMPOSITOR" in
-    kwin)
-      shot "$OUT/lock-$1.png"
-      local corners differ
-      corners=$(for at in "20 20" "1260 20" "20 780" "1260 780"; do
-        # shellcheck disable=SC2086
-        pixel "$OUT/lock-$1.png" $at
-      done | sort -u | tr '\n' ' ' | sed 's/ $//')
-      differ=$(differing "$OUT/lock-before.png" "$OUT/lock-$1.png")
-      EVIDENCE="screenshot corners all $corners (was $BEFORE, $differ px changed)"
-      [ "$corners" = "24,28,38" ]
-      ;;
-    casement)
-      click_probe
-      # The click landed on the lock surface (the probe window is under the lock cover, so a
-      # blocked click is the lock document's): Blitz focuses nothing on a click that misses a
-      # field, so a Tab puts the keyboard back on the password field.
-      input "key Tab down" "key Tab up" "sleep 200"
-      if probe_active; then
-        EVIDENCE="a click on the session's window activated it (input reached the session; no pixel check until casementctl shot, P1-C1)"
-        return 1
-      fi
-      EVIDENCE="a click on the session's window left it inactive (no pixel check until casementctl shot, P1-C1)"
-      ;;
-  esac
+  click_probe
+  # The click landed on the lock surface (the probe window is under the lock cover, so a
+  # blocked click is the lock document's): Blitz focuses nothing on a click that misses a
+  # field, so a Tab puts the keyboard back on the password field.
+  input "key Tab down" "key Tab up" "sleep 200"
+  if probe_active; then
+    EVIDENCE="a click on the session's window activated it (input reached the session; no pixel check until casementctl shot, P1-C1)"
+    return 1
+  fi
+  EVIDENCE="a click on the session's window left it inactive (no pixel check until casementctl shot, P1-C1)"
 }
 
 # uncovered TAG: the session shows again, as it did before the lock.
 uncovered() {
-  case "$COMPOSITOR" in
-    kwin)
-      shot "$OUT/lock-$1.png"
-      local after differ
-      after=$(pixel "$OUT/lock-$1.png" 20 780)
-      differ=$(differing "$OUT/lock-before.png" "$OUT/lock-$1.png")
-      EVIDENCE="screenshot $after, $differ px differ from before ($BEFORE)"
-      [ "$differ" = 0 ] && kill -0 "$PROBE" 2>/dev/null
-      ;;
-    casement)
-      click_probe
-      kill -0 "$PROBE" 2>/dev/null && probe_active && EVIDENCE="a click on the session's window activated it again" \
-        || { EVIDENCE="a click on the session's window did not activate it, or it is gone"; return 1; }
-      ;;
-  esac
+  click_probe
+  kill -0 "$PROBE" 2>/dev/null && probe_active && EVIDENCE="a click on the session's window activated it again" \
+    || { EVIDENCE="a click on the session's window did not activate it, or it is gone"; return 1; }
 }
 
 wait_for '^lock: ready' 100 || { echo "FAIL setup: demo_lock never became ready" >&2; exit 1; }
 grep -q '^lock: guard granted' "$LOG" || { echo "FAIL setup: guard refused on $LOCK_SOCKET" >&2; exit 1; }
 sleep 1
-case "$COMPOSITOR" in
-  kwin)
-    read -r FX FY FW FH <<<"$(comp_frame)"
-    if [ -z "${FW:-}" ]; then
-      echo "FAIL setup: cosmic-comp's window not found in KWin" >&2
-      exit 1
-    fi
-    CX=$((FX + FW / 2)) CY=$((FY + FH / 2))
-    echo "cosmic-comp window: $FX,$FY ${FW}x$FH" >&2
-    # Give the nested compositor's window KWin's keyboard focus, before anything is locked (the
-    # user's click on their monitor, so to speak); nothing clicks after the lock.
-    input "move $CX $CY" "sleep 200" "press left" "release left" "sleep 500" || exit 1
-    shot "$OUT/lock-before.png" || fail setup "no screenshot before locking"
-    BEFORE=$(pixel "$OUT/lock-before.png" 20 780)
-    ;;
-  casement)
-    # The probe maps unfocused: nothing activates it before the lock (the covered/uncovered
-    # checks click it), and the frame is where casement put it.
-    for _ in $(seq 50); do [ -n "$(probe_frame)" ] && break; sleep 0.1; done
-    [ -n "$(probe_frame)" ] || { echo "FAIL setup: the probe window never mapped" >&2; exit 1; }
-    echo "probe window: $(probe_frame)" >&2
-    ;;
-esac
+# The probe maps unfocused: nothing activates it before the lock (the covered/uncovered
+# checks click it), and the frame is where casement put it.
+for _ in $(seq 50); do [ -n "$(probe_frame)" ] && break; sleep 0.1; done
+[ -n "$(probe_frame)" ] || { echo "FAIL setup: the probe window never mapped" >&2; exit 1; }
+echo "probe window: $(probe_frame)" >&2
 
 # --- lock --------------------------------------------------------------------------------------
 echo lock >&4
@@ -406,19 +272,17 @@ for _ in $(seq 50); do kill -0 "$DEMO" 2>/dev/null || break; sleep 0.1; done
 exec 4>&-
 : >"$OUT/lock-crash.log"
 rm -f "$OUT/lock-demo.fifo" && mkfifo "$OUT/lock-demo.fifo"
-if [ "$COMPOSITOR" = casement ]; then
-  # A session window that is not active, as the first probe was before the lock: the one the
-  # unlock check clicked is active now.
-  echo quit >&5
-  exec 5>&-
-  for _ in $(seq 50); do kill -0 "$PROBE" 2>/dev/null || break; sleep 0.1; done
-  rm -f "$OUT/lock-probe.fifo" && mkfifo "$OUT/lock-probe.fifo"
-  env WAYLAND_DISPLAY="$LOCK_SOCKET" XDG_RUNTIME_DIR="$SESSION_RUNTIME" "$PROBE_BIN" \
-    <"$OUT/lock-probe.fifo" >"$OUT/lock-probe2.log" 2>&1 &
-  PROBE=$!
-  exec 5>"$OUT/lock-probe.fifo"
-  for _ in $(seq 50); do [ -n "$(probe_frame)" ] && break; sleep 0.1; done
-fi
+# A session window that is not active, as the first probe was before the lock: the one the
+# unlock check clicked is active now.
+echo quit >&5
+exec 5>&-
+for _ in $(seq 50); do kill -0 "$PROBE" 2>/dev/null || break; sleep 0.1; done
+rm -f "$OUT/lock-probe.fifo" && mkfifo "$OUT/lock-probe.fifo"
+env WAYLAND_DISPLAY="$LOCK_SOCKET" XDG_RUNTIME_DIR="$SESSION_RUNTIME" "$PROBE_BIN" \
+  <"$OUT/lock-probe.fifo" >"$OUT/lock-probe2.log" 2>&1 &
+PROBE=$!
+exec 5>"$OUT/lock-probe.fifo"
+for _ in $(seq 50); do [ -n "$(probe_frame)" ] && break; sleep 0.1; done
 demo_env "$LOCK_SOCKET" "$DEMO_BIN" <"$OUT/lock-demo.fifo" >>"$OUT/lock-crash.log" 2>&1 &
 DEMO=$!
 exec 4>"$OUT/lock-demo.fifo"
@@ -434,28 +298,14 @@ if wait_for '"state":"locked"' 100; then
   DEMO=""
   sleep 1
   hidden=0
-  case "$COMPOSITOR" in
-    kwin)
-      # The session must not show: the screenshot differs from the one before the lock.
-      shot "$OUT/lock-crashed.png"
-      differ=$(differing "$OUT/lock-before.png" "$OUT/lock-crashed.png")
-      EVIDENCE="screenshot $(pixel "$OUT/lock-crashed.png" 20 780), $differ px differ from the session"
-      [ "$differ" != 0 ] && hidden=1
-      ;;
-    casement) covered crashed && hidden=1 ;;
-  esac
+  covered crashed && hidden=1
   crash_evidence="$EVIDENCE"
   # A new locker, told to unlock at once (`unlock` is HostCtx::unlock_session).
   got=$( (echo lock; sleep 3; echo unlock; sleep 2; echo quit) \
     | demo_env "$LOCK_SOCKET" timeout 30 "$DEMO_BIN" 2>&1 | grep '^lock: event')
   echo "$got" >"$OUT/lock-recover.log"
   sleep 1
-  if [ "$COMPOSITOR" = kwin ]; then
-    shot "$OUT/lock-recovered.png"
-    back="$(differing "$OUT/lock-before.png" "$OUT/lock-recovered.png") px differ from the session"
-  else
-    uncovered recovered && back="the session answers input again" || back="the session still does not answer input"
-  fi
+  uncovered recovered && back="the session answers input again" || back="the session still does not answer input"
   if [ "$hidden" = 1 ]; then
     pass crash "killed while locked: still locked ($crash_evidence); a new locker: $(printf '%s' "$got" | sed 's/^lock: event //' | tr '\n' ' '); then $back"
   else

@@ -8,7 +8,7 @@
 //! The rules:
 //!
 //! - A tick fires once per presented frame, at its frame callback (or at a watchdog expiry
-//!   standing in for a callback that never came, cosmic-comp #2777), while the document has a
+//!   standing in for a callback that never came), while the document has a
 //!   CSS transition or animation running or at least one [`FrameDrive`] is held
 //!   ([`pacing`]). A frame presented for any other reason (a one-off change) does not tick.
 //! - Holding a drive makes the frame machine treat the surface as animating, so it renders a
@@ -161,7 +161,7 @@ impl FrameTicks {
 /// 3. drop the drive on the tick where the motion reaches its target.
 ///
 /// Step 3 must be reached in bounded time **at any tick rate**. The rate is the compositor's:
-/// 60 Hz on KWin, but nested cosmic-comp (winit, mailbox) calls back every 1-2 ms, a tenth or
+/// 60 Hz on KWin, but a compositor with no vblank pacing (mailbox) may call back every 1-2 ms, a tenth or
 /// less of the `dt` a 60 Hz test sees. A step that moves `gap * dt / tau` rounded to whole
 /// units moves nothing once the gap is under `tau / (2 dt)` units (30 for `tau` = 60 ms at
 /// 1 ms); with a settle tolerance below that, the motion stalls short of its target and the

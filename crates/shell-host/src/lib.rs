@@ -19,10 +19,10 @@
 //!   scripts; off in a shipped shell).
 
 mod blur;
-mod blur_health;
 mod bridge;
 mod clipboard;
 mod clock;
+mod compositor_kind;
 mod config;
 mod csd;
 mod ctx;

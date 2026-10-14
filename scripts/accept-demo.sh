@@ -4,9 +4,7 @@
 # (examples/demo_bar.rs, demo_dock.rs, and the plain-client probe_toplevel, built with
 # `debug-inject`). The compositor defaults to $DEMO_COMPOSITOR, else kwin-virtual; `kwin` is the
 # LIVE session in $WAYLAND_DISPLAY (surfaces appear on screen for a few seconds and are
-# destroyed on exit); `cosmic[@scale]` is scripts/dev/nested.sh's nested cosmic-comp (the real
-# compositor the shell runs on), started if not already running and stopped again only if this
-# script started it. Results: scripts/dev/out/accept-demo/<compositor>/<item>.{log,json,png}.
+# destroyed on exit). Results: scripts/dev/out/accept-demo/<compositor>/<item>.{log,json,png}.
 # Exit 0 = the item's acceptance holds.
 set -euo pipefail
 self="$(realpath "$0")"
@@ -48,49 +46,7 @@ nested_cleanup() {
   kill "$kpid" 2>/dev/null || true
   wait "$kpid" 2>/dev/null || true
 }
-# `cosmic[@scale]`: the real compositor the shell runs on (scripts/dev/nested.sh's throwaway
-# cosmic-comp, `COSMIC_BACKEND=winit`, nested inside the host session). Reuses an already-running
-# instance (`scripts/dev/.nested-env`) if there is one, otherwise starts and stops one itself.
-# `cosmic@1.5` best-effort forces the nested output's scale with `cosmic-randr mode ... --scale`
-# (cosmic-randr 1.8.0 has no plain `scale` subcommand, unlike kscreen-doctor); if that parse or
-# call fails, the item still runs at the nested output's default scale and the log says so.
-cosmic_cleanup() {
-  if [[ "${started_nested:-0}" == 1 ]]; then ./scripts/dev/nested.sh stop >&2 || true; fi
-}
-if [[ "$comp" == cosmic* ]]; then
-  cscale=""
-  if [[ "$comp" == cosmic@* ]]; then cscale="${comp#cosmic@}"; fi
-  build
-  started_nested=0
-  alive=0
-  if [[ -f scripts/dev/.nested-env ]]; then
-    npid="$(sed -n 's/^NESTED_COMPOSITOR_PID=//p' scripts/dev/.nested-env)"
-    if [[ -n "$npid" ]] && kill -0 "$npid" 2>/dev/null; then alive=1; fi
-  fi
-  if [[ "$alive" -eq 0 ]]; then
-    ./scripts/dev/nested.sh start >&2
-    started_nested=1
-  fi
-  trap cosmic_cleanup EXIT
-  # shellcheck disable=SC1091
-  source scripts/dev/.nested-env
-  export WAYLAND_DISPLAY
-  if [[ -n "$cscale" ]]; then
-    list_out="$(cosmic-randr list 2>&1 || true)"
-    outname="$(printf '%s\n' "$list_out" | awk '/^[A-Za-z0-9_-]+$/{print; exit}')"
-    dims="$(printf '%s\n' "$list_out" | grep -oE '[0-9]+x[0-9]+' | head -1)"
-    w="${dims%x*}"; h="${dims#*x}"
-    if [[ -n "$outname" && -n "$w" && -n "$h" ]] \
-       && cosmic-randr mode "$outname" "$w" "$h" --scale "$cscale" >"$out/cosmic-randr-scale-$item.log" 2>&1; then
-      echo "accept-demo: cosmic-randr mode $outname ${w}x${h} --scale $cscale applied" >&2
-    else
-      { echo "accept-demo: could not set the nested output's scale via cosmic-randr (parsed"
-        echo "  output='$outname' dims='$dims' from: $list_out"
-      } >"$out/cosmic-randr-scale-$item.log"
-      echo "accept-demo: cosmic-randr scale not applied; continuing at the nested output's default scale (see $out/cosmic-randr-scale-$item.log)" >&2
-    fi
-  fi
-elif [[ -n "${ACCEPT_NESTED:-}" ]]; then
+if [[ -n "${ACCEPT_NESTED:-}" ]]; then
   sock="wayland-accept-$$"
   echo "$DBUS_SESSION_BUS_ADDRESS" >"$out/.nested-bus-$item"
   kwin_wayland --virtual --no-lockscreen --no-global-shortcuts --width 1920 --height 1080 \
@@ -108,14 +64,12 @@ else
 fi
 export ACCEPT_BIN="target/release/examples"
 export ACCEPT_OUT="$out" ACCEPT_ITEM="$item"
-export ACCEPT_COMP_KIND="$([[ "$comp" == cosmic* ]] && echo cosmic || echo kwin)"
 python3 - <<'PY'
 import json, os, queue, re, subprocess, sys, threading, time
 from PIL import Image
 import numpy as np
 
 OUT, ITEM, BIN = os.environ["ACCEPT_OUT"], os.environ["ACCEPT_ITEM"], os.environ["ACCEPT_BIN"]
-COMP = os.environ.get("ACCEPT_COMP_KIND", "kwin")  # "kwin" or "cosmic"
 LOG = open(f"{OUT}/{ITEM}.log", "w")
 PROCS = []
 
@@ -210,14 +164,8 @@ def output_info():
 
 def screenshot(path):
     if os.path.exists(path): os.remove(path)
-    if COMP == "cosmic":
-        # grim shoots whatever WAYLAND_DISPLAY points at (the nested cosmic-comp; accept-demo.sh
-        # already exported it), matching scripts/dev/shot.sh.
-        with open(path, "wb") as f:
-            subprocess.run(["grim", "-"], check=True, timeout=20, stdout=f)
-    else:
-        subprocess.run(["spectacle", "-b", "-n", "-f", "-o", path], check=True, timeout=20,
-                       capture_output=True)
+    subprocess.run(["spectacle", "-b", "-n", "-f", "-o", path], check=True, timeout=20,
+                   capture_output=True)
     for _ in range(100):
         if os.path.exists(path) and os.path.getsize(path) > 0: break
         time.sleep(0.05)
@@ -239,17 +187,6 @@ def bar_ready(p, n=1):
     raise TimeoutError("surface never presented")
 
 def blur_setting():
-    if COMP == "cosmic":
-        # cosmic-comp has no on/off toggle for a third-party layer-shell client's blur (see
-        # scripts/dev/README.md "Note on the frosted key"): strength comes from the theme's
-        # `frosted` key, which scripts/dev/xdg-config seeds to `High` for both palettes.
-        base = "scripts/dev/xdg-config/cosmic"
-        keys = {}
-        for palette in ("Dark", "Light"):
-            p = f"{base}/com.system76.CosmicTheme.{palette}/v2/frosted"
-            try: keys[palette] = open(p).read().strip()
-            except OSError as e: keys[palette] = f"(unreadable: {e})"
-        return dict(frosted=keys)
     r = subprocess.run(["kreadconfig6", "--file", "kwinrc", "--group", "Plugins", "--key",
                         "blurEnabled"], capture_output=True, text=True).stdout.strip()
     loaded = subprocess.run(["gdbus", "call", "--session", "--dest", "org.kde.KWin",
@@ -288,8 +225,8 @@ def bar_variance(blur):
     probe.quit(); bar.quit(); time.sleep(0.3)
     s = img.shape[1] / output_info()["logical"][0]
     region = lum(img[int(6 * s):int(26 * s), int(400 * s):int(1400 * s)])
-    # The checkerboard below the bar must still be there: a blank frame (nested cosmic-comp
-    # once returned a flat grey capture with blur on) would otherwise read as a perfect blur.
+    # The checkerboard below the bar must still be there: a blank frame (a flat grey
+    # capture with blur on) would otherwise read as a perfect blur.
     below = lum(img[int(200 * s):int(400 * s), int(400 * s):int(1400 * s)])
     return float(region.var()), float(below.var()), st
 
@@ -369,12 +306,7 @@ def runs_of(row):
 
 def query_output_scale():
     """The compositor's own idea of the output scale, to cross-check `scale120` against: KWin
-    via `kscreen-doctor -o`, cosmic-comp via `cosmic-randr list` (no `-o`/`scale` equivalent;
-    None if its plain-text output doesn't parse the way kscreen-doctor's does)."""
-    if COMP == "cosmic":
-        out = subprocess.run(["cosmic-randr", "list"], capture_output=True, text=True).stdout
-        m = re.search(r"[Ss]cale:\s*([\d.]+)", out)
-        return float(m.group(1)) if m else None
+    via `kscreen-doctor -o`."""
     kd = subprocess.run(["kscreen-doctor", "-o"], capture_output=True, text=True).stdout
     return float(re.search(r"Scale: ([\d.]+)", re.sub(r"\x1b\[[0-9;]*m", "", kd)).group(1))
 
@@ -403,10 +335,7 @@ def item_f():
               "screen_row_equals_buffer_row": float(np.abs(crow - srow)[opaque].max()) <= 8,
               "checker_runs_in_allowed": len(runs) > 10 and all(r in allowed for r in runs),
               "checker_mean_run_is_2s": abs(float(np.mean(runs)) - 2 * s) < 0.1}
-    # kscreen-doctor always parses on KWin; cosmic-randr's plain-text `list` is not guaranteed
-    # to, so this cross-check is included only when a scale value was actually found.
-    if kscale is not None:
-        checks["preferred_scale_matches_compositor"] = st["scale120"] == round(kscale * 120)
+    checks["preferred_scale_matches_compositor"] = st["scale120"] == round(kscale * 120)
     return dict(compositor_scale=kscale, stats=st, expected_buffer=buf, checker_runs=runs,
                 allowed_runs=allowed, mean_run=float(np.mean(runs)), antialiased_px=aa,
                 max_row_diff_opaque=float(np.abs(crow - srow)[opaque].max()),

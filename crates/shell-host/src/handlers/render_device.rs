@@ -16,7 +16,6 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_dmabuf_v1::{
     self, ZwpLinuxDmabufV1,
 };
 
-use crate::blur_health::{RenderVendor, render_vendor};
 use crate::render_gpu::{DeviceNumber, PciIds, pci_ids};
 
 /// The bound manager and what its default feedback said about the main device.
@@ -44,12 +43,6 @@ impl RenderDevice {
     /// The main device's PCI ids; `None` until the feedback arrived or when they cannot be read.
     pub(crate) fn ids(&self) -> Option<PciIds> {
         self.ids
-    }
-
-    /// The main device's vendor; `Unknown` when the ids are not known.
-    pub(crate) fn vendor(&self) -> RenderVendor {
-        self.ids
-            .map_or(RenderVendor::Unknown, |ids| render_vendor(ids.vendor))
     }
 }
 

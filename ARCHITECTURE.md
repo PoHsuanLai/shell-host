@@ -7,7 +7,7 @@ relies on, and `CONVENTIONS.md` holds the rules every repo shares. This file is 
 each thing lives, what may depend on what, and how to add the next thing.
 
 shell-host stands below quire and sill and is portable to any Wayland compositor with
-layer-shell: no COSMIC crate, no D-Bus, no PulseAudio, no design-system crate, no palmrest
+layer-shell: no compositor-specific crate, no D-Bus, no PulseAudio, no design-system crate, no palmrest
 daemon.
 
 ## 1. Crate map
@@ -26,7 +26,7 @@ Allowed edges (everything else is forbidden):
 | `blitz-kit` | `blitz-dom`, `blitz-traits`, `parley`, `wgpu` (feature `adapter`), `thiserror` |
 | `palmrest-protocol` | `serde`, `serde_json`, `thiserror` |
 
-Forbidden for `shell-host`: `cosmic-client-toolkit`, `cosmic-protocols`, `zbus`,
+Forbidden for `shell-host`: `zbus`,
 `libpulse-binding`, every quire crate, sill, and the `palmrest` daemon crate.
 `scripts/check-boundary.sh` checks this list, and that Blitz's own scrollbars stay off (the host
 paints the thumb). `blitz-kit` forbids `smithay-client-toolkit`, `wayland-*`, `dioxus*`, every
@@ -223,7 +223,7 @@ implementations are swapped at a boundary.
 
 A `quire_*` protocol is bound only where the compositor advertises it (`Option<..>` on
 `HostState`, bound with `.ok()`), and every request that needs it is a silent no-op without it,
-so the same binary runs on KWin, wlroots, COSMIC and casement. `handlers/quire_window` binds
+so the same binary runs on KWin, wlroots and casement. `handlers/quire_window` binds
 `quire_window_manager_v1` and sends `request_placement` (`decide.rs` maps a `WindowPlacement`
 and the seat's latest input serial to the wire request, or refuses with no serial);
 `SurfaceHandle::placement_support` tells a menu whether to show the choices. The shell's own
@@ -312,7 +312,7 @@ the compositor for the acceptance scripts. Handlers become table-testable by str
    pixels (no redefinition); private session bus, scratch `HOME`/`XDG_*`; flags for variants
    (`--real-input`), not a second script.
 3. A row in `scripts/dev/README.md` and, for the render items, an entry in `accept-demo.sh`.
-4. Live acceptance runs on the headless KWin or a nested cosmic-comp, never on the person's
+4. Live acceptance runs on the headless KWin or a nested casement, never on the person's
    session.
 
 ## 8. Test harness
@@ -350,7 +350,7 @@ session. Goldens change only with a reason in the commit message.
 - **Nothing reads the environment except `Host::connect`** (through `HostConfig` and the
   Wayland connection it makes); every other module gets values.
 - **Live acceptance** runs on the headless KWin (`scripts/dev/kwin-virtual.sh`) or a nested
-  cosmic-comp, never on the person's session (`wayland-0`).
+  casement, never on the person's session (`wayland-0`).
 - **Gate:**
 
   ```bash

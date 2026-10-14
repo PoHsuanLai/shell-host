@@ -44,12 +44,9 @@ use keyboard_types::Modifiers;
 use smithay_client_toolkit::seat::pointer::cursor_shape::CursorShapeManager;
 use wayland_client::globals::GlobalList;
 
-use crate::blur_health::{
-    BlurHealth, CompositorFacts, CompositorKind, RenderVendor, blur_health, compositor_kind,
-    output_backend,
-};
 use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
+use crate::compositor_kind::{CompositorKind, compositor_kind};
 use crate::csd::Zone;
 use crate::cursor::Cursor;
 use crate::error::{HostError, Result};
@@ -106,9 +103,9 @@ pub(crate) struct HostState {
     pub(crate) background_effect: Option<BackgroundEffect>,
     /// `quire_window_manager_v1`, only where the compositor advertises it (casement).
     pub(crate) quire_window: Option<QuireWindows>,
-    /// The compositor's main render device, for `blur_health`.
+    /// The compositor's main render device, for the adapter that follows it.
     pub(crate) render_device: Option<RenderDevice>,
-    /// cosmic-comp or not, from the globals at bind time.
+    /// Which compositor this is, from the globals at bind time.
     pub(crate) compositor_kind: CompositorKind,
     pub(crate) text_input: Option<TextInputManager>,
     pub(crate) cursor: Cursor,
@@ -255,36 +252,11 @@ impl HostState {
         }
     }
 
-    /// Whether the compositor can blur behind a surface at all: it advertises blur, and it is
-    /// not a compositor known to lose blurred surfaces.
+    /// Whether the compositor can blur behind a surface at all: it advertises blur.
     pub(crate) fn blur_supported(&self) -> Support {
-        let advertised = self
-            .background_effect
+        self.background_effect
             .as_ref()
-            .map_or(Support::Unsupported, |effect| effect.capabilities().blur);
-        match (advertised, self.blur_health()) {
-            (Support::Supported, BlurHealth::Renders) => Support::Supported,
-            (Support::Supported, BlurHealth::Breaks) | (Support::Unsupported, _) => {
-                Support::Unsupported
-            }
-        }
-    }
-
-    /// Whether advertised blur would render, from what is known about the compositor.
-    pub(crate) fn blur_health(&self) -> BlurHealth {
-        let names: Vec<String> = self
-            .outputs
-            .outputs()
-            .filter_map(|output| self.outputs.info(&output)?.name)
-            .collect();
-        blur_health(CompositorFacts {
-            kind: self.compositor_kind,
-            backend: output_backend(names.iter().map(String::as_str)),
-            vendor: self
-                .render_device
-                .as_ref()
-                .map_or(RenderVendor::Unknown, RenderDevice::vendor),
-        })
+            .map_or(Support::Unsupported, |effect| effect.capabilities().blur)
     }
 
     /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`:

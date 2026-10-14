@@ -1,6 +1,6 @@
 //! Whether opening a popup lifts its parent layer's keyboard.
 //!
-//! A bar is a `KeyboardMode::None` layer, and cosmic-comp gives a grabbing popup of a layer the
+//! A bar is a `KeyboardMode::None` layer, and a compositor may give a grabbing popup of a layer the
 //! keyboard only when the layer itself takes keyboard input, so the host switches the parent to
 //! `OnDemand` while a grabbing popup is open (the plan's input rule). KWin needs no lift: its
 //! popup filter focuses the topmost grabbing popup itself and, when the popup closes, hands the
@@ -13,7 +13,7 @@
 //!
 //! See FINDINGS F72.
 
-use crate::blur_health::CompositorKind;
+use crate::compositor_kind::CompositorKind;
 use crate::layer::KeyboardMode;
 use crate::popup::PopupGrab;
 
@@ -51,13 +51,10 @@ mod tests {
         use ParentKeyboard::{Keep, Lift};
         use PopupGrab::{Grabbed, Ungrabbed};
         let cases = [
-            (K::Cosmic, Grabbed, M::None, Lift),
             (K::Other, Grabbed, M::None, Lift),
             (K::Kwin, Grabbed, M::None, Keep),
-            (K::Cosmic, Ungrabbed, M::None, Keep),
             (K::Kwin, Ungrabbed, M::None, Keep),
-            (K::Cosmic, Grabbed, M::OnDemand, Keep),
-            (K::Cosmic, Grabbed, M::Exclusive, Keep),
+            (K::Other, Grabbed, M::Exclusive, Keep),
             (K::Other, Grabbed, M::OnDemand, Keep),
             (K::Kwin, Grabbed, M::Exclusive, Keep),
             (K::Casement, Grabbed, M::None, Keep),

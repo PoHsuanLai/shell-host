@@ -57,15 +57,10 @@ puts first (both backends, Vulkan before GL); the rest keeps the default order.
 - Falls back to the old order when the compositor offers less than dmabuf v4, the device has no
   PCI function (virtual or SoC GPUs have no `vendor` file), or no adapter has those ids. Two
   identical cards share ids; the first present (F16) still validates whichever is tried.
-- The nested cosmic-comp on Mesa (`nested.sh`) advertises no `zwp_linux_dmabuf_v1` at all (its
-  winit backend cannot bind the display to EGL: `EGL_EXT_device_drm` is missing), so nothing is
-  followed there and wgpu's order applies. The headless KWin follows: started on the AMD iGPU
+- A compositor without `zwp_linux_dmabuf_v1` v4 (or one whose backend cannot bind the display to EGL) is not followed, and wgpu's order applies. The headless KWin follows: started on the AMD iGPU
   (`KWIN_DRM_DEVICES=/dev/dri/card1`, `__EGL_VENDOR_LIBRARY_FILENAMES` set to Mesa's) it reports
   main device 0xE280, and the shell takes RADV although `Auto` would take the NVIDIA card; on the
   NVIDIA default it takes NVIDIA; `WGPU_ADAPTER_NAME=llvmpipe` still wins.
-- `scripts/dev/nested.sh`'s `socket_of_pid` let awk exit at its first match, which sometimes
-  SIGPIPEd `ss` and, under `pipefail`, ended the script silently with the compositor running and
-  no `.nested-env`; awk now reads all of `ss`'s output.
 - The first present stays the safety net: a followed adapter that the probe rejects falls
   through to the next in the ranking. The chosen adapter is printed once on stderr:
   `shell-host: adapter <name> (<backend>, <driver>) (requested ..., before WGPU_ADAPTER_NAME)`.
@@ -96,7 +91,7 @@ puts first (both backends, Vulkan before GL); the rest keeps the default order.
 `demo_dock.rs` (feature `debug-inject`) and the plain sctk client `probe_toplevel` (a maximized
 checkerboard toplevel: the items need an ordinary other-client window). Compositors:
 `kwin-virtual[@scale]` (a nested headless KWin on its own D-Bus session, default scale 1.5),
-`kwin` (the live session), `cosmic[@scale]` (`scripts/dev/nested.sh`).
+`kwin` (the live session).
 
 | Item | Passes when |
 | --- | --- |
@@ -112,8 +107,8 @@ Facts from the runs:
   present-mode knob (the host prefers Mailbox), so item c's "fifo" run is a second Mailbox run.
 - KWin keeps sending frame callbacks to an occluded surface; with the display in DPMS off it
   sends none at all and screenshots are black: the watchdog then carries each surface (100 →
-  400 ms backoff) and `stats` stays prompt. cosmic-comp may withhold callbacks from an occluded
-  surface (cosmic-comp #2777), which is what the watchdog is for.
+  400 ms backoff) and `stats` stays prompt. A compositor may withhold callbacks from an occluded
+  surface, which is what the watchdog is for.
 - Live KWin at scale 2.0 passes a, b, c, g. Open: item f's screenshot-row check failed there
   because the screenshot was taken before the bar was mapped; the item needs to wait for the
   first presented frame on a live compositor before its capture means anything.
@@ -164,7 +159,7 @@ too; sill passes quire's device-pixel snapping.
   again (with the hook) because it is its own render.
 - **Scale before the poll.** `ctx::rescale::follow_all` runs at the start of phase 1 and
   publishes a changed scale, so the same flush's poll re-renders the documents that read it
-  before the frame is painted. On cosmic-comp `preferred_scale` arrives in the same dispatch as
+  before the frame is painted. On some compositors `preferred_scale` arrives in the same dispatch as
   the first configure, so the first frame's tree has it.
 
 ### F69. Blitz gathers z-indexed boxes before it lays out
@@ -254,7 +249,7 @@ in for a missing callback ticks too. `dt` is zero on the first tick of a run.
 
 ### F36. A drive's drop condition must be reachable at any tick rate
 
-The nested cosmic-comp calls back as fast as it composites: ticks 1-2 ms apart, where KWin gives
+A compositor with no vblank pacing calls back as fast as it composites: ticks 1-2 ms apart, where KWin gives
 16.7 ms. A motion step that rounds `gap * dt / period` to whole units stops short of its target
 at 1 ms, so the drive is never dropped and the surface renders and commits every callback. A
 step closes `1 - exp(-dt / tau)` of the gap and at least one unit, never past the target; the
@@ -353,7 +348,7 @@ keyboard to the topmost grabbing popup itself, and `xdg_popup_grab` never checks
 
 `popup_keyboard::parent_keyboard` keeps the parent as it is on KWin (`CompositorKind::Kwin`,
 recognised by `org_kde_plasma_shell`; wlroots offers some `org_kde_kwin_*` globals but never
-that one) and lifts elsewhere (cosmic-comp needs the parent to take keyboard input). The restore
+that one) and lifts elsewhere (a compositor may give a grabbing popup the keyboard only when the parent takes keyboard input). The restore
 after `popup_done` commits the layer. KWin sends no `popup_done` for a press on another surface
 of the popup's own client, so dismissing on a second bar item is the shell's.
 `scripts/dev/accept-popup-keyboard.sh`.
@@ -407,9 +402,9 @@ hand where a field has no `Debug`).
 ### F34. Open: minimize rectangles need the host's connection
 
 design/10 §10.3.10 sets each dock tile as its app's minimize target
-(`zcosmic_toplevel_manager_v1.set_rectangle(handle, wl_surface, ..)`). The toplevel handle lives
+(a compositor's minimize-rectangle request taking the toplevel handle and a `wl_surface`). The toplevel handle lives
 on sill's connection and the dock's `wl_surface` on the host's; a protocol object cannot cross
-connections, and the host may not name COSMIC protocols. Designed, not built: export the host's
+connections, and the host may not name compositor-private protocols. Designed, not built: export the host's
 connection and a surface on it,
 
 ```rust
@@ -473,14 +468,14 @@ the band the host shows the resize cursors and a primary press calls `xdg_toplev
 document sees neither. The zone is re-decided only with no button held. The band exists only
 while floating: maximized, fullscreen or any tiled edge give no band.
 
-**cosmic-comp 1.8 configures a floating window as tiled on all four edges** (and keeps it after
-unmaximize), so there the band is dropped and edge resizing is cosmic-comp's. On KWin the window
+**A compositor may configure a floating window as tiled on all four edges** (and keep it after
+unmaximize); there the band is dropped and edge resizing is the compositor's. On KWin the window
 floats with no tiled state and the band is there. The rule is per configure.
 
 ### F49. The serial rule, and what a compositor grab does to the buttons
 
-`xdg_toplevel.move`/`.resize` need the serial of a press that is still down: smithay (cosmic-comp)
-starts the grab only if the pointer's current implicit grab began with that serial, KWin only for
+`xdg_toplevel.move`/`.resize` need the serial of a press that is still down: smithay-based compositors
+start the grab only if the pointer's current implicit grab began with that serial, KWin only for
 its latest press; anything else is ignored with no error. `grab.rs` keeps, per seat, the pointer's
 surface and the held press, and `grab_serial` refuses up front (`GrabRefused::{PointerElsewhere,
 NoPress, PressedElsewhere, NotAToplevel, NoSeat}`), synchronously in the handle and again at apply.
@@ -489,12 +484,11 @@ Once the compositor takes the grab, the release goes to the compositor, so the p
 when `move`/`resize` is sent, and buttons and press are dropped at every `enter` and `leave` (a
 leave with a button held means a grab took the pointer).
 
-### F50. Open on KWin and COSMIC: no compositor offers a client "Left half", "Right half" or "Centre"
+### F50. Open on KWin: no compositor offers a client "Left half", "Right half" or "Centre"
 
-xdg-shell's `tiled_*` states are compositor-to-client only. cosmic-comp 1.8 has no
-`xdg_toplevel_tag_manager_v1`, and `zcosmic_toplevel_manager_v1` (v4) offers maximize, minimize,
-fullscreen, sticky, workspace moves and `set_rectangle`, with no tile or placement capability.
-KWin 6.7.5 offers `xdg_toplevel_tag_manager_v1` (a name for window rules, no placement) and
+xdg-shell's `tiled_*` states are compositor-to-client only. Some compositors have no
+`xdg_toplevel_tag_manager_v1` and offer maximize, minimize and fullscreen with no tile or
+placement capability. KWin 6.7.5 offers `xdg_toplevel_tag_manager_v1` (a name for window rules, no placement) and
 `org_kde_plasma_surface.set_position` (absolute, KDE-only, not in the pinned block); quick tile
 is D-Bus/scripting only. The host implements maximize (the menu's Fill) and nothing for
 Left/Right/Centre; quire's menu hides them until a compositor offers a request.
@@ -525,8 +519,8 @@ modifiers). The text input and data device belong to the seat and are reused.
 
 A pointer that reaches a surface in one motion gets `wl_pointer.enter` and no motion (KWin sends
 exactly that; so does a surface mapped under a still pointer). The enter therefore delivers a
-move to its position, after focus and zone and before the cursor. cosmic-comp #2230: a layer
-surface mapped under a still pointer there may get no enter at all; the press's own move still
+move to its position, after focus and zone and before the cursor. Some compositors send a layer
+surface mapped under a still pointer no enter at all; the press's own move still
 covers a click, a hover waits for the first motion.
 
 ### F58. An unmapped or closed surface withdraws the pointer and keyboard first
@@ -569,7 +563,7 @@ Blitz treats `BlitzWheelDelta::Pixels` as CSS pixels.
 
 `wl_keyboard.modifiers` follows keyboard focus by protocol. KWin also sends the current
 modifiers to the client with *pointer* focus when the pointer enters, and each change while it
-stays, with no keyboard focus; smithay (cosmic-comp) is expected to send them only to the
+stays, with no keyboard focus; smithay-based compositors are expected to send them only to the
 keyboard focus (not verified). On KWin they arrive right after `wl_pointer.enter` in the same
 dispatch, so `mouseenter` sees none held and the next move sees them. An `OnDemand` layer gets
 real focus on KWin only because KWin focuses it at map, taking focus from the app: a focus steal.
@@ -756,20 +750,20 @@ allows in each phase: `destroy` before `locked`, `unlock_and_destroy` once locke
 output never flashes the compositor's colour.
 
 - Lock surfaces are made at the request, not at `locked` ("clients should immediately create lock
-  surfaces for all outputs"); cosmic-comp 1.8 sends `locked` without waiting for them. A lock
+  surfaces for all outputs"); some compositors send `locked` without waiting for them. A lock
   surface is never committed before its configure, never hidden, carries no popup.
 - `Unlocking` is published to every lock document a flush before `unlock_and_destroy`, so an exit
   animation plays first and calls `unlock()` at its end.
 - Which lock surface has the keyboard is compositor policy. Blitz's `autofocus` is a feature the
   pinned block does not enable, so a lock document focuses its field after mount.
 - **If the client dies while locked the session stays locked** (the protocol's secure failure;
-  sctk's `Drop` sends `destroy`, which after `locked` is `invalid_destroy`). On cosmic-comp 1.8 a
+  sctk's `Drop` sends `destroy`, which after `locked` is `invalid_destroy`). On such a compositor a
   new locker's lock is then granted and its unlock returns the session: sill's session script
   restarts the shell, which should lock at start when logind's `LockedHint` says so.
 - `examples/demo_lock` refuses any compositor but a throwaway one (`guard.rs`, table-tested);
-  `scripts/dev/accept-lock.sh` runs cosmic-comp inside the headless KWin.
+  `scripts/dev/accept-lock.sh` runs casement in a jail (KWin has no `ext-session-lock-v1`).
 - Not proven live: more than one output, outputs changing while locked, fractional scale on a
-  lock surface, `finished` after `locked`, the shm presenter, a real cosmic session (manual).
+  lock surface, `finished` after `locked`, the shm presenter, a real session (manual).
 
 ## Fonts
 
@@ -816,9 +810,8 @@ prints window geometry through a KWin script.
   only (never on a real session).
 - A pointer drag needs a pause between the press and the first motion (100 ms): motion KWin
   handles before the client's `xdg_toplevel.move` arrives is plain motion.
-- Fake input reaches KWin's own clients only. cosmic-comp run *inside* the headless KWin
-  (`COSMIC_BACKEND=winit`) receives it; there it needs the system EGL vendor (the headless KWin
-  hands it the NVIDIA render node; the Mesa override draws nothing).
+- Fake input reaches KWin's own clients only; a compositor nested inside the headless KWin
+  receives it as KWin input.
 
 ### F82. casement is a second acceptance compositor
 
@@ -862,41 +855,6 @@ descendants, excluding itself and its ancestors.
 `Notify` call fails `ServiceUnknown` instead of starting KDE's notification daemon on the test
 bus.
 
-### F39. A nested cosmic-comp whose EGL surface is lost runs away
-
-On the winit backend, after a screenshot the EGL window surface can be lost
-(`eglSwapBuffers: EGL_BAD_SURFACE`, `eglCreatePlatformWindowSurfaceEXT: EGL_BAD_ALLOC`, "context
-lost"); the compositor retries every frame, each attempt leaks, and with vblank sync off nothing
-throttles it: 64 GB resident after 4.5 hours on the NVIDIA path. `scripts/dev/nested.sh` starts a
-watchdog that kills the compositor past `NESTED_RSS_MAX_MB` (default 4096). The same log lines
-appear once per `grim` capture on either EGL and are otherwise harmless.
-
-### F79. A nested cosmic-comp needs the host session unlocked
-
-`COSMIC_BACKEND=winit` opens the nested compositor's output as an ordinary toplevel of the host
-compositor. A locked KWin session maps no new client's toplevel (a plain `ghostty` hangs too), so
-the nested compositor accepts connections and never answers them. `nested.sh` bounds its
-`wayland-info` check with a timeout and prints the lock/DPMS diagnosis. cosmic-comp inside the
-headless KWin (F52) has no such dependency.
-
-## cosmic-comp
-
-### F29. Nested cosmic-comp on NVIDIA EGL loses every layer surface that has a blur region
-
-cosmic-comp 1.8.0, `COSMIC_BACKEND=winit`, rendering through NVIDIA's EGL: any
-`ext_background_effect_surface_v1.set_blur_region` on a layer surface makes the whole surface
-vanish, whatever the client (a plain `wl_shm` client, `examples/blur_probe.rs`, too), whatever
-the region or its timing. The surface is still in the rendered set (it gets frame callbacks);
-its pixels are lost after cosmic-comp's framebuffer blur pass. On Mesa (AMD iGPU) blur works.
-Toplevels are drawn but never blurred on either GPU. The DRM backend was not tested.
-
-`blur_health.rs` (pure) says `Breaks` only for cosmic-comp + winit output (`WINIT-n`) + an NVIDIA
-main render device (`handlers/render_device.rs` reads the vendor of `zwp_linux_dmabuf_v1`'s
-default feedback `main_device`); the host then sends no blur region and the debug line says
-`blur: degraded`. `nested.sh` renders on Mesa by default (`SILL_NESTED_GPU=nvidia` for the old
-path). Open: no shell can ask whether blur is on (proposed: `HostCtx::blur() -> Support`); a
-cosmic-comp issue with `blur_probe` as the repro is not filed; re-test on a real cosmic session.
-
 ## p2-z-sh
 
 P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented whole.
@@ -922,7 +880,7 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   b59d1d7da33e0aa1f4460ea515e64d5e4f51f112, the pin sill and cua use (workspace root, outside the
   quire-pinned block). Its `rust-version` is 1.92 against this workspace's 1.91.
 - **F50.** Closed on a compositor that advertises `quire_window_manager_v1` (casement), as far as
-  the host goes: the request exists and is sent. It stays open on KWin and COSMIC (nothing to
+  the host goes: the request exists and is sent. It stays open on KWin (nothing to
   send), where `placement_support()` is `Absent` and quire's menu keeps hiding Left, Right and
   Centre. Whether casement acts on the request is its own lane (H lanes).
 - **Not run.** Written without a build; the orchestrator's gate is the first compile.
