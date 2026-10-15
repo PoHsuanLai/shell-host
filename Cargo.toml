@@ -27,7 +27,7 @@ palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 
 # The portable Blitz repairs (own repo, public). Local checkouts redirect it to a sibling path through
 # each workspace root's [patch] (quire/CONSUMING.md section 1); git consumers get this rev.
-blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "22b48f9b6a871298ede8b02a2d6264f8dd50b1fd" }
+blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "c77c5968d782d298ff9b69c53ef21d455d515aa1" }
 
 # Blitz: git main, pinned by rev (crates.io dioxus-native 0.8 alpha does not build with
 # blitz 0.3.0-beta.2). The in-tree dioxus-native-dom targets dioxus 0.7.x.
@@ -35,12 +35,12 @@ blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "22b48f9b6a
 # bf588142 (restyles elements whose animation was cancelled mid-way) and 1b23fbd9 (attributes carry no
 # namespace, so `[data-x=y]` matches). Move back
 # to DioxusLabs/blitz when a toolchain-bump wave finds the fix (or its equivalent) upstream.
-blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "531fb43d41aa897c5e35eb5536275d31f5e9d544", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility"] }
-blitz-paint = { git = "https://github.com/PoHsuanLai/blitz", rev = "531fb43d41aa897c5e35eb5536275d31f5e9d544", features = ["custom-widget"] }
-blitz-traits = { git = "https://github.com/PoHsuanLai/blitz", rev = "531fb43d41aa897c5e35eb5536275d31f5e9d544" }
-dioxus-native-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "531fb43d41aa897c5e35eb5536275d31f5e9d544", default-features = false, features = ["svg", "system-fonts", "accessibility"] }
+blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "063ff2b6495cbdc4a410a84e52079914e9637042", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility"] }
+blitz-paint = { git = "https://github.com/PoHsuanLai/blitz", rev = "063ff2b6495cbdc4a410a84e52079914e9637042", features = ["custom-widget"] }
+blitz-traits = { git = "https://github.com/PoHsuanLai/blitz", rev = "063ff2b6495cbdc4a410a84e52079914e9637042" }
+dioxus-native-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "063ff2b6495cbdc4a410a84e52079914e9637042", default-features = false, features = ["svg", "system-fonts", "accessibility"] }
 # The portable window path for apps (winit); the shell uses shell-host instead.
-dioxus-native = { git = "https://github.com/PoHsuanLai/blitz", rev = "531fb43d41aa897c5e35eb5536275d31f5e9d544", default-features = false, features = ["vello-hybrid", "svg", "system-fonts", "accessibility"] }
+dioxus-native = { git = "https://github.com/PoHsuanLai/blitz", rev = "063ff2b6495cbdc4a410a84e52079914e9637042", default-features = false, features = ["vello-hybrid", "svg", "system-fonts", "accessibility"] }
 
 # Dioxus 0.7.x (renderer-free core; mailo is on 0.7.10).
 dioxus = { version = "0.7", default-features = false, features = ["macro", "html", "hooks", "signals"] }
@@ -131,8 +131,8 @@ vello_cpu = { git = "https://github.com/PoHsuanLai/vello", rev = "3e43d4af1f1955
 vello_hybrid = { git = "https://github.com/PoHsuanLai/vello", rev = "3e43d4af1f1955f2efc2cd52e50350811a1386ca" }
 vello_sparse_shaders = { git = "https://github.com/PoHsuanLai/vello", rev = "3e43d4af1f1955f2efc2cd52e50350811a1386ca" }
 glifo = { git = "https://github.com/PoHsuanLai/vello", rev = "3e43d4af1f1955f2efc2cd52e50350811a1386ca" }
-anyrender = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a1c328cc6084cd3a4580d16a7ecdc939bd68f50e" }
-anyrender_vello_cpu = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a1c328cc6084cd3a4580d16a7ecdc939bd68f50e" }
-anyrender_vello_hybrid = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a1c328cc6084cd3a4580d16a7ecdc939bd68f50e" }
-wgpu_context = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a1c328cc6084cd3a4580d16a7ecdc939bd68f50e" }
-pixels_window_renderer = { git = "https://github.com/PoHsuanLai/anyrender", rev = "a1c328cc6084cd3a4580d16a7ecdc939bd68f50e" }
+anyrender = { git = "https://github.com/PoHsuanLai/anyrender", rev = "d4ae3885f89a58351ff7e99cd75d9b7de5865337" }
+anyrender_vello_cpu = { git = "https://github.com/PoHsuanLai/anyrender", rev = "d4ae3885f89a58351ff7e99cd75d9b7de5865337" }
+anyrender_vello_hybrid = { git = "https://github.com/PoHsuanLai/anyrender", rev = "d4ae3885f89a58351ff7e99cd75d9b7de5865337" }
+wgpu_context = { git = "https://github.com/PoHsuanLai/anyrender", rev = "d4ae3885f89a58351ff7e99cd75d9b7de5865337" }
+pixels_window_renderer = { git = "https://github.com/PoHsuanLai/anyrender", rev = "d4ae3885f89a58351ff7e99cd75d9b7de5865337" }

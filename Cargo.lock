@@ -67,7 +67,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "anyrender"
 version = "0.13.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=d4ae3885f89a58351ff7e99cd75d9b7de5865337#d4ae3885f89a58351ff7e99cd75d9b7de5865337"
 dependencies = [
  "kurbo",
  "peniko",
@@ -91,7 +91,7 @@ dependencies = [
 [[package]]
 name = "anyrender_vello_cpu"
 version = "0.17.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=d4ae3885f89a58351ff7e99cd75d9b7de5865337#d4ae3885f89a58351ff7e99cd75d9b7de5865337"
 dependencies = [
  "anyrender",
  "bytemuck",
@@ -107,7 +107,7 @@ dependencies = [
 [[package]]
 name = "anyrender_vello_hybrid"
 version = "0.10.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=d4ae3885f89a58351ff7e99cd75d9b7de5865337#d4ae3885f89a58351ff7e99cd75d9b7de5865337"
 dependencies = [
  "anyrender",
  "debug_timer 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -235,7 +235,7 @@ dependencies = [
 [[package]]
 name = "blitz-dom"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 dependencies = [
  "accesskit",
  "anyrender",
@@ -246,7 +246,7 @@ dependencies = [
  "color",
  "cssparser",
  "cursor-icon",
- "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544)",
+ "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042)",
  "euclid",
  "html-escape",
  "image",
@@ -292,7 +292,7 @@ dependencies = [
 [[package]]
 name = "blitz-paint"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 dependencies = [
  "anyrender",
  "anyrender_svg",
@@ -313,7 +313,7 @@ dependencies = [
 [[package]]
 name = "blitz-traits"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 dependencies = [
  "atomic_refcell",
  "bitflags",
@@ -732,7 +732,7 @@ checksum = "da220af51a1a335e9a930beaaef53d261e41ea9eecfb3d973a3ddae1a7284b9c"
 [[package]]
 name = "debug_timer"
 version = "0.1.3"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 
 [[package]]
 name = "derive_more"
@@ -907,7 +907,7 @@ dependencies = [
 [[package]]
 name = "dioxus-native-dom"
 version = "0.7.0"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 dependencies = [
  "blitz-dom",
  "blitz-traits",
@@ -3280,7 +3280,7 @@ dependencies = [
 [[package]]
 name = "stylo_taffy"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=531fb43d41aa897c5e35eb5536275d31f5e9d544#531fb43d41aa897c5e35eb5536275d31f5e9d544"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=063ff2b6495cbdc4a410a84e52079914e9637042#063ff2b6495cbdc4a410a84e52079914e9637042"
 dependencies = [
  "bitflags",
  "stylo",
@@ -4236,7 +4236,7 @@ dependencies = [
 [[package]]
 name = "wgpu_context"
 version = "0.9.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=d4ae3885f89a58351ff7e99cd75d9b7de5865337#d4ae3885f89a58351ff7e99cd75d9b7de5865337"
 dependencies = [
  "futures-intrusive",
  "wgpu",
@@ -4588,4 +4588,4 @@ dependencies = [
 [[patch.unused]]
 name = "pixels_window_renderer"
 version = "0.8.0"
-source = "git+https://github.com/PoHsuanLai/anyrender?rev=a1c328cc6084cd3a4580d16a7ecdc939bd68f50e#a1c328cc6084cd3a4580d16a7ecdc939bd68f50e"
+source = "git+https://github.com/PoHsuanLai/anyrender?rev=d4ae3885f89a58351ff7e99cd75d9b7de5865337#d4ae3885f89a58351ff7e99cd75d9b7de5865337"
