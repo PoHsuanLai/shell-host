@@ -10,7 +10,7 @@
 #
 # A script uses, in this order: `comp_build` (cargo, outside any jail), `comp_enter`, `comp_out`
 # (its scratch directory for logs and fifos), `comp_start WxH` ... `comp_stop`, and
-# `comp_source` before it starts a client. Input is `lib/input.sh`, a window's frame
+# `comp_source` before it starts a client (`comp_as_shell` for one that stands in for the shell). Input is `lib/input.sh`, a window's frame
 # `lib/windows.sh`. State (A8) never goes into the checkout under casement: it lives in the
 # jail's scratch directory, scripts/dev/out/casement-<script>/ (git-ignored, kept after the run).
 #
@@ -55,6 +55,26 @@ comp_tools() {
     fi
   done
   echo "$tools"
+}
+
+# comp_as_shell PROGRAM ARGS...: runs PROGRAM in place of this shell (exec) as the desktop's
+# shell. casement keeps an exclusive keyboard only for the shell's own connection (its CASC-02),
+# so a demo that stands in for the launcher or the switcher asks for that connection through the
+# tools' casement-shell-exec (call comp_source first: the request goes over the private bus).
+# KWin gives every client the keyboard it asks for, and PROGRAM runs as it is.
+comp_as_shell() {
+  local tools
+  case "$COMPOSITOR" in
+    kwin) exec "$@" ;;
+    casement)
+      tools="$(comp_tools)" || exit 3
+      if [ ! -x "$tools/bin/casement-shell-exec" ]; then
+        echo "comp: $tools/bin/casement-shell-exec is missing: run $CASEMENT_DIR/dev/bootstrap.sh --build-only outside the jail" >&2
+        exit 3
+      fi
+      exec "$tools/bin/casement-shell-exec" -- "$@"
+      ;;
+  esac
 }
 
 # comp_enter SCRIPT ARGS...: COMPOSITOR=casement outside the jail runs SCRIPT ARGS in a new jail

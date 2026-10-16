@@ -65,7 +65,7 @@ run_case() {
   (
     comp_source
     export WAYLAND_DEBUG=1
-    exec "$BIN" <"$OUT/mods-demo.fifo" >>"$log" 2>&1
+    comp_as_shell "$BIN" <"$OUT/mods-demo.fifo" >>"$log" 2>&1
   ) &
   local demo=$!
   exec 4>"$OUT/mods-demo.fifo"

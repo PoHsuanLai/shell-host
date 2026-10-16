@@ -119,7 +119,7 @@ mkfifo "$OUT/ime-input.fifo" "$OUT/ime-demo.fifo" "$OUT/ime-launcher.fifo"
 : >"$OUT/ime-demo.log"
 (
   comp_source
-  exec env WAYLAND_DEBUG=client "$DEMO_BIN"
+  comp_as_shell env WAYLAND_DEBUG=client "$DEMO_BIN"
 ) <"$OUT/ime-demo.fifo" >"$OUT/ime-demo.log" 2>&1 &
 DEMO=$!
 exec 4>"$OUT/ime-demo.fifo"
@@ -216,7 +216,7 @@ for _ in $(seq 50); do kill -0 "$DEMO" 2>/dev/null || break; sleep 0.1; done
 (
   comp_source
   cd "$SILL_DIR" || exit 1
-  exec env WAYLAND_DEBUG=client target/debug/examples/launcher_demo
+  comp_as_shell env WAYLAND_DEBUG=client target/debug/examples/launcher_demo
 ) <"$OUT/ime-launcher.fifo" >"$OUT/ime-launcher.out" 2>"$OUT/ime-launcher.log" &
 LAUNCHER=$!
 exec 5>"$OUT/ime-launcher.fifo"
