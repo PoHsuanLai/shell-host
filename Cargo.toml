@@ -105,8 +105,8 @@ freedesktop-icons = "0.4"
 nucleo-matcher = "0.3.1"
 fend-core = "1.5.8"
 clap = { version = "4", features = ["derive"] }
-# latchkey lives in mailo until it is split into its own repo; cargo finds crates/latchkey itself.
-latchkey = { git = "https://github.com/PoHsuanLai/mailo", rev = "43ebf45f244a23c1e79c84b5d859b6fa1ba5bc7a" }
+# latchkey is its own repo; no shell-host crate calls it yet, so there is no call site to adapt.
+latchkey = { git = "https://github.com/PoHsuanLai/latchkey", rev = "99cc9deb198860293253c534c4d26b382ec8b87e" }
 # ---- END PINNED BLOCK ----
 
 
