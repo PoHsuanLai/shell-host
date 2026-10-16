@@ -48,9 +48,9 @@ impl DataDeviceHandler for HostState {
     ) {
     }
 
-    /// Follow the new selection: read its text on a helper thread and publish it to the shell
-    /// providers (`Clipboard::follow`). Our own selection is read back the same way (the loop
-    /// serves `send_request` meanwhile); when someone else's, `own`/`source` are cleared by
+    /// Follow the new selection: queue a read of its text for the loop, which publishes it to
+    /// the shell providers (`Clipboard::follow`, `ctx::paste`). Our own selection is read back
+    /// the same way (the loop serves `send_request` meanwhile); when someone else's, `own`/`source` are cleared by
     /// `DataSourceHandler::cancelled` on our old source, not here.
     fn selection(
         &mut self,
