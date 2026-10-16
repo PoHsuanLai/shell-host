@@ -15,6 +15,7 @@ use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::context::SURFACE_FORMAT;
+use crate::gpu::image_cache;
 use crate::gpu::presenter::{FrameTarget, Overlay};
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::shm::swap_red_blue;
@@ -57,6 +58,7 @@ pub(crate) fn paint_document(
         widgets,
         ..
     } = gpu;
+    image_cache::trim(images, renderer, resources, encoder);
     {
         let image_manager = ImageManager::new(
             &mut *renderer,

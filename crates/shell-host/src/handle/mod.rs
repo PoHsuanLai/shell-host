@@ -120,11 +120,10 @@ impl SurfaceHandle {
 
     /// This surface's `wl_surface`, for a protocol the host does not wrap (a `quire_*` object
     /// the app's own code creates on the shell's connection). It is replaced when the surface
-    /// is hidden and shown again, so read it again after `HostEvent::SurfaceMapped`.
-    pub fn wl_surface(&self) -> WlSurface {
-        self.wl
-            .get()
-            .expect("a hosted surface always has a wl_surface")
+    /// is hidden and shown again, so read it again after `HostEvent::SurfaceMapped`. `None` for
+    /// a handle that has no surface behind it (one built without a connection).
+    pub fn wl_surface(&self) -> Option<WlSurface> {
+        self.wl.get()
     }
 
     /// Any other op, as `HostCtx::apply` would apply it.
