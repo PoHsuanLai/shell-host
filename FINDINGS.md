@@ -35,6 +35,9 @@ transparent 1x1 frame on a second connection, round-trips, and checks that conne
   `vkGetPhysicalDeviceSurfaceSupportKHR` on the host's instance jump to a null pointer inside
   libnvidia-glcore (gdb-confirmed; not after RADV or llvmpipe probes). `gpu/probe.rs` keeps each
   probe instance and connection alive for the process, one per validated candidate.
+- The probe runs on its own thread and is given 5 s (`gpu/adapter.rs`, `gpu/deadline.rs`): a
+  driver that hangs on the first present is rejected like one the compositor kills, so the next
+  adapter and then the CPU backend are tried. The thread of a hung probe is left behind.
 - Results here: NVIDIA Vulkan passes (~300 ms), surface caps present `[Mailbox, Fifo,
   Immediate]`, alpha `[Opaque, PreMultiplied]`, so PreMultiplied + Mailbox; RADV is rejected on
   the first present (error 7 or connection reset); llvmpipe passes but ranks last; NVIDIA GL does
@@ -289,10 +292,17 @@ just the refresh period), scale, sizes, alpha and present mode, adapter and `dev
 
 ### F21. `LocalNet` serves `file:` and `data:`, nothing from the network
 
-`data:` is decoded and `file:` read with `std::fs::read`, both on the host runtime's blocking
-pool. Only absolute paths from a `file:` URL with an empty or `localhost` host are served
-(`LocalSource::of`); anything else, and a failed read, stays unanswered. Blitz's handler requests
-a redraw on completion, so the image appears on the next frame (F40).
+`data:` is decoded and `file:` read, both on the host runtime's blocking pool. Only absolute
+paths from a `file:` URL with an empty or `localhost` host are served (`LocalSource::of`);
+anything else, and a failed read, stays unanswered. Blitz's handler requests a redraw on
+completion, so the image appears on the next frame (F40).
+
+A file is served only when it is a regular file (not a symlink, device or pipe), at most 32 MiB
+(`blitz_kit::net::MAX_RESOURCE_BYTES`, also the cap of a `data:` URL), and inside one of the
+`FileRoots` in `HostConfig::file_roots` after symlinks and `..` are resolved. The default holds no
+roots, so a shell that passes none serves no files: a notification's image path comes from any
+program on the bus, and `file:///dev/zero` or a pipe must not stall or exhaust the host. A shell
+lists the directories its documents draw from (wallpaper cache, icon directories).
 
 ## Surfaces, popups and regions
 
@@ -606,12 +616,18 @@ candidate list. `scripts/dev/accept-ime.sh`.
 
 `ShellProvider::get_clipboard_text` is synchronous on the main thread, which also serves the
 pipe when the selection is ours, so a paste cannot block on a read. Every
-`wl_data_device.selection` runs `Clipboard::follow`: `receive` for the best text MIME, the pipe
-read on a helper thread (200 ms timeout), the text published into a generation-checked
-`SharedSelection` every surface's provider holds. Between a new selection and its read
-finishing, a paste returns the previous text; an older read finishing late is dropped. No text
-type, a failed read or a timeout publishes "no text"; a timed-out reader thread ends when the
-owner closes its end. Blitz's own copy is queued and claimed in the flush's request phase.
+`wl_data_device.selection` runs `Clipboard::follow`: `receive` for the best text MIME, then the
+pipe is read from the event loop (`ctx::paste`) on a non-blocking descriptor, and the text is
+published into a generation-checked `SharedSelection` every surface's provider holds. Between a
+new selection and its read finishing, a paste returns the previous text; an older read finishing
+late is dropped.
+
+The read has limits (`paste.rs`): 1 MiB (a larger selection publishes "no text", not a cut-off
+one), 200 ms, and one read at a time (a newer selection cancels the one running, closing its
+pipe, so an owner that never answers or re-offers in a loop holds one descriptor, briefly). No
+text type, invalid UTF-8, a failed or cancelled read, a timeout publish "no text". No thread is
+involved. Our own selection is served the same way a drag's payload is (F60): the text is queued
+and written from the loop. Blitz's own copy is queued and claimed in the flush's request phase.
 
 ### F5. The keysym and evdev tables are Apache-2.0, adapted from winit
 
@@ -652,9 +668,10 @@ Call it while the button that began the gesture is still down. `ctx::drag::start
 front, as `Unsupported`, what the compositor would ignore or break: a drag of ours still running,
 the surface gone, no data device, a `wl_data_device_manager` older than v3 (the source would
 never learn how the drop ended), or no held press on this surface (the grab record's press, F49;
-unlike a move the pointer need not still be on the surface). Pipe writes are non-blocking, one
-chunk of at most 64 KiB per writable wakeup from a calloop source, so a slow reader never blocks
-the Wayland thread; a reader that neither reads nor closes keeps its source until the host exits.
+unlike a move the pointer need not still be on the surface). Pipe writes (the payload's and our
+selection's, `ctx::pipe`) are non-blocking, one chunk of at most 64 KiB per writable wakeup from
+a calloop source, so a slow reader never blocks the Wayland thread. At most 8 pipes are open
+at once (an excess one is closed unanswered), and a pipe still open after 10 s is cut off.
 KWin sends `dnd_drop_performed` even for a release over nothing, then `cancelled`. The icon
 (`DragIcon::Root`) is a `Role::DragIcon` surface rendered through the ordinary presenter,
 configured from birth. `scripts/dev/accept-drag.sh` (a foot window as the target).
@@ -762,8 +779,53 @@ output never flashes the compositor's colour.
   restarts the shell, which should lock at start when logind's `LockedHint` says so.
 - `examples/demo_lock` refuses any compositor but a throwaway one (`guard.rs`, table-tested);
   `scripts/dev/accept-lock.sh` runs casement in a jail (KWin has no `ext-session-lock-v1`).
+- **A lock surface that fails is made again** (`lock/retry.rs`, `ctx/lock.rs`): its presenter
+  could not start, or it was closed after failing. The output shows the compositor's solid colour
+  and takes no password meanwhile, so the failure is logged and the surface remade after 250 ms,
+  doubling to 8 s; a frame shown on the output clears its count. When the lock covers one output
+  the fourth failure in a row ends the host with an error (exit non-zero), so sill's unit
+  restarts it and it locks again from its marker. The marker is written at `locked`: a failure
+  before that leaves nothing to restore, and the session is simply not locked. The shell is not
+  told of a failing lock surface (no event); it is in the log only.
 - Not proven live: more than one output, outputs changing while locked, fractional scale on a
   lock surface, `finished` after `locked`, the shm presenter, a real session (manual).
+
+## Limits and recovery
+
+### F84. What a peer, the compositor or the GPU can make the host do
+
+Every number or object that comes from outside has a bound, and an excess is refused or cut,
+never allowed to wedge the single event-loop thread:
+
+| What | Bound | Where |
+|---|---|---|
+| Surface width or height from the compositor, logical or buffer | 8192 px (wgpu's default 2D texture limit, which the device is opened with) | `scale::MAX_SURFACE_EXTENT`, `wire_extent`, `buffer_size`, `gpu::swapchain::pixel_extent` |
+| Preferred scale | 0.25x to 10x; whole factors 1 to 10 | `Scale::from_wire`, `Scale::from_integer_factor` |
+| A side left at 0 by a configure | keeps the old size; unconfigured until the surface has an area; no viewport call | `HostSurface::configure`, `follow_buffer_scale`, `Fractional::set_destination` |
+| Key repeat rate | 1000 per second | `handlers/keyboard/decide` |
+| Pipes open for other clients to read | 8, each 10 s | `drag::pipe::{MAX_OPEN_WRITES, WRITE_DEADLINE}` |
+| A selection read | 1 MiB, 200 ms, one at a time | `paste` |
+| Palmrest datagrams per read | 256; the daemon must be this user or root | `input/palmrest` |
+| Local files a document reads | roots, regular files, 32 MiB | F21 |
+| Uploaded images | emptied past 1024 | `gpu/image_cache` |
+| A GPU adapter's first present | 5 s; the device request 10 s | `gpu/adapter`, `gpu/context` |
+
+- **A lost GPU device is rebuilt** (`ctx/paint/recover.rs`, `gpu/rebuild.rs`). wgpu's default
+  error handler panics the process, so `blitz_kit::adapter::request_watched_device` installs a
+  logging uncaptured-error handler (the first 16 lines per device) and a device-lost callback that
+  flips a `DeviceHealth`. At the start of every frame step a lost device drops every presenter,
+  the device and the image cache, then makes presenters again, lock surfaces first, from the same
+  wgpu instance: dropping an instance that presented is what F16's NVIDIA note warns against, and
+  a lost device does not invalidate it. A fourth loss within a minute ends the host with an error
+  (`HostError::GaveUp`), and the unit restarts it. A swapchain configuration wgpu rejects (an
+  error scope around `Surface::configure`) leaves the swapchain unconfigured and the frame fails
+  as `Render` (retried by the watchdog); acquiring from a never-configured surface would be fatal
+  inside wgpu.
+- A `wl_surface`'s fractional-scale, viewport and blur objects are destroyed when the surface is
+  removed (`HostState::remove_surface`, the only way a surface leaves `surfaces`).
+- Not measured: the real restart-and-relock path after `GaveUp` (sill's `step_crash_relocks`
+  covers the SIGKILL case only), a real driver reset, and the 8192 limit on a 8K output at 2x
+  (the buffer is cut to 8192 and the compositor scales it).
 
 ## Fonts
 
@@ -865,7 +927,7 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   `#[serde(skip)]`. `Clone` duplicates the descriptor (falling back to `Environment` when the
   process is out of descriptors); equality compares descriptor numbers.
 - **F34, the shell's own protocol objects.** `HostCtx::wl_surface(id) -> Option<WlSurface>`,
-  `SurfaceHandle::wl_surface() -> WlSurface` and `HostEvent::SurfaceMapped { id }`, raised once
+  `SurfaceHandle::wl_surface() -> Option<WlSurface>` and `HostEvent::SurfaceMapped { id }`, raised once
   at the first successful present after a map. Hiding a surface rebuilds its role with a new
   `wl_surface`, so the handle reads it through a cell (`handle/wl.rs`) that `ops::unmap`
   refreshes, and `SurfaceMapped` is raised again after the next show.
@@ -891,3 +953,19 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   send), where `placement_support()` is `Absent` and quire's menu keeps hiding Left, Right and
   Centre. Whether casement acts on the request is its own lane (H lanes).
 - **Not run.** Written without a build; the orchestrator's gate is the first compile.
+
+## Open items from the production audit
+
+- **HOST-14 (outside this repo).** `zwp_text_input_v3.delete_surrounding_text` is forwarded to
+  Blitz, which ignores it, and `done { serial }` is not compared with our commit count. An input
+  method that corrects by deleting surrounding text duplicates it. Condition to close: the Blitz
+  fork's text widget implements it.
+- **HOST-15.** `palmrest-protocol` is a path dependency (`../palmrest/crates/palmrest-protocol`)
+  and the blitz-kit `[patch]` is a path, so a clone of this repo alone cannot build. Pinning
+  palmrest by git rev like `casement-protocols` would make sill (which takes shell-host by path)
+  fetch palmrest from the network unless sill adds the same `[patch]`. Condition to close: the
+  installer/CI lane decides the dev overlay for all consumers at once.
+- **A failing lock surface is not an event.** It is in the log only (F65). A `HostEvent` variant
+  would break sill's exhaustive matches, so it waits for a sill change made with it.
+- **`HostConfig::file_roots` is empty by default** (F21): sill must pass the directories its
+  documents draw from before the wallpaper and notification images show again.

@@ -39,7 +39,7 @@ dependencies, as sill's are on shell-host.
 |---|---|
 | `dom/hover_sync.rs` (`LastMove`, `Shift`, `HoverSync`, `decide`, `probe_points`) | `blitz-kit::hover` |
 | `dom/painted.rs` (`Affine2`, `Placed`, `painted_bounds`) and the transform-chain walk in `dom/document.rs` (`transform_chain`, `bounds_of`, `element_at`) | `blitz-kit::paint_rect`, `blitz-kit::hit` |
-| `dom/net.rs` (`LocalNet`, `LocalSource`) | `blitz-kit::net` |
+| `dom/net.rs` (`LocalNet`, `LocalSource`) | `blitz-kit::net` (with `FileRoots`, `MAX_RESOURCE_BYTES`) |
 | `scroll/{geom,latch,engine,animate,momentum,velocity,rubber,smooth,keys,cmd}` and the physics part of `scroll/config` | `blitz-kit::scroll` |
 | `dom/scroll.rs` (scrollers under a point, geometry, raw writes, `data-wheel` and key markers) | `blitz-kit::scroll::doc` |
 | `ElementId` (`region.rs`) | `blitz-kit::element_id` |
@@ -58,12 +58,12 @@ a higher one. When something needs a higher layer, move the shared piece down or
 | Layer | Modules | Nature |
 |---|---|---|
 | L0 vocabulary | `id`, `geometry`, `scale`, `output`, `error`, `modifiers`, `config`, `blur`, `event`, `msg`, `stats` | pure data |
-| L1 role configs | `layer`, `toplevel`, `popup`, `region`, `placement`, `csd`, `drag/{spec,offer,serial,pipe,outcome}`, `prepaint`, `lock/{config,machine}` | pure: configs, wire mappings, geometry |
-| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,indicator,source,suppress,wheel}` | pure, table-tested |
+| L1 role configs | `layer`, `toplevel`, `popup`, `region`, `placement`, `csd`, `drag/{spec,offer,serial,pipe,outcome}`, `prepaint`, `lock/{config,machine,retry}` | pure: configs, wire mappings, geometry |
+| L2 machines and physics | `frame`, `resolve`, `grab`, `popup_keyboard`, `timers`, `clock`, `tick` (pacing), `modality`, `paste`, `input/{pointer,keysym,keycode,modifiers,capability,focus}`, `input/palmrest/route`, `scroll/{config,indicator,source,suppress,wheel}` | pure, table-tested |
 | L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/{watch,wheel_feed}` | values shared with documents; no Wayland |
 | L4 documents | `dom/{document,head,shell_provider,stacking,scheme,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
-| L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,block_on,raw_handle}` | effects |
-| L6 Wayland effects | `state`, `surface`, `role`, `handlers/*`, `clipboard`, `cursor`, `ime`, `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
+| L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,deadline,image_cache,rebuild,raw_handle}` | effects |
+| L6 Wayland effects | `state`, `surface`, `role`, `handlers/*` (`pipe_writes`, `surface_objects` among them), `clipboard`, `cursor`, `ime`, `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
 | L7 orchestration | `ctx/*`, `host`, `inject` | effects; the loop and the flush |
 
 Fixed role files inside a concept directory (CONVENTIONS section 2 plus these): `decide.rs` (the
@@ -95,7 +95,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 
 | Group | Names |
 |---|---|
-| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
+| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig` (its `file_roots`: where documents may read files, FINDINGS F21), `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
 | Events | `HostEvent` (incl. `SurfaceMapped { id }` and `QuitAsked`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
 | Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
 | Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |
@@ -107,7 +107,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
 | Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll`, `WheelEvent`, `WheelSource`, `WheelPhase`, `WheelMotion`, `use_wheel` |
 | Frames and stats | `FrameDrive`, `FrameTick`, `HostInstant`, `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
-| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns; `wl_surface()`, `request_placement`, `placement_support`); `HostCtx::wl_surface(id)` |
+| Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns; `wl_surface() -> Option<WlSurface>`, `request_placement`, `placement_support`); `HostCtx::wl_surface(id)` |
 
 Feature-gated public modules:
 
@@ -136,9 +136,9 @@ no design-system type, and takes and returns CSS px `f64` in Blitz's own units.
 | Module | Public API | From |
 |---|---|---|
 | `hover` | `LastMove::{Unknown, At(BlitzPointerEvent)}`, `remember(LastMove, &UiEvent) -> LastMove`, `Shift<N>`, `HoverSync::{Unchanged, Restore(PagePoint), Clear}`, `decide(shift, &LastMove, bounds, hit) -> HoverSync`, `probe_points(Bounds) -> [PagePoint; 5]`, `repair(&mut BaseDocument, &LastMove, Shift<NodeId>) -> Repaired::{Yes, No}` (restores the old hover without dispatch, feeds the last move again so Blitz dispatches the enter/leave diff) | `dom/hover_sync.rs`, `SurfaceDocument::sync_hover` |
-| `net` | `LocalNet` (`NetProvider`: `data:` decoded, absolute `file:` read on the caller's blocking pool, nothing else), `LocalSource::{Data, File, Unservable}`, `LocalSource::of(&Url)` | `dom/net.rs` |
+| `net` | `LocalNet::new(FileRoots)` (`NetProvider`: `data:` decoded, absolute `file:` read on the caller's blocking pool when it is a regular file inside the roots and at most 32 MiB, nothing else), `FileRoots`, `LocalSource::{Data, File, Unservable}`, `LocalSource::{of, read, read_within}` | `dom/net.rs` |
 | `fonts` | `SharedFonts::{system, system_with(&FontFaces), register(&'static [u8]) -> Vec<String>, for_document() -> FontContext}`, `FontFaces` | `dom/fonts.rs`, `HostConfig::fonts` |
-| `adapter` (feature `adapter`) | `DeviceKind`, `GpuBackend`, `AdapterFacts::of(&wgpu::Adapter)`, `AdapterPref` (`Device { vendor, device }` follows the compositor's GPU), `PciVendor`, `PciDevice`, `rank(&AdapterPref, &[AdapterFacts]) -> Vec<usize>`; the surface-based `validate` stays in shell-host (it needs the Wayland probe) | `gpu/adapter.rs` |
+| `adapter` (feature `adapter`) | `DeviceKind`, `GpuBackend`, `AdapterFacts::of(&wgpu::Adapter)`, `AdapterPref` (`Device { vendor, device }` follows the compositor's GPU), `PciVendor`, `PciDevice`, `rank(&AdapterPref, &[AdapterFacts]) -> Vec<usize>`, `request_watched_device` (logs wgpu errors instead of panicking, reports a lost device through `DeviceHealth`, gives up after a deadline), `block_on_timeout`; the surface-based `validate` stays in shell-host (it needs the Wayland probe) | `gpu/adapter.rs` |
 | `hit` | `element_at(&BaseDocument, PagePoint) -> Option<NodeId>`, `element_of(&BaseDocument, NodeId) -> Option<NodeId>`, `is_content_element` (transform-aware: the point is carried back through each transformed ancestor) | `dom/document.rs` |
 | `paint_rect` | `Affine2`, `Placed`, `painted_bounds(Bounds, &[Placed]) -> Bounds`, `painted_rect(&BaseDocument, NodeId) -> Option<Bounds>` (layout box carried through its own and its ancestors' transforms) | `dom/painted.rs`, `dom/document.rs` |
 | `snap` | `snap_layout(&mut BaseDocument, Scale120)`: whole device pixels for every box after a resolve | consumers' prepaint hooks |
@@ -168,7 +168,11 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Move/resize serial rule | `grab` |
 | Popup lifting a parent layer's keyboard mode | `popup_keyboard` |
 | Session lock machine, lock config, lock effects | `lock/machine`, `lock/config`, `ctx/lock` |
-| Drag source data, offers, pipes, outcomes | `drag/*` (pure), `handlers/drag_source`, `ctx/drag` |
+| Drag source data, offers, outcomes | `drag/*` (pure), `handlers/drag_source`, `ctx/drag` |
+| Pipes other clients read from us (a drag's payload, our selection), their limits | `drag/pipe` (bookkeeping), `handlers/pipe_writes` (the queue), `ctx/pipe` (the loop sources) |
+| Reading the selection another client offers, its limits | `paste` (bookkeeping), `clipboard` (the offer), `ctx/paste` (the loop source) |
+| Bounds on sizes, scales and counts from the compositor, peers and the GPU | `scale`, and FINDINGS F84's table |
+| Removing a surface and its per-surface protocol objects | `HostState::remove_surface` (`handlers/surface_objects`) |
 | Wayland pointer to Blitz pointer events | `input/pointer` |
 | Keysym and keycode tables | `input/keysym`, `input/keycode` |
 | Key event assembly, key repeat | `input/key`, `handlers/keyboard` |
@@ -186,7 +190,9 @@ neither side names the other's types. Tests for each module live in the kit agai
 | The viewport's colour scheme follows the root's; a switch rebuilds every box (F81) | `dom/scheme` |
 | Shell provider (redraw flag, cursor, IME, clipboard hooks) | `dom/shell_provider` |
 | Head elements (`document::Style`, `Link`, `Title`) | `dom/head` |
-| GPU device, renderer, image cache | `gpu/context` |
+| GPU device, renderer, image cache | `gpu/context`, `gpu/image_cache` (when to empty it) |
+| A lost GPU device, and how often it is rebuilt | `ctx/paint/recover`, `gpu/rebuild` |
+| A lock surface that failed, and when to remake it | `lock/retry`, `ctx/lock` |
 | Presenter (Wgpu, Shm), swapchain, raw handle (`unsafe`) | `gpu/presenter`, `gpu/swapchain`, `gpu/raw_handle` |
 | Flush order | `ctx/flush::ORDER` |
 | Surface creation per role | `ctx/spawn/{layer,toplevel,popup}` |
@@ -342,7 +348,14 @@ session. Goldens change only with a reason in the commit message.
   than arming a timer, and handlers push `TimerRequest`s rather than touching the loop.
 - **`unsafe` lives only in `gpu/raw_handle.rs`** (the raw window handle).
 - **Errors:** `HostError`, each variant answering a `Recovery` (`Retry`, `Fallback`, `Degrade`,
-  `Fatal`).
+  `Fatal`). A phase of the flush that finds the host must stop but returns nothing (the frame
+  step) sets `HostCtx::failed`; the last phase returns it (`HostError::GaveUp`: the GPU device
+  keeps being lost, the only lock surface keeps failing).
+- **Limits are named constants with their reason beside them** (FINDINGS F84 lists them). A
+  number from the compositor is clamped where it enters (`scale::wire_extent`,
+  `Scale::from_wire`); a count a peer can raise (pipes, reads, datagrams, files) has a cap and a
+  deadline; nothing waits on a peer in the loop thread, and a peer that exceeds a limit is cut.
+  A wgpu error never panics: devices come from `request_watched_device`.
 - **No `bool` in a field, parameter or message, internal ones included.** A wire `bool` from
   sctk or xkb becomes an enum at the handler (`Modifier::of(Held)`, `LockKey::of(Locked)`,
   `RedrawRequest`, `Tile`, `Elastic`); no helper takes `on: bool` or `opted: bool`.
