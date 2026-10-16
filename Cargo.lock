@@ -429,7 +429,7 @@ dependencies = [
 [[package]]
 name = "casement-protocols"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/casement-protocols.git?rev=5bcdb46f9a3c8a2bb4c2fbec59e4d97dc60683dc#5bcdb46f9a3c8a2bb4c2fbec59e4d97dc60683dc"
+source = "git+https://github.com/PoHsuanLai/casement-protocols.git?rev=b4b7ad0e562d13bfaea38c30bf0de12e09eeb355#b4b7ad0e562d13bfaea38c30bf0de12e09eeb355"
 dependencies = [
  "bitflags",
  "serde",
@@ -640,7 +640,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
