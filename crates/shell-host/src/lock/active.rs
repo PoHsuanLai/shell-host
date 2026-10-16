@@ -9,6 +9,7 @@ use smithay_client_toolkit::session_lock::SessionLock;
 use crate::id::{OutputId, SurfaceId};
 use crate::live::Live;
 use crate::lock::machine::{LockInput, LockMachine, LockPhase};
+use crate::lock::retry::Failures;
 use crate::lock::{LockConfig, LockId};
 use crate::output::OutputInfo;
 use crate::root::HostRoot;
@@ -28,9 +29,27 @@ pub(crate) struct ActiveLock {
     /// Published to every lock document's `LockHandle`.
     pub(crate) phase: Live<LockPhase>,
     pub(crate) surfaces: BTreeMap<OutputId, SurfaceId>,
+    /// Outputs whose lock surface failed and has not shown a frame since (`ctx::lock`).
+    pub(crate) failures: Failures,
     /// Inputs for the next `ctx::lock::advance` (from the handlers, the requests, and the
     /// previous advance's `Told`).
     pub(crate) inbox: Vec<LockInput>,
+}
+
+impl ActiveLock {
+    /// Lock surface `id` showed a frame: its output has recovered from earlier failures.
+    pub(crate) fn presented(&mut self, id: SurfaceId) {
+        if self.failures.is_clear() {
+            return;
+        }
+        let output = self
+            .surfaces
+            .iter()
+            .find_map(|(&output, &surface)| (surface == id).then_some(output));
+        if let Some(output) = output {
+            self.failures.recovered(output);
+        }
+    }
 }
 
 impl fmt::Debug for ActiveLock {
@@ -40,6 +59,7 @@ impl fmt::Debug for ActiveLock {
             .field("machine", &self.machine)
             .field("config", &self.config)
             .field("surfaces", &self.surfaces)
+            .field("failures", &self.failures)
             .field("inbox", &self.inbox)
             .finish_non_exhaustive()
     }

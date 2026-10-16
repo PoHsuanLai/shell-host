@@ -96,6 +96,9 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         }
     };
     let first_frame = presented.is_ok();
+    if first_frame && let Some(lock) = state.lock.as_mut() {
+        lock.presented(id);
+    }
     state.frame_input(id, input);
     if first_frame {
         announce_mapped(state, id);

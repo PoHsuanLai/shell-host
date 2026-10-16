@@ -6,6 +6,7 @@
 pub(crate) mod active;
 pub(crate) mod handle;
 pub(crate) mod machine;
+pub(crate) mod retry;
 
 use serde::{Deserialize, Serialize};
 

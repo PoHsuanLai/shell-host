@@ -5,6 +5,9 @@
 //!
 //! See FINDINGS F65.
 
+use std::time::Duration;
+
+use calloop::timer::{TimeoutAction, Timer};
 use smithay_client_toolkit::compositor::Surface;
 use wayland_client::protocol::wl_output::WlOutput;
 
@@ -12,6 +15,7 @@ use crate::blur::BlurSpec;
 use crate::csd::Inset;
 use crate::ctx::HostCtx;
 use crate::ctx::spawn::{Initial, insert, new_wl_surface};
+use crate::error::HostError;
 use crate::event::HostEvent;
 use crate::handlers::output::output_info;
 use crate::id::SurfaceName;
@@ -20,6 +24,7 @@ use crate::live::Live;
 use crate::lock::active::ActiveLock;
 use crate::lock::handle::LockHandle;
 use crate::lock::machine::{self, Ended, LockAction, LockInput, LockPhase};
+use crate::lock::retry::{Retry, retry};
 use crate::lock::{LockConfig, LockError, LockId};
 use crate::msg::Request;
 use crate::output::OutputInfo;
@@ -59,6 +64,7 @@ impl<M: 'static> HostCtx<M> {
             factory: Box::new(factory),
             phase: Live::new(LockPhase::Requested),
             surfaces: Default::default(),
+            failures: Default::default(),
             inbox: Vec::new(),
         });
         perform_all(self, actions);
@@ -127,6 +133,7 @@ fn perform<M: 'static>(ctx: &mut HostCtx<M>, action: LockAction) {
     match action {
         LockAction::CreateSurface(output) => create_surface(ctx, output),
         LockAction::DestroySurface(output) => {
+            active.failures.recovered(output);
             if let Some(id) = active.surfaces.remove(&output) {
                 remove_surface(ctx, id);
             }
@@ -150,8 +157,9 @@ fn perform<M: 'static>(ctx: &mut HostCtx<M>, action: LockAction) {
     }
 }
 
-/// Output `output`'s lock surface, with its document; on failure the output shows the
-/// compositor's solid colour and the lock goes on.
+/// Output `output`'s lock surface, with its document. On failure the output shows the
+/// compositor's solid colour, which takes no password, so it is made again after a pause
+/// (`surface_failed`).
 fn create_surface<M: 'static>(ctx: &mut HostCtx<M>, output: OutputId) {
     let Some((wl_output, info)) = find_output(&ctx.state, output) else {
         return;
@@ -193,6 +201,83 @@ fn create_surface<M: 'static>(ctx: &mut HostCtx<M>, output: OutputId) {
     if let Err(error) = super::paint::ensure_presenter(ctx, id) {
         eprintln!("shell-host: lock surface on {output:?}: {error}");
         remove_surface(ctx, id);
+        if let Some(active) = ctx.state.lock.as_mut() {
+            active.surfaces.remove(&output);
+        }
+        surface_failed(ctx, output);
+    }
+}
+
+/// Lock surface `id` was closed while its lock lasts (its presenter failed for good): make it
+/// again like one that failed to start.
+pub(super) fn surface_lost<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
+    let Some(active) = ctx.state.lock.as_mut() else {
+        return;
+    };
+    let lost = active
+        .surfaces
+        .iter()
+        .find_map(|(&output, &surface)| (surface == id).then_some(output));
+    if let Some(output) = lost {
+        active.surfaces.remove(&output);
+        surface_failed(ctx, output);
+    }
+}
+
+/// `output` has no lock surface after a failure: say so, and make it again after a pause that
+/// grows with each failure in a row; on the only output, stop the host instead after a few, so
+/// that its unit starts it again and the session is locked again with a prompt on screen.
+fn surface_failed<M: 'static>(ctx: &mut HostCtx<M>, output: OutputId) {
+    let Some(active) = ctx.state.lock.as_mut() else {
+        return;
+    };
+    if !active.machine.outputs.contains(&output) {
+        return;
+    }
+    let failures = active.failures.failed(output);
+    let lock = active.id;
+    match retry(failures, active.machine.outputs.len()) {
+        Retry::After(pause) => {
+            eprintln!(
+                "shell-host: the lock screen on {output:?} failed {failures} time(s) in a row; \
+                 trying again in {pause:?}"
+            );
+            remake_after(ctx, lock, output, pause);
+        }
+        Retry::GiveUp => {
+            eprintln!(
+                "shell-host: the only lock screen failed {failures} times in a row; stopping"
+            );
+            ctx.failed.get_or_insert_with(|| {
+                HostError::GaveUp("no lock screen could be made for the only output".into())
+            });
+        }
+    }
+}
+
+fn remake_after<M: 'static>(ctx: &mut HostCtx<M>, lock: LockId, output: OutputId, pause: Duration) {
+    let armed = ctx
+        .handle
+        .insert_source(Timer::from_duration(pause), move |_, _, ctx| {
+            remake_surface(ctx, lock, output);
+            TimeoutAction::Drop
+        });
+    if let Err(error) = armed {
+        eprintln!("shell-host: lock screen retry timer: {error}");
+        ctx.failed
+            .get_or_insert_with(|| HostError::GaveUp("the lock screen cannot be retried".into()));
+    }
+}
+
+/// Make `output`'s lock surface again if lock `lock` still wants one there.
+fn remake_surface<M: 'static>(ctx: &mut HostCtx<M>, lock: LockId, output: OutputId) {
+    let wanted = ctx.state.lock.as_ref().is_some_and(|active| {
+        active.id == lock
+            && active.machine.outputs.contains(&output)
+            && !active.surfaces.contains_key(&output)
+    });
+    if wanted {
+        create_surface(ctx, output);
     }
 }
 

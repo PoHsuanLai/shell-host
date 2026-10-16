@@ -247,6 +247,7 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     let Some(surface) = state.remove_surface(id) else {
         return;
     };
+    let was_lock = matches!(surface.role, Role::Lock { .. });
     let lifted = match &surface.role {
         Role::Popup { parent, config, .. } if config.grab == PopupGrab::Grabbed => Some(*parent),
         Role::Popup { .. }
@@ -262,6 +263,9 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     state
         .events
         .push_back(HostEvent::SurfaceClosed { id, reason });
+    if was_lock {
+        super::lock::surface_lost(ctx, id);
+    }
 }
 
 /// Close every surface, children first.
