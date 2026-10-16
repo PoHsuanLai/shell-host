@@ -211,5 +211,5 @@ fn remove_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     ctx.state.withdraw_pointer(id);
     ctx.state.withdraw_keyboard(id);
     super::timer::cancel_watchdog(ctx, id);
-    ctx.state.surfaces.remove(&id);
+    ctx.state.remove_surface(id);
 }

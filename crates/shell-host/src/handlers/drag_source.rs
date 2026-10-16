@@ -67,7 +67,7 @@ impl HostState {
         // The caller may have stopped waiting; nobody is left to tell then.
         let _ = drag.reply.send(outcome(end, drag.chosen));
         if let Some(icon) = drag.icon {
-            self.surfaces.remove(&icon);
+            self.remove_surface(icon);
         }
     }
 }

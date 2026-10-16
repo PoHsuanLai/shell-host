@@ -36,7 +36,7 @@ pub(super) fn open<M: 'static>(
         Ok(()) => Some(id),
         Err(error) => {
             eprintln!("shell-host: drag icon from {origin:?}: {error}");
-            ctx.state.surfaces.remove(&id);
+            ctx.state.remove_surface(id);
             None
         }
     }

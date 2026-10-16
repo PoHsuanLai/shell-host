@@ -68,6 +68,20 @@ impl Fractional {
             .or_insert_with(|| viewporter.get_viewport(surface, qh, ()));
     }
 
+    /// Destroy the fractional-scale and viewport objects made for `surface` and forget its
+    /// preferred scale. Call before the surface is destroyed; a later surface that is given the
+    /// same object id is watched afresh.
+    pub(crate) fn forget(&mut self, surface: &WlSurface) {
+        let id = surface.id();
+        self.preferred.remove(&id);
+        if let Some(scale) = self.scale_of.remove(&id) {
+            scale.destroy();
+        }
+        if let Some(viewport) = self.viewport_of.remove(&id) {
+            viewport.destroy();
+        }
+    }
+
     /// The last `preferred_scale` reported for `surface`, or `None` before the first event.
     pub(crate) fn preferred_scale(&self, surface: &WlSurface) -> Option<Scale> {
         self.preferred.get(&surface.id()).copied()

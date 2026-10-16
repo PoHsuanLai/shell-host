@@ -97,6 +97,13 @@ impl BackgroundEffect {
             .or_insert_with(|| manager.get_background_effect(surface, qh, ()));
         effect.set_blur_region(region);
     }
+
+    /// Destroy the blur object made for `surface`, if any. Call before the surface is destroyed.
+    pub(crate) fn forget(&mut self, surface: &WlSurface) {
+        if let Some(effect) = self.surfaces.remove(&surface.id()) {
+            effect.destroy();
+        }
+    }
 }
 
 impl<D> Dispatch<ExtBackgroundEffectManagerV1, (), D> for BackgroundEffect

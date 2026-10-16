@@ -206,7 +206,7 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
     ctx.state.forget_quire_window(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
-    let Some(mut surface) = state.surfaces.remove(&id) else {
+    let Some(mut surface) = state.remove_surface(id) else {
         return;
     };
     // The wgpu surface goes before the wl_surface it presents into.
@@ -244,7 +244,7 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     ctx.state.forget_quire_window(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
-    let Some(surface) = state.surfaces.remove(&id) else {
+    let Some(surface) = state.remove_surface(id) else {
         return;
     };
     let lifted = match &surface.role {
