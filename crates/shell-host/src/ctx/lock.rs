@@ -20,6 +20,7 @@ use crate::event::HostEvent;
 use crate::handlers::output::output_info;
 use crate::id::SurfaceName;
 use crate::id::{OutputId, SurfaceId};
+use crate::input::palmrest::lock_for;
 use crate::live::Live;
 use crate::lock::active::ActiveLock;
 use crate::lock::handle::LockHandle;
@@ -152,6 +153,9 @@ fn perform<M: 'static>(ctx: &mut HostCtx<M>, action: LockAction) {
         LockAction::Destroy => {}
         LockAction::Report(state) => {
             let id = active.id;
+            // The one place the lock's state changes (the handlers' `locked`/`finished` and an
+            // unlock all arrive here), so palmrest hears every change once, in order.
+            ctx.state.palmrest.session_lock(lock_for(state));
             ctx.state.events.push_back(HostEvent::Lock { id, state });
         }
     }

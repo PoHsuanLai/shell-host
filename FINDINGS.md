@@ -749,6 +749,14 @@ on palmrest's crate) and its tests hold byte strings printed by palmrest's own e
 with another version disconnects until the next enter; a packet over 4096 bytes is skipped.
 `PointerOver{Ours|NotOurs}` is sent on changes and after each connect.
 
+**INPUT-09.** `SessionLock{Locked|Unlocked}` is sent the same way: on changes only, and again right
+after `PointerOver` on every connect, so a daemon that restarts mid-lock hears it. Palmrest stops
+gesture keys and desktop actions while any connection says `Locked`. The only source is the lock
+machine's `Report` (`ctx::lock::perform`), which every `locked`, `finished` and unlock reaches:
+`Locked` maps to `Locked`, `Unlocked` and `Finished` to `Unlocked` (`input::palmrest::lock_for`).
+When the host stops while locked its socket closes, and palmrest then counts the session as
+unlocked until the restarted host locks again (F65).
+
 The window (§11.3.14 rule 2): a compositor axis frame whose source is `finger`, `wheel` or
 absent is dropped while palmrest reports fingers down, while a glide palmrest started runs, or
 for `scroll.double_scroll_grace_ms` (150) after the fingers lift, unless an `axis_stop` comes
@@ -769,6 +777,7 @@ output never flashes the compositor's colour.
 - Lock surfaces are made at the request, not at `locked` ("clients should immediately create lock
   surfaces for all outputs"); some compositors send `locked` without waiting for them. A lock
   surface is never committed before its configure, never hidden, carries no popup.
+- Palmrest hears every lock state change (F64, INPUT-09), so gesture actions stop while locked.
 - `Unlocking` is published to every lock document a flush before `unlock_and_destroy`, so an exit
   animation plays first and calls `unlock()` at its end.
 - Which lock surface has the keyboard is compositor policy. Blitz's `autofocus` is a feature the

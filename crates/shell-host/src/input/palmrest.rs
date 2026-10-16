@@ -1,6 +1,7 @@
 //! The palmrest client (design/12 §12.3.10-11, design/11 §11.7): connects to
 //! `$XDG_RUNTIME_DIR/palmrest/events.sock` (`SOCK_SEQPACKET`) when the daemon runs, tells it when
-//! the pointer is over one of our surfaces (`PointerOver`), and reads its scroll, touch, tap and
+//! the pointer is over one of our surfaces (`PointerOver`) and whether the session is locked
+//! (`SessionLock`), and reads its scroll, touch, tap and
 //! swipe events for the engine (`input::scroll`). No daemon, no socket: nothing happens, and
 //! the host tries again on the next pointer enter.
 //!
@@ -21,7 +22,11 @@ use rustix::net::{
 };
 use rustix::process::getuid;
 
-use palmrest_protocol::{Compat, MAX_PACKET, Over, ToDaemon, ToHost, compat, decode, encode};
+use palmrest_protocol::{
+    Compat, LockState, MAX_PACKET, Over, ToDaemon, ToHost, compat, decode, encode,
+};
+
+use crate::lock::machine::LockState as HostLock;
 
 /// The most datagrams one read takes: a daemon (or a process in its place) that sends faster
 /// than the host reads cannot hold the loop in one read. The source is level-triggered, so the
@@ -78,7 +83,19 @@ pub(crate) struct Palmrest {
     link: Link,
     /// Where the pointer is, sent on every change and again after each connect.
     over: Over,
+    /// Whether the session is locked, sent on every change and again after each connect: palmrest
+    /// stops gesture actions while any connection says `Locked`.
+    lock: LockState,
     retry: Retry,
+}
+
+/// What palmrest is told for the host's lock report: only `Locked` locks. `Unlocked`, and
+/// `Finished` (the compositor ended the lock), leave the session unlocked.
+pub(crate) fn lock_for(state: HostLock) -> LockState {
+    match state {
+        HostLock::Locked => LockState::Locked,
+        HostLock::Unlocked | HostLock::Finished => LockState::Unlocked,
+    }
 }
 
 /// `$XDG_RUNTIME_DIR/palmrest/events.sock` for `runtime_dir`.
@@ -99,6 +116,7 @@ impl Palmrest {
             path,
             link: Link::Down,
             over: Over::NotOurs,
+            lock: LockState::Unlocked,
             retry: Retry::Due,
         }
     }
@@ -112,7 +130,7 @@ impl Palmrest {
     }
 
     /// Connect if the socket exists: returns the descriptor the event loop reads from. Sends
-    /// the pointer's current `PointerOver` at once. `None` (and no retry until the next enter)
+    /// the pointer's current `PointerOver` and the session's `SessionLock` at once. `None` (and no retry until the next enter)
     /// when there is no daemon.
     pub(crate) fn connect(&mut self) -> Option<OwnedFd> {
         self.retry = Retry::Waiting;
@@ -128,6 +146,7 @@ impl Palmrest {
         let reader = fd.try_clone().ok()?;
         self.link = Link::Up(fd);
         self.send(&ToDaemon::PointerOver { over: self.over });
+        self.send(&ToDaemon::SessionLock { state: self.lock });
         Some(reader)
     }
 
@@ -149,6 +168,15 @@ impl Palmrest {
         }
     }
 
+    /// The session was locked or unlocked. Sent on a change only; while down, the state is kept
+    /// and `connect` tells it.
+    pub(crate) fn session_lock(&mut self, lock: LockState) {
+        if self.lock != lock {
+            self.lock = lock;
+            self.send(&ToDaemon::SessionLock { state: lock });
+        }
+    }
+
     fn send(&mut self, message: &ToDaemon) {
         let Link::Up(fd) = &self.link else {
             return;
@@ -159,7 +187,7 @@ impl Palmrest {
             SendFlags::NOSIGNAL | SendFlags::DONTWAIT,
         ) {
             Ok(_) => {}
-            // A full socket drops one PointerOver; the next change resends the state.
+            // A full socket drops one message; the next change resends the state.
             Err(e) if e == rustix::io::Errno::AGAIN => {}
             Err(_) => self.link = Link::Down,
         }
@@ -300,6 +328,11 @@ mod tests {
             r#"{"kind":"pointer_over","v":{"over":"ours"}}"#,
             "state on connect"
         );
+        assert_eq!(
+            received(&peer),
+            r#"{"kind":"session_lock","v":{"state":"unlocked"}}"#,
+            "the lock state on connect"
+        );
         client.pointer_over(Over::Ours);
         client.pointer_over(Over::NotOurs);
         assert_eq!(
@@ -339,6 +372,57 @@ mod tests {
         drop(peer);
         let (messages, stream) = read_all(&reader);
         assert_eq!((messages.len(), stream), (0, Stream::Closed));
+    }
+
+    #[test]
+    fn the_lock_is_sent_on_change_and_again_after_a_reconnect() {
+        let (dir, listener) = daemon();
+        let mut client = Palmrest::at(socket_path(Some(dir.path())));
+        client.session_lock(LockState::Locked);
+        let _reader = client.connect().expect("connects");
+        let peer = accept(&listener).expect("accept");
+        assert_eq!(
+            received(&peer),
+            r#"{"kind":"pointer_over","v":{"over":"not_ours"}}"#
+        );
+        let locked = r#"{"kind":"session_lock","v":{"state":"locked"}}"#;
+        assert_eq!(
+            received(&peer),
+            locked,
+            "a lock held before the connect is told at it"
+        );
+
+        client.session_lock(LockState::Locked);
+        client.session_lock(LockState::Unlocked);
+        assert_eq!(
+            received(&peer),
+            r#"{"kind":"session_lock","v":{"state":"unlocked"}}"#,
+            "only changes are sent"
+        );
+
+        client.session_lock(LockState::Locked);
+        assert_eq!(received(&peer), locked);
+        client.disconnected();
+        let _again = client.connect().expect("reconnects");
+        let second = accept(&listener).expect("accept");
+        received(&second);
+        assert_eq!(received(&second), locked, "a reconnect tells it again");
+    }
+
+    #[test]
+    fn only_locked_reports_lock_the_session() {
+        let cases: &[(&str, HostLock, LockState)] = &[
+            ("the compositor locked", HostLock::Locked, LockState::Locked),
+            ("we unlocked", HostLock::Unlocked, LockState::Unlocked),
+            (
+                "the compositor ended it",
+                HostLock::Finished,
+                LockState::Unlocked,
+            ),
+        ];
+        for (name, report, want) in cases {
+            assert_eq!(lock_for(*report), *want, "{name}");
+        }
     }
 
     #[test]

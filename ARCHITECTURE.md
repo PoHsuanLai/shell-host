@@ -178,7 +178,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Key event assembly, key repeat | `input/key`, `handlers/keyboard` |
 | Seat capability decision | `input/capability` |
 | Input modality (keyboard vs pointer) | `modality` |
-| Palmrest socket client | `input/palmrest` (socket), `input/palmrest/route` (meaning) |
+| Palmrest socket client (pointer, session lock) | `input/palmrest` (socket), `input/palmrest/route` (meaning); the lock is told from `ctx/lock` |
 | Palmrest messages | `palmrest-protocol` |
 | Scroll physics, latching, document side, driver | `blitz_kit::scroll` (shared with `ds-blitz`) |
 | Scroll settings (engine part) | `blitz_kit::scroll::config::ScrollSettings`; `scroll/config` holds `ScrollConfig` (it and the thumb's settings) |
@@ -335,7 +335,7 @@ the compositor for the acceptance scripts. Handlers become table-testable by str
 | Rendering | `headless` feature (`render_png` through vello_cpu) and the golden PNGs in `tests/snapshots/` |
 | Blitz repairs | in `blitz-kit`, against a `BaseDocument` |
 | Synthetic input on a live host | `HostCtx::inject` on the headless KWin through the demos and `accept-*.sh` |
-| Palmrest messages | `palmrest-protocol` round-trip tests; `input/palmrest/route` table tests |
+| Palmrest messages | `palmrest-protocol` round-trip tests; `input/palmrest/route` table tests; `input/palmrest` fake-daemon tests (pointer and session lock sent on change and on connect) |
 
 Integration tests in `tests/` use only the public root, `headless` and `inject`; a test that
 needs an internal module is a unit test beside that module. The one harness is the headless
