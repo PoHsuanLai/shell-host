@@ -36,13 +36,17 @@ pub(super) fn request<M: 'static>(ctx: &mut HostCtx<M>, request: Request) {
             let opened = super::spawn::popup(&mut ctx.state, parent, id, config, placement, root)
                 .and_then(|()| super::paint::ensure_presenter(ctx, id));
             if let Err(error) = opened {
-                // A half-made popup goes silently; the event below is its one close.
-                ctx.state.surfaces.remove(&id);
                 eprintln!("shell-host: popup {id:?} on {parent:?}: {error}");
                 let reason = CloseReason::ParentClosed;
-                ctx.state
-                    .events
-                    .push_back(HostEvent::SurfaceClosed { id, reason });
+                if ctx.state.surfaces.contains_key(&id) {
+                    // Half made: it goes the way any closed popup does (the parent's keyboard
+                    // mode put back, the pointer and keyboard withdrawn) and raises the close.
+                    close(ctx, id, reason);
+                } else {
+                    ctx.state
+                        .events
+                        .push_back(HostEvent::SurfaceClosed { id, reason });
+                }
             }
         }
         Request::Close(id) => close(ctx, id, CloseReason::Requested),
