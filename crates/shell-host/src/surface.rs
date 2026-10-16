@@ -170,10 +170,17 @@ impl HostSurface {
         with_scroll(animation, self.scroll.animation(at))
     }
 
-    /// Record a configure: the new logical size (0 on an axis keeps the requested size).
+    /// Record a configure: the new logical size (0 on an axis keeps the size the surface had).
+    /// The surface counts as configured once that leaves it an area; a stretching axis the
+    /// compositor has not resolved yet (0, and nothing to keep) waits for the configure that
+    /// does, since no viewport or buffer can be sized to it.
     pub(crate) fn configure(&mut self, logical: Size) {
         self.logical = configured_size(self.logical, logical);
-        self.configured = Configured::Done;
+        self.configured = if self.logical.has_area() {
+            Configured::Done
+        } else {
+            Configured::Pending
+        };
     }
 
     /// Record a new preferred scale and publish it to the document, whose components reading

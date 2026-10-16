@@ -126,7 +126,7 @@ fn resolve_output_info(id: OutputId, facts: OutputFacts) -> OutputInfo {
             width,
             height,
         },
-        scale: Scale(facts.scale_factor.max(1) as u32 * 120),
+        scale: Scale::from_integer_factor(facts.scale_factor),
         refresh_mhz,
     }
 }

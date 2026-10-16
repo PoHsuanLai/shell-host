@@ -33,7 +33,7 @@ impl CompositorHandler for HostState {
         let Some(host_surface) = self.surfaces.get_mut(&id) else {
             return;
         };
-        host_surface.rescale(Scale(new_factor.max(1) as u32 * 120));
+        host_surface.rescale(Scale::from_integer_factor(new_factor));
         let action = host_surface.step(FrameInput::Invalidate);
         self.timers.push(TimerRequest::Watchdog {
             id,

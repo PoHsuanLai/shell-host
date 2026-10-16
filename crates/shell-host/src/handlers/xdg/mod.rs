@@ -20,7 +20,6 @@ use crate::region::Px;
 use crate::role::Role;
 use crate::scale::{self, Size};
 use crate::state::HostState;
-use crate::surface::Configured;
 use crate::timers::TimerRequest;
 use crate::toplevel::state_of;
 use decide::{
@@ -147,9 +146,8 @@ fn record_toplevel_configure(
     *current = next;
     host_surface.inset = layout.inset;
     host_surface.configure(layout.surface);
-    host_surface.configured = Configured::Done;
     host_surface.live_toplevel.publish(next);
-    Some((layout.surface, host_surface.scale))
+    Some((host_surface.logical, host_surface.scale))
 }
 
 /// Records the configured logical size on `id`'s popup and marks it configured. Returns the
@@ -167,10 +165,8 @@ fn record_popup_configure(
     if !matches!(host_surface.role, Role::Popup { .. }) {
         return None;
     }
-    let logical = popup_size(config.width, config.height);
-    host_surface.configure(logical);
-    host_surface.configured = Configured::Done;
-    Some((logical, host_surface.scale))
+    host_surface.configure(popup_size(config.width, config.height));
+    Some((host_surface.logical, host_surface.scale))
 }
 
 /// After a popup closes, drop its parent layer back to `KeyboardMode::None` if that is what the

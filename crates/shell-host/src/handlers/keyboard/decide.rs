@@ -4,6 +4,10 @@ use std::time::Duration;
 
 use smithay_client_toolkit::seat::keyboard::RepeatInfo;
 
+/// The fastest key repeat accepted, in keys per second: a rate beyond this is a compositor bug,
+/// and would fire the repeat timer back to back and flood the focused document with keys.
+const MAX_REPEAT_RATE: u32 = 1000;
+
 /// What the compositor's repeat settings ask of the repeat timer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum RepeatTiming {
@@ -18,7 +22,7 @@ pub(super) fn repeat_timing(info: RepeatInfo) -> RepeatTiming {
     match info {
         RepeatInfo::Repeat { rate, delay } => RepeatTiming::Every {
             delay: Duration::from_millis(u64::from(delay)),
-            interval: Duration::from_secs_f64(1.0 / f64::from(rate.get())),
+            interval: Duration::from_secs_f64(1.0 / f64::from(rate.get().min(MAX_REPEAT_RATE))),
         },
         RepeatInfo::Disable => RepeatTiming::Off,
     }
@@ -72,6 +76,17 @@ mod tests {
                 RepeatTiming::Every {
                     delay: Duration::ZERO,
                     interval: Duration::from_secs(1),
+                },
+            ),
+            (
+                "a rate beyond any keyboard is held to the fastest accepted",
+                RepeatInfo::Repeat {
+                    rate: rate(u32::MAX),
+                    delay: 0,
+                },
+                RepeatTiming::Every {
+                    delay: Duration::ZERO,
+                    interval: Duration::from_millis(1),
                 },
             ),
             ("disabled", RepeatInfo::Disable, RepeatTiming::Off),

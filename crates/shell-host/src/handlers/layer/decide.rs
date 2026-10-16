@@ -2,7 +2,7 @@
 
 use crate::layer::{LayerExtent, LayerSize};
 use crate::region::Px;
-use crate::scale::Size;
+use crate::scale::{Size, wire_extent};
 
 /// The logical size to record from a `zwlr_layer_surface_v1.configure`: on each axis, the
 /// compositor's value when it sent one, or what `requested` asked for on that axis when it
@@ -13,10 +13,10 @@ use crate::scale::Size;
 pub(crate) fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
     let axis = |extent: LayerExtent, got: u32| -> Px {
         if got != 0 {
-            return got as Px;
+            return wire_extent(got);
         }
         match extent {
-            LayerExtent::Px(px) => px as Px,
+            LayerExtent::Px(px) => wire_extent(px),
             LayerExtent::Fill => 0,
         }
     };
@@ -29,6 +29,7 @@ pub(crate) fn configured_size(requested: LayerSize, wire: (u32, u32)) -> Size {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scale::MAX_SURFACE_EXTENT;
 
     #[test]
     fn configured_size_matches_the_table() {
@@ -84,6 +85,15 @@ mod tests {
                 Size {
                     width: 0,
                     height: 32,
+                },
+            ),
+            (
+                "a size beyond any device is kept to the largest accepted",
+                bar,
+                (40_000, u32::MAX),
+                Size {
+                    width: MAX_SURFACE_EXTENT,
+                    height: MAX_SURFACE_EXTENT,
                 },
             ),
         ];

@@ -18,7 +18,6 @@ use crate::id::SurfaceId;
 use crate::role::Role;
 use crate::scale::{self, Scale, Size};
 use crate::state::HostState;
-use crate::surface::Configured;
 use crate::timers::TimerRequest;
 
 impl LayerShellHandler for HostState {
@@ -81,8 +80,9 @@ pub(crate) fn follow_configure(
     }
 }
 
-/// Records the configured logical size on `id`'s surface and marks it configured; returns its
-/// logical size and scale (for the caller's buffer/viewport arithmetic), or `None` if `id` no
+/// Records the configured size on `id`'s surface and marks it configured once it has an area;
+/// returns the surface's logical size (the configure's, with an axis the compositor left at 0
+/// kept as it was) and scale for the caller's buffer/viewport arithmetic, or `None` if `id` no
 /// longer names a live layer surface.
 fn record_configure(
     state: &mut HostState,
@@ -93,8 +93,7 @@ fn record_configure(
     let Role::Layer { config, .. } = &host_surface.role else {
         return None;
     };
-    let logical = configured_size(config.size, configure.new_size);
-    host_surface.configure(logical);
-    host_surface.configured = Configured::Done;
-    Some((logical, host_surface.scale))
+    let wire = configured_size(config.size, configure.new_size);
+    host_surface.configure(wire);
+    Some((host_surface.logical, host_surface.scale))
 }

@@ -10,7 +10,9 @@ use crate::gpu::context::{GpuContext, devices_created};
 use crate::gpu::presenter::FrameTarget;
 use crate::gpu::render::capture_document;
 use crate::gpu::shm::swap_red_blue;
-use crate::gpu::swapchain::{alpha_mode_of, choose_alpha, choose_present, present_mode_of};
+use crate::gpu::swapchain::{
+    alpha_mode_of, choose_alpha, choose_present, pixel_extent, present_mode_of,
+};
 use crate::stats::{AlphaMode, PresentMode};
 use crate::{AdapterPref, Scale, Size};
 use anyrender::{PaintRef, PaintScene as _, RenderContext, ResourceId, Scene};
@@ -41,6 +43,20 @@ fn present_mode_is_mailbox_else_fifo() {
     ];
     for (name, offered, want) in cases {
         assert_eq!(choose_present(offered), *want, "{name}");
+    }
+}
+
+#[test]
+fn a_pixel_extent_is_at_least_one_and_within_the_device_limit() {
+    let size = |width, height| Size { width, height };
+    let cases = [
+        ("ordinary", size(1920, 1080), (1920, 1080)),
+        ("a zero side", size(0, 32), (1, 32)),
+        ("negative", size(-4, 7), (1, 7)),
+        ("past the limit", size(40_000, i32::MAX), (8192, 8192)),
+    ];
+    for (name, buffer, want) in cases {
+        assert_eq!(pixel_extent(buffer), want, "{name}");
     }
 }
 

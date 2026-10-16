@@ -5,7 +5,7 @@ use std::num::NonZeroU32;
 use crate::csd::{Inset, inset_for, surface_of, window_geometry};
 use crate::layer::KeyboardMode;
 use crate::region::{Px, Rect};
-use crate::scale::Size;
+use crate::scale::{MAX_SURFACE_EXTENT, Size, wire_extent};
 use crate::toplevel::{Decorations, ToplevelState};
 
 /// What a toplevel configure leaves the surface looking like.
@@ -58,8 +58,9 @@ pub(super) fn toplevel_configured_size(
     current: Size,
     wire: (Option<NonZeroU32>, Option<NonZeroU32>),
 ) -> Size {
-    let axis =
-        |got: Option<NonZeroU32>, fallback: Px| -> Px { got.map_or(fallback, |v| v.get() as Px) };
+    let axis = |got: Option<NonZeroU32>, fallback: Px| -> Px {
+        got.map_or(fallback, |v| wire_extent(v.get()))
+    };
     Size {
         width: axis(wire.0, current.width),
         height: axis(wire.1, current.height),
@@ -68,11 +69,12 @@ pub(super) fn toplevel_configured_size(
 
 /// The logical size of a popup from its configure. `xdg_popup.configure` always carries a
 /// definite size; a non-positive width or height (which the protocol does not forbid outright)
-/// is clamped to one pixel so a degenerate configure never leaves the surface unrenderable.
+/// is clamped to one pixel so a degenerate configure never leaves the surface unrenderable, and
+/// one beyond [`MAX_SURFACE_EXTENT`] is kept to it.
 pub(super) fn popup_size(width: Px, height: Px) -> Size {
     Size {
-        width: width.max(1),
-        height: height.max(1),
+        width: width.clamp(1, MAX_SURFACE_EXTENT),
+        height: height.clamp(1, MAX_SURFACE_EXTENT),
     }
 }
 

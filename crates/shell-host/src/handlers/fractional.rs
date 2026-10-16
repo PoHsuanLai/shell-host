@@ -18,7 +18,7 @@ use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1:
 use wayland_protocols::wp::viewporter::client::wp_viewport::{self, WpViewport};
 use wayland_protocols::wp::viewporter::client::wp_viewporter::{self, WpViewporter};
 
-use crate::scale::Scale;
+use crate::scale::{Scale, Size};
 
 /// State for `wp_fractional_scale_manager_v1` and `wp_viewporter`: the two bound managers, and
 /// the per-surface objects and last-reported scale created against them.
@@ -74,14 +74,15 @@ impl Fractional {
     }
 
     /// Set the viewport's destination size (the surface-local logical size the buffer, whatever
-    /// its own pixel size, should be scaled to fill). Panics if `watch` was not called first for
-    /// this surface, which is a caller bug, not a runtime condition.
-    pub(crate) fn set_destination(&self, surface: &WlSurface, width: i32, height: i32) {
-        let viewport = self
-            .viewport_of
-            .get(&surface.id())
-            .expect("watch() must precede set_destination()");
-        viewport.set_destination(width, height);
+    /// its own pixel size, should be scaled to fill). Nothing is sent for a size without an area
+    /// (the protocol ends the connection on it) or for a surface `watch` never saw.
+    pub(crate) fn set_destination(&self, surface: &WlSurface, size: Size) {
+        if !size.has_area() {
+            return;
+        }
+        if let Some(viewport) = self.viewport_of.get(&surface.id()) {
+            viewport.set_destination(size.width, size.height);
+        }
     }
 }
 

@@ -27,7 +27,7 @@ pub(super) fn sync_geometry(state: &mut HostState, id: SurfaceId) {
         return;
     }
     match &state.fractional {
-        Some(fractional) => fractional.set_destination(&wl, now.logical.width, now.logical.height),
+        Some(fractional) => fractional.set_destination(&wl, now.logical),
         None => wl.set_buffer_scale(integer_scale(now.scale)),
     }
     // The scheme the document is at, not the host's: a root that follows its own appearance

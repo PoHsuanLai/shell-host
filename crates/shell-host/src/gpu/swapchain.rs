@@ -3,7 +3,7 @@
 
 use crate::error::{HostError, Result};
 use crate::gpu::context::{GpuContext, SURFACE_FORMAT};
-use crate::scale::Size;
+use crate::scale::{MAX_SURFACE_EXTENT, Size};
 use crate::stats::{AlphaMode, PresentMode};
 
 /// One surface's swapchain and scene. The wgpu surface is declared first so it drops first.
@@ -70,10 +70,12 @@ impl Swapchain {
     }
 }
 
-/// A buffer size as the unsigned pixel extent wgpu and the renderers take, at least 1x1: a
-/// zero-sized axis cannot be configured or rendered, and the surface is not visible then.
+/// A buffer size as the unsigned pixel extent wgpu and the renderers take, at least 1x1 and at
+/// most [`MAX_SURFACE_EXTENT`]: a zero-sized axis cannot be configured or rendered (and the
+/// surface is not visible then), and one beyond the device's texture limit is a validation error.
 pub(crate) fn pixel_extent(buffer: Size) -> (u32, u32) {
-    let axis = |v: i32| u32::try_from(v).unwrap_or(0).max(1);
+    let most = u32::try_from(MAX_SURFACE_EXTENT).unwrap_or(1);
+    let axis = |v: i32| u32::try_from(v).unwrap_or(0).clamp(1, most);
     (axis(buffer.width), axis(buffer.height))
 }
 

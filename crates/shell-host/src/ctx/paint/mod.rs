@@ -30,7 +30,6 @@ use crate::handlers::text_input::apply_ime_request;
 use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
 use crate::msg::Visibility;
-use crate::scale::Size;
 use crate::state::HostState;
 use crate::surface::Configured;
 
@@ -54,7 +53,7 @@ fn step_one<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
     };
     let drawable = surface.visibility == Visibility::Shown
         && surface.configured == Configured::Done
-        && has_area(surface.logical);
+        && surface.logical.has_area();
     if !drawable {
         return Ok(());
     }
@@ -92,8 +91,4 @@ fn sync_ime(state: &mut HostState, id: SurfaceId) {
     if wanted != current {
         apply_ime_request(state, wanted);
     }
-}
-
-fn has_area(size: Size) -> bool {
-    size.width > 0 && size.height > 0
 }

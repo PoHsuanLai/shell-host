@@ -10,8 +10,7 @@ use wayland_client::{Connection, QueueHandle};
 use crate::handlers::layer::follow_configure;
 use crate::handlers::surface_id_by_wl;
 use crate::lock::machine::LockInput;
-use crate::region::Px;
-use crate::scale::Size;
+use crate::scale::{Size, wire_extent};
 use crate::state::HostState;
 
 impl SessionLockHandler for HostState {
@@ -36,16 +35,15 @@ impl SessionLockHandler for HostState {
             return;
         };
         let (width, height) = configure.new_size;
-        let px = |v: u32| Px::try_from(v).unwrap_or(Px::MAX);
-        let logical = Size {
-            width: px(width),
-            height: px(height),
+        let wire = Size {
+            width: wire_extent(width),
+            height: wire_extent(height),
         };
         let Some(host_surface) = self.surfaces.get_mut(&id) else {
             return;
         };
-        host_surface.configure(logical);
-        let scale = host_surface.scale;
+        host_surface.configure(wire);
+        let (logical, scale) = (host_surface.logical, host_surface.scale);
         follow_configure(self, id, surface.wl_surface(), logical, scale);
     }
 }
