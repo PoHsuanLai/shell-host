@@ -14,6 +14,7 @@ pub(crate) mod fractional;
 pub(crate) mod keyboard;
 pub(crate) mod layer;
 pub(crate) mod output;
+pub(crate) mod pipe_writes;
 pub(crate) mod pointer;
 pub(crate) mod quire_window;
 pub(crate) mod render_device;

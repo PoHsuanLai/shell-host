@@ -4,15 +4,13 @@
 //! Blitz asks `ShellProvider::get_clipboard_text` synchronously, from inside its own event
 //! handling on the main thread, which is also the thread that would have to serve the pipe if
 //! the selection were ours. So nothing is read at paste time: every `wl_data_device.selection`
-//! event starts a read of the new offer on a helper thread ([`PASTE_TIMEOUT`]), which publishes
-//! the text into a [`SharedSelection`] every surface's shell provider holds. A paste in the few
-//! milliseconds between a new selection and its read finishing sees the previous text.
+//! event starts a read of the new offer, which the loop carries out (`ctx::paste`, bounded in
+//! size and time by `paste`) and publishes into a [`SharedSelection`] every surface's shell
+//! provider holds. A paste in the few milliseconds between a new selection and its read
+//! finishing sees the previous text.
 
 use std::io;
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex, PoisonError};
-use std::thread;
-use std::time::Duration;
 
 use smithay_client_toolkit::data_device_manager::ReadPipe;
 use smithay_client_toolkit::data_device_manager::data_offer::SelectionOffer;
@@ -20,9 +18,6 @@ use smithay_client_toolkit::data_device_manager::data_source::CopyPasteSource;
 use wayland_client::Connection;
 
 use crate::error::{HostError, Result};
-
-/// How long reading a selection offer waits for its owner to write.
-pub(crate) const PASTE_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// The MIME types a text paste accepts, most preferred first.
 pub(crate) const TEXT_MIME: &[&str] = &["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
@@ -81,18 +76,26 @@ impl SharedSelection {
     }
 }
 
+/// A selection offer's pipe, waiting for the loop to read it.
+#[derive(Debug)]
+pub(crate) struct PendingRead {
+    pub(crate) pipe: ReadPipe,
+    /// The selection it belongs to.
+    pub(crate) generation: Generation,
+}
+
 /// The seat's clipboard.
 #[derive(Debug, Default)]
 pub(crate) struct Clipboard {
-    /// The text we last copied, while we own the selection.
-    pub(crate) own: Option<String>,
+    /// The text we last copied, as bytes, while we own the selection. Shared with the pipes
+    /// that are writing it out.
+    pub(crate) own: Option<Arc<[u8]>>,
     /// The compositor's current selection offer.
     pub(crate) offer: Option<SelectionOffer>,
     /// The selection's text, as the shell providers read it.
     pub(crate) selection: SharedSelection,
     /// The connection, so [`Clipboard::follow`] can flush a `wl_data_offer.receive` request
-    /// before its helper thread blocks on the pipe (sending a request only buffers it
-    /// client-side). Set once, the first time a handler sees a `Connection`
+    /// before the loop reads the pipe (sending a request only buffers it client-side). Set once, the first time a handler sees a `Connection`
     /// (`handlers::seat::HostState::new_seat`); `None` only before that.
     pub(crate) conn: Option<Connection>,
     /// The data source backing our own selection, kept alive for as long as we hold it:
@@ -101,6 +104,9 @@ pub(crate) struct Clipboard {
     /// anyone could read it. Set by `handlers::data_device`'s claim helper, which is the only
     /// code with the queue handle and serial `Clipboard::copy` itself cannot take.
     pub(crate) source: Option<CopyPasteSource>,
+    /// The newest selection's pipe, until the loop starts reading it. A newer selection replaces
+    /// it, which closes the older pipe: at most one read waits, and one runs (`ctx::paste`).
+    pending_read: Option<PendingRead>,
 }
 
 impl Clipboard {
@@ -112,35 +118,36 @@ impl Clipboard {
     pub(crate) fn copy(&mut self, text: String) {
         let generation = self.selection.begin();
         self.selection.publish(generation, Some(text.clone()));
-        self.own = Some(text);
+        self.own = Some(Arc::from(text.as_bytes()));
     }
 
-    /// Follow a new selection (`wl_data_device.selection`): remember the offer and read its text
-    /// on a helper thread, publishing it when the read finishes (or `None` when the offer has
-    /// no text type, the read fails, or it times out). No offer means an empty clipboard.
+    /// Follow a new selection (`wl_data_device.selection`): remember the offer and queue a read
+    /// of its text for the loop, which publishes it when the read finishes (or `None` when the
+    /// offer has no text type, the read fails, it is too large, or it times out). No offer
+    /// means an empty clipboard.
     pub(crate) fn follow(&mut self, offer: Option<SelectionOffer>) {
         let generation = self.selection.begin();
         let pipe = offer
             .as_ref()
             .map(|offer| receive_text(offer, self.conn.as_ref()));
         self.offer = offer;
-        match pipe {
-            Some(Ok(pipe)) => {
-                let selection = self.selection.clone();
-                thread::spawn(move || {
-                    let text = read_within(pipe, PASTE_TIMEOUT).ok();
-                    selection.publish(generation, text);
-                });
-            }
+        self.pending_read = match pipe {
+            Some(Ok(pipe)) => Some(PendingRead { pipe, generation }),
             Some(Err(_)) | None => {
                 self.selection.publish(generation, None);
+                None
             }
-        }
+        };
+    }
+
+    /// The read `follow` queued, for the loop to start.
+    pub(crate) fn take_read(&mut self) -> Option<PendingRead> {
+        self.pending_read.take()
     }
 }
 
 /// Ask `offer`'s owner to write its text into a pipe, and flush the request so it reaches the
-/// compositor before anyone blocks on the pipe.
+/// compositor before the pipe is read.
 fn receive_text(offer: &SelectionOffer, conn: Option<&Connection>) -> Result<ReadPipe> {
     let mime = offer
         .with_mime_types(|types: &[String]| {
@@ -162,27 +169,6 @@ fn receive_text(offer: &SelectionOffer, conn: Option<&Connection>) -> Result<Rea
         let _ = conn.flush();
     }
     Ok(pipe)
-}
-
-/// Read all of `pipe` on a second helper thread, giving up after `timeout`. A thread (rather
-/// than a raw poll on the fd) needs nothing beyond `std`; on a timeout the reader is abandoned
-/// and ends when the owner closes its end.
-fn read_within(mut pipe: ReadPipe, timeout: Duration) -> Result<String> {
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        use io::Read;
-        let mut buf = String::new();
-        let result = pipe.read_to_string(&mut buf).map(|_| buf);
-        let _ = tx.send(result);
-    });
-    match rx.recv_timeout(timeout) {
-        Ok(Ok(text)) => Ok(text),
-        Ok(Err(err)) => Err(HostError::Io(err)),
-        Err(_) => Err(HostError::Io(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "paste timed out waiting for the selection owner",
-        ))),
-    }
 }
 
 #[cfg(test)]

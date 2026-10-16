@@ -1,10 +1,13 @@
-//! The bytes a `wl_data_source.send` pipe still owes, and what each write's result means.
+//! The bytes a `wl_data_source.send` pipe still owes, and what each write's result means: for a
+//! drag's payload and for our selection alike.
 //!
 //! The host writes on the event loop, a chunk each time the pipe is writable, on a
-//! non-blocking descriptor (`ctx::drag`); this is the bookkeeping, free of the descriptor.
+//! non-blocking descriptor (`ctx::pipe`); this is the bookkeeping, free of the descriptor.
 
 use std::io;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 /// The most one write offers, so a pipe that is barely writable costs one short write.
 pub(crate) const CHUNK: usize = 64 * 1024;
@@ -15,6 +18,14 @@ pub(crate) struct Outgoing {
     bytes: Arc<[u8]>,
     sent: usize,
 }
+
+/// The most pipes the host fills at once, queued or open: a client that asks for the selection
+/// in a loop and never reads cannot grow the host's descriptors without bound.
+pub(crate) const MAX_OPEN_WRITES: usize = 8;
+
+/// How long one pipe may stay open: a reader that stops draining it and never closes it is cut
+/// off, so it cannot hold a slot for good.
+pub(crate) const WRITE_DEADLINE: Duration = Duration::from_secs(10);
 
 /// What to do after a write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,9 +75,65 @@ impl Outgoing {
     }
 }
 
+/// How many pipes are open, against a limit. Clones count together.
+#[derive(Debug, Clone)]
+pub(crate) struct WriteSlots {
+    open: Arc<AtomicUsize>,
+    limit: usize,
+}
+
+/// One open pipe's place among [`WriteSlots`], given back when it drops.
+#[derive(Debug)]
+pub(crate) struct Slot(Arc<AtomicUsize>);
+
+impl WriteSlots {
+    /// Room for `limit` pipes.
+    pub(crate) fn with_limit(limit: usize) -> WriteSlots {
+        WriteSlots {
+            open: Arc::new(AtomicUsize::new(0)),
+            limit,
+        }
+    }
+
+    /// A place for one more pipe, or `None` when the limit is reached.
+    pub(crate) fn take(&self) -> Option<Slot> {
+        let before = self.open.fetch_add(1, Ordering::AcqRel);
+        if before >= self.limit {
+            self.open.fetch_sub(1, Ordering::AcqRel);
+            return None;
+        }
+        Some(Slot(Arc::clone(&self.open)))
+    }
+}
+
+impl Default for WriteSlots {
+    fn default() -> WriteSlots {
+        WriteSlots::with_limit(MAX_OPEN_WRITES)
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_slot_is_given_back_when_its_pipe_goes() {
+        let slots = WriteSlots::with_limit(2);
+        let first = slots.take().expect("room for one");
+        let second = slots.take().expect("room for two");
+        assert!(slots.take().is_none(), "the third is refused");
+        drop(first);
+        let third = slots.take().expect("room again once a pipe closed");
+        assert!(slots.take().is_none(), "still two open");
+        drop((second, third));
+        assert!(slots.take().is_some(), "all given back");
+    }
 
     fn outgoing(len: usize) -> Outgoing {
         Outgoing::new(Arc::from(vec![7u8; len]))

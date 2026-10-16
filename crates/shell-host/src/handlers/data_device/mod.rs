@@ -4,7 +4,7 @@
 
 mod decide;
 
-use std::io::Write;
+use std::sync::Arc;
 
 use smithay_client_toolkit::data_device_manager::WritePipe;
 use smithay_client_toolkit::data_device_manager::data_device::{DataDeviceData, DataDeviceHandler};
@@ -19,6 +19,7 @@ use wayland_client::{Connection, QueueHandle};
 
 use crate::clipboard::TEXT_MIME;
 use crate::drag::outcome::DragEnd;
+use crate::handlers::pipe_writes::Queued;
 use crate::state::HostState;
 use decide::{SourceOwner, source_owner};
 
@@ -105,23 +106,27 @@ impl DataSourceHandler for HostState {
     }
 
     /// Our drag's: queue the write for the loop (`handlers::drag_source`). Our selection's:
-    /// write the copied text into `fd`; closing it (by dropping it here) is what tells the
-    /// reader it has seen everything.
+    /// queue the copied text the same way. The loop writes it a chunk at a time and closes the
+    /// pipe, which tells the reader it has seen everything; nothing is written here, so a reader
+    /// that never reads cannot stall this thread.
     fn send_request(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
         source: &WlDataSource,
         mime: String,
-        mut fd: WritePipe,
+        fd: WritePipe,
     ) {
         match self.source_owner(source) {
             SourceOwner::Drag => self.drag_send(&mime, fd),
-            SourceOwner::Selection | SourceOwner::Unknown => {
-                if let Some(text) = &self.clipboard.own {
-                    let _ = fd.write_all(text.as_bytes());
+            SourceOwner::Selection | SourceOwner::Unknown => match &self.clipboard.own {
+                Some(text) => {
+                    if self.pipe_writes.push(fd, Arc::clone(text)) == Queued::Refused {
+                        eprintln!("shell-host: too many paste pipes open; one closed unanswered");
+                    }
                 }
-            }
+                None => drop(fd),
+            },
         }
     }
 

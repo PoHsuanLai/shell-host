@@ -54,6 +54,7 @@ mod modality;
 mod modifiers;
 mod msg;
 mod output;
+mod paste;
 mod placement;
 mod popup;
 mod popup_keyboard;

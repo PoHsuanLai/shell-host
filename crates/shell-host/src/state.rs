@@ -59,6 +59,7 @@ use crate::handlers::activation::ActivationRequest;
 use crate::handlers::background_effect::{BackgroundEffect, Support};
 use crate::handlers::drag_source::Dragging;
 use crate::handlers::fractional::Fractional;
+use crate::handlers::pipe_writes::PipeWrites;
 use crate::handlers::quire_window::QuireWindows;
 use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
@@ -113,6 +114,9 @@ pub(crate) struct HostState {
     pub(crate) clipboard: Clipboard,
     /// The drag out of one of our surfaces, while one is under way.
     pub(crate) drag: Dragging,
+    /// Pipes targets and pasting clients asked us to fill since the last flush
+    /// (`ctx::pipe::register_writes` hands each to the loop).
+    pub(crate) pipe_writes: PipeWrites,
     /// `ext_session_lock_manager_v1`; `lock` fails with `LockError::Unsupported` without it.
     pub(crate) session_lock: SessionLockState,
     /// The session lock in force, from its request until it ends.
@@ -215,6 +219,7 @@ impl HostState {
             },
             clipboard: Clipboard::default(),
             drag: Dragging::default(),
+            pipe_writes: PipeWrites::default(),
             session_lock: SessionLockState::new(globals, &qh),
             lock: None,
             lock_ids: LockIds::default(),

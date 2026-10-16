@@ -8,6 +8,8 @@ mod lock;
 mod ops;
 mod paint;
 mod palmrest;
+mod paste;
+mod pipe;
 mod rescale;
 mod spawn;
 mod timer;
@@ -59,6 +61,8 @@ pub struct HostCtx<M> {
     /// Pending scroll-thumb wakes by surface (`TimerRequest::ScrollWake`).
     pub(crate) scroll_wakes: BTreeMap<SurfaceId, RegistrationToken>,
     pub(crate) repeat: Option<RegistrationToken>,
+    /// The selection read in flight (`ctx::paste`), if any.
+    pub(crate) reading: Option<paste::Reading>,
     pub(crate) running: Running,
     /// The backend in force: `Gpu` until no adapter survives validation, then `Cpu`.
     pub(crate) backend: Backend,

@@ -100,7 +100,8 @@ impl<M: 'static> Flush for HostCtx<M> {
 
     fn arm_timers(&mut self) {
         super::timer::arm_requested(self);
-        super::drag::register_writes(self);
+        super::pipe::register_writes(self);
+        super::paste::register_read(self);
         super::palmrest::connect_if_due(self);
     }
 

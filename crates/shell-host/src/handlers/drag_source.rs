@@ -10,17 +10,14 @@ use wayland_client::protocol::wl_data_device_manager::DndAction;
 
 use crate::drag::offer::{Offered, bytes_for};
 use crate::drag::outcome::{DragAction, DragEnd, DragOutcome, outcome};
-use crate::drag::pipe::Outgoing;
+use crate::handlers::pipe_writes::Queued;
 use crate::id::SurfaceId;
 use crate::state::HostState;
 
-/// The seat's drag, if one is under way, and the pipe writes waiting for the loop.
+/// The seat's drag, if one is under way.
 #[derive(Debug, Default)]
 pub(crate) struct Dragging {
     pub(crate) active: Option<ActiveDrag>,
-    /// Pipes a target asked us to fill since the last flush; `ctx::drag::register_writes`
-    /// hands each to the loop.
-    pub(crate) writes: Vec<PendingWrite>,
 }
 
 /// A drag the compositor is running.
@@ -36,13 +33,6 @@ pub(crate) struct ActiveDrag {
     pub(crate) icon: Option<SurfaceId>,
 }
 
-/// A pipe and what it is owed.
-#[derive(Debug)]
-pub(crate) struct PendingWrite {
-    pub(crate) pipe: WritePipe,
-    pub(crate) outgoing: Outgoing,
-}
-
 impl HostState {
     /// A target asked for the payload as `mime`: queue the write. A type we never offered gets
     /// the pipe closed at once (an empty read), which is all a source can say.
@@ -53,10 +43,11 @@ impl HostState {
             .as_ref()
             .and_then(|drag| bytes_for(&drag.offered, mime));
         match bytes {
-            Some(bytes) => self.drag.writes.push(PendingWrite {
-                pipe,
-                outgoing: Outgoing::new(bytes),
-            }),
+            Some(bytes) => {
+                if self.pipe_writes.push(pipe, bytes) == Queued::Refused {
+                    eprintln!("shell-host: too many drag pipes open; one closed unanswered");
+                }
+            }
             None => drop(pipe),
         }
     }
