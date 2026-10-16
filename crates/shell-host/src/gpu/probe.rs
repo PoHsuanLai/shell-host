@@ -24,8 +24,7 @@ use crate::error::{HostError, Result};
 use crate::gpu::context::{SURFACE_FORMAT, enumerate, with_backends};
 use crate::gpu::raw_handle::{self, WaylandDisplay};
 use crate::gpu::swapchain::{choose_alpha, choose_present};
-use blitz_kit::adapter::AdapterFacts;
-use blitz_kit::adapter::block_on;
+use blitz_kit::adapter::{AdapterFacts, request_device};
 
 const NAMESPACE: &str = "shell-host-adapter-probe";
 
@@ -187,11 +186,8 @@ fn present_once(
             caps.formats
         ));
     }
-    let (device, gpu_queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        label: Some("shell-host adapter probe"),
-        ..Default::default()
-    }))
-    .map_err(|e| format!("no device: {e}"))?;
+    let (device, gpu_queue) = request_device(adapter, "shell-host adapter probe")
+        .map_err(|e| format!("no device: {e}"))?;
     target.configure(
         &device,
         &wgpu::SurfaceConfiguration {
