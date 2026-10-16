@@ -80,8 +80,10 @@ impl Presenter {
         match self {
             // Without the device the size is picked up by the next present's acquire.
             Presenter::Wgpu(swapchain) => {
-                if let Some(gpu) = gpu {
-                    swapchain.configure(gpu, buffer);
+                if let Some(gpu) = gpu
+                    && let Err(error) = swapchain.configure(gpu, buffer)
+                {
+                    eprintln!("shell-host: {error}");
                 }
             }
             Presenter::Shm(buffers) => buffers.buffer = buffer,

@@ -20,6 +20,7 @@ use crate::config::HostConfig;
 use crate::ctx::{HostCtx, Running};
 use crate::error::{HostError, Result};
 use crate::event::{HostEvent, widen};
+use crate::gpu::rebuild::Rebuilds;
 use crate::handle::RequestQueue;
 use crate::host_handle::HostHandle;
 use crate::msg::{HostMsg, Request};
@@ -87,6 +88,8 @@ impl<M: Send + 'static> Host<M> {
             repeat: None,
             reading: None,
             running: Running::Continue,
+            failed: None,
+            rebuilds: Rebuilds::default(),
             backend: config.backend,
             adapter: config.adapter,
             instance: None,

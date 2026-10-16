@@ -28,8 +28,9 @@ use tokio::sync::oneshot;
 use wayland_client::protocol::wl_surface::WlSurface;
 
 use crate::config::Backend;
-use crate::error::Result;
+use crate::error::{HostError, Result};
 use crate::frame::FrameInput;
+use crate::gpu::rebuild::Rebuilds;
 use crate::handlers::activation::ActivationRequest;
 use crate::handlers::output::output_info;
 use crate::id::SurfaceId;
@@ -64,6 +65,11 @@ pub struct HostCtx<M> {
     /// The selection read in flight (`ctx::paste`), if any.
     pub(crate) reading: Option<paste::Reading>,
     pub(crate) running: Running,
+    /// Why the host must stop, found in a phase that has no way to return an error; the flush
+    /// returns it from its last phase.
+    pub(crate) failed: Option<HostError>,
+    /// When the GPU state was last rebuilt after a lost device (`ctx::paint`).
+    pub(crate) rebuilds: Rebuilds,
     /// The backend in force: `Gpu` until no adapter survives validation, then `Cpu`.
     pub(crate) backend: Backend,
     pub(crate) adapter: AdapterPref,

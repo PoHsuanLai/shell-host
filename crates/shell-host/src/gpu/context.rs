@@ -4,10 +4,12 @@
 //! See FINDINGS F1.
 
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 
 use anyrender_vello_hybrid::ImageUploads;
 use blitz_kit::adapter::{
-    ADAPTER_ENV, AdapterFacts, AdapterPref, block_on, ranked, request_device,
+    ADAPTER_ENV, AdapterFacts, AdapterPref, DeviceHealth, WatchedDevice, block_on, ranked,
+    request_watched_device,
 };
 use rustc_hash::FxHashMap;
 use vello_hybrid::{RenderTargetConfig, Renderer, Resources};
@@ -21,6 +23,10 @@ use crate::gpu::raw_handle::WaylandDisplay;
 
 /// Every surface renders in this format (what vello_hybrid's own window renderer uses).
 pub(crate) const SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
+
+/// How long the driver may take to open the device before the adapter counts as refusing: a
+/// driver that hangs at login must not hang the shell with it.
+const DEVICE_REQUEST_DEADLINE: Duration = Duration::from_secs(10);
 
 static DEVICES_CREATED: AtomicU32 = AtomicU32::new(0);
 
@@ -41,6 +47,9 @@ pub(crate) struct GpuContext {
     pub(crate) images: ImageUploads,
     pub(crate) widgets: ContextProxy,
     pub(crate) adapter: AdapterFacts,
+    /// Whether the device still works; set by wgpu's device-lost callback, read at the start of
+    /// every frame step (`ctx::paint`), which rebuilds everything when it says `Lost`.
+    pub(crate) health: DeviceHealth,
 }
 
 impl GpuContext {
@@ -147,7 +156,11 @@ fn no_adapter_reason(reasons: &[String]) -> String {
 /// The one device, and the renderer every surface shares.
 fn create(instance: &wgpu::Instance, adapter: wgpu::Adapter) -> Result<GpuContext> {
     let facts = AdapterFacts::of(&adapter);
-    let (device, queue) = request_device(&adapter, "shell-host")
+    let WatchedDevice {
+        device,
+        queue,
+        health,
+    } = request_watched_device(&adapter, "shell-host", DEVICE_REQUEST_DEADLINE)
         .map_err(|e| HostError::NoAdapter(format!("{}: no device: {e}", facts.label())))?;
     DEVICES_CREATED.fetch_add(1, Ordering::Relaxed);
     // The render target size is rewritten by every `render`, so one renderer serves
@@ -172,6 +185,7 @@ fn create(instance: &wgpu::Instance, adapter: wgpu::Adapter) -> Result<GpuContex
         images: FxHashMap::default(),
         widgets: ContextProxy::default(),
         adapter: facts,
+        health,
     })
 }
 

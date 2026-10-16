@@ -10,13 +10,16 @@
 //!    paint that shows it, so a region change and its frame share one commit. Text a document
 //!    copied through its shell provider claims the selection here too. Last, the session lock
 //!    advances on what the handlers and the requests fed it (`ctx::lock`).
-//! 3. **Step frames.** Per configured, visible surface: create the presenter on first use,
+//! 3. **Step frames.** First, a lost GPU device is rebuilt (`ctx::paint`). Then, per configured,
+//!    visible surface: create the presenter on first use,
 //!    follow size and scale changes, take the document's redraw request, then render iff the
 //!    machine says so (`wl_surface.frame()`, then present, then clear the redraw flag).
 //! 4. **Arm timers.** The watchdog, key-repeat and scroll-thumb changes the handlers and phase
-//!    3 asked for, the loop sources for pipes a drag target asked us to fill (`ctx::drag`), and
-//!    the palmrest socket's source when a connection attempt is due (`ctx::palmrest`).
-//! 5. **Flush the connection**, and stop on a protocol error.
+//!    3 asked for, the loop sources for pipes another client asked us to fill or that carry the
+//!    selection it offers (`ctx::pipe`, `ctx::paste`), and the palmrest socket's source when a
+//!    connection attempt is due (`ctx::palmrest`).
+//! 5. **Flush the connection**, and stop on a protocol error, or on the failure an earlier phase
+//!    found and could not return (`HostCtx::failed`).
 
 use std::task::Context;
 
@@ -106,6 +109,9 @@ impl<M: 'static> Flush for HostCtx<M> {
     }
 
     fn flush_connection(&mut self) -> Result<()> {
+        if let Some(error) = self.failed.take() {
+            return Err(error);
+        }
         let conn = &self.state.conn;
         let flushed = conn.flush();
         if let Some(error) = conn.protocol_error() {

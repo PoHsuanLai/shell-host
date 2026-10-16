@@ -47,6 +47,11 @@ pub enum HostError {
     /// Rendering a frame failed.
     #[error("render: {0}")]
     Render(String),
+    /// The GPU device was lost again and again, or a lock surface could not be made on the only
+    /// output: the host stops, and whatever started it starts it again with a fresh driver
+    /// connection (and, for a lock, locks again).
+    #[error("giving up: {0}")]
+    GaveUp(String),
     /// The id does not name a live surface.
     #[error("no surface {0:?}")]
     NoSurface(crate::id::SurfaceId),
@@ -68,7 +73,7 @@ impl HostError {
             HostError::Connect(_) | HostError::MissingGlobal { .. } | HostError::Protocol(_) => {
                 Recovery::Fatal
             }
-            HostError::EventLoop(_) => Recovery::Fatal,
+            HostError::EventLoop(_) | HostError::GaveUp(_) => Recovery::Fatal,
             HostError::NoAdapter(_) | HostError::AdapterRejected { .. } => Recovery::Fallback,
             HostError::Surface(_) => Recovery::Fallback,
             HostError::Unsupported { .. } | HostError::NoSurface(_) | HostError::HostGone => {
@@ -102,6 +107,10 @@ mod tests {
                 Recovery::Fatal,
             ),
             (HostError::EventLoop("epoll".into()), Recovery::Fatal),
+            (
+                HostError::GaveUp("the GPU device keeps getting lost".into()),
+                Recovery::Fatal,
+            ),
             (HostError::NoAdapter("none".into()), Recovery::Fallback),
             (
                 HostError::AdapterRejected {

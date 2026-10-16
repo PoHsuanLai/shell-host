@@ -12,6 +12,7 @@
 mod capture;
 mod geometry;
 mod presenter;
+mod recover;
 mod regions;
 mod render;
 
@@ -36,8 +37,10 @@ use crate::surface::Configured;
 use geometry::sync_geometry;
 use render::render;
 
-/// Step every surface's frame machine; a surface that fails is closed with `Failed`.
+/// Step every surface's frame machine; a surface that fails is closed with `Failed`. A lost GPU
+/// device is rebuilt first (`recover`).
 pub(super) fn step_all<M: 'static>(ctx: &mut HostCtx<M>) {
+    recover::recover_device(ctx);
     let ids: Vec<SurfaceId> = ctx.state.surfaces.keys().copied().collect();
     for id in ids {
         if let Err(error) = step_one(ctx, id) {

@@ -1,6 +1,8 @@
 //! A wgpu surface configured on the shared device: Mailbox, else Fifo; PreMultiplied alpha,
 //! else PostMultiplied, else opaque (and then blur off).
 
+use blitz_kit::adapter::block_on;
+
 use crate::error::{HostError, Result};
 use crate::gpu::context::{GpuContext, SURFACE_FORMAT};
 use crate::scale::{MAX_SURFACE_EXTENT, Size};
@@ -23,8 +25,10 @@ impl Swapchain {
         }
     }
 
-    /// Configure (or reconfigure after `Outdated`/`Lost`) for `buffer` on `gpu`'s device.
-    pub(crate) fn configure(&mut self, gpu: &GpuContext, buffer: Size) {
+    /// Configure (or reconfigure after `Outdated`/`Lost`) for `buffer` on `gpu`'s device. A
+    /// configuration wgpu rejects leaves the swapchain unconfigured, and says so: acquiring from
+    /// a surface that was never configured is fatal inside wgpu.
+    pub(crate) fn configure(&mut self, gpu: &GpuContext, buffer: Size) -> Result<()> {
         let (width, height) = pixel_extent(buffer);
         let config = match self.config.take() {
             Some(previous) => wgpu::SurfaceConfiguration {
@@ -34,8 +38,18 @@ impl Swapchain {
             },
             None => first_config(&self.surface, gpu, width, height),
         };
-        self.surface.configure(&gpu.device.device, &config);
-        self.config = Some(config);
+        let device = &gpu.device.device;
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        self.surface.configure(device, &config);
+        match block_on(scope.pop()) {
+            Some(error) => Err(HostError::Render(format!(
+                "configuring {width}x{height}: {error}"
+            ))),
+            None => {
+                self.config = Some(config);
+                Ok(())
+            }
+        }
     }
 
     /// The buffer size the swapchain is configured for, if it is.
@@ -50,13 +64,13 @@ impl Swapchain {
         buffer: Size,
     ) -> Result<wgpu::SurfaceTexture> {
         if self.configured_extent() != Some(pixel_extent(buffer)) {
-            self.configure(gpu, buffer);
+            self.configure(gpu, buffer)?;
         }
         match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t)
             | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Ok(t),
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.configure(gpu, buffer);
+                self.configure(gpu, buffer)?;
                 match self.surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(t)
                     | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Ok(t),
