@@ -95,7 +95,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 
 | Group | Names |
 |---|---|
-| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig` (its `file_roots`: where documents may read files, FINDINGS F21), `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
+| Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig` (its `file_roots`: where documents may read files, FINDINGS F21), `Backend`, `AdapterPref`, `FontFaces` and `FileRoots` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
 | Events | `HostEvent` (incl. `SurfaceMapped { id }` and `QuitAsked`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
 | Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
 | Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |

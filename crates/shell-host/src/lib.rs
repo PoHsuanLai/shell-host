@@ -78,6 +78,7 @@ mod window_placement;
 
 pub use blitz_kit::adapter::AdapterPref;
 pub use blitz_kit::fonts::FontFaces;
+pub use blitz_kit::net::FileRoots;
 pub use blitz_kit::scroll::cmd::ScrollCmd;
 pub use blitz_kit::scroll::engine::ScrollAnimate;
 pub use blitz_kit::scroll::geom::ScrollAxis;
