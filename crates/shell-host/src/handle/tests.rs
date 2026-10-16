@@ -69,7 +69,7 @@ fn test_env(ping: calloop::ping::Ping, prepaint: Prepaint) -> DocumentEnv {
     DocumentEnv {
         shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
         fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
+        net: Arc::new(LocalNet::default()),
         viewport: Viewport::new(200, 40, 1.0, ColorScheme::Light),
         prepaint,
     }

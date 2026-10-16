@@ -19,7 +19,7 @@ pub(crate) fn test_env(width: u32, height: u32) -> DocumentEnv {
     DocumentEnv {
         shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
         fonts: SharedFonts::system().for_document(),
-        net: Arc::new(LocalNet),
+        net: Arc::new(LocalNet::default()),
         viewport: Viewport::new(width, height, 1.0, ColorScheme::Light),
         prepaint: Prepaint::None,
     }

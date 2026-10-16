@@ -5,6 +5,7 @@
 
 use blitz_kit::adapter::AdapterPref;
 use blitz_kit::fonts::{FontFaces, SharedFonts};
+use blitz_kit::net::FileRoots;
 use serde::{Deserialize, Serialize};
 
 use crate::prepaint::Prepaint;
@@ -40,6 +41,13 @@ pub struct HostConfig {
     /// compositor handed over. A descriptor is not settings, so it is never serialized.
     #[serde(skip)]
     pub route: WaylandRoute,
+    /// The directories a document may read `file:` URLs from (a wallpaper cache, icon
+    /// directories). A file anywhere else, a device, a pipe or one over 32 MiB is not served,
+    /// so a document that shows a path from the outside (a notification's image) cannot read
+    /// the machine through it. Empty by default: no files. Paths, not settings, so it is never
+    /// serialized.
+    #[serde(skip)]
+    pub file_roots: FileRoots,
 }
 
 impl Default for HostConfig {
@@ -51,6 +59,7 @@ impl Default for HostConfig {
             prepaint: Prepaint::None,
             fonts: FontFaces::default(),
             route: WaylandRoute::Environment,
+            file_roots: FileRoots::default(),
         }
     }
 }
@@ -118,6 +127,7 @@ mod tests {
                 prepaint: Prepaint::None,
                 fonts: FontFaces::default(),
                 route: WaylandRoute::Environment,
+                file_roots: FileRoots::default(),
             }
         );
     }

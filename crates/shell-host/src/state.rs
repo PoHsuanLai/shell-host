@@ -78,6 +78,7 @@ use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 use crate::wake::WokenSet;
 use blitz_kit::fonts::SharedFonts;
+use blitz_kit::net::FileRoots;
 
 /// `wl_keyboard.repeat_info` values until the compositor sends its own (X's defaults).
 const DEFAULT_REPEAT_DELAY: Duration = Duration::from_millis(600);
@@ -131,6 +132,8 @@ pub(crate) struct HostState {
     pub(crate) color_scheme: ColorScheme,
     /// `HostConfig::prepaint`, handed to every document the host builds.
     pub(crate) prepaint: Prepaint,
+    /// `HostConfig::file_roots`: where every document's net provider may read files.
+    pub(crate) file_roots: FileRoots,
     /// `HostConfig::first_mouse_window_ms`, read by the pointer handler.
     pub(crate) first_mouse_window: Duration,
     /// Requests from documents' `SurfaceHandle`s.
@@ -228,6 +231,7 @@ impl HostState {
             ids: SurfaceIds::new(),
             color_scheme: ColorScheme::Light,
             prepaint: Prepaint::None,
+            file_roots: FileRoots::default(),
             first_mouse_window,
             requests,
             woken: WokenSet::default(),

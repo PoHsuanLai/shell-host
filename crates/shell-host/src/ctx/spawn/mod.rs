@@ -107,7 +107,7 @@ pub(super) fn insert(
     let env = DocumentEnv {
         shell: Arc::clone(&shell),
         fonts: state.fonts.for_document(),
-        net: Arc::new(LocalNet),
+        net: Arc::new(LocalNet::new(state.file_roots.clone())),
         viewport: super::paint::viewport(logical, inset, scale, state.color_scheme),
         prepaint: state.prepaint.clone(),
     };

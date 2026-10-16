@@ -103,7 +103,7 @@ mod tests {
         let env = DocumentEnv {
             shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
             fonts: SharedFonts::system().for_document(),
-            net: Arc::new(LocalNet),
+            net: Arc::new(LocalNet::default()),
             viewport: Viewport::new(side as u32, side as u32, scale.as_f64() as f32, scheme),
             prepaint: Prepaint::None,
         };
