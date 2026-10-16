@@ -429,7 +429,7 @@ dependencies = [
 [[package]]
 name = "casement-protocols"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/casement-protocols.git?rev=7473020256a0b8ed23d1140bf2ffc8668d2a2820#7473020256a0b8ed23d1140bf2ffc8668d2a2820"
+source = "git+https://github.com/PoHsuanLai/casement-protocols.git?rev=4906b775502f14738bbfd0e553792f9310ead017#4906b775502f14738bbfd0e553792f9310ead017"
 dependencies = [
  "bitflags",
  "serde",
