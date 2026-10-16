@@ -17,10 +17,33 @@ use std::path::{Path, PathBuf};
 
 use rustix::net::{
     AddressFamily, RecvFlags, SendFlags, SocketAddrUnix, SocketFlags, SocketType, connect, recv,
-    send, socket_with,
+    send, socket_with, sockopt,
 };
+use rustix::process::getuid;
 
 use palmrest_protocol::{Compat, MAX_PACKET, Over, ToDaemon, ToHost, compat, decode, encode};
+
+/// The most datagrams one read takes: a daemon (or a process in its place) that sends faster
+/// than the host reads cannot hold the loop in one read. The source is level-triggered, so the
+/// loop comes back for the rest after its other sources have had their turn.
+const MAX_DATAGRAMS_PER_READ: usize = 256;
+
+/// Whether the host trusts the process at the other end of the socket.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Trust {
+    Trusted,
+    Refused,
+}
+
+/// The daemon runs as the person (a user service) or as root; any other user's process at the
+/// socket's path is not palmrest, and would be feeding scroll and touch input.
+pub(crate) fn trust(peer_uid: u32, own_uid: u32) -> Trust {
+    if peer_uid == own_uid || peer_uid == 0 {
+        Trust::Trusted
+    } else {
+        Trust::Refused
+    }
+}
 
 /// Whether the host should try to connect at the next flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +121,10 @@ impl Palmrest {
             return None;
         }
         let fd = open(path).ok()?;
+        if peer_trust(&fd) == Trust::Refused {
+            eprintln!("shell-host: the palmrest socket is not served by this user; ignoring it");
+            return None;
+        }
         let reader = fd.try_clone().ok()?;
         self.link = Link::Up(fd);
         self.send(&ToDaemon::PointerOver { over: self.over });
@@ -139,6 +166,15 @@ impl Palmrest {
     }
 }
 
+/// Whether the process that listens on `fd` is one to trust. Fails closed: a peer whose
+/// credentials cannot be read is refused.
+fn peer_trust(fd: &OwnedFd) -> Trust {
+    match sockopt::socket_peercred(fd) {
+        Ok(peer) => trust(peer.uid.as_raw(), getuid().as_raw()),
+        Err(_) => Trust::Refused,
+    }
+}
+
 /// A non-blocking, close-on-exec `SOCK_SEQPACKET` connection to `path`.
 pub(crate) fn open(path: &Path) -> io::Result<OwnedFd> {
     let fd = socket_with(
@@ -151,13 +187,17 @@ pub(crate) fn open(path: &Path) -> io::Result<OwnedFd> {
     Ok(fd)
 }
 
-/// Every message waiting on `fd`, and whether to go on reading. A `Hello` of another protocol
-/// version ends the read there (nothing after it is understood); a packet over
-/// `MAX_PACKET` is truncated by the kernel and skipped.
+/// The messages waiting on `fd` (at most [`MAX_DATAGRAMS_PER_READ`] datagrams' worth), and
+/// whether to go on reading. A `Hello` of another protocol version ends the read there (nothing
+/// after it is understood); a packet over `MAX_PACKET` is truncated by the kernel and skipped.
 pub(crate) fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
+    read_up_to(fd, MAX_DATAGRAMS_PER_READ)
+}
+
+fn read_up_to(fd: impl AsFd, datagrams: usize) -> (Vec<ToHost>, Stream) {
     let mut messages = Vec::new();
     let mut buf = vec![0u8; MAX_PACKET];
-    loop {
+    for _ in 0..datagrams {
         match recv(fd.as_fd(), &mut buf[..], RecvFlags::DONTWAIT) {
             Ok((_, 0)) => return (messages, Stream::Closed),
             Ok((len, full)) if full <= len => {
@@ -176,6 +216,7 @@ pub(crate) fn read_all(fd: impl AsFd) -> (Vec<ToHost>, Stream) {
             Err(_) => return (messages, Stream::Closed),
         }
     }
+    (messages, Stream::Open)
 }
 
 #[cfg(test)]
@@ -298,6 +339,37 @@ mod tests {
         drop(peer);
         let (messages, stream) = read_all(&reader);
         assert_eq!((messages.len(), stream), (0, Stream::Closed));
+    }
+
+    #[test]
+    fn a_flood_is_read_a_bounded_batch_at_a_time() {
+        let (dir, listener) = daemon();
+        let mut client = Palmrest::at(socket_path(Some(dir.path())));
+        let reader = client.connect().expect("connects");
+        let peer = accept(&listener).expect("accept");
+        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
+        for _ in 0..10 {
+            send(&peer, touches.as_bytes(), SendFlags::empty()).expect("send");
+        }
+        let (first, stream) = read_up_to(&reader, 4);
+        assert_eq!((first.len(), stream), (4, Stream::Open), "one batch only");
+        let (second, _) = read_up_to(&reader, 4);
+        assert_eq!(second.len(), 4, "the next batch carries on");
+        let (rest, stream) = read_up_to(&reader, 4);
+        assert_eq!((rest.len(), stream), (2, Stream::Open), "then what is left");
+    }
+
+    #[test]
+    fn only_this_user_or_root_may_be_the_daemon() {
+        let cases: &[(&str, u32, u32, Trust)] = &[
+            ("the same user", 1000, 1000, Trust::Trusted),
+            ("root", 0, 1000, Trust::Trusted),
+            ("another user", 1001, 1000, Trust::Refused),
+            ("a system account", 65534, 1000, Trust::Refused),
+        ];
+        for (name, peer, own, want) in cases {
+            assert_eq!(trust(*peer, *own), *want, "{name}");
+        }
     }
 
     #[test]
