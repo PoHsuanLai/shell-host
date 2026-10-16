@@ -261,7 +261,9 @@ fn run() -> Result<(), String> {
                 STARTED.load(Ordering::SeqCst)
             ));
         }
-        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         _ => {}
     });
     let _ = std::fs::remove_file(&file);

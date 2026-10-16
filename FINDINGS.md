@@ -876,6 +876,13 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   closes or is hidden) and sends `request_placement` with `input.last_serial`, the serial of the
   latest key or button the seat delivered. No serial yet means no request (logged). Emphasis and
   placement events are ignored until P3 (`use_toplevel_state`).
+- **`quit` (manager version 2).** The manager is bound at `1..=2` and kept (`QuireWindows`).
+  Its `quit` event, the person asking the whole app to quit (Dock Quit, Command-Q from the
+  shell, logout), is `HostEvent::QuitAsked` (`quire_window/quit.rs`, table-tested through
+  `event::widen`'s table and its own test): the app runs its should-terminate path, saves or asks,
+  then `HostCtx::exit`s or stays open; there is no reply. A compositor at version 1 never sends
+  it and closes the windows one by one (`SurfaceClosed`). The dispatch is for `HostState`
+  itself, not generic, because it queues the event. Written without a build.
 - **Dependency.** `casement-protocols` (feature `client`), git rev
   b59d1d7da33e0aa1f4460ea515e64d5e4f51f112, the pin sill and cua use (workspace root, outside the
   quire-pinned block). Its `rust-version` is 1.92 against this workspace's 1.91.

@@ -119,7 +119,9 @@ fn run() -> Result<(), String> {
             let value = VALUE.lock().unwrap_or_else(|e| e.into_inner()).clone();
             say(&format!("value {value}"));
         }
-        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         _ => {}
     })
     .map_err(|e| e.to_string())

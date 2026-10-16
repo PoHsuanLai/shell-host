@@ -38,7 +38,7 @@ fn run(args: &[String]) -> Result<(), String> {
             spawn_dock(ctx, props, layer);
         }
         // The compositor closed the dock (its output went away): nothing is left to drive.
-        HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => ctx.exit(),
         _ => {}
     })
     .map_err(|e| e.to_string())

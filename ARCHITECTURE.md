@@ -96,7 +96,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Group | Names |
 |---|---|
 | Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig`, `Backend`, `AdapterPref` and `FontFaces` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
-| Events | `HostEvent` (incl. `SurfaceMapped { id }`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
+| Events | `HostEvent` (incl. `SurfaceMapped { id }` and `QuitAsked`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
 | Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
 | Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |
 | Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused`, `WindowPlacement`, `PlacementSupport` |
@@ -224,8 +224,11 @@ implementations are swapped at a boundary.
 A `quire_*` protocol is bound only where the compositor advertises it (`Option<..>` on
 `HostState`, bound with `.ok()`), and every request that needs it is a silent no-op without it,
 so the same binary runs on KWin, wlroots and casement. `handlers/quire_window` binds
-`quire_window_manager_v1` and sends `request_placement` (`decide.rs` maps a `WindowPlacement`
-and the seat's latest input serial to the wire request, or refuses with no serial);
+`quire_window_manager_v1` at version 1 or 2 and sends `request_placement` (`decide.rs` maps a
+`WindowPlacement` and the seat's latest input serial to the wire request, or refuses with no
+serial); it keeps the manager bound because version 2 adds the manager's `quit` event, which
+`quit.rs` turns into `HostEvent::QuitAsked` (the person asked the whole app to quit; a version 1
+compositor never sends it, and the app sees only `SurfaceClosed`);
 `SurfaceHandle::placement_support` tells a menu whether to show the choices. The shell's own
 `quire_*` objects (`quire_shell_v1`, on the connection it was handed) are created on
 `HostCtx::wl_surface` / `SurfaceHandle::wl_surface` after `HostEvent::SurfaceMapped`; a hidden

@@ -150,7 +150,9 @@ fn run() -> Result<(), String> {
                 report(ctx, id, moment);
             }
         }
-        HostEvent::App(Step::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Step::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         _ => {}
     })
     .map_err(|e| e.to_string())

@@ -295,7 +295,9 @@ fn run() -> Result<(), String> {
                 ctx.set_visibility(id, visibility);
             }
         }
-        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         _ => {}
     })
     .map_err(|e| e.to_string())

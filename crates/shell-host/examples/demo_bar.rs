@@ -132,7 +132,7 @@ fn run(args: &[String]) -> Result<(), String> {
             }
         }
         // The compositor closed a surface (its output went away): nothing is left to drive.
-        HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => ctx.exit(),
         _ => {}
     })
     .map_err(|e| e.to_string())

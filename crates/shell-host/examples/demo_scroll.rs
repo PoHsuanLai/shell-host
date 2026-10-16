@@ -135,7 +135,9 @@ fn run() -> Result<(), String> {
                 CAPTURED.load(Ordering::SeqCst)
             ));
         }
-        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         _ => {}
     })
     .map_err(|e| e.to_string())

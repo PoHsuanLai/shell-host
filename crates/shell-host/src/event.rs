@@ -37,6 +37,13 @@ pub enum HostEvent<M> {
         id: LockId,
         state: LockState,
     },
+    /// The person asked the whole app to quit (the Dock's Quit, Command-Q from the shell,
+    /// logging out): the app's should-terminate path. Save or ask ("Save changes?"), then
+    /// `HostCtx::exit`, or stay open by doing nothing. There is no reply to send; the compositor
+    /// takes the app for running again if it is still there after a short grace. Raised only on a
+    /// compositor that offers it (casement, from `quire_window_manager_v1` version 2); elsewhere
+    /// the windows are closed one by one and `SurfaceClosed` is all the app sees.
+    QuitAsked,
     /// A message sent through a `HostHandle`.
     App(M),
 }
@@ -82,6 +89,7 @@ pub(crate) fn widen<M>(event: ShellEvent) -> HostEvent<M> {
         HostEvent::SurfaceMapped { id } => HostEvent::SurfaceMapped { id },
         HostEvent::KeyboardFocus { id, focus } => HostEvent::KeyboardFocus { id, focus },
         HostEvent::Lock { id, state } => HostEvent::Lock { id, state },
+        HostEvent::QuitAsked => HostEvent::QuitAsked,
         HostEvent::App(never) => match never {},
     }
 }
@@ -94,6 +102,7 @@ mod tests {
     fn widening_keeps_every_shell_event() {
         let cases: Vec<(ShellEvent, HostEvent<String>)> = vec![
             (HostEvent::Started, HostEvent::Started),
+            (HostEvent::QuitAsked, HostEvent::QuitAsked),
             (
                 HostEvent::OutputRemoved(OutputId(3)),
                 HostEvent::OutputRemoved(OutputId(3)),

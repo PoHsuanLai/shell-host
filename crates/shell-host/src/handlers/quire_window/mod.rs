@@ -4,12 +4,16 @@
 //! frame, emphasis, placement mark) is P3.
 //!
 //! The manager is bound only when the compositor advertises it (KWin and wlroots do
-//! not); without it every request here is a silent no-op. A hand-written `Dispatch`, shaped
-//! like `background_effect`'s.
+//! not); without it every request here is a silent no-op. It is bound at version 1 or 2 and
+//! kept for as long as the host runs, because version 2 adds the manager's `quit` event: the
+//! person asked the whole app to quit, which becomes `HostEvent::QuitAsked` (`quit.rs`). A
+//! version 1 compositor never sends it. A hand-written `Dispatch`, shaped like
+//! `background_effect`'s.
 //!
 //! See FINDINGS p2-z-sh.
 
 mod decide;
+mod quit;
 
 use std::collections::HashMap;
 
@@ -29,7 +33,8 @@ use crate::role::Role;
 use crate::state::HostState;
 use crate::window_placement::{PlacementSupport, WindowPlacement};
 
-/// The bound manager and the extension object of every toplevel that asked for a placement.
+/// The bound manager (kept for its `quit` event) and the extension object of every toplevel
+/// that asked for a placement.
 #[derive(Debug)]
 pub(crate) struct QuireWindows {
     manager: QuireWindowManagerV1,
@@ -45,7 +50,7 @@ impl QuireWindows {
     where
         D: Dispatch<QuireWindowManagerV1, ()> + 'static,
     {
-        let manager = globals.bind(qh, 1..=1, ())?;
+        let manager = globals.bind(qh, 1..=2, ())?;
         Ok(QuireWindows {
             manager,
             windows: HashMap::new(),
@@ -118,19 +123,16 @@ impl HostState {
     }
 }
 
-impl<D> Dispatch<QuireWindowManagerV1, (), D> for QuireWindows
-where
-    D: Dispatch<QuireWindowManagerV1, ()> + 'static,
-{
+impl Dispatch<QuireWindowManagerV1, (), HostState> for QuireWindows {
     fn event(
-        _state: &mut D,
+        state: &mut HostState,
         _manager: &QuireWindowManagerV1,
-        _event: quire_window_manager_v1::Event,
+        event: quire_window_manager_v1::Event,
         _data: &(),
         _conn: &Connection,
-        _qh: &QueueHandle<D>,
+        _qh: &QueueHandle<HostState>,
     ) {
-        // The manager has no events.
+        state.events.extend(quit::host_event(&event));
     }
 }
 

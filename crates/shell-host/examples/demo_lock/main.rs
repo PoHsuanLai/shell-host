@@ -131,7 +131,7 @@ fn on_event(ctx: &mut HostCtx<Command>, demo: &mut Demo, event: HostEvent<Comman
             }
         }
         HostEvent::App(Command::Stats) => stats(ctx, demo),
-        HostEvent::App(Command::Quit) => match demo.held {
+        HostEvent::App(Command::Quit) | HostEvent::QuitAsked => match demo.held {
             Held::None => ctx.exit(),
             Held::Asked(id) | Held::Locked(id) => {
                 demo.leaving = Leaving::AfterUnlock;

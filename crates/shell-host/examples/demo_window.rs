@@ -185,7 +185,9 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::SurfaceClosed { .. } | HostEvent::QuitAsked => {
+            ctx.exit()
+        }
         HostEvent::App(Command::Stats) => {
             if let Some(stats) = id.and_then(|id| ctx.take_stats(id)) {
                 print(serde_json::to_value(&stats).unwrap_or_default());

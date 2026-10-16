@@ -141,7 +141,7 @@ fn run() -> Result<(), String> {
                 ctx.exit();
             }
         }
-        HostEvent::App(()) => ctx.exit(),
+        HostEvent::App(()) | HostEvent::QuitAsked => ctx.exit(),
         _ => {}
     })
     .map_err(|e| e.to_string())

@@ -137,7 +137,7 @@ fn run() -> Result<(), String> {
         HostEvent::KeyboardFocus { id, focus } if Some(id) == surface => {
             print(json!({ "event": "focus", "state": format!("{focus:?}") }));
         }
-        HostEvent::App(Command::Quit) => ctx.exit(),
+        HostEvent::App(Command::Quit) | HostEvent::QuitAsked => ctx.exit(),
         _ => {}
     })
     .map_err(|e| e.to_string())
