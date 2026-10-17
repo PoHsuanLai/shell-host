@@ -3,9 +3,9 @@
 //! One thread runs every document (Blitz documents are `Rc<RefCell<..>>`). The loop is calloop
 //! with the Wayland source (and the ping that wakes it for events another thread read:
 //! `queue_wake`), the `HostHandle` channel, one ping shared by every waker and shell provider, and
-//! per-surface watchdog timers; it dispatches with no timeout, so an idle host
-//! makes no wakeups at all. A 2-worker tokio runtime is entered on the main thread for the
-//! whole run, so `tokio::time` and `watch` work inside Dioxus tasks.
+//! per-surface watchdog timers; it dispatches with no timeout, so an idle host makes no wakeups
+//! at all (unless the shell asks for a `pulse`). A 2-worker tokio runtime is entered on the main
+//! thread for the whole run, so `tokio::time` and `watch` work inside Dioxus tasks.
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -24,6 +24,7 @@ use crate::gpu::rebuild::Rebuilds;
 use crate::handle::RequestQueue;
 use crate::host_handle::HostHandle;
 use crate::msg::{HostMsg, Request};
+use crate::pulse::Pulse;
 use crate::queue_wake::insert_wayland;
 use crate::state::HostState;
 
@@ -103,6 +104,15 @@ impl<M: Send + 'static> Host<M> {
             sender,
             runtime,
         })
+    }
+
+    /// Make the loop thread count a beat every `every` (not under 100 ms), and return the count.
+    /// A thread that watches the shell compares it between looks: a count that has moved says
+    /// the loop is turning (an idle loop beats too, and a loop stuck in a blocking call does
+    /// not), so a service-manager watchdog is kept satisfied only while the shell is alive.
+    /// Without this call the loop makes no wakeups of its own.
+    pub fn pulse(&self, every: crate::config::Ms) -> Result<Pulse> {
+        crate::pulse::start(&self.ctx.handle, every.duration())
     }
 
     /// A sender for messages from other threads.

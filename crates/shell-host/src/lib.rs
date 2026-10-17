@@ -59,6 +59,7 @@ mod placement;
 mod popup;
 mod popup_keyboard;
 mod prepaint;
+mod pulse;
 mod queue_wake;
 mod region;
 mod render_gpu;
@@ -100,6 +101,7 @@ pub use handle::{
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
+pub use pulse::Pulse;
 pub use id::{OutputId, SurfaceId, SurfaceName};
 pub use layer::{
     Anchor, ExclusiveZone, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize,

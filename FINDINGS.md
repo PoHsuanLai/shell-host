@@ -978,6 +978,15 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
 
 ## Open items from the production audit
 
+- **HOST-08: the loop's pulse (this repo's half of the watchdog).** `Host::pulse(Ms)` makes a
+  repeating timer on the loop thread that counts a beat (`pulse.rs`, `Pulse::beats`). Because the
+  timer is a source of the loop, it beats while the loop is idle and stops when the loop thread is
+  stuck in a blocking call, so a watchdog thread that notifies the service manager only when the
+  count has moved restarts a hung shell and never one that is merely idle. The other half is
+  sill's and the unit's (`WatchdogSec` and the notify call) and is an interface ask in the lane
+  report. The probe's 5 s deadline and the device request's 10 s (above) stay. Condition to
+  close: sill calls `pulse` and pings from a thread that reads `beats`.
+
 - **NEW-QDH-4: the selection's write slots are not per client.** `wl_data_source.send(mime, fd)`
   does not say who holds the other end of the pipe (the compositor forwards the request), so the
   host cannot count open writes per reading client. What it does: the selection's 6 slots and a
