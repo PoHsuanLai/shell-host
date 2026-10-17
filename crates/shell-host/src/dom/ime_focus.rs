@@ -7,7 +7,7 @@
 //! After each resolve the host therefore asks what Blitz would have: a focused text field
 //! whose shell still has the IME off gets it enabled, at the field's content box.
 
-use blitz_dom::BaseDocument;
+use blitz_dom::{BaseDocument, LocalName};
 
 use crate::dom::shell_provider::ImeRequest;
 use crate::region::{Px, Rect};
@@ -20,6 +20,33 @@ pub(crate) enum FocusedField {
     Text { area: Rect },
     /// Anything else, or nothing.
     Other,
+}
+
+/// Whether the focused field's text may leave the app: a password field's never goes to the
+/// input method, and the field is declared as one (`handlers::text_input`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum FieldSecrecy {
+    #[default]
+    Plain,
+    Secret,
+}
+
+/// The focused node's secrecy: an `<input type=password>` (any case) is `Secret`.
+pub(crate) fn focused_secrecy(doc: &BaseDocument) -> FieldSecrecy {
+    let secret = doc
+        .get_focussed_node_id()
+        .and_then(|id| doc.get_node(id))
+        .filter(|node| {
+            node.data
+                .is_element_with_tag_name(&LocalName::from("input"))
+        })
+        .and_then(|node| node.attr(LocalName::from("type")))
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("password"));
+    if secret {
+        FieldSecrecy::Secret
+    } else {
+        FieldSecrecy::Plain
+    }
 }
 
 /// What the shell's IME request needs after a resolve.

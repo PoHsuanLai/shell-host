@@ -5,6 +5,7 @@
 
 use blitz_traits::events::BlitzImeEvent;
 
+use crate::dom::ime_focus::FieldSecrecy;
 use crate::region::Rect;
 
 mod surrounding;
@@ -55,6 +56,8 @@ pub(crate) struct Ime {
     /// Why the next change to the field's text or caret happened: `InputMethod` once a `done`
     /// was applied, taken back to `Other` when the surrounding text is next considered.
     pub cause: ChangeCause,
+    /// The kind of field last declared with `set_content_type`.
+    pub declared: FieldSecrecy,
 }
 
 /// Apply `done`: the Blitz events for everything pending, in protocol order, and an empty

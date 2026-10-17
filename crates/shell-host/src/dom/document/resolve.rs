@@ -9,7 +9,7 @@ use super::SurfaceDocument;
 use super::hover::HoverShift;
 #[cfg(feature = "debug-inject")]
 use crate::dom::ime_focus::FieldText;
-use crate::dom::ime_focus::{self, Repair};
+use crate::dom::ime_focus::{self, FieldSecrecy, Repair};
 use crate::dom::{scheme, stacking};
 use crate::frame::Animation;
 use crate::prepaint::Prepainted;
@@ -68,9 +68,24 @@ impl SurfaceDocument {
     }
 
     /// The focused text field's surrounding text for the input method, if a text field has the
-    /// focus (`handlers::surrounding`).
+    /// focus (`handlers::surrounding`). A password field's is empty, so its text never leaves the
+    /// app and the text of the field before it is cleared.
     pub(crate) fn surrounding_text(&self) -> Option<SurroundingText> {
-        self.doc.inner().focused_surrounding_text()
+        let doc = self.doc.inner();
+        let text = doc.focused_surrounding_text()?;
+        Some(match ime_focus::focused_secrecy(&doc) {
+            FieldSecrecy::Plain => text,
+            FieldSecrecy::Secret => SurroundingText {
+                text: String::new(),
+                cursor: 0,
+                anchor: 0,
+            },
+        })
+    }
+
+    /// Whether the focused field is a password field (`handlers::text_input`).
+    pub(crate) fn field_secrecy(&self) -> FieldSecrecy {
+        ime_focus::focused_secrecy(&self.doc.inner())
     }
 
     #[cfg(feature = "debug-inject")]

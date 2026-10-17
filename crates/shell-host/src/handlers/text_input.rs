@@ -13,6 +13,7 @@ use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
     self, ContentHint, ContentPurpose, ZwpTextInputV3,
 };
 
+use crate::dom::ime_focus::FieldSecrecy;
 use crate::dom::shell_provider::ImeRequest;
 use crate::handlers::surrounding;
 use crate::ime::{self, ChangeCause, DeleteSurrounding, ImeFocus, Preedit};
@@ -177,15 +178,41 @@ enum Resend {
     CursorOnly,
 }
 
+/// The content type a field of `secrecy` is declared with: a password field asks the input
+/// method to keep nothing and show nothing. Pure.
+fn content_type(secrecy: FieldSecrecy) -> (ContentHint, ContentPurpose) {
+    match secrecy {
+        FieldSecrecy::Plain => (ContentHint::empty(), ContentPurpose::Normal),
+        FieldSecrecy::Secret => (
+            ContentHint::SensitiveData | ContentHint::HiddenText,
+            ContentPurpose::Password,
+        ),
+    }
+}
+
 /// `enable` + content type + the field's surrounding text when asked, then the caret rectangle
-/// and `commit`.
+/// and `commit`. The content type is also sent again when the focus moves between a plain and a
+/// password field while the IME stays enabled.
 fn send_enabled(state: &mut HostState, cursor_area: Rect, resend: Resend) {
+    let secrecy = state
+        .input
+        .keyboard_focus
+        .and_then(|id| state.surfaces.get(&id))
+        .map_or(FieldSecrecy::Plain, |surface| {
+            surface.document.field_secrecy()
+        });
+    let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
+        return;
+    };
     if resend == Resend::Enable {
-        let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
-            return;
-        };
         input.enable();
-        input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
+    }
+    if resend == Resend::Enable || secrecy != state.ime.declared {
+        let (hint, purpose) = content_type(secrecy);
+        input.set_content_type(hint, purpose);
+        state.ime.declared = secrecy;
+    }
+    if resend == Resend::Enable {
         // The compositor starts again on `enable`: the field's text goes with this commit.
         surrounding::forget(state);
         surrounding::queue(state);
@@ -208,4 +235,28 @@ fn send_enabled(state: &mut HostState, cursor_area: Rect, resend: Resend) {
     input.commit();
     state.ime.serial += 1;
     state.ime.focus = ImeFocus::Enabled { cursor_area };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_password_field_is_declared_sensitive_and_hidden_and_a_plain_one_as_normal_text() {
+        let cases = [
+            (
+                FieldSecrecy::Plain,
+                ContentHint::empty(),
+                ContentPurpose::Normal,
+            ),
+            (
+                FieldSecrecy::Secret,
+                ContentHint::SensitiveData | ContentHint::HiddenText,
+                ContentPurpose::Password,
+            ),
+        ];
+        for (secrecy, hint, purpose) in cases {
+            assert_eq!(content_type(secrecy), (hint, purpose), "{secrecy:?}");
+        }
+    }
 }

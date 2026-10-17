@@ -49,6 +49,7 @@ use crate::clock::HostClock;
 use crate::compositor_kind::{CompositorKind, compositor_kind};
 use crate::csd::Zone;
 use crate::cursor::Cursor;
+use crate::dom::ime_focus::FieldSecrecy;
 use crate::error::{HostError, Result};
 use crate::event::ShellEvent;
 use crate::frame::{FrameInput, TimerCmd};
@@ -221,6 +222,7 @@ impl HostState {
                 serial: 0,
                 surrounding: SentSurrounding::default(),
                 cause: ChangeCause::default(),
+                declared: FieldSecrecy::default(),
             },
             clipboard: Clipboard::default(),
             drag: Dragging::default(),
