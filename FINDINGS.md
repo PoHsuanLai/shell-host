@@ -988,9 +988,13 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   of one source (interface ask in the lane report). Condition to close: that cap exists.
 
 - **HOST-14 (outside this repo).** `zwp_text_input_v3.delete_surrounding_text` is forwarded to
-  Blitz, which ignores it, and `done { serial }` is not compared with our commit count. An input
-  method that corrects by deleting surrounding text duplicates it. Condition to close: the Blitz
-  fork's text widget implements it.
+  Blitz, which ignores it (`blitz-dom/src/node/text.rs`, the `DeleteSurrounding` arm is a TODO).
+  The host never sends `set_surrounding_text`, so it does not advertise surrounding text, and an
+  input method has nothing to base a deletion on; one that deletes anyway duplicates text. The
+  `done` serial is deliberately not used to drop events: the protocol uses it so that a client
+  does not send stale surrounding text, and a dropped `done` would lose a commit. Condition to
+  close: the Blitz fork's text widget implements the deletion (diff in the lane report: two calls
+  to parley's `delete_bytes_after_selection` and `delete_bytes_before_selection`).
 - **HOST-15.** `palmrest-protocol` is a path dependency (`../palmrest/crates/palmrest-protocol`)
   and the blitz-kit `[patch]` is a path, so a clone of this repo alone cannot build. Pinning
   palmrest by git rev like `casement-protocols` would make sill (which takes shell-host by path)
