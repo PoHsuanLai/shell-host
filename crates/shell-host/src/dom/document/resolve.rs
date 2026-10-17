@@ -1,6 +1,7 @@
 //! One resolve: layout, hoisting, the IME and hover repairs, and the pre-paint hook.
 
 use blitz_dom::Document as _;
+use blitz_dom::node::SurroundingText;
 use blitz_kit::hover::Shift;
 use blitz_traits::shell::ShellProvider as _;
 
@@ -64,6 +65,12 @@ impl SurfaceDocument {
                 cursor_area.height as f32,
             );
         }
+    }
+
+    /// The focused text field's surrounding text for the input method, if a text field has the
+    /// focus (`handlers::surrounding`).
+    pub(crate) fn surrounding_text(&self) -> Option<SurroundingText> {
+        self.doc.inner().focused_surrounding_text()
     }
 
     #[cfg(feature = "debug-inject")]

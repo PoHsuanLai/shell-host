@@ -21,6 +21,7 @@ pub(crate) mod render_device;
 pub(crate) mod seat;
 pub(crate) mod session_lock;
 pub(crate) mod surface_objects;
+pub(crate) mod surrounding;
 pub(crate) mod text_input;
 pub(crate) mod xdg;
 

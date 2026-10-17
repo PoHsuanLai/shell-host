@@ -27,6 +27,7 @@ use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
 use crate::error::Result;
 use crate::event::CloseReason;
 use crate::frame::{FrameInput, RenderCmd};
+use crate::handlers::surrounding;
 use crate::handlers::text_input::apply_ime_request;
 use crate::id::SurfaceId;
 use crate::ime::ImeFocus;
@@ -79,7 +80,8 @@ fn step_one<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
 }
 
 /// Send the IME state the focused surface's document last asked for, when it differs from what
-/// the text input was last told (`handlers::text_input::apply_ime_request` commits every call).
+/// the text input was last told (`handlers::text_input::apply_ime_request` commits every call),
+/// then the focused field's text around the caret when that changed (`handlers::surrounding`).
 fn sync_ime(state: &mut HostState, id: SurfaceId) {
     if state.input.keyboard_focus != Some(id) {
         return;
@@ -94,4 +96,5 @@ fn sync_ime(state: &mut HostState, id: SurfaceId) {
     if wanted != current {
         apply_ime_request(state, wanted);
     }
+    surrounding::sync(state);
 }

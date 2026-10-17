@@ -7,6 +7,10 @@ use blitz_traits::events::BlitzImeEvent;
 
 use crate::region::Rect;
 
+mod surrounding;
+
+pub(crate) use surrounding::{ChangeCause, Outgoing, SentSurrounding, decide};
+
 /// A preedit string with its cursor, as byte offsets into the string (`None` hides the cursor).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct Preedit {
@@ -46,6 +50,11 @@ pub(crate) struct Ime {
     pub focus: ImeFocus,
     /// The `done` serial the compositor expects our next `commit` to match.
     pub serial: u32,
+    /// The surrounding text last sent to the compositor.
+    pub surrounding: SentSurrounding,
+    /// Why the next change to the field's text or caret happened: `InputMethod` once a `done`
+    /// was applied, taken back to `Other` when the surrounding text is next considered.
+    pub cause: ChangeCause,
 }
 
 /// Apply `done`: the Blitz events for everything pending, in protocol order, and an empty

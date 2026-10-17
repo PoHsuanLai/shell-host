@@ -65,7 +65,7 @@ use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
-use crate::ime::{Ime, ImeFocus, PendingIme};
+use crate::ime::{ChangeCause, Ime, ImeFocus, PendingIme, SentSurrounding};
 use crate::input::focus::PointerFocus;
 use crate::input::key::{Repeat, key_event};
 use crate::input::palmrest::Palmrest;
@@ -219,6 +219,8 @@ impl HostState {
                 pending: PendingIme::default(),
                 focus: ImeFocus::Disabled,
                 serial: 0,
+                surrounding: SentSurrounding::default(),
+                cause: ChangeCause::default(),
             },
             clipboard: Clipboard::default(),
             drag: Dragging::default(),

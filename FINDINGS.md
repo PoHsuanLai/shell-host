@@ -1018,14 +1018,23 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   should refuse a `wl_data_offer.receive` from a client that already has a few unfinished reads
   of one source (interface ask in the lane report). Condition to close: that cap exists.
 
-- **HOST-14 (outside this repo).** `zwp_text_input_v3.delete_surrounding_text` is forwarded to
-  Blitz, which ignores it (`blitz-dom/src/node/text.rs`, the `DeleteSurrounding` arm is a TODO).
-  The host never sends `set_surrounding_text`, so it does not advertise surrounding text, and an
-  input method has nothing to base a deletion on; one that deletes anyway duplicates text. The
-  `done` serial is deliberately not used to drop events: the protocol uses it so that a client
-  does not send stale surrounding text, and a dropped `done` would lose a commit. Condition to
-  close: the Blitz fork's text widget implements the deletion (diff in the lane report: two calls
-  to parley's `delete_bytes_after_selection` and `delete_bytes_before_selection`).
+- **HOST-14 (fixed here and in the Blitz fork; lands with the next Blitz bump).**
+  `zwp_text_input_v3.delete_surrounding_text` was forwarded to Blitz, which ignored it (a TODO in
+  `blitz-dom/src/node/text.rs`), and the host never sent `set_surrounding_text`, so an input
+  method had nothing to base a deletion on; one that deleted anyway duplicated text. Now the fork
+  (branch `lane/delete-surrounding`) deletes the bytes around the cursor or selection (clamped to
+  the text, rounded inward to char boundaries, a pre-edit cleared first, `Input` raised) and gives
+  `BaseDocument::focused_surrounding_text()` (at most 4000 bytes around the caret, pre-edit left
+  out, with the caret and anchor offsets). The host sends `set_surrounding_text` and
+  `set_text_change_cause` with a `commit`: with `enable` (a field focused, or the text input
+  re-entered), and after each flush (`ctx/paint`, `sync_ime`) whenever the field's text, caret or
+  selection differs from the last send (`ime::decide`, pure and table-tested; the last send is
+  forgotten on `enable`, `disable` and `leave`, as the compositor forgets it). The cause is
+  `input_method` for a change that follows an applied `done`, `other` for everything else.
+  The `done` serial is still not used to drop events: the protocol uses it so that a client does
+  not send stale surrounding text, and a dropped `done` would lose a commit. Condition to close:
+  the Blitz rev with these commits is pinned (blitz-kit and shell-host re-locked), and an input
+  method (fcitx5) is tried with a deletion in a real field.
 - **HOST-15.** `palmrest-protocol` is a path dependency (`../palmrest/crates/palmrest-protocol`)
   and the blitz-kit `[patch]` is a path, so a clone of this repo alone cannot build. Pinning
   palmrest by git rev like `casement-protocols` would make sill (which takes shell-host by path)

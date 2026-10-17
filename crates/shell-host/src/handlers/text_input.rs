@@ -14,7 +14,8 @@ use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_v3::{
 };
 
 use crate::dom::shell_provider::ImeRequest;
-use crate::ime::{self, DeleteSurrounding, ImeFocus, Preedit};
+use crate::handlers::surrounding;
+use crate::ime::{self, ChangeCause, DeleteSurrounding, ImeFocus, Preedit};
 use crate::region::Rect;
 use crate::state::HostState;
 
@@ -85,6 +86,7 @@ impl Dispatch<ZwpTextInputV3, ()> for HostState {
             zwp_text_input_v3::Event::Leave { surface: _ } => {
                 // Nothing composed on the surface we are leaving belongs to the next one.
                 state.ime.pending = Default::default();
+                surrounding::forget(state);
             }
             zwp_text_input_v3::Event::PreeditString {
                 text,
@@ -124,6 +126,9 @@ impl Dispatch<ZwpTextInputV3, ()> for HostState {
                     for event in events {
                         surface.document.handle_event(UiEvent::Ime(event));
                     }
+                    // Whatever this changed in the field is the input method's doing; the next
+                    // flush tells it so (`surrounding::sync`).
+                    state.ime.cause = ChangeCause::InputMethod;
                 }
                 state.invalidate(id);
             }
@@ -153,6 +158,7 @@ pub(crate) fn apply_ime_request(state: &mut HostState, request: ImeRequest) {
             input.commit();
             state.ime.serial += 1;
             state.ime.focus = ImeFocus::Disabled;
+            surrounding::forget(state);
         }
         ImeRequest::Enabled { cursor_area } => {
             let resend = match state.ime.focus {
@@ -171,15 +177,22 @@ enum Resend {
     CursorOnly,
 }
 
-/// `enable` + content type when asked, then the caret rectangle and `commit`.
+/// `enable` + content type + the field's surrounding text when asked, then the caret rectangle
+/// and `commit`.
 fn send_enabled(state: &mut HostState, cursor_area: Rect, resend: Resend) {
+    if resend == Resend::Enable {
+        let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
+            return;
+        };
+        input.enable();
+        input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
+        // The compositor starts again on `enable`: the field's text goes with this commit.
+        surrounding::forget(state);
+        surrounding::queue(state);
+    }
     let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
         return;
     };
-    if resend == Resend::Enable {
-        input.enable();
-        input.set_content_type(ContentHint::empty(), ContentPurpose::Normal);
-    }
     // The document's rectangle, in the surface's coordinates (past any resize band).
     let inset = state
         .input

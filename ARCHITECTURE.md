@@ -63,7 +63,7 @@ a higher one. When something needs a higher layer, move the shared piece down or
 | L3 shared cells and handles | `live`, `wake`, `handle`, `host_handle`, `bridge`, `root`, `lock/handle`, `scroll/{watch,wheel_feed}` | values shared with documents; no Wayland |
 | L4 documents | `dom/{document,head,shell_provider,stacking,scheme,scroll,ime_focus}`, `headless` | Blitz, through `blitz-kit` |
 | L5 GPU | `gpu/{context,context_proxy,presenter,swapchain,shm,render,probe,deadline,image_cache,rebuild,raw_handle}` | effects |
-| L6 Wayland effects | `state`, `surface`, `role`, `handlers/*` (`pipe_writes`, `surface_objects` among them), `clipboard`, `cursor`, `ime`, `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
+| L6 Wayland effects | `state`, `surface`, `role`, `handlers/*` (`pipe_writes`, `surface_objects`, `text_input`, `surrounding` among them), `clipboard`, `cursor`, `ime` (`ime/surrounding`: what to send about the text around the caret), `input/{key,scroll,palmrest}` (socket), `scroll/{surface,paint,tuning}`, `lock/active` | effects |
 | L7 orchestration | `ctx/*`, `host`, `inject` | effects; the loop and the flush |
 
 Fixed role files inside a concept directory (CONVENTIONS section 2 plus these): `decide.rs` (the
