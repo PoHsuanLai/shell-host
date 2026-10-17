@@ -19,9 +19,15 @@ pub(crate) struct Outgoing {
     sent: usize,
 }
 
-/// The most pipes the host fills at once, queued or open: a client that asks for the selection
-/// in a loop and never reads cannot grow the host's descriptors without bound.
-pub(crate) const MAX_OPEN_WRITES: usize = 8;
+/// The most pipes the host fills at once for our selection, queued or open: a client that asks
+/// for the selection in a loop and never reads cannot grow the host's descriptors without bound.
+/// The protocol does not say who is reading a pipe (the compositor forwards the request), so the
+/// cap is on the selection as a whole, apart from the drag's.
+pub(crate) const MAX_SELECTION_WRITES: usize = 6;
+
+/// The most pipes the host fills at once for a drag's payload. Kept apart from the selection's
+/// so a flood of selection reads cannot make a drop of ours fail.
+pub(crate) const MAX_DRAG_WRITES: usize = 2;
 
 /// How long one pipe may stay open: a reader that stops draining it and never closes it is cut
 /// off, so it cannot hold a slot for good.
@@ -103,12 +109,6 @@ impl WriteSlots {
             return None;
         }
         Some(Slot(Arc::clone(&self.open)))
-    }
-}
-
-impl Default for WriteSlots {
-    fn default() -> WriteSlots {
-        WriteSlots::with_limit(MAX_OPEN_WRITES)
     }
 }
 

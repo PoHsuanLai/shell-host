@@ -19,7 +19,7 @@ use wayland_client::{Connection, QueueHandle};
 
 use crate::clipboard::TEXT_MIME;
 use crate::drag::outcome::DragEnd;
-use crate::handlers::pipe_writes::Queued;
+use crate::handlers::pipe_writes::{PipeUse, Queued};
 use crate::state::HostState;
 use decide::{SourceOwner, source_owner};
 
@@ -121,7 +121,8 @@ impl DataSourceHandler for HostState {
             SourceOwner::Drag => self.drag_send(&mime, fd),
             SourceOwner::Selection | SourceOwner::Unknown => match &self.clipboard.own {
                 Some(text) => {
-                    if self.pipe_writes.push(fd, Arc::clone(text)) == Queued::Refused {
+                    let queued = self.pipe_writes.push(PipeUse::Selection, fd, Arc::clone(text));
+                    if queued == Queued::Refused {
                         eprintln!("shell-host: too many paste pipes open; one closed unanswered");
                     }
                 }

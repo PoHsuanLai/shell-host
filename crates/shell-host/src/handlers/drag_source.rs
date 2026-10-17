@@ -10,7 +10,7 @@ use wayland_client::protocol::wl_data_device_manager::DndAction;
 
 use crate::drag::offer::{Offered, bytes_for};
 use crate::drag::outcome::{DragAction, DragEnd, DragOutcome, outcome};
-use crate::handlers::pipe_writes::Queued;
+use crate::handlers::pipe_writes::{PipeUse, Queued};
 use crate::id::SurfaceId;
 use crate::state::HostState;
 
@@ -44,7 +44,7 @@ impl HostState {
             .and_then(|drag| bytes_for(&drag.offered, mime));
         match bytes {
             Some(bytes) => {
-                if self.pipe_writes.push(pipe, bytes) == Queued::Refused {
+                if self.pipe_writes.push(PipeUse::Drag, pipe, bytes) == Queued::Refused {
                     eprintln!("shell-host: too many drag pipes open; one closed unanswered");
                 }
             }

@@ -824,7 +824,7 @@ never allowed to wedge the single event-loop thread:
 | Preferred scale | 0.25x to 10x; whole factors 1 to 10 | `Scale::from_wire`, `Scale::from_integer_factor` |
 | A side left at 0 by a configure | keeps the old size; unconfigured until the surface has an area; no viewport call | `HostSurface::configure`, `follow_buffer_scale`, `Fractional::set_destination` |
 | Key repeat rate | 1000 per second | `handlers/keyboard/decide` |
-| Pipes open for other clients to read | 8, each 10 s | `drag::pipe::{MAX_OPEN_WRITES, WRITE_DEADLINE}` |
+| Pipes open for other clients to read | 6 for the selection and 2 for a drag, each 10 s | `drag::pipe::{MAX_SELECTION_WRITES, MAX_DRAG_WRITES, WRITE_DEADLINE}` |
 | A selection read | 1 MiB, 200 ms, one at a time | `paste` |
 | Palmrest datagrams per read | 256; the daemon must be this user or root | `input/palmrest` |
 | Local files a document reads | roots, regular files, 32 MiB | F21 |
@@ -976,6 +976,15 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
 - **Not run.** Written without a build; the orchestrator's gate is the first compile.
 
 ## Open items from the production audit
+
+- **NEW-QDH-4: the selection's write slots are not per client.** `wl_data_source.send(mime, fd)`
+  does not say who holds the other end of the pipe (the compositor forwards the request), so the
+  host cannot count open writes per reading client. What it does: the selection's 6 slots and a
+  drag's 2 are separate (`handlers/pipe_writes.rs`, `PipeUse`), so a client that never reads cannot
+  fail a drop of ours; a client that does the same to the selection still holds its 6 slots for
+  10 s each. The per-client cap belongs to the compositor, which knows the requester: casement
+  should refuse a `wl_data_offer.receive` from a client that already has a few unfinished reads
+  of one source (interface ask in the lane report). Condition to close: that cap exists.
 
 - **HOST-14 (outside this repo).** `zwp_text_input_v3.delete_surrounding_text` is forwarded to
   Blitz, which ignores it, and `done { serial }` is not compared with our commit count. An input
