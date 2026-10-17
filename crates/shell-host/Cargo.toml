@@ -54,6 +54,8 @@ peniko = { workspace = true }
 # SOCK_SEQPACKET for the palmrest socket (std has no seqpacket, and unsafe is not allowed
 # here); in the pinned block since quire b45282a.
 rustix = { workspace = true }
+# `SO_PEERPIDFD` for the palmrest socket's peer (rustix has no safe wrapper for it).
+nix = { workspace = true }
 
 [features]
 default = []

@@ -380,3 +380,24 @@ fn a_hello_of_another_version_stops_the_read() {
         "nothing after it is read: {messages:?}"
     );
 }
+
+/// The peer of a socket pair is held by a pidfd, and the descriptor is of the process the socket
+/// names: the kernel's `/proc/self/fdinfo/<fd>` of a pidfd lists its `Pid:`. (On a kernel
+/// without `SO_PEERPIDFD` the same holds through the reopened pidfd.)
+#[test]
+fn the_peer_of_a_socket_pair_is_held_by_a_pidfd_of_its_process() {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::net::UnixStream;
+    let (ours, _theirs) = UnixStream::pair().expect("a socket pair");
+    let held = held_peer(&ours).expect("the peer is held");
+    let own = i32::try_from(std::process::id()).expect("a pid fits");
+    assert_eq!(held.pid, own);
+    let info = std::fs::read_to_string(format!("/proc/self/fdinfo/{}", held.fd.as_raw_fd()))
+        .expect("fdinfo of the pidfd");
+    assert!(
+        info.lines()
+            .any(|line| line.trim() == format!("Pid:\t{own}")),
+        "the pidfd names this process: {info}"
+    );
+    assert_eq!(still_running(&held.fd), Running::Yes);
+}

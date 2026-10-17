@@ -750,12 +750,17 @@ a packet over the bound is skipped. `PointerOver{Ours|NotOurs}` is sent on chang
 connect.
 
 **The daemon is trusted by its control group.** The daemon is a dynamic user, so neither the person's
-uid nor root says anything. `peer_trust` (`input/palmrest.rs`) takes the listener's pid from
-`SO_PEERCRED`, opens a pidfd on it, reads the credentials again, reads `/proc/<pid>/cgroup`, and
-trusts the peer only if the line `0::/system.slice/palmrest.service` is there and the held process has
-not exited meanwhile. Only the system manager can put a process in that group. This is the proof route
-of peephole's `Pinned::of_stream` (shell-host has no peephole dependency, so the same steps are done
-with `rustix`), without the caller table: the group is the only judgement. A fake daemon in a test is
+uid nor root says anything. `peer_trust` (`input/palmrest.rs`) holds the listener by the kernel's own
+pidfd of the peer, made when it connected (`SO_PEERPIDFD`, Linux 6.5, through the `nix` crate: rustix has no safe wrapper), reads
+`/proc/<pid>/cgroup` only after holding it, and trusts the peer only if the line
+`0::/system.slice/palmrest.service` is there and the pidfd still polls not-readable afterwards (the
+process still runs). Only the system manager can put a process in that group. A peer that has exited
+(`ESRCH`) is refused; a kernel without the option (any other error) falls back to a pidfd opened by the
+`SO_PEERCRED` pid and kept only if the credentials read again are the same. The fallback leaves one
+gap, a pid recycled between connect and the open; the primary path has none (closed 2026-10-17, final
+audit item "reopened pin": the owner allowed `nix` for it the same day). This is the proof route of
+peephole's `Pinned::of_stream` and casement's `handle_of` (shell-host has no peephole dependency, so the
+same steps are done here), without the caller table: the group is the only judgement. A fake daemon in a test is
 believed only through `Palmrest::trusting`, which exists in test builds.
 
 **The person's gesture settings.** The daemon cannot read a home folder, so after `PointerOver` on every

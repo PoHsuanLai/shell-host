@@ -21,6 +21,8 @@ use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use nix::errno::Errno;
+use nix::sys::socket::{getsockopt, sockopt::PeerPidfd};
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
 use rustix::net::{
     AddressFamily, RecvFlags, SendFlags, SocketAddrUnix, SocketFlags, SocketType, connect, recv,
@@ -353,31 +355,61 @@ enum Delivery {
     Dropped,
 }
 
-/// Whether the process that listens on `fd` is palmrest's unit. The process is held by a pidfd
-/// (opened from `SO_PEERCRED`'s pid, which is read again to see it still names the same process),
+/// Whether the process that listens on `fd` is palmrest's unit. The process is held by a pidfd,
 /// its control group is read from `/proc`, and it must still be running afterwards, so the pid
 /// cannot have been another process's when the group was read. Fails closed: anything that cannot
 /// be read is refused.
 fn peer_trust(fd: &OwnedFd) -> Trust {
-    let Ok(first) = sockopt::socket_peercred(fd) else {
+    let Some(held) = held_peer(fd) else {
         return Trust::Refused;
     };
-    let Ok(held) = pidfd_open(first.pid, PidfdFlags::empty()) else {
+    let Ok(text) = std::fs::read_to_string(format!("/proc/{}/cgroup", held.pid)) else {
         return Trust::Refused;
     };
-    if sockopt::socket_peercred(fd).ok() != Some(first) {
-        return Trust::Refused;
+    match still_running(&held.fd) {
+        Running::Yes => trust_of_cgroup(&text),
+        Running::No => Trust::Refused,
     }
-    let Ok(text) = std::fs::read_to_string(format!("/proc/{}/cgroup", first.pid.as_raw_pid()))
-    else {
-        return Trust::Refused;
-    };
-    let mut watch = [PollFd::new(&held, PollFlags::IN)];
+}
+
+/// A process held by a pidfd, with the pid the socket names for it.
+struct Held {
+    pid: i32,
+    fd: OwnedFd,
+}
+
+/// Whether a held process has not exited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Running {
+    Yes,
+    No,
+}
+
+/// A pidfd polls readable once its process has exited.
+fn still_running(held: &OwnedFd) -> Running {
+    let mut watch = [PollFd::new(held, PollFlags::IN)];
     match poll(&mut watch, Some(&Timespec::default())) {
-        // Not readable: the process has not exited.
-        Ok(0) => trust_of_cgroup(&text),
-        _ => Trust::Refused,
+        Ok(0) => Running::Yes,
+        _ => Running::No,
     }
+}
+
+/// The process on the other end of `socket`, held. The kernel's own pidfd of the peer, made when
+/// it connected (`SO_PEERPIDFD`, Linux 6.5), cannot name a process that took the pid later: a peer
+/// that has exited is refused. A kernel without the option gets a pidfd opened by the pid from
+/// `SO_PEERCRED`, kept only if the credentials read again are the same.
+fn held_peer(socket: &impl AsFd) -> Option<Held> {
+    let first = sockopt::socket_peercred(socket).ok()?;
+    let pid = first.pid.as_raw_pid();
+    let fd = match getsockopt(socket, PeerPidfd) {
+        Ok(fd) => fd,
+        Err(Errno::ESRCH) => return None,
+        Err(_) => {
+            let fd = pidfd_open(first.pid, PidfdFlags::empty()).ok()?;
+            (sockopt::socket_peercred(socket).ok()? == first).then_some(fd)?
+        }
+    };
+    Some(Held { pid, fd })
 }
 
 /// A non-blocking, close-on-exec `SOCK_SEQPACKET` connection to `path`.

@@ -22,7 +22,7 @@ Allowed edges (everything else is forbidden):
 
 | From | May depend on |
 |---|---|
-| `shell-host` | `blitz-kit`, `palmrest-protocol`, `casement-protocols` (feature `client`: `quire_window_v1`'s bindings and the wire vocab, git rev pin), and the pinned third-party block (blitz-*, dioxus, sctk, wayland-*, calloop, wgpu, vello, parley, rustix, tokio, serde) |
+| `shell-host` | `blitz-kit`, `palmrest-protocol`, `casement-protocols` (feature `client`: `quire_window_v1`'s bindings and the wire vocab, git rev pin), and the pinned third-party block (blitz-*, dioxus, sctk, wayland-*, calloop, wgpu, vello, parley, rustix, `nix` (`socket` only, for `SO_PEERPIDFD`), tokio, serde) |
 | `blitz-kit` | `blitz-dom`, `blitz-traits`, `parley`, `wgpu` (feature `adapter`), `thiserror` |
 | `palmrest-protocol` | `serde`, `serde_json`, `thiserror` |
 
@@ -178,7 +178,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Key event assembly, key repeat | `input/key`, `handlers/keyboard` |
 | Seat capability decision | `input/capability` |
 | Input modality (keyboard vs pointer) | `modality` |
-| Palmrest socket client (pointer, session lock, the person's gesture settings, the daemon's proof) | `input/palmrest` (socket, `peer_trust`), `input/palmrest/user_config` (the settings file), `input/palmrest/route` (meaning); the lock is told from `ctx/lock`; the settings look is `ctx/palmrest` |
+| Palmrest socket client (pointer, session lock, the person's gesture settings, the daemon's proof) | `input/palmrest` (socket, `peer_trust`: the peer held by `SO_PEERPIDFD` through `nix`, its cgroup read from `/proc`), `input/palmrest/user_config` (the settings file), `input/palmrest/route` (meaning); the lock is told from `ctx/lock`; the settings look is `ctx/palmrest` |
 | What palmrest asks of the session (`ToHost::Run`) | `HostEvent::Palmrest(PalmrestAction)`, from `input/scroll::palmrest_message`; the embedder carries it out |
 | Palmrest messages | `palmrest-protocol` |
 | Scroll physics, latching, document side, driver | `blitz_kit::scroll` (shared with `ds-blitz`) |
