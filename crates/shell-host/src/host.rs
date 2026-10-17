@@ -1,8 +1,9 @@
 //! `Host`: connecting, and running the event loop.
 //!
 //! One thread runs every document (Blitz documents are `Rc<RefCell<..>>`). The loop is calloop
-//! with the Wayland source, the `HostHandle` channel, one ping shared by every waker and shell
-//! provider, and per-surface watchdog timers; it dispatches with no timeout, so an idle host
+//! with the Wayland source (and the ping that wakes it for events another thread read:
+//! `queue_wake`), the `HostHandle` channel, one ping shared by every waker and shell provider, and
+//! per-surface watchdog timers; it dispatches with no timeout, so an idle host
 //! makes no wakeups at all. A 2-worker tokio runtime is entered on the main thread for the
 //! whole run, so `tokio::time` and `watch` work inside Dioxus tasks.
 
@@ -11,10 +12,9 @@ use std::collections::{BTreeMap, VecDeque};
 use calloop::channel::{Channel, Event as ChannelEvent};
 use calloop::ping::make_ping;
 use calloop::{EventLoop, LoopHandle};
-use calloop_wayland_source::WaylandSource;
 use tokio::runtime::Runtime;
+use wayland_client::Connection;
 use wayland_client::globals::registry_queue_init;
-use wayland_client::{Connection, EventQueue};
 
 use crate::config::HostConfig;
 use crate::ctx::{HostCtx, Running};
@@ -24,6 +24,7 @@ use crate::gpu::rebuild::Rebuilds;
 use crate::handle::RequestQueue;
 use crate::host_handle::HostHandle;
 use crate::msg::{HostMsg, Request};
+use crate::queue_wake::insert_wayland;
 use crate::state::HostState;
 
 /// Worker threads of the host's tokio runtime (plan "Event loop").
@@ -189,20 +190,6 @@ fn next_event<M>(ctx: &mut HostCtx<M>) -> Option<HostEvent<M>> {
         .pop_front()
         .map(widen)
         .or_else(|| ctx.app.pop_front().map(HostEvent::App))
-}
-
-fn insert_wayland<M: 'static>(
-    handle: &LoopHandle<'static, HostCtx<M>>,
-    conn: Connection,
-    queue: EventQueue<HostState>,
-) -> Result<()> {
-    // The queue dispatches into the non-generic `HostState` inside the context.
-    handle
-        .insert_source(WaylandSource::new(conn, queue), |(), queue, ctx| {
-            queue.dispatch_pending(&mut ctx.state)
-        })
-        .map(drop)
-        .map_err(|e| HostError::EventLoop(e.to_string()))
 }
 
 fn insert_channel<M: 'static>(

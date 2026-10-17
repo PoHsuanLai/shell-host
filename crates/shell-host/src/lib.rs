@@ -59,6 +59,7 @@ mod placement;
 mod popup;
 mod popup_keyboard;
 mod prepaint;
+mod queue_wake;
 mod region;
 mod render_gpu;
 mod resolve;
