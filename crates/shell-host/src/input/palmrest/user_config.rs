@@ -99,9 +99,12 @@ mod tests {
         }
     }
 
+    /// A case's name, its environment and the file it should come to.
+    type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], Option<&'a str>);
+
     #[test]
     fn the_file_is_under_xdg_config_home_then_home() {
-        let cases: &[(&str, &[(&str, &str)], Option<&str>)] = &[
+        let cases: &[Case] = &[
             (
                 "xdg wins",
                 &[("XDG_CONFIG_HOME", "/x"), ("HOME", "/h")],
