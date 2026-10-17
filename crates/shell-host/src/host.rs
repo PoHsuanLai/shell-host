@@ -90,6 +90,7 @@ impl<M: Send + 'static> Host<M> {
             scroll_wakes: BTreeMap::new(),
             repeat: None,
             palmrest_retry: None,
+            palmrest_settings: None,
             reading: None,
             running: Running::Continue,
             failed: None,

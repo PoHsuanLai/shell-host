@@ -178,7 +178,8 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Key event assembly, key repeat | `input/key`, `handlers/keyboard` |
 | Seat capability decision | `input/capability` |
 | Input modality (keyboard vs pointer) | `modality` |
-| Palmrest socket client (pointer, session lock) | `input/palmrest` (socket), `input/palmrest/route` (meaning); the lock is told from `ctx/lock` |
+| Palmrest socket client (pointer, session lock, the person's gesture settings, the daemon's proof) | `input/palmrest` (socket, `peer_trust`), `input/palmrest/user_config` (the settings file), `input/palmrest/route` (meaning); the lock is told from `ctx/lock`; the settings look is `ctx/palmrest` |
+| What palmrest asks of the session (`ToHost::Run`) | `HostEvent::Palmrest(PalmrestAction)`, from `input/scroll::palmrest_message`; the embedder carries it out |
 | Palmrest messages | `palmrest-protocol` |
 | Scroll physics, latching, document side, driver | `blitz_kit::scroll` (shared with `ds-blitz`) |
 | Scroll settings (engine part) | `blitz_kit::scroll::config::ScrollSettings`; `scroll/config` holds `ScrollConfig` (it and the thumb's settings) |

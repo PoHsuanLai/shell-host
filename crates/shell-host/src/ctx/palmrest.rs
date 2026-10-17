@@ -11,7 +11,7 @@ use calloop::timer::{TimeoutAction, Timer};
 use calloop::{Interest, Mode};
 
 use crate::ctx::HostCtx;
-use crate::input::palmrest::{Retry, Stream, read_all};
+use crate::input::palmrest::{Palmrest, Retry, Stream, read_all};
 
 /// Connect to palmrest if an attempt is due and the socket exists.
 pub(super) fn connect_if_due<M: 'static>(ctx: &mut HostCtx<M>) {
@@ -23,6 +23,7 @@ pub(super) fn connect_if_due<M: 'static>(ctx: &mut HostCtx<M>) {
         return;
     };
     cancel_retry(ctx);
+    watch_settings(ctx);
     let source = Generic::new(reader, Interest::READ, Mode::Level);
     let inserted = ctx.handle.insert_source(source, |_, fd, ctx| {
         let (messages, stream) = read_all(&**fd);
@@ -54,6 +55,26 @@ pub(super) fn connect_if_due<M: 'static>(ctx: &mut HostCtx<M>) {
         eprintln!("shell-host: palmrest socket source: {error}");
         ctx.state.palmrest.disconnected();
         look_again_later(ctx);
+    }
+}
+
+/// Look at the person's gesture settings file every couple of seconds, from the first connection
+/// on, and tell palmrest when it changed (the host watches no files). The timer stays: a look while
+/// the daemon is away does nothing, and the connect tells the daemon the file anyway.
+fn watch_settings<M: 'static>(ctx: &mut HostCtx<M>) {
+    if ctx.palmrest_settings.is_some() || !ctx.state.palmrest.watches_settings() {
+        return;
+    }
+    let every = Palmrest::look_every();
+    let armed = ctx
+        .handle
+        .insert_source(Timer::from_duration(every), move |_, _, ctx| {
+            ctx.state.palmrest.settings_changed();
+            TimeoutAction::ToDuration(every)
+        });
+    match armed {
+        Ok(token) => ctx.palmrest_settings = Some(token),
+        Err(error) => eprintln!("shell-host: palmrest settings timer: {error}"),
     }
 }
 

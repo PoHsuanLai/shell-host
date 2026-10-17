@@ -5,6 +5,9 @@ use crate::lock::LockId;
 use crate::lock::machine::LockState;
 use crate::output::OutputInfo;
 
+/// What palmrest asks of the shell.
+pub use palmrest_protocol::HostAction as PalmrestAction;
+
 /// An event delivered to the closure given to `Host::run`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostEvent<M> {
@@ -44,6 +47,11 @@ pub enum HostEvent<M> {
     /// compositor that offers it (casement, from `quire_window_manager_v1` version 2); elsewhere
     /// the windows are closed one by one and `SurfaceClosed` is all the app sees.
     QuitAsked,
+    /// palmrest asks for an action that needs the person's session, and the host carries none of it
+    /// out: the shell does, as it does its own commands (the workspace steps, a line of its own
+    /// command language, a program of the person's). The daemon is a system service with no session
+    /// of its own. The words are within [`PalmrestAction::fits`]'s bounds.
+    Palmrest(PalmrestAction),
     /// A message sent through a `HostHandle`.
     App(M),
 }
@@ -90,6 +98,7 @@ pub(crate) fn widen<M>(event: ShellEvent) -> HostEvent<M> {
         HostEvent::KeyboardFocus { id, focus } => HostEvent::KeyboardFocus { id, focus },
         HostEvent::Lock { id, state } => HostEvent::Lock { id, state },
         HostEvent::QuitAsked => HostEvent::QuitAsked,
+        HostEvent::Palmrest(ask) => HostEvent::Palmrest(ask),
         HostEvent::App(never) => match never {},
     }
 }
@@ -103,6 +112,10 @@ mod tests {
         let cases: Vec<(ShellEvent, HostEvent<String>)> = vec![
             (HostEvent::Started, HostEvent::Started),
             (HostEvent::QuitAsked, HostEvent::QuitAsked),
+            (
+                HostEvent::Palmrest(PalmrestAction::WorkspaceNext),
+                HostEvent::Palmrest(PalmrestAction::WorkspaceNext),
+            ),
             (
                 HostEvent::OutputRemoved(OutputId(3)),
                 HostEvent::OutputRemoved(OutputId(3)),

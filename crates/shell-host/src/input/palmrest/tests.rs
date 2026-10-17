@@ -7,7 +7,7 @@ use rustix::net::{accept, bind, listen};
 /// A fake daemon: a listening `SOCK_SEQPACKET` socket at a temp path.
 fn daemon() -> (tempdir::Dir, OwnedFd) {
     let dir = tempdir::Dir::new();
-    let path = socket_path(Some(dir.path())).expect("a path");
+    let path = dir.path().join("events.sock");
     std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
     let fd = socket_with(
         AddressFamily::UNIX,
@@ -58,7 +58,7 @@ fn received(fd: &OwnedFd) -> String {
 #[test]
 fn no_daemon_is_a_no_op() {
     let dir = tempdir::Dir::new();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     assert_eq!(client.retry(), Retry::Due);
     assert!(client.connect().is_none());
     assert_eq!(client.retry(), Retry::Waiting, "no retry storm");
@@ -70,7 +70,7 @@ fn no_daemon_is_a_no_op() {
 #[test]
 fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
     let (dir, listener) = daemon();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     client.pointer_over(Over::Ours);
     let reader = client.connect().expect("connects");
     let peer = accept(&listener).expect("accept");
@@ -92,7 +92,7 @@ fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
         "only changes"
     );
 
-    let hello = r#"{"kind":"hello","v":{"version":1,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
+    let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
     let scroll = r#"{"kind":"scroll","v":{"gesture":1,"phase":"began","dx_px":0.0,"dy_px":0.0,"fingers":1,"axis":"y","t_ns":5}}"#;
     let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
     for datagram in [hello, touches, "not json", scroll] {
@@ -105,7 +105,7 @@ fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
         3,
         "the junk datagram is skipped: {messages:?}"
     );
-    assert!(matches!(messages[0], ToHost::Hello { version: 1, .. }));
+    assert!(matches!(messages[0], ToHost::Hello { version: 2, .. }));
     assert_eq!(
         messages[1],
         ToHost::Touches {
@@ -128,7 +128,7 @@ fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
 #[test]
 fn the_lock_is_sent_on_change_and_again_after_a_reconnect() {
     let (dir, listener) = daemon();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     client.session_lock(LockState::Locked);
     let _reader = client.connect().expect("connects");
     let peer = accept(&listener).expect("accept");
@@ -166,7 +166,7 @@ fn the_lock_is_sent_on_change_and_again_after_a_reconnect() {
 #[test]
 fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
     let dir = tempdir::Dir::new();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     client.session_lock(LockState::Locked);
     assert!(client.connect().is_none(), "no daemon yet");
     assert_eq!(client.retry(), Retry::Waiting);
@@ -180,7 +180,7 @@ fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
     );
 
     // The daemon comes up; the wait runs out; the pointer never entered anything.
-    let path = socket_path(Some(dir.path())).expect("a path");
+    let path = dir.path().join("events.sock");
     std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
     let listener = socket_with(
         AddressFamily::UNIX,
@@ -211,7 +211,7 @@ fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
 #[test]
 fn a_lock_while_the_daemon_is_away_makes_an_attempt_due_and_an_unlock_does_not() {
     let dir = tempdir::Dir::new();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     assert!(client.connect().is_none());
     assert_eq!(client.retry(), Retry::Waiting);
     client.session_lock(LockState::Locked);
@@ -233,7 +233,7 @@ fn a_lock_while_the_daemon_is_away_makes_an_attempt_due_and_an_unlock_does_not()
 #[test]
 fn a_daemon_that_went_away_is_looked_for_again_and_never_without_a_path() {
     let (dir, listener) = daemon();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     let _reader = client.connect().expect("connects");
     let _peer = accept(&listener).expect("accept");
     client.disconnected();
@@ -262,7 +262,7 @@ fn only_locked_reports_lock_the_session() {
 #[test]
 fn a_flood_is_read_a_bounded_batch_at_a_time() {
     let (dir, listener) = daemon();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     let reader = client.connect().expect("connects");
     let peer = accept(&listener).expect("accept");
     let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
@@ -278,31 +278,103 @@ fn a_flood_is_read_a_bounded_batch_at_a_time() {
 }
 
 #[test]
-fn only_this_user_or_root_may_be_the_daemon() {
-    let cases: &[(&str, u32, u32, Trust)] = &[
-        ("the same user", 1000, 1000, Trust::Trusted),
-        ("root", 0, 1000, Trust::Trusted),
-        ("another user", 1001, 1000, Trust::Refused),
-        ("a system account", 65534, 1000, Trust::Refused),
+fn only_the_unit_of_the_daemon_may_be_the_daemon() {
+    let cases: &[(&str, &str, Trust)] = &[
+        (
+            "palmrest's unit",
+            "0::/system.slice/palmrest.service\n",
+            Trust::Trusted,
+        ),
+        (
+            "another system service",
+            "0::/system.slice/keycap.service\n",
+            Trust::Refused,
+        ),
+        (
+            "a lookalike below the unit",
+            "0::/system.slice/palmrest.service/x\n",
+            Trust::Refused,
+        ),
+        (
+            "a user unit of that name",
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/palmrest.service\n",
+            Trust::Refused,
+        ),
+        (
+            "the old hierarchy",
+            "1:name=systemd:/system.slice/palmrest.service\n",
+            Trust::Refused,
+        ),
+        ("nothing", "", Trust::Refused),
     ];
-    for (name, peer, own, want) in cases {
-        assert_eq!(trust(*peer, *own), *want, "{name}");
+    for (name, cgroup, want) in cases {
+        assert_eq!(trust_of_cgroup(cgroup), *want, "{name}");
     }
+}
+
+#[test]
+fn a_process_that_is_not_in_the_unit_is_refused_by_the_real_check() {
+    // The daemon of this test is a thread of the test process, in no system unit.
+    let (dir, listener) = daemon();
+    let mut client = Palmrest::at(Some(dir.path().join("events.sock")));
+    assert!(client.connect().is_none(), "refused");
+    let _ = listener;
+}
+
+#[test]
+fn the_persons_settings_are_told_on_connect_and_again_when_the_file_changes() {
+    let (dir, listener) = daemon();
+    let file = dir.path().join("gestures.toml");
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), Some(file.clone()));
+    assert!(client.watches_settings());
+    std::fs::write(&file, "[scroll]\nspeed = 30\n").expect("write");
+    let _reader = client.connect().expect("connects");
+    let peer = accept(&listener).expect("accept");
+    assert!(received(&peer).contains("session_lock"));
+    assert!(received(&peer).contains("pointer_over"));
+    assert_eq!(
+        received(&peer),
+        r#"{"kind":"user_config","v":{"toml":"[scroll]\nspeed = 30\n"}}"#,
+        "the file is told after the lock and the pointer"
+    );
+
+    client.settings_changed();
+    std::thread::sleep(Duration::from_millis(20));
+    let mut buf = [0u8; 256];
+    assert!(
+        recv(&peer, &mut buf[..], RecvFlags::DONTWAIT).is_err(),
+        "an unchanged file is not sent again"
+    );
+
+    std::fs::write(&file, "[scroll]\nspeed = 31\n[swipe]\ncooldown_ms = 300\n").expect("write");
+    client.settings_changed();
+    assert_eq!(
+        received(&peer),
+        r#"{"kind":"user_config","v":{"toml":"[scroll]\nspeed = 31\n[swipe]\ncooldown_ms = 300\n"}}"#
+    );
+
+    std::fs::remove_file(&file).expect("remove");
+    client.settings_changed();
+    assert_eq!(
+        received(&peer),
+        r#"{"kind":"user_config","v":{"toml":""}}"#,
+        "no file takes the person's layer away"
+    );
 }
 
 #[test]
 fn a_hello_of_another_version_stops_the_read() {
     let (dir, listener) = daemon();
-    let mut client = Palmrest::at(socket_path(Some(dir.path())));
+    let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     let reader = client.connect().expect("connects");
     let peer = accept(&listener).expect("accept");
-    let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
+    let hello = r#"{"kind":"hello","v":{"version":3,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
     let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
     for datagram in [hello, touches] {
         send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
     }
     let (messages, stream) = read_all(&reader);
-    assert_eq!(stream, Stream::Incompatible { version: 2 });
+    assert_eq!(stream, Stream::Incompatible { version: 3 });
     assert!(
         messages.is_empty(),
         "nothing after it is read: {messages:?}"

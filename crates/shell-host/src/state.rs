@@ -240,7 +240,7 @@ impl HostState {
             scroll: Tuning::default(),
             suppress: Suppress::default(),
             scroll_key: None,
-            palmrest: Palmrest::from_env(),
+            palmrest: Palmrest::system(),
             qh,
             conn,
         })

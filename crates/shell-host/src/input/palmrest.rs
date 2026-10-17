@@ -1,9 +1,11 @@
 //! The palmrest client (design/12 §12.3.10-11, design/11 §11.7): connects to
-//! `$XDG_RUNTIME_DIR/palmrest/events.sock` (`SOCK_SEQPACKET`) when the daemon runs, tells it when
-//! the pointer is over one of our surfaces (`PointerOver`) and whether the session is locked
-//! (`SessionLock`), and reads its scroll, touch, tap and
-//! swipe events for the engine (`input::scroll`). No daemon, no socket: nothing happens, and
-//! the host looks again after a growing wait (`backoff`) and at the next pointer enter.
+//! `/run/palmrest/events.sock` (`SOCK_SEQPACKET`) when the daemon runs, tells it when the pointer
+//! is over one of our surfaces (`PointerOver`), whether the session is locked (`SessionLock`) and
+//! what the person's gesture settings say (`UserConfig`, `user_config`), and reads its scroll,
+//! touch, tap and swipe events for the engine (`input::scroll`) and the actions it asks of the
+//! session (`Run`). The daemon is a system service, so the peer is believed by its control group
+//! (`peer_trust`). No daemon, no socket: nothing happens, and the host looks again after a
+//! growing wait (`backoff`) and at the next pointer enter.
 //!
 //! The socket I/O is here; registering the reading side with the event loop is the context's
 //! (`ctx::palmrest`), since the loop belongs to `HostCtx`.
@@ -12,17 +14,19 @@
 
 mod backoff;
 pub(crate) mod route;
+mod user_config;
 
 use std::io;
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use rustix::event::{PollFd, PollFlags, Timespec, poll};
 use rustix::net::{
     AddressFamily, RecvFlags, SendFlags, SocketAddrUnix, SocketFlags, SocketType, connect, recv,
     send, socket_with, sockopt,
 };
-use rustix::process::getuid;
+use rustix::process::{PidfdFlags, pidfd_open};
 
 use palmrest_protocol::{
     Compat, LockState, MAX_PACKET, Over, ToDaemon, ToHost, compat, decode, encode,
@@ -43,14 +47,35 @@ pub(crate) enum Trust {
     Refused,
 }
 
-/// The daemon runs as the person (a user service) or as root; any other user's process at the
-/// socket's path is not palmrest, and would be feeding scroll and touch input.
-pub(crate) fn trust(peer_uid: u32, own_uid: u32) -> Trust {
-    if peer_uid == own_uid || peer_uid == 0 {
+/// The daemon's socket. The daemon is a system service, so this is a fixed path and not one under
+/// the person's runtime folder.
+pub(crate) const SOCKET: &str = "/run/palmrest/events.sock";
+
+/// The control group of palmrest's unit: only the system manager can put a process there, so a
+/// process in it is palmrest, whoever it runs as. Any other process at the socket's path would be
+/// feeding scroll and touch input, and asking the shell to run programs.
+const DAEMON_CGROUP: &str = "/system.slice/palmrest.service";
+
+/// Whether a process whose `/proc/<pid>/cgroup` reads `text` is the daemon: the unified
+/// hierarchy's line `0::<path>` names the unit's group, exactly.
+pub(crate) fn trust_of_cgroup(text: &str) -> Trust {
+    if text
+        .lines()
+        .any(|line| line.strip_prefix("0::") == Some(DAEMON_CGROUP))
+    {
         Trust::Trusted
     } else {
         Trust::Refused
     }
+}
+
+/// How a peer is judged. Only the control group in production; a test's daemon is a thread of the
+/// test, in no unit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Check {
+    Unit,
+    #[cfg(test)]
+    Anyone,
 }
 
 /// Whether the host should try to connect at the next flush.
@@ -83,6 +108,10 @@ enum Link {
 #[derive(Debug)]
 pub(crate) struct Palmrest {
     path: Option<PathBuf>,
+    check: Check,
+    /// The person's settings file, when there is a place for one, and how it looked when its text
+    /// was last sent.
+    settings: Option<Settings>,
     link: Link,
     /// Where the pointer is, sent on every change and again after each connect.
     over: Over,
@@ -103,27 +132,47 @@ pub(crate) fn lock_for(state: HostLock) -> LockState {
     }
 }
 
-/// `$XDG_RUNTIME_DIR/palmrest/events.sock` for `runtime_dir`.
-pub(crate) fn socket_path(runtime_dir: Option<&Path>) -> Option<PathBuf> {
-    runtime_dir.map(|dir| dir.join("palmrest").join("events.sock"))
+/// The person's settings file and how it looked when its text was last sent.
+#[derive(Debug)]
+struct Settings {
+    path: PathBuf,
+    told: Option<user_config::Stamp>,
 }
 
 impl Palmrest {
-    /// The client for the socket under `$XDG_RUNTIME_DIR`; unconnected, first attempt due.
-    pub(crate) fn from_env() -> Palmrest {
-        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
-        Palmrest::at(socket_path(runtime.as_deref()))
+    /// The client for the daemon's socket and the person's settings file; unconnected, first
+    /// attempt due.
+    pub(crate) fn system() -> Palmrest {
+        let settings =
+            user_config::path(std::env::var_os).map(|path| Settings { path, told: None });
+        Palmrest {
+            settings,
+            ..Palmrest::at(Some(PathBuf::from(SOCKET)))
+        }
     }
 
-    /// The client for the socket at `path` (`None`: never connects).
+    /// The client for the socket at `path` (`None`: never connects); sends no settings.
     pub(crate) fn at(path: Option<PathBuf>) -> Palmrest {
         Palmrest {
             path,
+            check: Check::Unit,
+            settings: None,
             link: Link::Down,
             over: Over::NotOurs,
             lock: LockState::Unlocked,
             retry: Retry::Due,
             misses: Misses::default(),
+        }
+    }
+
+    /// A client for tests: believes whatever listens at `path`, which is a thread of the test
+    /// and in no unit; reads the person's settings from `settings` when given.
+    #[cfg(test)]
+    pub(crate) fn trusting(path: PathBuf, settings: Option<PathBuf>) -> Palmrest {
+        Palmrest {
+            check: Check::Anyone,
+            settings: settings.map(|path| Settings { path, told: None }),
+            ..Palmrest::at(Some(path))
         }
     }
 
@@ -180,15 +229,62 @@ impl Palmrest {
             return None;
         }
         let fd = open(path).ok()?;
-        if peer_trust(&fd) == Trust::Refused {
-            eprintln!("shell-host: the palmrest socket is not served by this user; ignoring it");
+        if self.judge(&fd) == Trust::Refused {
+            eprintln!(
+                "shell-host: the palmrest socket is not served by palmrest's unit; ignoring it"
+            );
             return None;
         }
         let reader = fd.try_clone().ok()?;
         self.link = Link::Up(fd);
         self.send(&ToDaemon::SessionLock { state: self.lock });
         self.send(&ToDaemon::PointerOver { over: self.over });
+        self.tell_settings();
         Some(reader)
+    }
+
+    fn judge(&self, fd: &OwnedFd) -> Trust {
+        match self.check {
+            Check::Unit => peer_trust(fd),
+            #[cfg(test)]
+            Check::Anyone => Trust::Trusted,
+        }
+    }
+
+    /// Whether a place for the person's settings is known, so that [`Palmrest::settings_changed`]
+    /// is worth asking every [`user_config::LOOK_EVERY`].
+    pub(crate) fn watches_settings(&self) -> bool {
+        self.settings.is_some()
+    }
+
+    /// How often the settings file is looked at.
+    pub(crate) fn look_every() -> Duration {
+        user_config::LOOK_EVERY
+    }
+
+    /// Looks at the settings file and tells the daemon its text when it changed since the last
+    /// time. Nothing while the daemon is not connected: the connect tells it.
+    pub(crate) fn settings_changed(&mut self) {
+        let Some(Settings { path, told }) = &self.settings else {
+            return;
+        };
+        if matches!(self.link, Link::Up(_)) && told.as_ref() != Some(&user_config::stamp(path)) {
+            self.tell_settings();
+        }
+    }
+
+    /// Sends the settings file's text (empty: none), and remembers how the file looked.
+    fn tell_settings(&mut self) {
+        let Some(Settings { path, .. }) = &self.settings else {
+            return;
+        };
+        // The stamp is taken before the read, so a change in between is seen at the next look.
+        let stamp = user_config::stamp(path);
+        let toml = user_config::read(path);
+        let delivery = self.send(&ToDaemon::UserConfig { toml });
+        if let (Delivery::Sent, Some(settings)) = (delivery, &mut self.settings) {
+            settings.told = Some(stamp);
+        }
     }
 
     /// The daemon went away (the read side saw the end, or it spoke another protocol): a miss,
@@ -206,7 +302,9 @@ impl Palmrest {
         match (&self.link, over) {
             (Link::Down, Over::Ours) => self.retry = Retry::Due,
             (Link::Down, Over::NotOurs) => {}
-            (Link::Up(_), _) if changed => self.send(&ToDaemon::PointerOver { over }),
+            (Link::Up(_), _) if changed => {
+                self.send(&ToDaemon::PointerOver { over });
+            }
             (Link::Up(_), _) => {}
         }
     }
@@ -222,33 +320,63 @@ impl Palmrest {
         match (&self.link, lock) {
             (Link::Down, LockState::Locked) => self.retry = Retry::Due,
             (Link::Down, LockState::Unlocked) => {}
-            (Link::Up(_), _) => self.send(&ToDaemon::SessionLock { state: lock }),
+            (Link::Up(_), _) => {
+                self.send(&ToDaemon::SessionLock { state: lock });
+            }
         }
     }
 
-    fn send(&mut self, message: &ToDaemon) {
+    fn send(&mut self, message: &ToDaemon) -> Delivery {
         let Link::Up(fd) = &self.link else {
-            return;
+            return Delivery::Dropped;
         };
         match send(
             fd,
             &encode(message),
             SendFlags::NOSIGNAL | SendFlags::DONTWAIT,
         ) {
-            Ok(_) => {}
+            Ok(_) => Delivery::Sent,
             // A full socket drops one message; the next change resends the state.
-            Err(e) if e == rustix::io::Errno::AGAIN => {}
-            Err(_) => self.link = Link::Down,
+            Err(e) if e == rustix::io::Errno::AGAIN => Delivery::Dropped,
+            Err(_) => {
+                self.link = Link::Down;
+                Delivery::Dropped
+            }
         }
     }
 }
 
-/// Whether the process that listens on `fd` is one to trust. Fails closed: a peer whose
-/// credentials cannot be read is refused.
+/// Whether a message went into the socket.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delivery {
+    Sent,
+    Dropped,
+}
+
+/// Whether the process that listens on `fd` is palmrest's unit. The process is held by a pidfd
+/// (opened from `SO_PEERCRED`'s pid, which is read again to see it still names the same process),
+/// its control group is read from `/proc`, and it must still be running afterwards, so the pid
+/// cannot have been another process's when the group was read. Fails closed: anything that cannot
+/// be read is refused.
 fn peer_trust(fd: &OwnedFd) -> Trust {
-    match sockopt::socket_peercred(fd) {
-        Ok(peer) => trust(peer.uid.as_raw(), getuid().as_raw()),
-        Err(_) => Trust::Refused,
+    let Ok(first) = sockopt::socket_peercred(fd) else {
+        return Trust::Refused;
+    };
+    let Ok(held) = pidfd_open(first.pid, PidfdFlags::empty()) else {
+        return Trust::Refused;
+    };
+    if sockopt::socket_peercred(fd).ok() != Some(first) {
+        return Trust::Refused;
+    }
+    let Ok(text) = std::fs::read_to_string(format!("/proc/{}/cgroup", first.pid.as_raw_pid()))
+    else {
+        return Trust::Refused;
+    };
+    let mut watch = [PollFd::new(&held, PollFlags::IN)];
+    match poll(&mut watch, Some(&Timespec::default())) {
+        // Not readable: the process has not exited.
+        Ok(0) => trust_of_cgroup(&text),
+        _ => Trust::Refused,
     }
 }
 

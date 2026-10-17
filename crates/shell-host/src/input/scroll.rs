@@ -12,6 +12,7 @@ use blitz_traits::events::BlitzKeyEvent;
 use smithay_client_toolkit::seat::pointer::AxisScroll;
 use wayland_client::protocol::wl_pointer;
 
+use crate::event::HostEvent;
 use crate::frame::Animation;
 use crate::geometry::Point;
 use crate::id::SurfaceId;
@@ -216,6 +217,13 @@ impl HostState {
 
     /// One message from palmrest (design/12 §12.3.11, `input::palmrest::route`).
     pub(crate) fn palmrest_message(&mut self, message: ToHost) {
+        if let ToHost::Run { action } = message {
+            // The shell carries it out; an action over the bounds is not one the daemon sends.
+            if action.fits() {
+                self.events.push_back(HostEvent::Palmrest(action));
+            }
+            return;
+        }
         let now = self.now();
         let Route { fingers, scroll } = route(&message);
         if let Some(fingers) = fingers {

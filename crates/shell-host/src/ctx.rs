@@ -64,6 +64,9 @@ pub struct HostCtx<M> {
     pub(crate) repeat: Option<RegistrationToken>,
     /// The timer that makes the next attempt to reach palmrest due (`ctx::palmrest`).
     pub(crate) palmrest_retry: Option<RegistrationToken>,
+    /// The timer that looks at the person's gesture settings file and tells palmrest when it
+    /// changed (`ctx::palmrest`); armed once, at the first connection.
+    pub(crate) palmrest_settings: Option<RegistrationToken>,
     /// The selection read in flight (`ctx::paste`), if any.
     pub(crate) reading: Option<paste::Reading>,
     pub(crate) running: Running,

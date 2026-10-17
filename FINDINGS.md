@@ -740,14 +740,36 @@ setting).
 
 ### F64. The palmrest client and the double-scroll window
 
-The host connects to `$XDG_RUNTIME_DIR/palmrest/events.sock` when it exists (non-blocking
-`SOCK_SEQPACKET` through `rustix`), at start, on the next pointer enter while unconnected, when
-the session locks while unconnected, and on a timer after a miss (NEW-QDH-2, below). Wire form is palmrest's: one JSON message per packet, at
-most 4096 bytes, `PROTOCOL_VERSION` 1, enums adjacently tagged, `snake_case`;
-`input/palmrest/wire.rs` re-declares the types with palmrest's serde attributes (no dependency
-on palmrest's crate) and its tests hold byte strings printed by palmrest's own encoder. A `Hello`
-with another version disconnects until the next enter; a packet over 4096 bytes is skipped.
-`PointerOver{Ours|NotOurs}` is sent on changes and after each connect.
+The host connects to `/run/palmrest/events.sock` (a constant: palmrest is a system service since
+2026-10-17, so `XDG_RUNTIME_DIR` plays no part) when it exists (non-blocking `SOCK_SEQPACKET` through
+`rustix`), at start, on the next pointer enter while unconnected, when the session locks while
+unconnected, and on a timer after a miss (NEW-QDH-2, below). Wire form is palmrest's, taken from its
+`palmrest-protocol` crate by path: one JSON message per packet, at most 64 KiB, `PROTOCOL_VERSION` 2,
+enums adjacently tagged, `snake_case`. A `Hello` with another version disconnects until the next enter;
+a packet over the bound is skipped. `PointerOver{Ours|NotOurs}` is sent on changes and after each
+connect.
+
+**The daemon is trusted by its control group.** The daemon is a dynamic user, so neither the person's
+uid nor root says anything. `peer_trust` (`input/palmrest.rs`) takes the listener's pid from
+`SO_PEERCRED`, opens a pidfd on it, reads the credentials again, reads `/proc/<pid>/cgroup`, and
+trusts the peer only if the line `0::/system.slice/palmrest.service` is there and the held process has
+not exited meanwhile. Only the system manager can put a process in that group. This is the proof route
+of peephole's `Pinned::of_stream` (shell-host has no peephole dependency, so the same steps are done
+with `rustix`), without the caller table: the group is the only judgement. A fake daemon in a test is
+believed only through `Palmrest::trusting`, which exists in test builds.
+
+**The person's gesture settings.** The daemon cannot read a home folder, so after `PointerOver` on every
+connect the host sends `UserConfig{toml}`: the text of `$XDG_CONFIG_HOME/palmrest/gestures.toml` (else
+`~/.config/palmrest/gestures.toml`), at most 24 KiB, read without blocking from a regular file; empty
+when there is no file or it is unusable, which takes the person's layer away at the daemon. The host
+watches no files, so while the daemon is connected a timer (`ctx::palmrest::watch_settings`, armed once)
+looks at the file's size and modification time every two seconds and sends the text again when either
+moved.
+
+**Actions for the session.** `ToHost::Run{action}` arrives on the shell's own connection only (the daemon
+sends it to nobody else) and becomes `HostEvent::Palmrest(PalmrestAction)` for the embedder, which
+carries it out as it carries out its own commands. An action over the protocol's bounds is dropped here
+too. The host runs nothing.
 
 **INPUT-09.** `SessionLock{Locked|Unlocked}` is sent the same way: on changes only, and again right
 after `PointerOver` on every connect, so a daemon that restarts mid-lock hears it. Palmrest stops

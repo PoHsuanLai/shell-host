@@ -45,12 +45,14 @@ pub(crate) fn route(message: &ToHost) -> Route {
                 scroll: Some(event),
             }
         }
-        ToHost::Tap { .. } | ToHost::Swipe { .. } | ToHost::Hello { .. } | ToHost::DeviceGone => {
-            Route {
-                fingers: None,
-                scroll: None,
-            }
-        }
+        ToHost::Tap { .. }
+        | ToHost::Swipe { .. }
+        | ToHost::Hello { .. }
+        | ToHost::DeviceGone
+        | ToHost::Run { .. } => Route {
+            fingers: None,
+            scroll: None,
+        },
     }
 }
 

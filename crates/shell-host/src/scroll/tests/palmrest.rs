@@ -18,7 +18,7 @@ use rustix::net::{
 use crate::dom::document::SurfaceDocument;
 use crate::dom::tests::env::test_env;
 use crate::input::palmrest::route::route;
-use crate::input::palmrest::{Palmrest, read_all, socket_path};
+use crate::input::palmrest::{Palmrest, read_all};
 use crate::input::pointer::PointerPos;
 use crate::root::HostRoot;
 use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
@@ -60,7 +60,7 @@ struct Daemon {
 impl Daemon {
     fn start(name: &str) -> Daemon {
         let dir = std::env::temp_dir().join(format!("shell-host-{name}-{}", std::process::id()));
-        let path = socket_path(Some(&dir)).expect("path");
+        let path = dir.join("events.sock");
         std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
         let _ = std::fs::remove_file(&path);
         let listener = socket_with(
@@ -184,7 +184,7 @@ impl Host {
 /// then the lift; the page's offset after every frame until it settles.
 fn run(echo: Echo, name: &str) -> Vec<f64> {
     let daemon = Daemon::start(name);
-    let mut client = Palmrest::at(socket_path(Some(&daemon.dir)));
+    let mut client = Palmrest::trusting(daemon.dir.join("events.sock"), None);
     let reader = client.connect().expect("the fake daemon is there");
     let peer = accept(&daemon.listener).expect("accept");
     let mut doc = document();
