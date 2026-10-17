@@ -9,7 +9,7 @@ use crate::region::Rect;
 
 mod surrounding;
 
-pub(crate) use surrounding::{ChangeCause, Outgoing, SentSurrounding, decide};
+pub(crate) use surrounding::{ChangeCause, SentSurrounding, decide};
 
 /// A preedit string with its cursor, as byte offsets into the string (`None` hides the cursor).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

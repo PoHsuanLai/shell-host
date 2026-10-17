@@ -2,7 +2,8 @@
 
 use blitz_dom::node::SurroundingText;
 
-use crate::ime::{ChangeCause, Outgoing, SentSurrounding, decide};
+use crate::ime::surrounding::Outgoing;
+use crate::ime::{ChangeCause, SentSurrounding, decide};
 
 fn text(text: &str, cursor: usize, anchor: usize) -> SurroundingText {
     SurroundingText {
