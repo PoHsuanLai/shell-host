@@ -101,7 +101,6 @@ pub use handle::{
 };
 pub use host::Host;
 pub use host_handle::HostHandle;
-pub use pulse::Pulse;
 pub use id::{OutputId, SurfaceId, SurfaceName};
 pub use layer::{
     Anchor, ExclusiveZone, KeyboardMode, LayerConfig, LayerExtent, LayerLevel, LayerSize,
@@ -120,6 +119,7 @@ pub use popup::{
     PopupToggle, offset_rect,
 };
 pub use prepaint::{Prepaint, PrepaintFn};
+pub use pulse::Pulse;
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::HostRoot;
 pub use route::WaylandRoute;

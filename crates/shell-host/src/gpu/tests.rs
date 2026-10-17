@@ -387,9 +387,7 @@ fn a_closed_documents_widget_textures_leave_the_shared_map() {
         before + 1,
         "the widget's texture is in the map after its first paint"
     );
-    gpu()
-        .widgets
-        .forget_document(&mut doc.inner.borrow_mut());
+    gpu().widgets.forget_document(&mut doc.inner.borrow_mut());
     assert_eq!(
         gpu().widgets.textures.len(),
         before,

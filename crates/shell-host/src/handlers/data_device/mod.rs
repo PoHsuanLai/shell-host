@@ -121,7 +121,9 @@ impl DataSourceHandler for HostState {
             SourceOwner::Drag => self.drag_send(&mime, fd),
             SourceOwner::Selection | SourceOwner::Unknown => match &self.clipboard.own {
                 Some(text) => {
-                    let queued = self.pipe_writes.push(PipeUse::Selection, fd, Arc::clone(text));
+                    let queued = self
+                        .pipe_writes
+                        .push(PipeUse::Selection, fd, Arc::clone(text));
                     if queued == Queued::Refused {
                         eprintln!("shell-host: too many paste pipes open; one closed unanswered");
                     }

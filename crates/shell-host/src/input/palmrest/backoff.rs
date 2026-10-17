@@ -64,9 +64,17 @@ mod tests {
         ];
         for (count, locked, unlocked) in cases {
             let misses = (0..(*count).min(40)).fold(Misses::default(), |m, _| m.more());
-            let misses = if *count == u32::MAX { Misses(u32::MAX) } else { misses };
+            let misses = if *count == u32::MAX {
+                Misses(u32::MAX)
+            } else {
+                misses
+            };
             assert_eq!(misses.wait(LockState::Locked), *locked, "{count} locked");
-            assert_eq!(misses.wait(LockState::Unlocked), *unlocked, "{count} unlocked");
+            assert_eq!(
+                misses.wait(LockState::Unlocked),
+                *unlocked,
+                "{count} unlocked"
+            );
         }
     }
 }

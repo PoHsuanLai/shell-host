@@ -156,7 +156,11 @@ fn the_lock_is_sent_on_change_and_again_after_a_reconnect() {
     client.disconnected();
     let _again = client.connect().expect("reconnects");
     let second = accept(&listener).expect("accept");
-    assert_eq!(received(&second), locked, "a reconnect tells it first again");
+    assert_eq!(
+        received(&second),
+        locked,
+        "a reconnect tells it first again"
+    );
 }
 
 #[test]
@@ -187,7 +191,11 @@ fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
     .expect("socket");
     bind(&listener, &SocketAddrUnix::new(&path).expect("addr")).expect("bind");
     listen(&listener, 4).expect("listen");
-    assert_eq!(client.retry(), Retry::Waiting, "not before the wait is over");
+    assert_eq!(
+        client.retry(),
+        Retry::Waiting,
+        "not before the wait is over"
+    );
     client.retry_now();
     assert_eq!(client.retry(), Retry::Due);
     let _reader = client.connect().expect("found");
@@ -207,7 +215,11 @@ fn a_lock_while_the_daemon_is_away_makes_an_attempt_due_and_an_unlock_does_not()
     assert!(client.connect().is_none());
     assert_eq!(client.retry(), Retry::Waiting);
     client.session_lock(LockState::Locked);
-    assert_eq!(client.retry(), Retry::Due, "the pointer will not enter anything");
+    assert_eq!(
+        client.retry(),
+        Retry::Due,
+        "the pointer will not enter anything"
+    );
     assert!(client.connect().is_none());
     client.session_lock(LockState::Unlocked);
     assert_eq!(client.retry(), Retry::Waiting);

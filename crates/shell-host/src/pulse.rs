@@ -67,10 +67,18 @@ mod tests {
             .expect("a dispatch");
         assert_eq!(pulse.beats(), 1, "one dispatch, one beat");
         std::thread::sleep(SHORTEST_BEAT * 3);
-        assert_eq!(pulse.beats(), 1, "a loop that is not dispatching does not beat");
+        assert_eq!(
+            pulse.beats(),
+            1,
+            "a loop that is not dispatching does not beat"
+        );
         event_loop
             .dispatch(Some(Duration::ZERO), &mut ())
             .expect("a dispatch");
-        assert_eq!(pulse.beats(), 2, "a late dispatch beats once, not for each missed beat");
+        assert_eq!(
+            pulse.beats(),
+            2,
+            "a late dispatch beats once, not for each missed beat"
+        );
     }
 }

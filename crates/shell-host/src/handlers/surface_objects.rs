@@ -29,6 +29,7 @@ impl HostState {
         let Some(gpu) = self.gpu.as_mut() else {
             return;
         };
-        gpu.widgets.forget_document(&mut surface.document.base_mut());
+        gpu.widgets
+            .forget_document(&mut surface.document.base_mut());
     }
 }
