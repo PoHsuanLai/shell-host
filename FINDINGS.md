@@ -829,6 +829,7 @@ never allowed to wedge the single event-loop thread:
 | Palmrest datagrams per read | 256; the daemon must be this user or root | `input/palmrest` |
 | Local files a document reads | roots, regular files, 32 MiB | F21 |
 | Uploaded images | emptied past 1024 | `gpu/image_cache` |
+| Widget textures | a dropped widget's is forgotten before the next paint; a closed surface's all at once | `gpu/context_proxy` (`forget_dropped`, `forget_document`) |
 | A GPU adapter's first present | 5 s; the device request 10 s | `gpu/adapter`, `gpu/context` |
 
 - **A lost GPU device is rebuilt** (`ctx/paint/recover.rs`, `gpu/rebuild.rs`). wgpu's default

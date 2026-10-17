@@ -59,6 +59,7 @@ pub(crate) fn paint_document(
         ..
     } = gpu;
     image_cache::trim(images, renderer, resources, encoder);
+    widgets.forget_dropped(doc);
     {
         let image_manager = ImageManager::new(
             &mut *renderer,

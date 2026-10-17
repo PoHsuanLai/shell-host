@@ -248,9 +248,10 @@ pub(super) fn close<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, reason: Clo
     ctx.state.forget_quire_window(id);
     super::timer::cancel_watchdog(ctx, id);
     let state = &mut ctx.state;
-    let Some(surface) = state.remove_surface(id) else {
+    let Some(mut surface) = state.remove_surface(id) else {
         return;
     };
+    state.release_textures(&mut surface);
     let was_lock = matches!(surface.role, Role::Lock { .. });
     let lifted = match &surface.role {
         Role::Popup { parent, config, .. } if config.grab == PopupGrab::Grabbed => Some(*parent),

@@ -367,8 +367,41 @@ fn swatch_app() -> Element {
     }
 }
 
+/// The swatch tests count the shared map's textures, so they take turns.
+static WIDGET_TESTS: Mutex<()> = Mutex::new(());
+
+#[test]
+fn a_closed_documents_widget_textures_leave_the_shared_map() {
+    let _turn = WIDGET_TESTS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let buffer = Size {
+        width: 32,
+        height: 16,
+    };
+    let mut doc = document(swatch_app, buffer, Scale::ONE);
+    let before = gpu().widgets.textures.len();
+    render(&mut doc, buffer, Scale::ONE);
+    assert_eq!(
+        gpu().widgets.textures.len(),
+        before + 1,
+        "the widget's texture is in the map after its first paint"
+    );
+    gpu()
+        .widgets
+        .forget_document(&mut doc.inner.borrow_mut());
+    assert_eq!(
+        gpu().widgets.textures.len(),
+        before,
+        "closing the document gave its texture back"
+    );
+}
+
 #[test]
 fn a_widget_texture_is_registered_once_and_drawn_every_frame() {
+    let _turn = WIDGET_TESTS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let buffer = Size {
         width: 32,
         height: 16,

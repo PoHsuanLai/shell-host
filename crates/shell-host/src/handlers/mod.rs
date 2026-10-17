@@ -78,7 +78,8 @@ pub(crate) fn close_surface_and_popups(state: &mut HostState, id: SurfaceId, rea
     state.withdraw_pointer(id);
     state.withdraw_keyboard(id);
     state.forget_quire_window(id);
-    if state.remove_surface(id).is_some() {
+    if let Some(mut surface) = state.remove_surface(id) {
+        state.release_textures(&mut surface);
         state
             .events
             .push_back(HostEvent::SurfaceClosed { id, reason });

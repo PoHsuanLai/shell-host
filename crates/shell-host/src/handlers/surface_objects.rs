@@ -1,7 +1,8 @@
 //! Removing a surface from the host: the protocol objects made for its `wl_surface` (the
 //! fractional-scale and viewport objects, the blur object) are destroyed with it, and the maps
 //! that find them forget it. Every removal of a surface goes through here, so a popup opened
-//! every few seconds for weeks leaves nothing behind in the shell or in the compositor.
+//! every few seconds for weeks leaves nothing behind in the shell or in the compositor. A surface
+//! that is closed for good also gives back its widgets' textures.
 
 use crate::id::SurfaceId;
 use crate::state::HostState;
@@ -19,5 +20,15 @@ impl HostState {
             effect.forget(&wl);
         }
         self.surfaces.remove(&id)
+    }
+
+    /// Let go of the GPU textures the widgets of `surface`'s document registered, for a surface
+    /// that is going away for good (not one that is only unmapped and kept). They live in the
+    /// one shared device's map and would otherwise stay there until the host ends.
+    pub(crate) fn release_textures(&mut self, surface: &mut HostSurface) {
+        let Some(gpu) = self.gpu.as_mut() else {
+            return;
+        };
+        gpu.widgets.forget_document(&mut surface.document.base_mut());
     }
 }
