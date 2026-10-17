@@ -143,8 +143,8 @@ impl Palmrest {
     /// The client for the daemon's socket and the person's settings file; unconnected, first
     /// attempt due.
     pub(crate) fn system() -> Palmrest {
-        let settings =
-            user_config::path(std::env::var_os).map(|path| Settings { path, told: None });
+        let settings = user_config::path(|key| std::env::var_os(key))
+            .map(|path| Settings { path, told: None });
         Palmrest {
             settings,
             ..Palmrest::at(Some(PathBuf::from(SOCKET)))
