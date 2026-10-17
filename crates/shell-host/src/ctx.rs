@@ -62,6 +62,8 @@ pub struct HostCtx<M> {
     /// Pending scroll-thumb wakes by surface (`TimerRequest::ScrollWake`).
     pub(crate) scroll_wakes: BTreeMap<SurfaceId, RegistrationToken>,
     pub(crate) repeat: Option<RegistrationToken>,
+    /// The timer that makes the next attempt to reach palmrest due (`ctx::palmrest`).
+    pub(crate) palmrest_retry: Option<RegistrationToken>,
     /// The selection read in flight (`ctx::paste`), if any.
     pub(crate) reading: Option<paste::Reading>,
     pub(crate) running: Running,

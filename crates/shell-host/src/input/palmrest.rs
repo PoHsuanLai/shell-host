@@ -3,18 +3,20 @@
 //! the pointer is over one of our surfaces (`PointerOver`) and whether the session is locked
 //! (`SessionLock`), and reads its scroll, touch, tap and
 //! swipe events for the engine (`input::scroll`). No daemon, no socket: nothing happens, and
-//! the host tries again on the next pointer enter.
+//! the host looks again after a growing wait (`backoff`) and at the next pointer enter.
 //!
 //! The socket I/O is here; registering the reading side with the event loop is the context's
 //! (`ctx::palmrest`), since the loop belongs to `HostCtx`.
 //!
 //! See FINDINGS F64.
 
+mod backoff;
 pub(crate) mod route;
 
 use std::io;
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use rustix::net::{
     AddressFamily, RecvFlags, SendFlags, SocketAddrUnix, SocketFlags, SocketType, connect, recv,
@@ -27,6 +29,7 @@ use palmrest_protocol::{
 };
 
 use crate::lock::machine::LockState as HostLock;
+use backoff::Misses;
 
 /// The most datagrams one read takes: a daemon (or a process in its place) that sends faster
 /// than the host reads cannot hold the loop in one read. The source is level-triggered, so the
@@ -87,6 +90,8 @@ pub(crate) struct Palmrest {
     /// stops gesture actions while any connection says `Locked`.
     lock: LockState,
     retry: Retry,
+    /// The attempts in a row that found no usable daemon; the next wait grows with it.
+    misses: Misses,
 }
 
 /// What palmrest is told for the host's lock report: only `Locked` locks. `Unlocked`, and
@@ -118,10 +123,12 @@ impl Palmrest {
             over: Over::NotOurs,
             lock: LockState::Unlocked,
             retry: Retry::Due,
+            misses: Misses::default(),
         }
     }
 
-    /// Whether a connection attempt is due (at start, and after a pointer enter while down).
+    /// Whether a connection attempt is due: at start, after a pointer enter while down, when the
+    /// session locks while down, and when the wait of [`Palmrest::retry_in`] has run out.
     pub(crate) fn retry(&self) -> Retry {
         match self.link {
             Link::Up(_) => Retry::Waiting,
@@ -129,11 +136,45 @@ impl Palmrest {
         }
     }
 
+    /// How long to wait before the next attempt, after one that found no daemon (or after the
+    /// daemon went away): the host makes the attempt due then with [`Palmrest::retry_now`], so a
+    /// daemon that starts or restarts is found without a pointer enter. `None` when there is no
+    /// socket path to look at, or the daemon is connected.
+    pub(crate) fn retry_in(&self) -> Option<Duration> {
+        match (&self.link, &self.path) {
+            (Link::Down, Some(_)) => Some(self.misses.wait(self.lock)),
+            (Link::Up(_), _) | (Link::Down, None) => None,
+        }
+    }
+
+    /// The wait of [`Palmrest::retry_in`] ran out: an attempt is due, if still unconnected.
+    pub(crate) fn retry_now(&mut self) {
+        if matches!(self.link, Link::Down) {
+            self.retry = Retry::Due;
+        }
+    }
+
+    /// The daemon spoke: it is there and means to stay, so the next loss is waited for from the
+    /// shortest wait again.
+    pub(crate) fn settled(&mut self) {
+        self.misses = Misses::default();
+    }
+
     /// Connect if the socket exists: returns the descriptor the event loop reads from. Sends
-    /// the pointer's current `PointerOver` and the session's `SessionLock` at once. `None` (and no retry until the next enter)
-    /// when there is no daemon.
+    /// the session's `SessionLock` first and then the pointer's current `PointerOver` at once, so
+    /// the daemon stops gesture actions before anything else it hears. `None` (and no attempt
+    /// before [`Palmrest::retry_in`] has passed, or the next pointer enter) when there is no
+    /// usable daemon.
     pub(crate) fn connect(&mut self) -> Option<OwnedFd> {
         self.retry = Retry::Waiting;
+        let reader = self.attempt();
+        if reader.is_none() {
+            self.misses = self.misses.more();
+        }
+        reader
+    }
+
+    fn attempt(&mut self) -> Option<OwnedFd> {
         let path = self.path.as_ref()?;
         if !path.exists() {
             return None;
@@ -145,14 +186,16 @@ impl Palmrest {
         }
         let reader = fd.try_clone().ok()?;
         self.link = Link::Up(fd);
-        self.send(&ToDaemon::PointerOver { over: self.over });
         self.send(&ToDaemon::SessionLock { state: self.lock });
+        self.send(&ToDaemon::PointerOver { over: self.over });
         Some(reader)
     }
 
-    /// The daemon went away (the read side saw the end).
+    /// The daemon went away (the read side saw the end, or it spoke another protocol): a miss,
+    /// and the next attempt waits for [`Palmrest::retry_in`].
     pub(crate) fn disconnected(&mut self) {
         self.link = Link::Down;
+        self.misses = self.misses.more();
     }
 
     /// The pointer entered or left our surfaces. While down, an enter makes a connection
@@ -169,11 +212,17 @@ impl Palmrest {
     }
 
     /// The session was locked or unlocked. Sent on a change only; while down, the state is kept
-    /// and `connect` tells it.
+    /// and `connect` tells it, and a lock makes an attempt due at once: the pointer stays inside
+    /// the lock surface, so no enter will.
     pub(crate) fn session_lock(&mut self, lock: LockState) {
-        if self.lock != lock {
-            self.lock = lock;
-            self.send(&ToDaemon::SessionLock { state: lock });
+        if self.lock == lock {
+            return;
+        }
+        self.lock = lock;
+        match (&self.link, lock) {
+            (Link::Down, LockState::Locked) => self.retry = Retry::Due,
+            (Link::Down, LockState::Unlocked) => {}
+            (Link::Up(_), _) => self.send(&ToDaemon::SessionLock { state: lock }),
         }
     }
 
@@ -248,230 +297,4 @@ fn read_up_to(fd: impl AsFd, datagrams: usize) -> (Vec<ToHost>, Stream) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use palmrest_protocol::{ActiveTouch, Phase};
-    use rustix::net::{accept, bind, listen};
-
-    /// A fake daemon: a listening `SOCK_SEQPACKET` socket at a temp path.
-    fn daemon() -> (tempdir::Dir, OwnedFd) {
-        let dir = tempdir::Dir::new();
-        let path = socket_path(Some(dir.path())).expect("a path");
-        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
-        let fd = socket_with(
-            AddressFamily::UNIX,
-            SocketType::SEQPACKET,
-            SocketFlags::CLOEXEC,
-            None,
-        )
-        .expect("socket");
-        bind(&fd, &SocketAddrUnix::new(&path).expect("addr")).expect("bind");
-        listen(&fd, 4).expect("listen");
-        (dir, fd)
-    }
-
-    /// A private temp directory, removed on drop (no dependency for it).
-    mod tempdir {
-        use std::path::{Path, PathBuf};
-
-        pub(crate) struct Dir(PathBuf);
-
-        impl Dir {
-            pub(crate) fn new() -> Dir {
-                static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-                let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let path = std::env::temp_dir()
-                    .join(format!("shell-host-palmrest-{}-{n}", std::process::id()));
-                std::fs::create_dir_all(&path).expect("temp dir");
-                Dir(path)
-            }
-
-            pub(crate) fn path(&self) -> &Path {
-                &self.0
-            }
-        }
-
-        impl Drop for Dir {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_dir_all(&self.0);
-            }
-        }
-    }
-
-    fn received(fd: &OwnedFd) -> String {
-        let mut buf = [0u8; 256];
-        let (len, _) = recv(fd, &mut buf[..], RecvFlags::empty()).expect("recv");
-        String::from_utf8_lossy(&buf[..len]).into_owned()
-    }
-
-    #[test]
-    fn no_daemon_is_a_no_op() {
-        let dir = tempdir::Dir::new();
-        let mut client = Palmrest::at(socket_path(Some(dir.path())));
-        assert_eq!(client.retry(), Retry::Due);
-        assert!(client.connect().is_none());
-        assert_eq!(client.retry(), Retry::Waiting, "no retry storm");
-        client.pointer_over(Over::Ours);
-        assert_eq!(client.retry(), Retry::Due, "an enter tries again");
-        assert!(Palmrest::at(None).connect().is_none());
-    }
-
-    #[test]
-    fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
-        let (dir, listener) = daemon();
-        let mut client = Palmrest::at(socket_path(Some(dir.path())));
-        client.pointer_over(Over::Ours);
-        let reader = client.connect().expect("connects");
-        let peer = accept(&listener).expect("accept");
-        assert_eq!(
-            received(&peer),
-            r#"{"kind":"pointer_over","v":{"over":"ours"}}"#,
-            "state on connect"
-        );
-        assert_eq!(
-            received(&peer),
-            r#"{"kind":"session_lock","v":{"state":"unlocked"}}"#,
-            "the lock state on connect"
-        );
-        client.pointer_over(Over::Ours);
-        client.pointer_over(Over::NotOurs);
-        assert_eq!(
-            received(&peer),
-            r#"{"kind":"pointer_over","v":{"over":"not_ours"}}"#,
-            "only changes"
-        );
-
-        let hello = r#"{"kind":"hello","v":{"version":1,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
-        let scroll = r#"{"kind":"scroll","v":{"gesture":1,"phase":"began","dx_px":0.0,"dy_px":0.0,"fingers":1,"axis":"y","t_ns":5}}"#;
-        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
-        for datagram in [hello, touches, "not json", scroll] {
-            send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
-        }
-        let (messages, stream) = read_all(&reader);
-        assert_eq!(stream, Stream::Open);
-        assert_eq!(
-            messages.len(),
-            3,
-            "the junk datagram is skipped: {messages:?}"
-        );
-        assert!(matches!(messages[0], ToHost::Hello { version: 1, .. }));
-        assert_eq!(
-            messages[1],
-            ToHost::Touches {
-                active: ActiveTouch::Down
-            }
-        );
-        assert!(matches!(
-            messages[2],
-            ToHost::Scroll {
-                phase: Phase::Began,
-                ..
-            }
-        ));
-
-        drop(peer);
-        let (messages, stream) = read_all(&reader);
-        assert_eq!((messages.len(), stream), (0, Stream::Closed));
-    }
-
-    #[test]
-    fn the_lock_is_sent_on_change_and_again_after_a_reconnect() {
-        let (dir, listener) = daemon();
-        let mut client = Palmrest::at(socket_path(Some(dir.path())));
-        client.session_lock(LockState::Locked);
-        let _reader = client.connect().expect("connects");
-        let peer = accept(&listener).expect("accept");
-        assert_eq!(
-            received(&peer),
-            r#"{"kind":"pointer_over","v":{"over":"not_ours"}}"#
-        );
-        let locked = r#"{"kind":"session_lock","v":{"state":"locked"}}"#;
-        assert_eq!(
-            received(&peer),
-            locked,
-            "a lock held before the connect is told at it"
-        );
-
-        client.session_lock(LockState::Locked);
-        client.session_lock(LockState::Unlocked);
-        assert_eq!(
-            received(&peer),
-            r#"{"kind":"session_lock","v":{"state":"unlocked"}}"#,
-            "only changes are sent"
-        );
-
-        client.session_lock(LockState::Locked);
-        assert_eq!(received(&peer), locked);
-        client.disconnected();
-        let _again = client.connect().expect("reconnects");
-        let second = accept(&listener).expect("accept");
-        received(&second);
-        assert_eq!(received(&second), locked, "a reconnect tells it again");
-    }
-
-    #[test]
-    fn only_locked_reports_lock_the_session() {
-        let cases: &[(&str, HostLock, LockState)] = &[
-            ("the compositor locked", HostLock::Locked, LockState::Locked),
-            ("we unlocked", HostLock::Unlocked, LockState::Unlocked),
-            (
-                "the compositor ended it",
-                HostLock::Finished,
-                LockState::Unlocked,
-            ),
-        ];
-        for (name, report, want) in cases {
-            assert_eq!(lock_for(*report), *want, "{name}");
-        }
-    }
-
-    #[test]
-    fn a_flood_is_read_a_bounded_batch_at_a_time() {
-        let (dir, listener) = daemon();
-        let mut client = Palmrest::at(socket_path(Some(dir.path())));
-        let reader = client.connect().expect("connects");
-        let peer = accept(&listener).expect("accept");
-        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
-        for _ in 0..10 {
-            send(&peer, touches.as_bytes(), SendFlags::empty()).expect("send");
-        }
-        let (first, stream) = read_up_to(&reader, 4);
-        assert_eq!((first.len(), stream), (4, Stream::Open), "one batch only");
-        let (second, _) = read_up_to(&reader, 4);
-        assert_eq!(second.len(), 4, "the next batch carries on");
-        let (rest, stream) = read_up_to(&reader, 4);
-        assert_eq!((rest.len(), stream), (2, Stream::Open), "then what is left");
-    }
-
-    #[test]
-    fn only_this_user_or_root_may_be_the_daemon() {
-        let cases: &[(&str, u32, u32, Trust)] = &[
-            ("the same user", 1000, 1000, Trust::Trusted),
-            ("root", 0, 1000, Trust::Trusted),
-            ("another user", 1001, 1000, Trust::Refused),
-            ("a system account", 65534, 1000, Trust::Refused),
-        ];
-        for (name, peer, own, want) in cases {
-            assert_eq!(trust(*peer, *own), *want, "{name}");
-        }
-    }
-
-    #[test]
-    fn a_hello_of_another_version_stops_the_read() {
-        let (dir, listener) = daemon();
-        let mut client = Palmrest::at(socket_path(Some(dir.path())));
-        let reader = client.connect().expect("connects");
-        let peer = accept(&listener).expect("accept");
-        let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
-        let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
-        for datagram in [hello, touches] {
-            send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
-        }
-        let (messages, stream) = read_all(&reader);
-        assert_eq!(stream, Stream::Incompatible { version: 2 });
-        assert!(
-            messages.is_empty(),
-            "nothing after it is read: {messages:?}"
-        );
-    }
-}
+mod tests;

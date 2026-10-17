@@ -741,8 +741,8 @@ setting).
 ### F64. The palmrest client and the double-scroll window
 
 The host connects to `$XDG_RUNTIME_DIR/palmrest/events.sock` when it exists (non-blocking
-`SOCK_SEQPACKET` through `rustix`), at start and again on the next pointer enter while
-unconnected: no timer, no retry loop. Wire form is palmrest's: one JSON message per packet, at
+`SOCK_SEQPACKET` through `rustix`), at start, on the next pointer enter while unconnected, when
+the session locks while unconnected, and on a timer after a miss (NEW-QDH-2, below). Wire form is palmrest's: one JSON message per packet, at
 most 4096 bytes, `PROTOCOL_VERSION` 1, enums adjacently tagged, `snake_case`;
 `input/palmrest/wire.rs` re-declares the types with palmrest's serde attributes (no dependency
 on palmrest's crate) and its tests hold byte strings printed by palmrest's own encoder. A `Hello`
@@ -754,6 +754,18 @@ after `PointerOver` on every connect, so a daemon that restarts mid-lock hears i
 gesture keys and desktop actions while any connection says `Locked`. The only source is the lock
 machine's `Report` (`ctx::lock::perform`), which every `locked`, `finished` and unlock reaches:
 `Locked` maps to `Locked`, `Unlocked` and `Finished` to `Unlocked` (`input::palmrest::lock_for`).
+`SessionLock` is the first message on every connect, ahead of `PointerOver`.
+
+**NEW-QDH-2.** A palmrest that restarts or starts late is found again without a pointer enter:
+a miss (no socket, an untrusted peer, a daemon that went away or spoke another protocol) arms a
+calloop timer (`ctx/palmrest.rs`) whose wait doubles from 250 ms (`input/palmrest/backoff.rs`) to
+2 s while the session is locked and 30 s otherwise, and a lock while unconnected makes an attempt
+due at once; the miss count restarts when the daemon speaks. While locked the pointer stays inside
+the lock surface, so no enter would ever have come. **With no host connection palmrest does not
+fail safe:** it counts the session locked only while some connection says `Locked`
+(`palmrest/src/daemon/socket.rs::aggregate_lock`), so a daemon that no host reached runs gesture
+actions on a locked screen. The host shortens the gap to at most 2 s; closing it needs the daemon
+to treat "no host connected" as locked for desktop actions (an ask for palmrest, in the lane report).
 When the host stops while locked its socket closes, and palmrest then counts the session as
 unlocked until the restarted host locks again (F65).
 

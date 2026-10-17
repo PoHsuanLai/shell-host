@@ -88,6 +88,7 @@ impl<M: Send + 'static> Host<M> {
             watchdogs: BTreeMap::new(),
             scroll_wakes: BTreeMap::new(),
             repeat: None,
+            palmrest_retry: None,
             reading: None,
             running: Running::Continue,
             failed: None,
