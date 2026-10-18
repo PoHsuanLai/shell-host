@@ -3,6 +3,7 @@
 
 pub use blitz_kit::units::Scale120;
 
+use crate::live::Live;
 use crate::region::Px;
 
 /// The largest width or height, in pixels, the host accepts from the compositor for a surface,
@@ -10,6 +11,13 @@ use crate::region::Px;
 /// (`wgpu::Limits::default()`), so a buffer of this size can always be configured. A larger
 /// number is a lie or a bug, and a swapchain that size would be a validation error.
 pub(crate) const MAX_SURFACE_EXTENT: Px = 8192;
+
+/// One surface's current scale, and the waiters for its next change: what
+/// [`crate::handle::use_surface_scale`] reads. The host learns a surface's scale from the
+/// compositor (`wp_fractional_scale_v1`, else `preferred_buffer_scale` or the output's scale)
+/// and publishes it here; the surface's `SurfaceHandle` holds a clone, so a component can draw
+/// for the device grid it lands on. The mechanism is [`crate::live`]'s (FINDINGS F43).
+pub(crate) type LiveScale = Live<Scale120>;
 
 /// A size in pixels. Used for both logical (surface-local) and physical (buffer) sizes; which
 /// is which is a property of the call site, not the type.

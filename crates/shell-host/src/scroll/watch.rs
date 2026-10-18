@@ -132,11 +132,10 @@ mod tests {
     use crate::grab::GrabRecord;
     use crate::handle::{HandleParts, RequestQueue, SurfaceHandle};
     use crate::id::{SurfaceId, SurfaceIds};
-    use crate::live_scale::LiveScale;
     use crate::prepaint::Prepaint;
     use crate::role::RoleKind;
     use crate::root::HostRoot;
-    use crate::scale::Scale120;
+    use crate::scale::{LiveScale, Scale120};
     use crate::scroll::surface::SurfaceScroll;
     use crate::scroll::tuning::Tuning;
     use crate::tick::FrameTicks;
