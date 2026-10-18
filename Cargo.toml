@@ -109,7 +109,7 @@ nucleo-matcher = "0.3.1"
 fend-core = "1.5.8"
 clap = { version = "4", features = ["derive"] }
 # latchkey is its own repo; no shell-host crate calls it yet, so there is no call site to adapt.
-latchkey = { git = "https://github.com/PoHsuanLai/latchkey", rev = "99cc9deb198860293253c534c4d26b382ec8b87e" }
+latchkey = { git = "https://github.com/PoHsuanLai/latchkey", rev = "b10ae1b8c49c55cce2c5affde8f5db76edb66ab4" }
 # ---- END PINNED BLOCK ----
 
 
