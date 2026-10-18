@@ -1,7 +1,6 @@
 //! The scroll configuration and the physics derived from it, and the time a call runs at.
 
 use crate::scroll::config::{ScrollConfig, ScrollbarSettings};
-use crate::tick::HostInstant;
 use blitz_kit::scroll::time::Elapsed;
 use blitz_kit::scroll::tuning::{Env as KitEnv, Tuning as KitTuning};
 
@@ -27,9 +26,9 @@ impl Tuning {
     }
 
     /// This tuning at `now`.
-    pub(crate) fn at(&self, now: HostInstant) -> Env<'_> {
+    pub(crate) fn at(&self, now: Elapsed) -> Env<'_> {
         Env {
-            kit: self.kit.at(Elapsed(now.0)),
+            kit: self.kit.at(now),
             scrollbar: &self.scrollbar,
             now,
         }
@@ -41,5 +40,5 @@ impl Tuning {
 pub(crate) struct Env<'a> {
     pub kit: KitEnv<'a>,
     pub scrollbar: &'a ScrollbarSettings,
-    pub now: HostInstant,
+    pub now: Elapsed,
 }

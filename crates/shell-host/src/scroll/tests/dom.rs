@@ -19,12 +19,12 @@ use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
 use crate::scroll::surface::{PalmScroll, SurfaceScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
-use crate::tick::HostInstant;
 use blitz_kit::scroll::doc::{self as dom, KeyFocus, WheelRoute};
 use blitz_kit::scroll::driver::Claim;
 use blitz_kit::scroll::engine::{Engine, Motion};
 use blitz_kit::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller, ViewPoint};
 use blitz_kit::scroll::keys::ScrollKey;
+use blitz_kit::scroll::time::Elapsed;
 use blitz_kit::scroll::velocity::SampleTime;
 
 const WIDTH: u32 = 400;
@@ -70,7 +70,7 @@ fn document(app: fn() -> Element) -> SurfaceDocument {
 struct Bench {
     doc: SurfaceDocument,
     scroll: SurfaceScroll,
-    now: HostInstant,
+    now: Elapsed,
 }
 
 impl Bench {
@@ -82,7 +82,7 @@ impl Bench {
         Bench {
             doc: document(page),
             scroll: SurfaceScroll::new(ScrollBoard::default(), tuning),
-            now: HostInstant(Duration::from_secs(10)),
+            now: Elapsed(Duration::from_secs(10)),
         }
     }
 
@@ -120,7 +120,7 @@ impl Bench {
             },
             shift: Shift::Up,
         };
-        self.now = HostInstant(self.now.0 + FRAME);
+        self.now = Elapsed(self.now.0 + FRAME);
         let mut base = self.doc.base_mut();
         self.scroll.axis(&mut base, &frame, at, self.now);
     }
@@ -141,7 +141,7 @@ impl Bench {
             if self.scroll.motion(self.now) == Motion::Still {
                 break;
             }
-            self.now = HostInstant(self.now.0 + FRAME);
+            self.now = Elapsed(self.now.0 + FRAME);
             {
                 let mut base = self.doc.base_mut();
                 self.scroll.frame(&mut base, self.now);
@@ -258,7 +258,7 @@ fn item_10_the_thumb_shows_on_the_change_and_fades_after_740_ms() {
     assert_eq!(thumbs[0].opacity, 1.0);
     // The list's thumb, on its right edge: x = 300 - 2 - 8.
     assert_eq!(thumbs[0].thumb.x, 290.0);
-    let later = |ms| HostInstant(changed.0 + Duration::from_millis(ms));
+    let later = |ms| Elapsed(changed.0 + Duration::from_millis(ms));
     assert_eq!(
         bench.scroll.overlay(&bench.doc.base(), later(499))[0].opacity,
         1.0
@@ -434,7 +434,7 @@ fn keyed_bench() -> Bench {
     Bench {
         doc: document(keyed),
         scroll: SurfaceScroll::new(ScrollBoard::default(), Tuning::default()),
-        now: HostInstant(Duration::from_secs(10)),
+        now: Elapsed(Duration::from_secs(10)),
     }
 }
 

@@ -3,7 +3,8 @@
 //! A surface's [`FrameTicks`] is shared between the host (which publishes a [`FrameTick`] on
 //! every frame callback while the surface is animating or driven) and the surface's
 //! `SurfaceHandle` (which hands out [`FrameDrive`]s and waits for ticks). Everything here runs
-//! on the main thread, so the sharing is `Rc`.
+//! on the main thread, so the sharing is `Rc`. A tick's time is an [`Elapsed`]: the time since
+//! the host connected, the same timeline every document's CSS is resolved on (`clock::HostClock`).
 //!
 //! The rules:
 //!
@@ -29,22 +30,13 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use crate::frame::Animation;
-
-/// A point on the host clock: the time since the host connected, the same timeline every
-/// document's CSS is resolved on (`clock::HostClock`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct HostInstant(pub Duration);
-
-impl HostInstant {
-    /// The host's start.
-    pub const ZERO: HostInstant = HostInstant(Duration::ZERO);
-}
+use blitz_kit::scroll::time::Elapsed;
 
 /// One frame of a surface that is animating or driven: when it was called back, and how long
 /// since the previous tick of the same run (zero for the first).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct FrameTick {
-    pub at: HostInstant,
+    pub at: Elapsed,
     pub dt: Duration,
 }
 
@@ -66,7 +58,7 @@ pub(crate) fn pacing(document: Animation, drive: Drive) -> Animation {
 
 /// The tick at `at`, after the previous tick of this run at `previous` (none: a new run).
 /// Pure.
-pub(crate) fn tick_after(previous: Option<HostInstant>, at: HostInstant) -> FrameTick {
+pub(crate) fn tick_after(previous: Option<Elapsed>, at: Elapsed) -> FrameTick {
     let dt = previous.map_or(Duration::ZERO, |before| at.0.saturating_sub(before.0));
     FrameTick { at, dt }
 }
@@ -82,7 +74,7 @@ pub(crate) enum Ticked {
 struct TickState {
     drives: u32,
     /// The previous tick of the current run; `None` between runs.
-    run: Option<HostInstant>,
+    run: Option<Elapsed>,
     /// Ticks published so far, and the latest.
     count: u64,
     latest: FrameTick,
@@ -114,7 +106,7 @@ impl FrameTicks {
     /// A frame is due at `at` (its callback, or the watchdog standing in for it) on a surface
     /// whose document is in `document`: tick when [`pacing`] says running, else end the run.
     /// Returns what the frame machine should be told, and whether a tick fired.
-    pub(crate) fn frame_due(&self, document: Animation, at: HostInstant) -> (Animation, Ticked) {
+    pub(crate) fn frame_due(&self, document: Animation, at: Elapsed) -> (Animation, Ticked) {
         let animation = pacing(document, self.drive());
         let mut state = self.0.borrow_mut();
         match animation {
@@ -205,8 +197,8 @@ impl Future for NextTick {
 mod tests {
     use super::*;
 
-    fn ms(n: u64) -> HostInstant {
-        HostInstant(Duration::from_millis(n))
+    fn ms(n: u64) -> Elapsed {
+        Elapsed(Duration::from_millis(n))
     }
 
     #[test]

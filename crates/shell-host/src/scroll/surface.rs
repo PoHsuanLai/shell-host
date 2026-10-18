@@ -13,11 +13,11 @@ use crate::scroll::indicator::{Indicator, Wake};
 use crate::scroll::suppress::Driven;
 use crate::scroll::tuning::{Env, Tuning};
 use crate::scroll::watch::ScrollBoard;
-use crate::tick::HostInstant;
 pub(crate) use blitz_kit::scroll::driver::Moved;
 use blitz_kit::scroll::driver::{Claim, Moves, ScrollDriver};
 use blitz_kit::scroll::engine::{Engine, Motion, ScrollIn};
 use blitz_kit::scroll::geom::ScrollAxis;
+use blitz_kit::scroll::time::Elapsed;
 use blitz_kit::scroll::velocity::SampleTime;
 
 /// Who started what the engine is doing, for the double-scroll rule.
@@ -104,7 +104,7 @@ impl SurfaceScroll {
 
     /// Show the thumb for what `moves` wrote, and remember who drove the engine when it took the
     /// input.
-    fn applied(&mut self, moves: Moves, now: HostInstant) -> Moved {
+    fn applied(&mut self, moves: Moves, now: Elapsed) -> Moved {
         for latch in moves.written() {
             self.indicator = self.indicator.changed(*latch, now);
         }
@@ -116,14 +116,14 @@ impl SurfaceScroll {
 
     /// A frame is rendered at `env.now`: advance the animation. Called before the resolve, so
     /// the layout (and Blitz's hoisting of positioned descendants) sees this frame's offsets.
-    pub(crate) fn frame(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
+    pub(crate) fn frame(&mut self, doc: &mut BaseDocument, now: Elapsed) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.run(doc, ScrollIn::Frame, env)
     }
 
     /// Whether the surface needs a frame per callback for scrolling.
-    pub(crate) fn motion(&self, now: HostInstant) -> Motion {
+    pub(crate) fn motion(&self, now: Elapsed) -> Motion {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let fading = self
@@ -136,7 +136,7 @@ impl SurfaceScroll {
     }
 
     /// [`SurfaceScroll::motion`] as the frame machine reads it.
-    pub(crate) fn animation(&self, now: HostInstant) -> Animation {
+    pub(crate) fn animation(&self, now: Elapsed) -> Animation {
         match self.motion(now) {
             Motion::Animating => Animation::Running,
             Motion::Still => Animation::Stopped,
@@ -144,7 +144,7 @@ impl SurfaceScroll {
     }
 
     /// When the thumb next needs a frame while nothing animates (the end of its hold).
-    pub(crate) fn wake(&self, now: HostInstant) -> Wake {
+    pub(crate) fn wake(&self, now: Elapsed) -> Wake {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.indicator

@@ -7,19 +7,14 @@ use super::{Moved, SurfaceScroll};
 use crate::input::pointer::PointerPos;
 use crate::scroll::indicator::{self, Metrics, ThumbPaint};
 use crate::scroll::watch::{ScrollExtent, ScrollPoint, ScrollState, phase_of};
-use crate::tick::HostInstant;
 use blitz_kit::scroll::doc as dom;
 use blitz_kit::scroll::geom::ScrollAxis;
+use blitz_kit::scroll::time::Elapsed;
 
 impl SurfaceScroll {
     /// The pointer moved to `pos`: expand or collapse the thumb. `Moved` when that starts an
     /// animation (the caller renders).
-    pub(crate) fn pointer(
-        &mut self,
-        doc: &BaseDocument,
-        pos: PointerPos,
-        now: HostInstant,
-    ) -> Moved {
+    pub(crate) fn pointer(&mut self, doc: &BaseDocument, pos: PointerPos, now: Elapsed) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let Some(metrics) = self.metrics(doc) else {
@@ -50,7 +45,7 @@ impl SurfaceScroll {
     }
 
     /// The thumbs to paint over the document at `env.now` (none for a scroller that fits).
-    pub(crate) fn overlay(&self, doc: &BaseDocument, now: HostInstant) -> Vec<ThumbPaint> {
+    pub(crate) fn overlay(&self, doc: &BaseDocument, now: Elapsed) -> Vec<ThumbPaint> {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let s = env.scrollbar;

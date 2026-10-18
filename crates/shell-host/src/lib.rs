@@ -84,6 +84,7 @@ pub use blitz_kit::net::FileRoots;
 pub use blitz_kit::scroll::cmd::ScrollCmd;
 pub use blitz_kit::scroll::engine::ScrollAnimate;
 pub use blitz_kit::scroll::geom::ScrollAxis;
+pub use blitz_kit::scroll::time::Elapsed;
 pub use blitz_traits::shell::ColorScheme;
 pub use blur::BlurSpec;
 pub use bridge::use_watch;
@@ -132,7 +133,7 @@ pub use scroll::config::{
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};
 pub use scroll::wheel::{WheelEvent, WheelMotion, WheelPhase, WheelSource};
 pub use stats::{FrameStats, Percentiles};
-pub use tick::{FrameDrive, FrameTick, HostInstant};
+pub use tick::{FrameDrive, FrameTick};
 pub use toplevel::{
     Activation, Decorations, Fullscreen, Maximize, ResizeEdge, ResizeMargin, Tile, TileEdges,
     ToplevelConfig, ToplevelState,

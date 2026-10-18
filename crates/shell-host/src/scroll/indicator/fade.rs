@@ -2,9 +2,9 @@
 
 use super::geometry::{Metrics, ThumbPaint, geometry};
 use crate::scroll::config::{ScrollbarSettings, ScrollbarVisibility};
-use crate::tick::HostInstant;
 use blitz_kit::scroll::geom::Latch;
 use blitz_kit::scroll::smooth;
+use blitz_kit::scroll::time::Elapsed;
 
 /// Whether the pointer is over the thumb's track zone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub(crate) enum Wake {
     /// It fades or expands: a frame per callback.
     Frames,
     /// Nothing moves until then (the end of the hold before the fade).
-    At(HostInstant),
+    At(Elapsed),
     /// Hidden, or held for good.
     Never,
 }
@@ -28,20 +28,20 @@ pub(crate) enum Wake {
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(crate) struct Indicator {
     pub latch: Option<Latch>,
-    last_change: Option<HostInstant>,
+    last_change: Option<Elapsed>,
     hover: Option<Hover>,
     /// The expansion when the hover last changed, and when.
     expand_from: f64,
-    expand_since: Option<HostInstant>,
+    expand_since: Option<Elapsed>,
 }
 
-fn secs(from: HostInstant, to: HostInstant) -> f64 {
+fn secs(from: Elapsed, to: Elapsed) -> f64 {
     to.0.as_secs_f64() - from.0.as_secs_f64()
 }
 
 impl Indicator {
     /// `latch`'s offset changed at `now`: show its thumb at full opacity.
-    pub(crate) fn changed(self, latch: Latch, now: HostInstant) -> Indicator {
+    pub(crate) fn changed(self, latch: Latch, now: Elapsed) -> Indicator {
         let same = self.latch == Some(latch);
         Indicator {
             latch: Some(latch),
@@ -53,7 +53,7 @@ impl Indicator {
     }
 
     /// The pointer moved onto or off the track zone at `now`.
-    pub(crate) fn hover(self, hover: Hover, s: &ScrollbarSettings, now: HostInstant) -> Indicator {
+    pub(crate) fn hover(self, hover: Hover, s: &ScrollbarSettings, now: Elapsed) -> Indicator {
         let current = self.hover.unwrap_or(Hover::Away);
         if current == hover || self.latch.is_none() {
             return self;
@@ -80,7 +80,7 @@ impl Indicator {
         &self,
         s: &ScrollbarSettings,
         vis: ScrollbarVisibility,
-        now: HostInstant,
+        now: Elapsed,
     ) -> f64 {
         let Some(changed) = self.last_change else {
             return 0.0;
@@ -101,7 +101,7 @@ impl Indicator {
     }
 
     /// The expansion at `now`, 0 at rest and 1 hovered, eased over the expand duration.
-    pub(crate) fn expansion(&self, s: &ScrollbarSettings, now: HostInstant) -> f64 {
+    pub(crate) fn expansion(&self, s: &ScrollbarSettings, now: Elapsed) -> f64 {
         let target = match self.hover {
             Some(Hover::Hovered) => 1.0,
             Some(Hover::Away) | None => 0.0,
@@ -123,7 +123,7 @@ impl Indicator {
         &self,
         s: &ScrollbarSettings,
         vis: ScrollbarVisibility,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Wake {
         let Some(changed) = self.last_change else {
             return Wake::Never;
@@ -140,7 +140,7 @@ impl Indicator {
         let t = secs(changed, now);
         let hold = s.hide_delay_ms.secs();
         if t < hold {
-            Wake::At(HostInstant(changed.0 + s.hide_delay_ms.duration()))
+            Wake::At(Elapsed(changed.0 + s.hide_delay_ms.duration()))
         } else if t < hold + s.fade_duration_ms.secs() {
             Wake::Frames
         } else {
@@ -154,7 +154,7 @@ impl Indicator {
         metrics: &Metrics,
         s: &ScrollbarSettings,
         vis: ScrollbarVisibility,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Option<ThumbPaint> {
         let opacity = self.opacity(s, vis, now);
         if opacity <= 0.0 {
@@ -178,8 +178,8 @@ mod tests {
     use blitz_kit::scroll::geom::{ScrollAxis, Scroller};
     use std::time::Duration;
 
-    fn at(ms: u64) -> HostInstant {
-        HostInstant(Duration::from_millis(ms))
+    fn at(ms: u64) -> Elapsed {
+        Elapsed(Duration::from_millis(ms))
     }
 
     const LATCH: Latch = Latch {

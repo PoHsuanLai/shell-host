@@ -6,10 +6,10 @@ use blitz_dom::BaseDocument;
 use super::{Moved, PalmGesture, PalmScroll, SurfaceScroll};
 use crate::input::pointer::PointerPos;
 use crate::scroll::source::{self, AxisFrame};
-use crate::tick::HostInstant;
 use blitz_kit::scroll::engine::{Kinetic, ScrollIn};
 use blitz_kit::scroll::geom::{Dir, Px, ScrollAxis, ViewPoint};
 use blitz_kit::scroll::pad::natural;
+use blitz_kit::scroll::time::Elapsed;
 
 /// `pos` as the engine's view point.
 pub(super) fn view_point(pos: PointerPos) -> ViewPoint {
@@ -23,7 +23,7 @@ impl SurfaceScroll {
         doc: &mut BaseDocument,
         frame: &AxisFrame,
         pos: PointerPos,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
@@ -39,7 +39,7 @@ impl SurfaceScroll {
         doc: &mut BaseDocument,
         event: PalmScroll,
         pos: PointerPos,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);

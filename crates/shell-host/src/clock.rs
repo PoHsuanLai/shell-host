@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use crate::tick::HostInstant;
+use blitz_kit::scroll::time::Elapsed;
 
 /// Seconds since the host started, for `resolve(t)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,10 +17,10 @@ impl HostClock {
         HostClock { origin }
     }
 
-    /// `now` on the host clock, for frame ticks (`tick::HostInstant`). An instant before the
+    /// `now` on the host clock, for frame ticks (`Elapsed`). An instant before the
     /// origin is the origin.
-    pub(crate) fn instant_at(self, now: Instant) -> HostInstant {
-        HostInstant(now.saturating_duration_since(self.origin))
+    pub(crate) fn instant_at(self, now: Instant) -> Elapsed {
+        Elapsed(now.saturating_duration_since(self.origin))
     }
 
     /// The document time at `now`, in seconds. An instant before the origin is time zero.

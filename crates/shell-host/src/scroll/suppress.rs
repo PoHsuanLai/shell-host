@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use crate::tick::HostInstant;
+use blitz_kit::scroll::time::Elapsed;
 
 /// Where palmrest's fingers are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,13 +44,13 @@ pub(crate) struct Suppress {
     fingers: Option<Fingers>,
     /// When palmrest's fingers last lifted (its Ended, or `Touches{Up}`); `None` once an
     /// `axis_stop` closed the grace.
-    lifted: Option<HostInstant>,
+    lifted: Option<Elapsed>,
 }
 
 impl Suppress {
     /// palmrest reported its fingers `Down` or `Up` at `now` (`Touches`, or a scroll phase:
     /// MayBegin / Began / Changed are down, Ended / Cancelled are up).
-    pub(crate) fn fingers(self, fingers: Fingers, now: HostInstant) -> Suppress {
+    pub(crate) fn fingers(self, fingers: Fingers, now: Elapsed) -> Suppress {
         Suppress {
             fingers: Some(fingers),
             lifted: match fingers {
@@ -75,7 +75,7 @@ impl Suppress {
         kind: AxisKind,
         driven: Driven,
         grace: Duration,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Verdict {
         if kind == AxisKind::Other {
             return Verdict::Deliver;
@@ -96,8 +96,8 @@ mod tests {
 
     const GRACE: Duration = Duration::from_millis(150);
 
-    fn at(ms: u64) -> HostInstant {
-        HostInstant(Duration::from_millis(ms))
+    fn at(ms: u64) -> Elapsed {
+        Elapsed(Duration::from_millis(ms))
     }
 
     #[test]

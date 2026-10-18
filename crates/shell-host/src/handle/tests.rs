@@ -21,10 +21,11 @@ use crate::live::Live;
 use crate::msg::{Request, SurfaceOp};
 use crate::prepaint::{Prepaint, Prepainted};
 use crate::role::RoleKind;
-use crate::tick::{FrameTick, HostInstant};
+use crate::tick::FrameTick;
 use crate::toplevel::{Maximize, ResizeEdge, ToplevelState};
 use blitz_kit::fonts::SharedFonts;
 use blitz_kit::net::LocalNet;
+use blitz_kit::scroll::time::Elapsed;
 
 fn parts(requests: RequestQueue, ticks: FrameTicks, scale: LiveScale) -> HandleParts {
     HandleParts {
@@ -125,7 +126,7 @@ fn use_frame_tick_renders_each_published_tick() {
         matches!(requests.drain().as_slice(), [Request::Redraw(SurfaceId(7))]),
         "taking a drive asks for a frame"
     );
-    let ms = |n| HostInstant(std::time::Duration::from_millis(n));
+    let ms = |n| Elapsed(std::time::Duration::from_millis(n));
     let frames = [
         (100, "at 100 dt 0"),
         (116, "at 116 dt 16"),

@@ -14,7 +14,8 @@ use crate::frame::{
     Animation, FrameAction, FrameInput, FrameState, Pace, RenderCmd, TimerCmd, step,
 };
 use crate::stats::{FrameCounters, StatsWindow};
-use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
+use crate::tick::{FrameTicks, Ticked, pacing};
+use blitz_kit::scroll::time::Elapsed;
 
 /// A surface, the machine driving it, and what happened to it.
 struct Sim {
@@ -100,7 +101,7 @@ impl Sim {
         if self.in_flight.take().is_some() {
             self.callbacks += 1;
             self.stats.callback();
-            let at = HostInstant(Duration::from_millis(self.now_ms));
+            let at = Elapsed(Duration::from_millis(self.now_ms));
             let (animation, ticked) = self.ticks.frame_due(self.animation, at);
             if ticked == Ticked::Ticked {
                 self.stats.ticked();

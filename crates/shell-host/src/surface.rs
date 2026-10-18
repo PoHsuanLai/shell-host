@@ -28,8 +28,9 @@ use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::wheel::WheelRun;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::stats::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow};
-use crate::tick::{FrameTicks, HostInstant, Ticked, pacing};
+use crate::tick::{FrameTicks, Ticked, pacing};
 use crate::toplevel::ToplevelState;
+use blitz_kit::scroll::time::Elapsed;
 
 /// Whether the compositor has configured the surface yet. Nothing renders before it has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,7 +153,7 @@ impl HostSurface {
     /// What the frame machine is told about this surface's motion: its document's animation,
     /// running while a `FrameDrive` is held (`tick::pacing`), or while the scroll engine or its
     /// thumb animates. Scrolling does not tick `use_frame_tick`: its frames are the host's.
-    pub(crate) fn pacing(&self, now: HostInstant) -> Animation {
+    pub(crate) fn pacing(&self, now: Elapsed) -> Animation {
         with_scroll(
             pacing(self.document.animation(), self.ticks.drive()),
             self.scroll.animation(now),
@@ -162,7 +163,7 @@ impl HostSurface {
     /// A frame is due at `at` (a callback, or the watchdog standing in for one): publish a
     /// tick if the surface is animating or driven, and return what the machine is told (the
     /// scroll engine's motion included).
-    pub(crate) fn frame_due(&mut self, at: HostInstant) -> Animation {
+    pub(crate) fn frame_due(&mut self, at: Elapsed) -> Animation {
         let (animation, ticked) = self.ticks.frame_due(self.document.animation(), at);
         if ticked == Ticked::Ticked {
             self.stats.ticked();

@@ -246,7 +246,7 @@ one queues a redraw (an idle surface has no callback coming). Dropping it lets t
 flight call back once more and the surface idle. Holding a drive with no animation is the one way
 to get non-zero idle frames.
 
-`use_frame_tick()` / `SurfaceHandle::next_frame()` give `FrameTick { at: HostInstant, dt }` once
+`use_frame_tick()` / `SurfaceHandle::next_frame()` give `FrameTick { at: Elapsed, dt }` once
 per presented frame while the document animates or a drive is held; a watchdog expiry standing
 in for a missing callback ticks too. `dt` is zero on the first tick of a run.
 

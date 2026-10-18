@@ -27,22 +27,22 @@ use crate::scroll::surface::{Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::wheel::{WheelContext, wheel_event};
 use crate::state::HostState;
-use crate::tick::HostInstant;
 use blitz_kit::scroll::cmd::ScrollCmd;
 use blitz_kit::scroll::doc::{self as dom, WheelRoute};
 use blitz_kit::scroll::driver::Claim;
 use blitz_kit::scroll::geom::ViewPoint;
 use blitz_kit::scroll::keys::scroll_key;
+use blitz_kit::scroll::time::Elapsed;
 use palmrest_protocol::ToHost;
 
 impl HostState {
     /// Now, on the host clock.
-    pub(crate) fn now(&self) -> HostInstant {
+    pub(crate) fn now(&self) -> Elapsed {
         self.clock.instant_at(Instant::now())
     }
 
     /// Render surface `id` if scrolling moved it or started an animation on it.
-    fn after_scroll(&mut self, id: SurfaceId, moved: Moved, now: HostInstant) {
+    fn after_scroll(&mut self, id: SurfaceId, moved: Moved, now: Elapsed) {
         let animating = self
             .surfaces
             .get(&id)
@@ -236,7 +236,7 @@ impl HostState {
     }
 
     /// Feed a palmrest scroll event to the surface under the pointer, if it is ours.
-    fn palm_scroll(&mut self, event: PalmScroll, now: HostInstant) {
+    fn palm_scroll(&mut self, event: PalmScroll, now: Elapsed) {
         let PointerFocus::On(entered) = self.input.pointer_focus else {
             return;
         };

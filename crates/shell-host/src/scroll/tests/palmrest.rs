@@ -26,10 +26,10 @@ use crate::scroll::suppress::{AxisKind, Suppress, Verdict};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
-use crate::tick::HostInstant;
 use blitz_kit::scroll::doc as dom;
 use blitz_kit::scroll::engine::Motion;
 use blitz_kit::scroll::geom::{ScrollAxis, Scroller};
+use blitz_kit::scroll::time::Elapsed;
 use palmrest_protocol::{ActiveTouch, Axis as WireAxis, GestureId, Phase, ToHost};
 
 const FRAME: Duration = Duration::from_micros(8333);
@@ -112,7 +112,7 @@ struct Host {
     doc: SurfaceDocument,
     scroll: SurfaceScroll,
     suppress: Suppress,
-    now: HostInstant,
+    now: Elapsed,
     echo: Echo,
 }
 
@@ -176,7 +176,7 @@ impl Host {
     }
 
     fn advance(&mut self, by: Duration) {
-        self.now = HostInstant(self.now.0 + by);
+        self.now = Elapsed(self.now.0 + by);
     }
 }
 
@@ -200,7 +200,7 @@ fn run(echo: Echo, name: &str) -> Vec<f64> {
         doc,
         scroll: SurfaceScroll::new(ScrollBoard::default(), Tuning::default()),
         suppress: Suppress::default(),
-        now: HostInstant(Duration::from_secs(5)),
+        now: Elapsed(Duration::from_secs(5)),
         echo,
     };
     let mut offsets = Vec::new();

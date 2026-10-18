@@ -7,10 +7,10 @@ use super::pointer_input::view_point;
 use super::{Moved, SurfaceScroll};
 use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
-use crate::tick::HostInstant;
 use blitz_kit::scroll::cmd::ScrollCmd;
 use blitz_kit::scroll::driver::{Claim, KeyRepeat};
 use blitz_kit::scroll::keys::ScrollKey;
+use blitz_kit::scroll::time::Elapsed;
 
 /// The engine's name for a key event's repeat.
 fn repeat_of(repeat: Repeat) -> KeyRepeat {
@@ -30,7 +30,7 @@ impl SurfaceScroll {
         key: ScrollKey,
         repeat: Repeat,
         pos: Option<PointerPos>,
-        now: HostInstant,
+        now: Elapsed,
     ) -> (Claim, Moved) {
         let tuning = self.tuning;
         let env = tuning.at(now);
@@ -42,7 +42,7 @@ impl SurfaceScroll {
     }
 
     /// A held scroll key was released.
-    pub(crate) fn key_up(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
+    pub(crate) fn key_up(&mut self, doc: &mut BaseDocument, now: Elapsed) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let moves = self.scroll.key_up(doc, env.kit);
@@ -54,7 +54,7 @@ impl SurfaceScroll {
         &mut self,
         doc: &mut BaseDocument,
         command: &ScrollCmd,
-        now: HostInstant,
+        now: Elapsed,
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);

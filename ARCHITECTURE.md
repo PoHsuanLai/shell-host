@@ -106,7 +106,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Input | `Modifiers`, `Modifier`, `LockKey`, `InputModality` |
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
 | Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll`, `WheelEvent`, `WheelSource`, `WheelPhase`, `WheelMotion`, `use_wheel` |
-| Frames and stats | `FrameDrive`, `FrameTick`, `HostInstant`, `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
+| Frames and stats | `FrameDrive`, `FrameTick`, `Elapsed` (blitz-kit's, the host clock), `FrameStats`, `Percentiles`, `SurfaceName`, `Prepaint`, `PrepaintFn` |
 | Hooks | `use_surface`, `use_surface_scale`, `use_frame_tick`, `use_modifiers`, `use_input_modality`, `use_toplevel_state`, `use_wheel`, `use_watch`, and `SurfaceHandle` (what `use_surface` returns; `wl_surface() -> Option<WlSurface>`, `request_placement`, `placement_support`); `HostCtx::wl_surface(id)` |
 
 Feature-gated public modules:
