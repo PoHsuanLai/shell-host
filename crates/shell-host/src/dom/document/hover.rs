@@ -50,7 +50,7 @@ impl SurfaceDocument {
     /// Blitz's `refresh_hover` moved the hover without dispatching (its TODO): `blitz_kit::hover`
     /// puts the old hover back and feeds the last move again through this document's driver, so
     /// the leave/enter diff reaches the components. At most once per resolve.
-    pub(super) fn sync_hover(&mut self, shift: Shift<NodeId>) {
+    pub(super) fn sync_hover(&mut self, shift: Shift) {
         repair(&mut self.doc, &self.last_move, shift);
     }
 }
