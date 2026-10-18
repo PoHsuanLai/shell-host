@@ -25,8 +25,8 @@ impl SurfaceScroll {
         let Some(metrics) = self.metrics(doc) else {
             return Moved::Still;
         };
-        let hover = indicator::in_zone(&metrics, pos.x, pos.y, &env.config.scrollbar);
-        let next = self.indicator.hover(hover, &env.config.scrollbar, env.now);
+        let hover = indicator::in_zone(&metrics, pos.x, pos.y, env.scrollbar);
+        let next = self.indicator.hover(hover, env.scrollbar, env.now);
         let moved = if next == self.indicator {
             Moved::Still
         } else {
@@ -53,8 +53,8 @@ impl SurfaceScroll {
     pub(crate) fn overlay(&self, doc: &BaseDocument, now: HostInstant) -> Vec<ThumbPaint> {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        let s = &env.config.scrollbar;
-        let vis = env.config.scroll.scrollbars;
+        let s = env.scrollbar;
+        let vis = env.kit.settings.scrollbars;
         self.metrics(doc)
             .filter(|m| m.max > 0.0 || m.offset != 0.0)
             .and_then(|m| self.indicator.paint(&m, s, vis, env.now))

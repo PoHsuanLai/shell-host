@@ -105,7 +105,7 @@ impl SurfaceScroll {
 
     /// Step the engine with `input` and write what it says.
     fn run(&mut self, doc: &mut BaseDocument, input: ScrollIn, env: Env<'_>) -> Moved {
-        let moves = self.scroll.run(doc, input, env.kit());
+        let moves = self.scroll.run(doc, input, env.kit);
         self.applied(moves, env.now)
     }
 
@@ -133,9 +133,9 @@ impl SurfaceScroll {
     pub(crate) fn motion(&self, now: HostInstant) -> Motion {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        let fading =
-            self.indicator
-                .wake(&env.config.scrollbar, env.config.scroll.scrollbars, env.now);
+        let fading = self
+            .indicator
+            .wake(env.scrollbar, env.kit.settings.scrollbars, env.now);
         match (self.scroll.motion(), fading) {
             (Motion::Animating, _) | (_, Wake::Frames) => Motion::Animating,
             _ => Motion::Still,
@@ -155,7 +155,7 @@ impl SurfaceScroll {
         let tuning = self.tuning;
         let env = tuning.at(now);
         self.indicator
-            .wake(&env.config.scrollbar, env.config.scroll.scrollbars, env.now)
+            .wake(env.scrollbar, env.kit.settings.scrollbars, env.now)
     }
 
     /// Whether palmrest drove what the engine is doing now (for the double-scroll rule).

@@ -36,7 +36,7 @@ impl SurfaceScroll {
         let pointer = pos.map(view_point);
         match self
             .scroll
-            .key(doc, key, repeat_of(repeat), pointer, env.kit())
+            .key(doc, key, repeat_of(repeat), pointer, env.kit)
         {
             KitKeyUse::Scrolled(moves) => KeyUse::Scrolled(self.applied(moves, now)),
             KitKeyUse::Passed => KeyUse::Passed,
@@ -47,7 +47,7 @@ impl SurfaceScroll {
     pub(crate) fn key_up(&mut self, doc: &mut BaseDocument, now: HostInstant) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        let moves = self.scroll.key_up(doc, env.kit());
+        let moves = self.scroll.key_up(doc, env.kit);
         self.applied(moves, now)
     }
 
@@ -60,7 +60,7 @@ impl SurfaceScroll {
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        let moves = self.scroll.command(doc, command, env.kit());
+        let moves = self.scroll.command(doc, command, env.kit);
         self.applied(moves, now)
     }
 }

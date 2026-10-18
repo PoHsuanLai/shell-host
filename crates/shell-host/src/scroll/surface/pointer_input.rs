@@ -29,7 +29,7 @@ impl SurfaceScroll {
         let env = tuning.at(now);
         let moves = self
             .scroll
-            .pointer(doc, source::classify(frame), view_point(pos), env.kit());
+            .pointer(doc, source::classify(frame), view_point(pos), env.kit);
         self.applied(moves, now)
     }
 
@@ -54,7 +54,7 @@ impl SurfaceScroll {
                 Moved::Still
             }
             PalmScroll::Changed { dx, dy, at } => {
-                let setting = env.config.scroll.natural;
+                let setting = env.kit.settings.natural;
                 let axis = match self.palm {
                     PalmGesture::Waiting(axis) => axis,
                     PalmGesture::Latched => match self.scroll.latch() {
@@ -73,7 +73,7 @@ impl SurfaceScroll {
                         self.palm = PalmGesture::Latched;
                         let at = view_point(pos);
                         self.scroll
-                            .begin(doc, axis, dir, Kinetic::Momentum, at, env.kit())
+                            .begin(doc, axis, dir, Kinetic::Momentum, at, env.kit)
                     }
                     (PalmGesture::Waiting(_), None) => return Moved::Still,
                     _ => blitz_kit::scroll::driver::Moves::none(),
@@ -82,7 +82,7 @@ impl SurfaceScroll {
                     delta: Px(delta),
                     at,
                 };
-                let moves = began.then(self.scroll.run(doc, changed, env.kit()));
+                let moves = began.then(self.scroll.run(doc, changed, env.kit));
                 self.applied(moves, now)
             }
             PalmScroll::Ended { at } => {
