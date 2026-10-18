@@ -15,7 +15,7 @@ use dioxus::signals::{ReadSignal, WritableExt};
 use crate::handle::use_surface;
 use crate::live::Live;
 use crate::region::ElementId;
-use blitz_kit::scroll::engine::{Engine, latch_of};
+use blitz_kit::scroll::engine::Engine;
 use blitz_kit::scroll::geom::Scroller;
 
 /// A scroll position in logical px; raw, so out of range while rubber-banding.
@@ -59,7 +59,7 @@ pub struct ScrollState {
 
 /// The phase `engine` gives `scroller`.
 pub(crate) fn phase_of(engine: &Engine, scroller: Scroller) -> ScrollPhase {
-    if latch_of(engine).map(|latch| latch.scroller) != Some(scroller) {
+    if engine.latch().map(|latch| latch.scroller) != Some(scroller) {
         return ScrollPhase::Idle;
     }
     match engine {
