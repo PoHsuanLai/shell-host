@@ -71,15 +71,6 @@ pub(crate) fn trust_of_cgroup(text: &str) -> Trust {
     }
 }
 
-/// How a peer is judged. Only the control group in production; a test's daemon is a thread of the
-/// test, in no unit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Check {
-    Unit,
-    #[cfg(test)]
-    Anyone,
-}
-
 /// Whether the host should try to connect at the next flush.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Retry {
@@ -101,7 +92,8 @@ pub(crate) enum Stream {
 
 #[derive(Debug)]
 enum Link {
-    Down,
+    /// Not connected; whether an attempt is due.
+    Down(Retry),
     /// Connected; this descriptor sends (the event loop owns a duplicate for reading).
     Up(OwnedFd),
 }
@@ -110,7 +102,9 @@ enum Link {
 #[derive(Debug)]
 pub(crate) struct Palmrest {
     path: Option<PathBuf>,
-    check: Check,
+    /// How a peer is judged: [`peer_trust`] (the control group) in production; a test's daemon is
+    /// a thread of the test, in no unit.
+    peer: fn(&OwnedFd) -> Trust,
     /// The person's settings file, when there is a place for one, and how it looked when its text
     /// was last sent.
     settings: Option<Settings>,
@@ -120,7 +114,6 @@ pub(crate) struct Palmrest {
     /// Whether the session is locked, sent on every change and again after each connect: palmrest
     /// stops gesture actions while any connection says `Locked`.
     lock: LockState,
-    retry: Retry,
     /// The attempts in a row that found no usable daemon; the next wait grows with it.
     misses: Misses,
 }
@@ -157,12 +150,11 @@ impl Palmrest {
     pub(crate) fn at(path: Option<PathBuf>) -> Palmrest {
         Palmrest {
             path,
-            check: Check::Unit,
+            peer: peer_trust,
             settings: None,
-            link: Link::Down,
+            link: Link::Down(Retry::Due),
             over: Over::NotOurs,
             lock: LockState::Unlocked,
-            retry: Retry::Due,
             misses: Misses::default(),
         }
     }
@@ -172,7 +164,7 @@ impl Palmrest {
     #[cfg(test)]
     pub(crate) fn trusting(path: PathBuf, settings: Option<PathBuf>) -> Palmrest {
         Palmrest {
-            check: Check::Anyone,
+            peer: |_| Trust::Trusted,
             settings: settings.map(|path| Settings { path, told: None }),
             ..Palmrest::at(Some(path))
         }
@@ -183,7 +175,14 @@ impl Palmrest {
     pub(crate) fn retry(&self) -> Retry {
         match self.link {
             Link::Up(_) => Retry::Waiting,
-            Link::Down => self.retry,
+            Link::Down(retry) => retry,
+        }
+    }
+
+    /// Make an attempt `retry` while unconnected; a connected client has none to make.
+    fn set_retry(&mut self, retry: Retry) {
+        if let Link::Down(due) = &mut self.link {
+            *due = retry;
         }
     }
 
@@ -193,16 +192,14 @@ impl Palmrest {
     /// socket path to look at, or the daemon is connected.
     pub(crate) fn retry_in(&self) -> Option<Duration> {
         match (&self.link, &self.path) {
-            (Link::Down, Some(_)) => Some(self.misses.wait(self.lock)),
-            (Link::Up(_), _) | (Link::Down, None) => None,
+            (Link::Down(_), Some(_)) => Some(self.misses.wait(self.lock)),
+            (Link::Up(_), _) | (Link::Down(_), None) => None,
         }
     }
 
     /// The wait of [`Palmrest::retry_in`] ran out: an attempt is due, if still unconnected.
     pub(crate) fn retry_now(&mut self) {
-        if matches!(self.link, Link::Down) {
-            self.retry = Retry::Due;
-        }
+        self.set_retry(Retry::Due);
     }
 
     /// The daemon spoke: it is there and means to stay, so the next loss is waited for from the
@@ -217,7 +214,7 @@ impl Palmrest {
     /// before [`Palmrest::retry_in`] has passed, or the next pointer enter) when there is no
     /// usable daemon.
     pub(crate) fn connect(&mut self) -> Option<OwnedFd> {
-        self.retry = Retry::Waiting;
+        self.set_retry(Retry::Waiting);
         let reader = self.attempt();
         if reader.is_none() {
             self.misses = self.misses.more();
@@ -246,11 +243,7 @@ impl Palmrest {
     }
 
     fn judge(&self, fd: &OwnedFd) -> Trust {
-        match self.check {
-            Check::Unit => peer_trust(fd),
-            #[cfg(test)]
-            Check::Anyone => Trust::Trusted,
-        }
+        (self.peer)(fd)
     }
 
     /// Whether a place for the person's settings is known, so that [`Palmrest::settings_changed`]
@@ -292,7 +285,7 @@ impl Palmrest {
     /// The daemon went away (the read side saw the end, or it spoke another protocol): a miss,
     /// and the next attempt waits for [`Palmrest::retry_in`].
     pub(crate) fn disconnected(&mut self) {
-        self.link = Link::Down;
+        self.link = Link::Down(Retry::Waiting);
         self.misses = self.misses.more();
     }
 
@@ -302,8 +295,8 @@ impl Palmrest {
         let changed = self.over != over;
         self.over = over;
         match (&self.link, over) {
-            (Link::Down, Over::Ours) => self.retry = Retry::Due,
-            (Link::Down, Over::NotOurs) => {}
+            (Link::Down(_), Over::Ours) => self.set_retry(Retry::Due),
+            (Link::Down(_), Over::NotOurs) => {}
             (Link::Up(_), _) => {
                 if changed {
                     self.send(&ToDaemon::PointerOver { over });
@@ -321,8 +314,8 @@ impl Palmrest {
         }
         self.lock = lock;
         match (&self.link, lock) {
-            (Link::Down, LockState::Locked) => self.retry = Retry::Due,
-            (Link::Down, LockState::Unlocked) => {}
+            (Link::Down(_), LockState::Locked) => self.set_retry(Retry::Due),
+            (Link::Down(_), LockState::Unlocked) => {}
             (Link::Up(_), _) => {
                 self.send(&ToDaemon::SessionLock { state: lock });
             }
@@ -342,7 +335,7 @@ impl Palmrest {
             // A full socket drops one message; the next change resends the state.
             Err(e) if e == rustix::io::Errno::AGAIN => Delivery::Dropped,
             Err(_) => {
-                self.link = Link::Down;
+                self.link = Link::Down(Retry::Waiting);
                 Delivery::Dropped
             }
         }
