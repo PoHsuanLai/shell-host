@@ -42,7 +42,7 @@ pub(crate) fn wire_extent(value: u32) -> Px {
 /// The buffer size to allocate for a surface of `logical` size at `scale`, rounded half away
 /// from zero (`fractional-scale-v1`: "For toplevel surfaces, the size is rounded halfway away
 /// from zero"), and at most [`MAX_SURFACE_EXTENT`] on a side.
-pub fn buffer_size(logical: Size, scale: Scale) -> Size {
+pub fn buffer_size(logical: Size, scale: Scale120) -> Size {
     Size {
         width: logical_to_physical(logical.width, scale),
         height: logical_to_physical(logical.height, scale),
@@ -51,7 +51,7 @@ pub fn buffer_size(logical: Size, scale: Scale) -> Size {
 
 /// One logical dimension converted to its physical (buffer) equivalent at `scale`, rounded half
 /// away from zero, at most [`MAX_SURFACE_EXTENT`].
-pub(crate) fn logical_to_physical(value: Px, scale: Scale) -> Px {
+pub(crate) fn logical_to_physical(value: Px, scale: Scale120) -> Px {
     round_half_away_from_zero(f64::from(value) * scale.factor()).min(MAX_SURFACE_EXTENT)
 }
 
@@ -68,9 +68,9 @@ pub(crate) enum BufferMapping {
 /// compositor last preferred for it: the viewport once it has said one, else the rounded
 /// integer scale (a compositor without fractional-scale, or one that has not sent it yet).
 pub(crate) fn buffer_mapping(
-    preferred: Option<Scale>,
+    preferred: Option<Scale120>,
     logical: Size,
-    scale: Scale,
+    scale: Scale120,
 ) -> BufferMapping {
     match preferred {
         Some(_) => BufferMapping::Viewport(logical),
