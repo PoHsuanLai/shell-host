@@ -92,7 +92,7 @@ fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
         "only changes"
     );
 
-    let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
+    let hello = r#"{"kind":"hello","v":{"version":3,"device":{"name":"m","path":"/dev/hidraw0","vendor":76,"product":617}}}"#;
     let scroll = r#"{"kind":"scroll","v":{"gesture":1,"phase":"began","dx_px":0.0,"dy_px":0.0,"fingers":1,"axis":"y","t_ns":5}}"#;
     let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
     for datagram in [hello, touches, "not json", scroll] {
@@ -368,13 +368,13 @@ fn a_hello_of_another_version_stops_the_read() {
     let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     let reader = client.connect().expect("connects");
     let peer = accept(&listener).expect("accept");
-    let hello = r#"{"kind":"hello","v":{"version":3,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
+    let hello = r#"{"kind":"hello","v":{"version":2,"device":{"name":"m","path":"p","vendor":0,"product":0}}}"#;
     let touches = r#"{"kind":"touches","v":{"active":"down"}}"#;
     for datagram in [hello, touches] {
         send(&peer, datagram.as_bytes(), SendFlags::empty()).expect("send");
     }
     let (messages, stream) = read_all(&reader);
-    assert_eq!(stream, Stream::Incompatible { version: 3 });
+    assert_eq!(stream, Stream::Incompatible { version: 2 });
     assert!(
         messages.is_empty(),
         "nothing after it is read: {messages:?}"
