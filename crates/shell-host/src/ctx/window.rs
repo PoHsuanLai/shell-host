@@ -7,49 +7,38 @@ use smithay_client_toolkit::shell::xdg::window::Window;
 
 use crate::grab::GrabRefused;
 use crate::id::SurfaceId;
-use crate::msg::SurfaceOp;
+use crate::msg::WindowOp;
 use crate::state::HostState;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge, to_wire_edge};
 
-/// The xdg_toplevel request for `op` on toplevel `id`'s `window`; a layer or popup op is
-/// ignored. A move or resize the compositor would ignore is refused here with a log line (a
+/// The xdg_toplevel request for `op` on toplevel `id`'s `window`. A move or resize the compositor would ignore is refused here with a log line (a
 /// `SurfaceHandle` caller already got the refusal as a value).
-pub(super) fn send(state: &HostState, id: SurfaceId, window: &Window, op: &SurfaceOp) {
+pub(super) fn send(state: &HostState, id: SurfaceId, window: &Window, op: &WindowOp) {
     let started = match op {
-        SurfaceOp::BeginMove => begin_move(state, id, window),
-        SurfaceOp::BeginResize(edge) => begin_resize(state, id, window, *edge),
-        SurfaceOp::SetMaximized(Maximize::Set) => {
+        WindowOp::BeginMove => begin_move(state, id, window),
+        WindowOp::BeginResize(edge) => begin_resize(state, id, window, *edge),
+        WindowOp::SetMaximized(Maximize::Set) => {
             window.set_maximized();
             Ok(())
         }
-        SurfaceOp::SetMaximized(Maximize::Unset) => {
+        WindowOp::SetMaximized(Maximize::Unset) => {
             window.unset_maximized();
             Ok(())
         }
-        SurfaceOp::Minimize => {
+        WindowOp::Minimize => {
             window.set_minimized();
             Ok(())
         }
-        SurfaceOp::SetFullscreen(Fullscreen::Set) => {
+        WindowOp::SetFullscreen(Fullscreen::Set) => {
             window.set_fullscreen(None);
             Ok(())
         }
-        SurfaceOp::SetFullscreen(Fullscreen::Unset) => {
+        WindowOp::SetFullscreen(Fullscreen::Unset) => {
             window.unset_fullscreen();
             Ok(())
         }
-        SurfaceOp::SetBlur(_)
-        | SurfaceOp::SetInputRegion(_)
-        | SurfaceOp::SetKeyboard(_)
-        | SurfaceOp::SetExclusiveZone(_)
-        | SurfaceOp::SetSize(_)
-        | SurfaceOp::SetMargin(_)
-        | SurfaceOp::SetAnchor(_)
-        | SurfaceOp::SetLayer(_)
-        | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_)
         // Needs `&mut HostState` for its protocol object: `ops::apply` takes it first.
-        | SurfaceOp::RequestPlacement(_) => Ok(()),
+        WindowOp::RequestPlacement(_) => Ok(()),
     };
     if let Err(refused) = started {
         eprintln!("shell-host: {op:?} on {id:?} refused: {refused}");

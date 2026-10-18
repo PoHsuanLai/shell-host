@@ -5,7 +5,7 @@ use calloop::ping::make_ping;
 
 use super::{Flush, ORDER, Phase, run};
 use crate::handle::RequestQueue;
-use crate::msg::{Request, SurfaceOp};
+use crate::msg::{CommonOp, LayerOp, Request, SurfaceOp};
 use crate::{BlurSpec, ExclusiveZone, HostError, RegionSpec, SurfaceId};
 
 /// What the fake saw, in order.
@@ -102,9 +102,9 @@ fn the_flush_runs_its_phases_in_the_documented_order() {
 
 #[test]
 fn ops_queued_during_a_poll_land_before_the_paint_of_the_same_flush() {
-    let region = SurfaceOp::SetInputRegion(RegionSpec::Empty);
-    let blur = SurfaceOp::SetBlur(BlurSpec::Region(RegionSpec::Whole));
-    let zone = SurfaceOp::SetExclusiveZone(ExclusiveZone::Reserve(40));
+    let region = SurfaceOp::Common(CommonOp::SetInputRegion(RegionSpec::Empty));
+    let blur = SurfaceOp::Common(CommonOp::SetBlur(BlurSpec::Region(RegionSpec::Whole)));
+    let zone = SurfaceOp::Layer(LayerOp::SetExclusiveZone(ExclusiveZone::Reserve(40)));
     let cases: Vec<(&str, Vec<SurfaceOp>, Vec<Seen>)> = vec![
         ("no ops", vec![], vec![Seen::Poll, Seen::Paint(0)]),
         (

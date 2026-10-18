@@ -19,7 +19,7 @@ use crate::id::SurfaceName;
 use crate::live::Live;
 use crate::live_scale::LiveScale;
 use crate::modifiers::Modifiers;
-use crate::msg::{SurfaceOp, Visibility};
+use crate::msg::{CommonOp, LayerOp, SurfaceOp, Visibility};
 use crate::region::{Px, Rect, RegionSpec};
 use crate::resolve::Tracked;
 use crate::role::Role;
@@ -195,29 +195,25 @@ impl HostSurface {
     /// caller's.
     pub(crate) fn record(&mut self, op: &SurfaceOp) {
         match (op, &mut self.role) {
-            (SurfaceOp::SetBlur(blur), _) => {
+            (SurfaceOp::Common(CommonOp::SetBlur(blur)), _) => {
                 self.blur = blur.clone();
             }
-            (SurfaceOp::SetInputRegion(input), _) => {
+            (SurfaceOp::Common(CommonOp::SetInputRegion(input)), _) => {
                 self.input = input.clone();
             }
-            (SurfaceOp::SetVisibility(visibility), _) => self.visibility = *visibility,
+            (SurfaceOp::Common(CommonOp::SetVisibility(visibility)), _) => {
+                self.visibility = *visibility;
+            }
             (SurfaceOp::Reposition(next), Role::Popup { placement, .. }) => *placement = *next,
             (
-                op,
+                SurfaceOp::Layer(op),
                 Role::Layer {
                     config, keyboard, ..
                 },
             ) => record_layer(op, config, keyboard),
-            // A layer op on a popup, a toplevel, an icon or a lock surface, or a reposition of a
-            // non-popup: ignored.
-            (
-                _,
-                Role::Popup { .. }
-                | Role::Toplevel { .. }
-                | Role::DragIcon { .. }
-                | Role::Lock { .. },
-            ) => {}
+            // A layer op on a popup, a toplevel, an icon or a lock surface, a window op, or a
+            // reposition of a non-popup: ignored.
+            (SurfaceOp::Layer(_) | SurfaceOp::Window(_) | SurfaceOp::Reposition(_), _) => {}
         }
     }
 
@@ -254,30 +250,20 @@ impl HostSurface {
 /// A layer op's effect on the recorded config. `keyboard` follows the config unless a grabbing
 /// popup has lifted a `None` layer to `OnDemand`, which the popup's close restores.
 fn record_layer(
-    op: &SurfaceOp,
+    op: &LayerOp,
     config: &mut crate::layer::LayerConfig,
     keyboard: &mut crate::layer::KeyboardMode,
 ) {
     match op {
-        SurfaceOp::SetKeyboard(mode) => {
+        LayerOp::SetKeyboard(mode) => {
             config.keyboard = *mode;
             *keyboard = *mode;
         }
-        SurfaceOp::SetExclusiveZone(zone) => config.exclusive = *zone,
-        SurfaceOp::SetSize(size) => config.size = *size,
-        SurfaceOp::SetMargin(margin) => config.margin = *margin,
-        SurfaceOp::SetAnchor(anchor) => config.anchor = *anchor,
-        SurfaceOp::SetLayer(layer) => config.layer = *layer,
-        SurfaceOp::SetBlur(_)
-        | SurfaceOp::SetInputRegion(_)
-        | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_)
-        | SurfaceOp::BeginMove
-        | SurfaceOp::BeginResize(_)
-        | SurfaceOp::SetMaximized(_)
-        | SurfaceOp::Minimize
-        | SurfaceOp::SetFullscreen(_)
-        | SurfaceOp::RequestPlacement(_) => {}
+        LayerOp::SetExclusiveZone(zone) => config.exclusive = *zone,
+        LayerOp::SetSize(size) => config.size = *size,
+        LayerOp::SetMargin(margin) => config.margin = *margin,
+        LayerOp::SetAnchor(anchor) => config.anchor = *anchor,
+        LayerOp::SetLayer(layer) => config.layer = *layer,
     }
 }
 

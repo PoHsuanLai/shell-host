@@ -18,7 +18,7 @@ use crate::handle::{
 };
 use crate::id::SurfaceIds;
 use crate::live::Live;
-use crate::msg::{Request, SurfaceOp};
+use crate::msg::{CommonOp, Request, SurfaceOp, WindowOp};
 use crate::prepaint::{Prepaint, Prepainted};
 use crate::role::RoleKind;
 use crate::tick::FrameTick;
@@ -177,7 +177,7 @@ fn a_spawned_root_reads_its_surface_handle() {
             queued.as_slice(),
             [Request::Apply {
                 id: SurfaceId(42),
-                op: SurfaceOp::SetBlur(BlurSpec::None)
+                op: SurfaceOp::Common(CommonOp::SetBlur(BlurSpec::None))
             }]
         ),
         "the handle queues into the host: {queued:?}"
@@ -502,9 +502,9 @@ fn a_move_is_queued_only_with_a_held_press_on_the_surface() {
     assert_eq!(
         ops,
         [
-            SurfaceOp::BeginMove,
-            SurfaceOp::BeginResize(ResizeEdge::BottomRight),
-            SurfaceOp::SetMaximized(Maximize::Set),
+            SurfaceOp::Window(WindowOp::BeginMove),
+            SurfaceOp::Window(WindowOp::BeginResize(ResizeEdge::BottomRight)),
+            SurfaceOp::Window(WindowOp::SetMaximized(Maximize::Set)),
         ]
     );
     assert_eq!(

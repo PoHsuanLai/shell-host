@@ -112,7 +112,7 @@ pub use lock::machine::{LockPhase, LockState};
 pub use lock::{LockConfig, LockError, LockId};
 pub use modality::InputModality;
 pub use modifiers::{LockKey, Modifier, Modifiers};
-pub use msg::{SurfaceOp, Visibility};
+pub use msg::{CommonOp, LayerOp, SurfaceOp, Visibility, WindowOp};
 pub use output::OutputInfo;
 pub use placement::PopupPlacement;
 pub use popup::{

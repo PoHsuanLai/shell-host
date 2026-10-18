@@ -11,7 +11,7 @@ use crate::id::SurfaceId;
 use crate::layer::{
     to_wire_anchor, to_wire_exclusive, to_wire_keyboard, to_wire_layer, to_wire_size,
 };
-use crate::msg::{Repaint, Request, SurfaceOp, Visibility};
+use crate::msg::{CommonOp, LayerOp, Repaint, Request, SurfaceOp, Visibility, WindowOp};
 use crate::placement::PopupPlacement;
 use crate::popup::{PopupGrab, positioner_params};
 use crate::role::Role;
@@ -84,11 +84,11 @@ pub(super) fn claim_copied<M: 'static>(ctx: &mut HostCtx<M>) {
 /// Apply `op` to surface `id`: its Wayland requests now, its recorded state for the next paint,
 /// and an invalidation so that paint (and its commit) happens.
 pub(super) fn apply<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, op: SurfaceOp) {
-    if let SurfaceOp::SetVisibility(visibility) = op {
+    if let SurfaceOp::Common(CommonOp::SetVisibility(visibility)) = op {
         set_visibility(ctx, id, visibility);
         return;
     }
-    if let SurfaceOp::RequestPlacement(placement) = op {
+    if let SurfaceOp::Window(WindowOp::RequestPlacement(placement)) = op {
         ctx.state.request_placement(id, placement);
         return;
     }
@@ -126,7 +126,7 @@ fn send(state: &HostState, id: SurfaceId, op: &SurfaceOp) {
         return;
     };
     match (&surface.role, op) {
-        (Role::Layer { surface, .. }, op) => send_layer(surface, op),
+        (Role::Layer { surface, .. }, SurfaceOp::Layer(op)) => send_layer(surface, op),
         (
             Role::Popup {
                 popup,
@@ -141,32 +141,26 @@ fn send(state: &HostState, id: SurfaceId, op: &SurfaceOp) {
                 popup.reposition(&positioner, REPOSITION_TOKEN);
             }
         }
-        (Role::Toplevel { window, .. }, op) => super::window::send(state, id, window, op),
-        (Role::Popup { .. } | Role::DragIcon { .. } | Role::Lock { .. }, _) => {}
+        (Role::Toplevel { window, .. }, SurfaceOp::Window(op)) => {
+            super::window::send(state, id, window, op);
+        }
+        // An op the role cannot take, or one with no request of its own here (regions and
+        // visibility are sent with the paint): none.
+        _ => {}
     }
 }
 
-fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op: &SurfaceOp) {
+fn send_layer(layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface, op: &LayerOp) {
     match op {
-        SurfaceOp::SetKeyboard(mode) => layer.set_keyboard_interactivity(to_wire_keyboard(*mode)),
-        SurfaceOp::SetExclusiveZone(zone) => layer.set_exclusive_zone(to_wire_exclusive(*zone)),
-        SurfaceOp::SetSize(size) => {
+        LayerOp::SetKeyboard(mode) => layer.set_keyboard_interactivity(to_wire_keyboard(*mode)),
+        LayerOp::SetExclusiveZone(zone) => layer.set_exclusive_zone(to_wire_exclusive(*zone)),
+        LayerOp::SetSize(size) => {
             let (width, height) = to_wire_size(*size);
             layer.set_size(width, height);
         }
-        SurfaceOp::SetMargin(m) => layer.set_margin(m.top, m.right, m.bottom, m.left),
-        SurfaceOp::SetAnchor(anchor) => layer.set_anchor(to_wire_anchor(*anchor)),
-        SurfaceOp::SetLayer(level) => layer.set_layer(to_wire_layer(*level)),
-        SurfaceOp::SetBlur(_)
-        | SurfaceOp::SetInputRegion(_)
-        | SurfaceOp::SetVisibility(_)
-        | SurfaceOp::Reposition(_)
-        | SurfaceOp::BeginMove
-        | SurfaceOp::BeginResize(_)
-        | SurfaceOp::SetMaximized(_)
-        | SurfaceOp::Minimize
-        | SurfaceOp::SetFullscreen(_)
-        | SurfaceOp::RequestPlacement(_) => {}
+        LayerOp::SetMargin(m) => layer.set_margin(m.top, m.right, m.bottom, m.left),
+        LayerOp::SetAnchor(anchor) => layer.set_anchor(to_wire_anchor(*anchor)),
+        LayerOp::SetLayer(level) => layer.set_layer(to_wire_layer(*level)),
     }
 }
 

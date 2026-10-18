@@ -96,7 +96,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Group | Names |
 |---|---|
 | Host | `Host`, `HostCtx`, `HostHandle`, `HostConfig` (its `file_roots`: where documents may read files, FINDINGS F21), `Backend`, `AdapterPref`, `FontFaces` and `FileRoots` (re-exported once from `blitz-kit`), `Ms`, `HostError`, `Recovery`, `Result`, `HostRoot`, `registered_families`, `WaylandRoute` (`Environment`, or `Handed(OwnedFd)` read only in `Host::connect`) |
-| Events | `HostEvent` (incl. `SurfaceMapped { id }` and `QuitAsked`), `CloseReason`, `KeyboardFocus`, `SurfaceOp`, `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
+| Events | `HostEvent` (incl. `SurfaceMapped { id }` and `QuitAsked`), `CloseReason`, `KeyboardFocus`, `SurfaceOp` (`CommonOp`, `LayerOp`, `WindowOp` by role), `Visibility`, `OutputInfo`, `OutputId`, `SurfaceId`, `ColorScheme` |
 | Layer surface | `LayerConfig`, `LayerLevel`, `Anchor`, `LayerExtent`, `LayerSize`, `ExclusiveZone`, `KeyboardMode`, `OutputTarget` |
 | Popup | `PopupConfig`, `PopupAnchor`, `PopupSize`, `PopupEdge`, `PopupToggle`, `PopupAdjust`, `PopupGrab`, `PopupOffset`, `PopupPlacement`, `offset_rect` |
 | Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused`, `WindowPlacement`, `PlacementSupport` |
@@ -282,7 +282,7 @@ the compositor for the acceptance scripts. Handlers become table-testable by str
    `popup/config.rs`); a closed choice is an enum, never a `bool`; a new default that the
    design marks "proposed" is a settings key that the consumer passes in.
 2. `ctx/spawn/<role>.rs`: send the request when the role is built (unmapped); a change after
-   mapping is a `SurfaceOp` variant (`msg.rs`) applied in `ctx/ops.rs`.
+   mapping is a variant of the role's op enum (`LayerOp`, `WindowOp`; `CommonOp` for any surface; `msg.rs`) applied in `ctx/ops.rs`.
 3. `handle/surface.rs`: the `SurfaceHandle` setter for the op.
 4. `lib.rs`: the new public names, in the section 3 group for the role.
 5. A new role kind: `role.rs` variant, `ctx/spawn/<role>.rs`, a `handlers/<role>.rs` for its

@@ -535,7 +535,7 @@ covers a click, a hover waits for the first motion.
 
 ### F58. An unmapped or closed surface withdraws the pointer and keyboard first
 
-`unmap` (a `SetVisibility(Hidden)`) rebuilds the `wl_surface` and `close` destroys it; the
+`unmap` (a `CommonOp::SetVisibility(Hidden)`) rebuilds the `wl_surface` and `close` destroys it; the
 compositor's later `leave` names a dead object (KWin sends `leave(serial, nil)`) that the host
 cannot match, so nothing would tell the document. `HostState::withdraw_pointer(id)`
 (`input::focus::PointerFocus`, pure `enter`/`depart`) does what a leave does when the id held the
@@ -982,7 +982,7 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   refreshes, and `SurfaceMapped` is raised again after the next show.
 - **`quire_window_v1`** (`handlers/quire_window`, `decide.rs` table-tested): the manager is bound
   only if advertised. `SurfaceHandle::request_placement(WindowPlacement)` queues
-  `SurfaceOp::RequestPlacement`; `ops::apply` takes it (it needs `&mut HostState` for the
+  `WindowOp::RequestPlacement`; `ops::apply` takes it (it needs `&mut HostState` for the
   per-toplevel `quire_window_v1` object, created on first use and destroyed before the toplevel
   closes or is hidden) and sends `request_placement` with `input.last_serial`, the serial of the
   latest key or button the seat delivered. No serial yet means no request (logged). Emphasis and

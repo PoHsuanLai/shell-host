@@ -26,8 +26,8 @@ impl<M> HostHandle<M> {
     }
 
     /// Apply `op` to surface `id`, as `HostCtx::apply` would.
-    pub fn apply(&self, id: SurfaceId, op: SurfaceOp) -> Result<()> {
-        self.post(HostMsg::Apply { id, op })
+    pub fn apply(&self, id: SurfaceId, op: impl Into<SurfaceOp>) -> Result<()> {
+        self.post(HostMsg::Apply { id, op: op.into() })
     }
 
     /// Close surface `id`.

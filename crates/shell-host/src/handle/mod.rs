@@ -126,9 +126,12 @@ impl SurfaceHandle {
         self.wl.get()
     }
 
-    /// Any other op, as `HostCtx::apply` would apply it.
-    pub fn apply(&self, op: SurfaceOp) {
-        self.requests.push(Request::Apply { id: self.id, op });
+    /// Any op, as `HostCtx::apply` would apply it.
+    pub fn apply(&self, op: impl Into<SurfaceOp>) {
+        self.requests.push(Request::Apply {
+            id: self.id,
+            op: op.into(),
+        });
     }
 
     /// The seat's input modality right now, without subscribing: for an event handler. A

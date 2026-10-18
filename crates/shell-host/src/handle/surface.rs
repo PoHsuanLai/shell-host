@@ -7,9 +7,10 @@ use super::SurfaceHandle;
 use crate::blur::BlurSpec;
 use crate::drag::outcome::DragOutcome;
 use crate::drag::spec::DragSpec;
+use crate::geometry::Margin;
 use crate::id::SurfaceId;
-use crate::layer::{ExclusiveZone, KeyboardMode, LayerSize};
-use crate::msg::{Request, SurfaceOp};
+use crate::layer::{Anchor, ExclusiveZone, KeyboardMode, LayerSize};
+use crate::msg::{CommonOp, LayerOp, Request, SurfaceOp, Visibility};
 use crate::placement::PopupPlacement;
 use crate::popup::PopupConfig;
 use crate::region::RegionSpec;
@@ -18,29 +19,49 @@ use crate::tick::{FrameDrive, FrameTick};
 use blitz_kit::scroll::cmd::ScrollCmd;
 
 impl SurfaceHandle {
-    /// Blur behind this surface (`SurfaceOp::SetBlur`).
+    /// Blur behind this surface (`CommonOp::SetBlur`).
     pub fn set_blur(&self, blur: BlurSpec) {
-        self.apply(SurfaceOp::SetBlur(blur));
+        self.apply(CommonOp::SetBlur(blur));
     }
 
-    /// Where this surface takes pointer input (`SurfaceOp::SetInputRegion`).
+    /// Where this surface takes pointer input (`CommonOp::SetInputRegion`).
     pub fn set_input_region(&self, region: RegionSpec) {
-        self.apply(SurfaceOp::SetInputRegion(region));
+        self.apply(CommonOp::SetInputRegion(region));
+    }
+
+    /// Show or hide this surface. Hidden keeps its document warm (`CommonOp::SetVisibility`).
+    pub fn set_visibility(&self, visibility: Visibility) {
+        self.apply(CommonOp::SetVisibility(visibility));
     }
 
     /// Layer surfaces only.
     pub fn set_keyboard(&self, mode: KeyboardMode) {
-        self.apply(SurfaceOp::SetKeyboard(mode));
+        self.apply(LayerOp::SetKeyboard(mode));
     }
 
     /// Layer surfaces only.
     pub fn set_exclusive_zone(&self, zone: ExclusiveZone) {
-        self.apply(SurfaceOp::SetExclusiveZone(zone));
+        self.apply(LayerOp::SetExclusiveZone(zone));
     }
 
     /// Layer surfaces only.
     pub fn set_size(&self, size: LayerSize) {
-        self.apply(SurfaceOp::SetSize(size));
+        self.apply(LayerOp::SetSize(size));
+    }
+
+    /// Layer surfaces only.
+    pub fn set_margin(&self, margin: Margin) {
+        self.apply(LayerOp::SetMargin(margin));
+    }
+
+    /// Layer surfaces only.
+    pub fn set_anchor(&self, anchor: Anchor) {
+        self.apply(LayerOp::SetAnchor(anchor));
+    }
+
+    /// Popups only: move this open popup (`SurfaceOp::Reposition`).
+    pub fn reposition(&self, placement: PopupPlacement) {
+        self.apply(SurfaceOp::Reposition(placement));
     }
 
     /// Open a popup whose parent is this surface, rendering `root` as its own `VirtualDom`.

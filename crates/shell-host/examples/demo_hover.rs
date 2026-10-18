@@ -12,7 +12,7 @@
 //! `onpointerleave` and print `hover: slide <element> enter|leave`.
 //!
 //! stdin, one command per line: `hide top|bottom` and `show top|bottom` (a
-//! `SurfaceOp::SetVisibility`, printed as `hover: hide top` when applied), `stats` (prints
+//! `CommonOp::SetVisibility`, printed as `hover: hide top` when applied), `stats` (prints
 //! `hover: stats {"pad":{"enter":N,"leave":N},"slider":{...}}`, the slide surface's counts),
 //! `quit`.
 

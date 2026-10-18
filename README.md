@@ -130,7 +130,7 @@ The host owns the resize band: it is transparent surface outside the frame, the 
 receives input there and needs no markup for it, and it disappears whenever the window is
 maximized, fullscreen or tiled (on some compositors that is always, FINDINGS F48). The document's
 origin is the frame's corner, its viewport the frame's size, and region specs and popup anchors
-are in the same coordinates. Every call is also a `SurfaceOp` (`BeginMove`,
+are in the same coordinates. Every call is also a `WindowOp` (`BeginMove`,
 `BeginResize(edge)`, `SetMaximized`, `Minimize`, `SetFullscreen`) for `HostCtx::apply` or
 `HostHandle::apply` from outside the document.
 

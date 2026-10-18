@@ -2,7 +2,7 @@
 
 use super::SurfaceHandle;
 use crate::grab::GrabRefused;
-use crate::msg::SurfaceOp;
+use crate::msg::WindowOp;
 use crate::role::RoleKind;
 use crate::toplevel::{Fullscreen, Maximize, ResizeEdge, ToplevelState};
 use crate::window_placement::{PlacementSupport, WindowPlacement};
@@ -16,7 +16,7 @@ impl SurfaceHandle {
     /// this one, or this surface is not a toplevel.
     pub fn begin_move(&self) -> Result<(), GrabRefused> {
         self.grab_check()?;
-        self.apply(SurfaceOp::BeginMove);
+        self.apply(WindowOp::BeginMove);
         Ok(())
     }
 
@@ -25,7 +25,7 @@ impl SurfaceHandle {
     /// this in the host; this is for a frame that draws its own resize affordance.
     pub fn begin_resize(&self, edge: ResizeEdge) -> Result<(), GrabRefused> {
         self.grab_check()?;
-        self.apply(SurfaceOp::BeginResize(edge));
+        self.apply(WindowOp::BeginResize(edge));
         Ok(())
     }
 
@@ -33,18 +33,18 @@ impl SurfaceHandle {
     /// the configure that answers it, which [`use_toplevel_state`] publishes; a compositor may
     /// refuse (a fixed-size window) and send nothing.
     pub fn set_maximized(&self, maximize: Maximize) {
-        self.apply(SurfaceOp::SetMaximized(maximize));
+        self.apply(WindowOp::SetMaximized(maximize));
     }
 
     /// Ask the compositor to minimize this toplevel. Restoring is the compositor's (the dock,
     /// the task switcher); a client has no request for it.
     pub fn set_minimized(&self) {
-        self.apply(SurfaceOp::Minimize);
+        self.apply(WindowOp::Minimize);
     }
 
     /// Ask for fullscreen on the compositor's choice of output, or leave it.
     pub fn set_fullscreen(&self, fullscreen: Fullscreen) {
-        self.apply(SurfaceOp::SetFullscreen(fullscreen));
+        self.apply(WindowOp::SetFullscreen(fullscreen));
     }
 
     /// Whether the compositor takes [`SurfaceHandle::request_placement`]. A menu offers Left,
@@ -57,7 +57,7 @@ impl SurfaceHandle {
     /// person just chose from the zoom button's menu: the seat's latest input serial goes
     /// with it. Dropped on a compositor without the protocol.
     pub fn request_placement(&self, placement: WindowPlacement) {
-        self.apply(SurfaceOp::RequestPlacement(placement));
+        self.apply(WindowOp::RequestPlacement(placement));
     }
 
     /// This toplevel's state as of its last configure, without subscribing: for an event

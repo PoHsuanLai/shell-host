@@ -132,10 +132,10 @@ impl<M: 'static> HostCtx<M> {
     }
 
     /// Apply `op` to surface `id` before its next paint.
-    pub fn apply(&mut self, id: SurfaceId, op: SurfaceOp) {
+    pub fn apply(&mut self, id: SurfaceId, op: impl Into<SurfaceOp>) {
         self.state
             .requests
-            .push(crate::msg::Request::Apply { id, op });
+            .push(crate::msg::Request::Apply { id, op: op.into() });
     }
 
     /// Request an xdg-activation token on behalf of surface `id`, for launching `app_id`. The
