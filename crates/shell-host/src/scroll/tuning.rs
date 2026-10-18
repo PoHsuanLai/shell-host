@@ -21,6 +21,11 @@ impl Tuning {
         }
     }
 
+    /// The scroll settings the engine's tuning was made from.
+    pub(crate) fn settings(&self) -> &blitz_kit::scroll::config::ScrollSettings {
+        &self.kit.settings
+    }
+
     /// This tuning at `now`.
     pub(crate) fn at(&self, now: HostInstant) -> Env<'_> {
         Env {

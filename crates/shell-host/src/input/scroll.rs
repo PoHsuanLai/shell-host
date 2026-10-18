@@ -77,7 +77,7 @@ impl HostState {
             AxisSource::Wheel | AxisSource::Finger | AxisSource::Unknown => AxisKind::Suppressible,
             AxisSource::Continuous | AxisSource::WheelTilt => AxisKind::Other,
         };
-        let grace = self.scroll.config.scroll.double_scroll_grace_ms.duration();
+        let grace = self.scroll.settings().double_scroll_grace_ms.duration();
         let verdict = self
             .suppress
             .verdict(kind, self.palmrest_driven(), grace, now);
@@ -88,7 +88,7 @@ impl HostState {
             return;
         }
         let held = self.input.held_modifiers;
-        let detent_px = self.scroll.config.scroll.wheel_detent_px.get();
+        let detent_px = self.scroll.settings().wheel_detent_px.get();
         let Some(surface) = self.surfaces.get_mut(&id) else {
             return;
         };
