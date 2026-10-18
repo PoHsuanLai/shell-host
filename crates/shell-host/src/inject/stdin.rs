@@ -78,23 +78,17 @@ fn run_line<M: 'static>(ctx: &mut HostCtx<M>, line: &str) {
     }
 }
 
-/// A per-surface command: `stats` reads the stats, everything else is an [`Inject`].
+/// A per-surface command: `stats` reads the stats, `focused` reads the text field, everything else is an [`Inject`].
 fn on_surface<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId, action: DebugAction) -> Result<()> {
-    let inject = match action {
-        DebugAction::Stats => return print_stats(ctx, id),
-        DebugAction::Focused => return print_line(&focused_line(&ctx.state, id)),
-        DebugAction::Hover(at) => Inject::Pointer { at },
-        DebugAction::Press(at, button) => Inject::PointerDown { at, button },
-        DebugAction::Release(at, button) => Inject::PointerUp { at, button },
-        DebugAction::Click(at, button) => Inject::Click { at, button },
-        DebugAction::Leave => Inject::Leave,
-        DebugAction::Key(stroke, action) => Inject::Key { stroke, action },
-        DebugAction::Capture(path) => {
+    match action {
+        DebugAction::Stats => print_stats(ctx, id),
+        DebugAction::Focused => print_line(&focused_line(&ctx.state, id)),
+        DebugAction::Inject(Inject::Capture { path }) => {
             let written = ctx.inject(id, Inject::Capture { path: path.clone() });
-            return print_line(&capture_line(&path, &written));
+            print_line(&capture_line(&path, &written))
         }
-    };
-    ctx.inject(id, inject).map(drop)
+        DebugAction::Inject(inject) => ctx.inject(id, inject).map(drop),
+    }
 }
 
 /// `{"capture": path, "ok": .., "err": ..}`, the line the acceptance script waits for.

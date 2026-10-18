@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::key_spec::parse_key;
-use super::{KeyAction, KeyStroke, PointerButton};
+use super::{Inject, KeyAction, PointerButton};
 use crate::geometry::Point;
 use crate::id::SurfaceName;
 
@@ -25,29 +25,14 @@ pub enum DebugCommand {
 
 /// What a debug command does to its surface. Coordinates are surface-local logical pixels.
 ///
-/// `Press`, `Hover` (as a held move) and `Release` script a drag: `Press` at the start point,
-/// `Hover` at each point in between (still with the button down, so it moves like one), then
-/// `Release` at the end point. `Click` is `Press` immediately followed by `Release` at the same
-/// point, with no move between (a real drag cannot be scripted through `Click`).
+/// Everything but `Stats` and `Focused` is an [`Inject`]; see it for how `PointerDown`, `Pointer`
+/// and `PointerUp` script a drag (`press`, `hover`, `release` on the line).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DebugAction {
-    /// A pointer motion to the point (a plain hover with nothing pressed, or a held move
-    /// between a `Press` and a `Release`).
-    Hover(Point),
-    /// `button` presses at the point.
-    Press(Point, PointerButton),
-    /// `button` releases at the point.
-    Release(Point, PointerButton),
-    /// Move, press and release `button` at the point, with no move in between.
-    Click(Point, PointerButton),
-    /// The pointer leaves the surface.
-    Leave,
-    /// A key does `KeyAction` (a tap when the line names neither `down` nor `up`).
-    Key(KeyStroke, KeyAction),
+    /// Do this to the surface as if the user had.
+    Inject(Inject),
     /// Print this surface's stats.
     Stats,
-    /// Render offscreen at the buffer size and write a PNG.
-    Capture(PathBuf),
     /// Print the focused text field's text, as typed and as shown (with any composition), and
     /// what the IME was last asked for.
     Focused,
@@ -99,27 +84,34 @@ pub fn parse_command(line: &str) -> Result<DebugCommand, CommandError> {
 }
 
 fn parse_action(verb: &str, args: &[&str]) -> Result<DebugAction, CommandError> {
+    let inject = |inject| Ok(DebugAction::Inject(inject));
     match (verb, args) {
-        ("hover", _) => point("hover", args).map(DebugAction::Hover),
-        ("press", _) => {
-            button_at("press", args).map(|(point, button)| DebugAction::Press(point, button))
-        }
-        ("release", _) => {
-            button_at("release", args).map(|(point, button)| DebugAction::Release(point, button))
-        }
+        ("hover", _) => point("hover", args).and_then(|at| inject(Inject::Pointer { at })),
+        ("press", _) => button_at("press", args)
+            .and_then(|(at, button)| inject(Inject::PointerDown { at, button })),
+        ("release", _) => button_at("release", args)
+            .and_then(|(at, button)| inject(Inject::PointerUp { at, button })),
         ("click", _) => {
-            button_at("click", args).map(|(point, button)| DebugAction::Click(point, button))
+            button_at("click", args).and_then(|(at, button)| inject(Inject::Click { at, button }))
         }
-        ("key", [spec]) => Ok(DebugAction::Key(parse_key(spec)?, KeyAction::Tap)),
-        ("key", [spec, action]) => Ok(DebugAction::Key(parse_key(spec)?, key_action(action)?)),
+        ("key", [spec]) => inject(Inject::Key {
+            stroke: parse_key(spec)?,
+            action: KeyAction::Tap,
+        }),
+        ("key", [spec, action]) => inject(Inject::Key {
+            stroke: parse_key(spec)?,
+            action: key_action(action)?,
+        }),
         ("key", _) => Err(CommandError::Missing {
             verb: "key",
             needs: "a key name, optionally down or up",
         }),
-        ("leave", []) => Ok(DebugAction::Leave),
+        ("leave", []) => inject(Inject::Leave),
         ("stats", []) => Ok(DebugAction::Stats),
         ("focused", []) => Ok(DebugAction::Focused),
-        ("capture", [path]) => Ok(DebugAction::Capture(PathBuf::from(path))),
+        ("capture", [path]) => inject(Inject::Capture {
+            path: PathBuf::from(path),
+        }),
         ("capture", _) => Err(CommandError::Missing {
             verb: "capture",
             needs: "one path",
@@ -177,6 +169,7 @@ fn parse_button(word: &str) -> Result<PointerButton, CommandError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::inject::KeyStroke;
     use keyboard_types::{Code, Key, Modifiers};
 
     use super::*;
@@ -192,99 +185,128 @@ mod tests {
             ("  quit  ", Ok(DebugCommand::Quit)),
             (
                 "dock hover 60 40",
-                Ok(on("dock", DebugAction::Hover(Point { x: 60, y: 40 }))),
+                Ok(on(
+                    "dock",
+                    DebugAction::Inject(Inject::Pointer {
+                        at: Point { x: 60, y: 40 },
+                    }),
+                )),
             ),
             (
                 "sill-bar click 5 -1",
                 Ok(on(
                     "sill-bar",
-                    DebugAction::Click(Point { x: 5, y: -1 }, PointerButton::Primary),
+                    DebugAction::Inject(Inject::Click {
+                        at: Point { x: 5, y: -1 },
+                        button: PointerButton::Primary,
+                    }),
                 )),
             ),
             (
                 "dock click 60 64 secondary",
                 Ok(on(
                     "dock",
-                    DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Secondary),
+                    DebugAction::Inject(Inject::Click {
+                        at: Point { x: 60, y: 64 },
+                        button: PointerButton::Secondary,
+                    }),
                 )),
             ),
             (
                 "dock click 60 64 middle",
                 Ok(on(
                     "dock",
-                    DebugAction::Click(Point { x: 60, y: 64 }, PointerButton::Middle),
+                    DebugAction::Inject(Inject::Click {
+                        at: Point { x: 60, y: 64 },
+                        button: PointerButton::Middle,
+                    }),
                 )),
             ),
             (
                 "dock press 60 40",
                 Ok(on(
                     "dock",
-                    DebugAction::Press(Point { x: 60, y: 40 }, PointerButton::Primary),
+                    DebugAction::Inject(Inject::PointerDown {
+                        at: Point { x: 60, y: 40 },
+                        button: PointerButton::Primary,
+                    }),
                 )),
             ),
             (
                 "dock press 60 40 secondary",
                 Ok(on(
                     "dock",
-                    DebugAction::Press(Point { x: 60, y: 40 }, PointerButton::Secondary),
+                    DebugAction::Inject(Inject::PointerDown {
+                        at: Point { x: 60, y: 40 },
+                        button: PointerButton::Secondary,
+                    }),
                 )),
             ),
             (
                 "dock release 70 50",
                 Ok(on(
                     "dock",
-                    DebugAction::Release(Point { x: 70, y: 50 }, PointerButton::Primary),
+                    DebugAction::Inject(Inject::PointerUp {
+                        at: Point { x: 70, y: 50 },
+                        button: PointerButton::Primary,
+                    }),
                 )),
             ),
             (
                 "dock release 70 50 middle",
                 Ok(on(
                     "dock",
-                    DebugAction::Release(Point { x: 70, y: 50 }, PointerButton::Middle),
+                    DebugAction::Inject(Inject::PointerUp {
+                        at: Point { x: 70, y: 50 },
+                        button: PointerButton::Middle,
+                    }),
                 )),
             ),
-            ("dock leave", Ok(on("dock", DebugAction::Leave))),
+            (
+                "dock leave",
+                Ok(on("dock", DebugAction::Inject(Inject::Leave))),
+            ),
             ("bar/popup stats", Ok(on("bar/popup", DebugAction::Stats))),
             (
                 "power-menu key Escape",
                 Ok(on(
                     "power-menu",
-                    DebugAction::Key(
-                        KeyStroke {
+                    DebugAction::Inject(Inject::Key {
+                        stroke: KeyStroke {
                             key: Key::Escape,
                             code: Code::Escape,
                             mods: Modifiers::empty(),
                         },
-                        KeyAction::Tap,
-                    ),
+                        action: KeyAction::Tap,
+                    }),
                 )),
             ),
             (
                 "launcher key k+ctrl down",
                 Ok(on(
                     "launcher",
-                    DebugAction::Key(
-                        KeyStroke {
+                    DebugAction::Inject(Inject::Key {
+                        stroke: KeyStroke {
                             key: Key::Character("k".into()),
                             code: Code::KeyK,
                             mods: Modifiers::CONTROL,
                         },
-                        KeyAction::Press,
-                    ),
+                        action: KeyAction::Press,
+                    }),
                 )),
             ),
             (
                 "launcher key Tab up",
                 Ok(on(
                     "launcher",
-                    DebugAction::Key(
-                        KeyStroke {
+                    DebugAction::Inject(Inject::Key {
+                        stroke: KeyStroke {
                             key: Key::Tab,
                             code: Code::Tab,
                             mods: Modifiers::empty(),
                         },
-                        KeyAction::Release,
-                    ),
+                        action: KeyAction::Release,
+                    }),
                 )),
             ),
             (
@@ -306,7 +328,12 @@ mod tests {
             ),
             (
                 "bar capture /tmp/a.png",
-                Ok(on("bar", DebugAction::Capture("/tmp/a.png".into()))),
+                Ok(on(
+                    "bar",
+                    DebugAction::Inject(Inject::Capture {
+                        path: "/tmp/a.png".into(),
+                    }),
+                )),
             ),
             ("", Err(CommandError::Empty)),
             ("hover", Err(CommandError::Unknown("hover".into()))),
