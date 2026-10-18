@@ -10,7 +10,7 @@ use crate::layer::{
 };
 use crate::role::Role;
 use crate::root::HostRoot;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::state::HostState;
 
 use super::rebuild::map;
@@ -32,7 +32,7 @@ pub(crate) fn layer(
     let at = Initial {
         logical: requested,
         inset: Inset::NONE,
-        scale: Scale::ONE,
+        scale: Scale120::ONE,
     };
     insert(state, id, role, name, at, (blur, input), root);
     Ok(())

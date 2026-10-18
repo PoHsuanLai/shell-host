@@ -23,7 +23,7 @@ use crate::msg::{SurfaceOp, Visibility};
 use crate::region::{Px, Rect, RegionSpec};
 use crate::resolve::Tracked;
 use crate::role::Role;
-use crate::scale::{Scale, Size, buffer_size};
+use crate::scale::{Scale120, Size, buffer_size};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::wheel::WheelRun;
 use crate::scroll::wheel_feed::WheelFeed;
@@ -50,7 +50,7 @@ pub(crate) enum Mapped {
 pub(crate) struct Geometry {
     pub logical: Size,
     pub inset: Inset,
-    pub scale: Scale,
+    pub scale: Scale120,
 }
 
 /// The regions last sent to the compositor, so an unchanged region is not re-sent every frame
@@ -97,7 +97,7 @@ pub(crate) struct HostSurface {
     pub(crate) logical: Size,
     /// The resize band around the document (`csd`); `Inset::NONE` for every other surface.
     pub(crate) inset: Inset,
-    pub(crate) scale: Scale,
+    pub(crate) scale: Scale120,
     pub(crate) blur: BlurSpec,
     pub(crate) input: RegionSpec,
     pub(crate) stats: StatsWindow,
@@ -185,7 +185,7 @@ impl HostSurface {
 
     /// Record a new preferred scale and publish it to the document, whose components reading
     /// `use_surface_scale` are woken (and so polled at the next flush's first phase).
-    pub(crate) fn rescale(&mut self, scale: Scale) {
+    pub(crate) fn rescale(&mut self, scale: Scale120) {
         self.scale = scale;
         self.live_scale.publish(scale);
     }

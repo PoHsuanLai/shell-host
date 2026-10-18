@@ -106,7 +106,11 @@ fn use_frame_tick_renders_each_published_tick() {
     let handle = SurfaceHandle::new(
         id,
         RoleKind::Toplevel,
-        parts(requests.clone(), ticks.clone(), LiveScale::new(Scale::ONE)),
+        parts(
+            requests.clone(),
+            ticks.clone(),
+            LiveScale::new(Scale120::ONE),
+        ),
     );
     let env = test_env(ping, Prepaint::None);
     let mut document = SurfaceDocument::build(HostRoot::new(ticking).context(handle.clone()), env);
@@ -152,7 +156,7 @@ fn a_spawned_root_reads_its_surface_handle() {
         parts(
             requests.clone(),
             FrameTicks::default(),
-            LiveScale::new(Scale::ONE),
+            LiveScale::new(Scale120::ONE),
         ),
     );
     let env = test_env(ping, Prepaint::None);
@@ -191,7 +195,7 @@ fn scaled() -> Element {
 fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     let id = SurfaceId(9);
-    let live = LiveScale::new(Scale(150));
+    let live = LiveScale::new(Scale120(150));
     let handle = SurfaceHandle::new(
         id,
         RoleKind::Toplevel,
@@ -208,17 +212,17 @@ fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
         "scale 150",
         "the first render has the scale"
     );
-    assert_eq!(handle.current_scale(), Scale(150));
+    assert_eq!(handle.current_scale(), Scale120(150));
 
     let wakes = Arc::new(Wakes::default());
     let waker = std::task::Waker::from(Arc::clone(&wakes));
     let mut cx = std::task::Context::from_waker(&waker);
     document.poll(&mut cx);
     wakes.take();
-    live.publish(Scale(150));
+    live.publish(Scale120(150));
     assert_eq!(wakes.take(), 0, "an unchanged scale wakes nothing");
     for wire in [180, 210, 120] {
-        live.publish(Scale(wire));
+        live.publish(Scale120(wire));
         assert!(wakes.take() > 0, "publishing {wire} woke the document");
         assert_eq!(document.poll(&mut cx), Polled::Changed);
         assert_eq!(text(&mut document), format!("scale {wire}"));
@@ -253,7 +257,7 @@ fn resolve_runs_the_prepaint_hook_once_after_layout() {
         parts(
             RequestQueue::new(ping),
             FrameTicks::default(),
-            LiveScale::new(Scale(180)),
+            LiveScale::new(Scale120(180)),
         ),
     );
     let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
@@ -281,7 +285,7 @@ fn without_a_hook_resolve_reports_none_ran() {
         parts(
             RequestQueue::new(ping.clone()),
             FrameTicks::default(),
-            LiveScale::new(Scale::ONE),
+            LiveScale::new(Scale120::ONE),
         ),
     );
     let env = test_env(ping, Prepaint::None);
@@ -309,7 +313,7 @@ fn use_toplevel_state_follows_each_configure() {
             ..parts(
                 RequestQueue::new(ping.clone()),
                 FrameTicks::default(),
-                LiveScale::new(Scale::ONE),
+                LiveScale::new(Scale120::ONE),
             )
         },
     );
@@ -357,7 +361,7 @@ fn use_wheel_hears_every_event_in_order() {
             ..parts(
                 RequestQueue::new(ping.clone()),
                 FrameTicks::default(),
-                LiveScale::new(Scale::ONE),
+                LiveScale::new(Scale120::ONE),
             )
         },
     );
@@ -410,7 +414,7 @@ fn use_input_modality_is_the_seats_across_surfaces() {
                     ..parts(
                         RequestQueue::new(ping.clone()),
                         FrameTicks::default(),
-                        LiveScale::new(Scale::ONE),
+                        LiveScale::new(Scale120::ONE),
                     )
                 },
             );
@@ -463,7 +467,7 @@ fn a_move_is_queued_only_with_a_held_press_on_the_surface() {
                 ..parts(
                     requests.clone(),
                     FrameTicks::default(),
-                    LiveScale::new(Scale::ONE),
+                    LiveScale::new(Scale120::ONE),
                 )
             },
         )

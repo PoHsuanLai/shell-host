@@ -136,7 +136,7 @@ mod tests {
     use crate::prepaint::Prepaint;
     use crate::role::RoleKind;
     use crate::root::HostRoot;
-    use crate::scale::Scale;
+    use crate::scale::Scale120;
     use crate::scroll::surface::SurfaceScroll;
     use crate::scroll::tuning::Tuning;
     use crate::tick::FrameTicks;
@@ -172,7 +172,7 @@ mod tests {
             requests: RequestQueue::new(ping.clone()),
             ids: SurfaceIds::new(),
             ticks: FrameTicks::default(),
-            scale: LiveScale::new(Scale::ONE),
+            scale: LiveScale::new(Scale120::ONE),
             toplevel: Live::new(ToplevelState::default()),
             grab: GrabRecord::default(),
             scrolls: board.clone(),

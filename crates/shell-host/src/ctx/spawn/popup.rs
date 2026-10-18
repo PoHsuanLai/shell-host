@@ -21,7 +21,7 @@ use crate::region::RegionSpec;
 use crate::resolve::resolve_popup_anchor;
 use crate::role::Role;
 use crate::root::HostRoot;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::state::HostState;
 use crate::surface::HostSurface;
 
@@ -50,7 +50,7 @@ pub(crate) fn popup(
     let initial = state
         .surfaces
         .get(&parent)
-        .map_or(Scale::ONE, |surface| surface.scale);
+        .map_or(Scale120::ONE, |surface| surface.scale);
     let role = popup_role(state, parent, config, placement)?;
     lift_keyboard(state, parent, grab);
     map(state, &role);

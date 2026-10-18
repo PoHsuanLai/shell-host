@@ -3,7 +3,7 @@
 use super::Inset;
 use crate::input::pointer::PointerPos;
 use crate::region::Rect;
-use crate::scale::{Scale, Size, logical_to_physical};
+use crate::scale::{Scale120, Size, logical_to_physical};
 
 /// The surface around a frame of `frame`.
 pub(crate) fn surface_of(frame: Size, inset: Inset) -> Size {
@@ -36,7 +36,7 @@ pub(crate) fn window_geometry(surface: Size, inset: Inset) -> Rect {
 /// Where the document paints in a buffer of `buffer` physical pixels: the frame, in physical
 /// pixels. The offset is the band rounded to whole device pixels (blitz paints at an integer
 /// offset); the size is what is left, so the band is equally wide on both sides.
-pub(crate) fn content_px(buffer: Size, inset: Inset, scale: Scale) -> Rect {
+pub(crate) fn content_px(buffer: Size, inset: Inset, scale: Scale120) -> Rect {
     let offset = logical_to_physical(inset.0, scale);
     Rect {
         x: offset,
@@ -48,8 +48,8 @@ pub(crate) fn content_px(buffer: Size, inset: Inset, scale: Scale) -> Rect {
 
 /// A surface-local pointer position in the document's coordinates: less the painted offset,
 /// so a hit test agrees with the pixels to the device pixel.
-pub(crate) fn to_document(pos: PointerPos, inset: Inset, scale: Scale) -> PointerPos {
-    let offset = f64::from(logical_to_physical(inset.0, scale)) / scale.as_f64();
+pub(crate) fn to_document(pos: PointerPos, inset: Inset, scale: Scale120) -> PointerPos {
+    let offset = f64::from(logical_to_physical(inset.0, scale)) / scale.factor();
     PointerPos {
         x: pos.x - offset,
         y: pos.y - offset,
@@ -115,9 +115,9 @@ mod tests {
     #[test]
     fn the_content_is_inset_by_whole_device_pixels_on_both_sides() {
         let cases = [
-            (Scale::ONE, 414, 7, 400),
-            (Scale(180), 621, 11, 599),
-            (Scale(240), 828, 14, 800),
+            (Scale120::ONE, 414, 7, 400),
+            (Scale120(180), 621, 11, 599),
+            (Scale120(240), 828, 14, 800),
         ];
         for (scale, buffer_width, offset, width) in cases {
             let buffer = Size {
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn pointer_and_rects_move_between_surface_and_document_coordinates() {
-        let doc = to_document(at(17.0, 27.0), BAND, Scale::ONE);
+        let doc = to_document(at(17.0, 27.0), BAND, Scale120::ONE);
         assert_eq!(doc, at(10.0, 20.0));
         let back = to_surface(
             vec![Rect {

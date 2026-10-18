@@ -99,7 +99,7 @@ fn the_body_reset_puts_a_box_at_the_corner_unless_the_document_sets_its_own_marg
 fn a_headless_bare_document_paints_its_corner() {
     use blitz_traits::shell::ColorScheme;
 
-    use crate::Scale;
+    use crate::Scale120;
     use crate::headless::{Fonts, HeadlessConfig, PixelSize, bundled_faces, render_png};
 
     fn red() -> Element {
@@ -111,7 +111,7 @@ fn a_headless_bare_document_paints_its_corner() {
         red,
         HeadlessConfig {
             size: PixelSize::new(WIDTH, HEIGHT),
-            scale: Scale::ONE,
+            scale: Scale120::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0],
             fonts: Fonts::Bundled(bundled_faces()),

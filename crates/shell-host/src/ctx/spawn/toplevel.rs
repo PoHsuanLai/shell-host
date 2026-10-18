@@ -7,7 +7,7 @@ use crate::id::SurfaceName;
 use crate::region::RegionSpec;
 use crate::role::Role;
 use crate::root::HostRoot;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::state::HostState;
 use crate::toplevel::{ToplevelConfig, ToplevelState, to_wire_decorations};
 
@@ -28,7 +28,7 @@ pub(crate) fn toplevel(
     let at = Initial {
         logical: surface_of(config.size, inset),
         inset,
-        scale: Scale::ONE,
+        scale: Scale120::ONE,
     };
     let role = toplevel_role(state, config);
     map(state, &role);

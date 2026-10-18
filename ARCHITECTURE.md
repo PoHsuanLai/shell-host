@@ -102,7 +102,7 @@ The root of `shell-host` exports exactly these names, each from one `pub use` in
 | Toplevel | `ToplevelConfig`, `ToplevelState`, `Decorations`, `ResizeMargin`, `ResizeEdge`, `Maximize`, `Fullscreen`, `Activation`, `Tile`, `TileEdges`, `GrabRefused`, `WindowPlacement`, `PlacementSupport` |
 | Lock | `LockConfig`, `LockError`, `LockId`, `LockHandle`, `LockPhase`, `LockState`, `use_lock`, `use_lock_phase` |
 | Regions and blur | `RegionSpec`, `RoundedRect`, `ElementRegion`, `ElementId`, `BlurSpec` |
-| Geometry | `Px`, `Rect`, `Point`, `Size`, `Margin`, `Scale`, `buffer_size` (`Px`, `Rect`, `Point`, `Size` are the geometry vocabulary and keep their short names) |
+| Geometry | `Px`, `Rect`, `Point`, `Size`, `Margin`, `Scale120`, `buffer_size` (`Px`, `Rect`, `Point`, `Size` are the geometry vocabulary and keep their short names) |
 | Input | `Modifiers`, `Modifier`, `LockKey`, `InputModality` |
 | Drag | `DragSpec`, `DragPayload`, `DragIcon`, `DragActions`, `DragAction`, `DragOutcome`, `DragRefused`, `Mime`, `BadMime` |
 | Scroll | `ScrollConfig`, `ScrollSettings`, `ScrollbarSettings`, `ScrollbarVisibility`, `ScrollMomentum`, `ScrollMomentumModel`, `NaturalScroll`, `ScrollRubberBand`, `ScrollTrackClick`, `ScrollPx`, `ScrollMs`, `ScrollFraction`, `ScrollScalar` (the units of the settings), `ScrollCmd`, `ScrollAxis`, `ScrollAnimate`, `ScrollExtent`, `ScrollPhase`, `ScrollPoint`, `ScrollState`, `use_scroll`, `WheelEvent`, `WheelSource`, `WheelPhase`, `WheelMotion`, `use_wheel` |
@@ -143,8 +143,8 @@ no design-system type, and takes and returns CSS px `f64` in Blitz's own units.
 | `paint_rect` | `Affine2`, `Placed`, `painted_bounds(Bounds, &[Placed]) -> Bounds`, `painted_rect(&BaseDocument, NodeId) -> Option<Bounds>` (layout box carried through its own and its ancestors' transforms) | `dom/painted.rs`, `dom/document.rs` |
 | `snap` | `snap_layout(&mut BaseDocument, Scale120)`: whole device pixels for every box after a resolve | consumers' prepaint hooks |
 
-`Bounds`, `PagePoint`, `Scale120` (integer 120ths, as `Scale` in shell-host) are defined in
-`blitz-kit::units`. shell-host converts at its own boundary (`PointerPos`, `Rect`, `Scale`);
+`Bounds`, `PagePoint`, `Scale120` (integer 120ths, the same type shell-host exports) are defined in
+`blitz-kit::units`. shell-host converts at its own boundary (`PointerPos`, `Rect`);
 neither side names the other's types. Tests for each module live in the kit against a real
 `BaseDocument` built from HTML, so a repair is tested once for both consumers.
 
@@ -355,7 +355,7 @@ session. Goldens change only with a reason in the commit message.
   keeps being lost, the only lock surface keeps failing).
 - **Limits are named constants with their reason beside them** (FINDINGS F84 lists them). A
   number from the compositor is clamped where it enters (`scale::wire_extent`,
-  `Scale::from_wire`); a count a peer can raise (pipes, reads, datagrams, files) has a cap and a
+  `Scale120::from_wire`); a count a peer can raise (pipes, reads, datagrams, files) has a cap and a
   deadline; nothing waits on a peer in the loop thread, and a peer that exceeds a limit is cut.
   A wgpu error never panics: devices come from `request_watched_device`.
 - **No `bool` in a field, parameter or message, internal ones included.** A wire `bool` from

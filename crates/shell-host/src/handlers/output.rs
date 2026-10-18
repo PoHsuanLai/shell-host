@@ -9,7 +9,7 @@ use crate::id::OutputId;
 use crate::lock::machine::LockInput;
 use crate::output::OutputInfo;
 use crate::region::Rect;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::state::HostState;
 
 impl OutputHandler for HostState {
@@ -105,7 +105,7 @@ struct OutputFacts {
 /// The pure half of [`output_info`]: xdg-output's logical position/size win over the core
 /// protocol's `location` and the current mode's pixel dimensions; the current mode's refresh
 /// rate is used as-is, defaulting to 0 (unknown) when there is no current mode; the scale is
-/// never allowed to resolve to 0 (a `Scale` of zero would collapse every buffer to nothing).
+/// never allowed to resolve to 0 (a `Scale120` of zero would collapse every buffer to nothing).
 fn resolve_output_info(id: OutputId, facts: OutputFacts) -> OutputInfo {
     let (x, y) = facts.logical_position.unwrap_or(facts.location);
     let (width, height) = facts
@@ -125,7 +125,7 @@ fn resolve_output_info(id: OutputId, facts: OutputFacts) -> OutputInfo {
             width,
             height,
         },
-        scale: Scale::from_integer_factor(facts.scale_factor),
+        scale: Scale120::from_integer_factor(facts.scale_factor),
         refresh_mhz,
     }
 }
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn output_facts_resolve_to_logical_geometry_refresh_and_scale() {
         // name, facts, logical rect, refresh mHz, scale
-        let cases: Vec<(&str, OutputFacts, Rect, u32, Scale)> = vec![
+        let cases: Vec<(&str, OutputFacts, Rect, u32, Scale120)> = vec![
             (
                 "xdg-output's logical geometry wins over the core protocol's fields",
                 OutputFacts {
@@ -170,7 +170,7 @@ mod tests {
                     height: 1080,
                 },
                 60_000,
-                Scale(240),
+                Scale120(240),
             ),
             (
                 "without xdg-output it falls back to the location and the current mode",
@@ -187,7 +187,7 @@ mod tests {
                     height: 720,
                 },
                 59_940,
-                Scale(120),
+                Scale120(120),
             ),
             (
                 "no current mode is an unknown refresh rate and a zero size",
@@ -199,7 +199,7 @@ mod tests {
                     height: 0,
                 },
                 0,
-                Scale(120),
+                Scale120(120),
             ),
             (
                 "a scale factor of zero or less never produces a zero scale",
@@ -214,7 +214,7 @@ mod tests {
                     height: 0,
                 },
                 0,
-                Scale(120),
+                Scale120(120),
             ),
         ];
         for (name, facts, logical, refresh_mhz, scale) in cases {

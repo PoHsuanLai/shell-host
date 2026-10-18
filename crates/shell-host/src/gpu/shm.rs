@@ -124,7 +124,7 @@ fn frame_len(size: Size) -> usize {
 pub(crate) fn paint_cpu(doc: &mut BaseDocument, target: FrameTarget, overlay: &Overlay) -> Vec<u8> {
     let (width, height) = pixel_extent(target.buffer);
     let (paint_width, paint_height, x, y) = target.paint_area();
-    let scale = target.scale.as_f64();
+    let scale = target.scale.factor();
     render_to_buffer::<VelloCpuImageRenderer, _>(
         |painter| {
             paint_scene(painter, doc, scale, paint_width, paint_height, x, y);

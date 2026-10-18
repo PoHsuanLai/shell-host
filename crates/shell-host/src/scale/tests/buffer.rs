@@ -1,7 +1,7 @@
-//! Table test for `Scale` and its conversions, against the public API only.
+//! Table test for `Scale120` and its conversions, against the public API only.
 
 use crate::region::Px;
-use crate::scale::{MAX_SURFACE_EXTENT, Scale, Size, buffer_size, wire_extent};
+use crate::scale::{MAX_SURFACE_EXTENT, Scale120, Size, buffer_size, wire_extent};
 
 const CASES: &[(&str, u32, f64)] = &[
     ("1.0x", 120, 1.0),
@@ -13,9 +13,9 @@ const CASES: &[(&str, u32, f64)] = &[
 #[test]
 fn preferred_scale_wire_values_decode_to_the_expected_multiplier() {
     for &(name, wire, expected) in CASES {
-        let scale = Scale::from_wire(wire);
+        let scale = Scale120::from_wire(wire);
         assert!(
-            (scale.as_f64() - expected).abs() < 1e-9,
+            (scale.factor() - expected).abs() < 1e-9,
             "{name}: wire={wire}"
         );
     }
@@ -58,7 +58,7 @@ fn buffer_size_rounds_half_away_from_zero_at_each_pinned_scale() {
         ),
     ];
     for &(wire, expected) in table {
-        let got = buffer_size(logical, Scale::from_wire(wire));
+        let got = buffer_size(logical, Scale120::from_wire(wire));
         assert_eq!(got, expected, "wire={wire}");
     }
 }
@@ -73,7 +73,7 @@ fn a_scale_from_the_wire_is_kept_between_a_quarter_and_ten_times() {
         ("a lie", 4_000_000_000, 1200),
     ];
     for &(name, wire, want) in cases {
-        assert_eq!(Scale::from_wire(wire), Scale(want), "{name}");
+        assert_eq!(Scale120::from_wire(wire), Scale120(want), "{name}");
     }
 }
 
@@ -88,7 +88,11 @@ fn a_whole_scale_factor_is_kept_between_one_and_ten() {
         ("a factor whose 120ths overflow", i32::MAX, 1200),
     ];
     for &(name, factor, want) in cases {
-        assert_eq!(Scale::from_integer_factor(factor), Scale(want), "{name}");
+        assert_eq!(
+            Scale120::from_integer_factor(factor),
+            Scale120(want),
+            "{name}"
+        );
     }
 }
 
@@ -112,7 +116,7 @@ fn a_buffer_never_exceeds_the_largest_size_whatever_the_scale() {
         width: 8192,
         height: 600,
     };
-    let got = buffer_size(logical, Scale::from_wire(1200));
+    let got = buffer_size(logical, Scale120::from_wire(1200));
     assert_eq!(
         got,
         Size {

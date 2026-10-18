@@ -30,7 +30,7 @@ use crate::msg::Visibility;
 use crate::region::RegionSpec;
 use crate::role::Role;
 use crate::root::HostRoot;
-use crate::scale::{Scale, Size};
+use crate::scale::{Scale120, Size};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::watch::ScrollBoard;
 use crate::scroll::wheel::WheelRun;
@@ -60,7 +60,7 @@ pub(super) fn new_wl_surface(state: &mut HostState) -> WlSurface {
 pub(super) struct Initial {
     pub(super) logical: Size,
     pub(super) inset: Inset,
-    pub(super) scale: Scale,
+    pub(super) scale: Scale120,
 }
 
 /// Build the document (with this surface's `SurfaceHandle` as a root context) and record the

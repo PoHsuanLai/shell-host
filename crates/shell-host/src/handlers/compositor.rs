@@ -10,7 +10,7 @@ use wayland_client::{Connection, QueueHandle};
 
 use crate::frame::FrameInput;
 use crate::handlers::surface_id_by_wl;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -33,7 +33,7 @@ impl CompositorHandler for HostState {
         let Some(host_surface) = self.surfaces.get_mut(&id) else {
             return;
         };
-        host_surface.rescale(Scale::from_integer_factor(new_factor));
+        host_surface.rescale(Scale120::from_integer_factor(new_factor));
         let action = host_surface.step(FrameInput::Invalidate);
         self.timers.push(TimerRequest::Watchdog {
             id,

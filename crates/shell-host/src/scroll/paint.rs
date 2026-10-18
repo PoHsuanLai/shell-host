@@ -83,7 +83,7 @@ mod tests {
     use crate::gpu::shm::paint_cpu;
     use crate::prepaint::Prepaint;
     use crate::root::HostRoot;
-    use crate::scale::{Scale, Size};
+    use crate::scale::{Scale120, Size};
     use blitz_kit::fonts::SharedFonts;
     use blitz_kit::net::LocalNet;
 
@@ -95,7 +95,7 @@ mod tests {
     fn pixel(
         thumbs: Vec<ThumbPaint>,
         scheme: ColorScheme,
-        scale: Scale,
+        scale: Scale120,
         at: (u32, u32),
     ) -> [u8; 4] {
         let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
@@ -104,7 +104,7 @@ mod tests {
             shell: Arc::new(HostShellProvider::new(ping, SharedSelection::default())),
             fonts: SharedFonts::system().for_document(),
             net: Arc::new(LocalNet::default()),
-            viewport: Viewport::new(side as u32, side as u32, scale.as_f64() as f32, scheme),
+            viewport: Viewport::new(side as u32, side as u32, scale.factor() as f32, scheme),
             prepaint: Prepaint::None,
         };
         let mut doc = SurfaceDocument::build(HostRoot::new(white), env);
@@ -139,14 +139,14 @@ mod tests {
     fn the_thumb_is_painted_over_the_document_where_the_indicator_put_it() {
         let light = ColorScheme::Light;
         // 0.4 black over white: 153.
-        let on = pixel(vec![thumb(1.0)], light, Scale::ONE, (94, 20));
+        let on = pixel(vec![thumb(1.0)], light, Scale120::ONE, (94, 20));
         assert!((150..=156).contains(&on[0]), "{on:?}");
-        let beside = pixel(vec![thumb(1.0)], light, Scale::ONE, (80, 20));
+        let beside = pixel(vec![thumb(1.0)], light, Scale120::ONE, (80, 20));
         assert_eq!(beside, [255, 255, 255, 255]);
-        let faded = pixel(vec![thumb(0.0)], light, Scale::ONE, (94, 20));
+        let faded = pixel(vec![thumb(0.0)], light, Scale120::ONE, (94, 20));
         assert_eq!(faded, [255, 255, 255, 255], "opacity 0 paints nothing");
         // At 2x the same logical point is twice as far into the buffer.
-        let scaled = pixel(vec![thumb(1.0)], light, Scale(240), (188, 40));
+        let scaled = pixel(vec![thumb(1.0)], light, Scale120(240), (188, 40));
         assert!((150..=156).contains(&scaled[0]), "{scaled:?}");
     }
 }

@@ -74,7 +74,7 @@ pub(crate) fn paint_document(
         paint_scene(
             &mut painter,
             doc,
-            target.scale.as_f64(),
+            target.scale.factor(),
             paint_width,
             paint_height,
             x,
@@ -84,7 +84,7 @@ pub(crate) fn paint_document(
             &mut painter,
             &overlay.thumbs,
             overlay.scheme,
-            target.scale.as_f64(),
+            target.scale.factor(),
             (f64::from(x), f64::from(y)),
         );
     }

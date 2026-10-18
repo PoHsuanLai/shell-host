@@ -9,10 +9,10 @@
 //! See FINDINGS F43.
 
 use crate::live::Live;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 
 /// One surface's current scale, and the waiters for its next change.
-pub(crate) type LiveScale = Live<Scale>;
+pub(crate) type LiveScale = Live<Scale120>;
 
 #[cfg(test)]
 mod tests {
@@ -37,23 +37,23 @@ mod tests {
 
     #[test]
     fn only_a_different_scale_is_a_change_and_wakes() {
-        let live = LiveScale::new(Scale::ONE);
+        let live = LiveScale::new(Scale120::ONE);
         let count = Arc::new(Count::default());
         let waker = Waker::from(Arc::clone(&count));
         let mut cx = Context::from_waker(&waker);
         let mut next = std::pin::pin!(live.changed_after(live.changes()));
         assert_eq!(next.as_mut().poll(&mut cx), Poll::Pending);
 
-        assert_eq!(live.publish(Scale::ONE), Published::Unchanged);
+        assert_eq!(live.publish(Scale120::ONE), Published::Unchanged);
         assert_eq!(
             count.0.load(Ordering::SeqCst),
             0,
             "the same scale wakes nobody"
         );
 
-        assert_eq!(live.publish(Scale(180)), Published::Changed);
+        assert_eq!(live.publish(Scale120(180)), Published::Changed);
         assert_eq!(count.0.load(Ordering::SeqCst), 1);
-        assert_eq!(next.poll(&mut cx), Poll::Ready((1, Scale(180))));
-        assert_eq!(live.get(), Scale(180));
+        assert_eq!(next.poll(&mut cx), Poll::Ready((1, Scale120(180))));
+        assert_eq!(live.get(), Scale120(180));
     }
 }

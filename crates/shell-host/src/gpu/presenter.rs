@@ -16,7 +16,7 @@ use crate::gpu::shm::paint_cpu;
 use crate::gpu::swapchain::pixel_extent;
 use crate::gpu::swapchain::{Swapchain, alpha_mode_of, present_mode_of};
 use crate::region::Rect;
-use crate::scale::{Scale, Size};
+use crate::scale::{Scale120, Size};
 use crate::scroll::indicator::ThumbPaint;
 use crate::stats::{AlphaMode, PresentMode};
 
@@ -44,7 +44,7 @@ pub(crate) struct FrameTarget {
     /// Where in the buffer the document paints, physical pixels: the whole buffer, or less a
     /// client-decorated toplevel's resize band (`csd::content_px`).
     pub content: Rect,
-    pub scale: Scale,
+    pub scale: Scale120,
     /// Seconds on the host clock.
     pub time: f64,
 }
@@ -52,7 +52,7 @@ pub(crate) struct FrameTarget {
 impl FrameTarget {
     /// A target whose document covers the whole buffer.
     #[cfg(test)]
-    pub(crate) fn whole(buffer: Size, scale: Scale, time: f64) -> FrameTarget {
+    pub(crate) fn whole(buffer: Size, scale: Scale120, time: f64) -> FrameTarget {
         FrameTarget {
             buffer,
             content: Rect {

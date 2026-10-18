@@ -24,7 +24,7 @@ use crate::modality::InputModality;
 use crate::modifiers::Modifiers;
 use crate::msg::{Request, SurfaceOp};
 use crate::role::RoleKind;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::scroll::watch::ScrollBoard;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::tick::FrameTicks;
@@ -114,7 +114,7 @@ impl SurfaceHandle {
 
     /// This surface's scale right now, without subscribing to changes: for an event handler
     /// or a task. A component that draws for the scale reads [`use_surface_scale`] instead.
-    pub fn current_scale(&self) -> Scale {
+    pub fn current_scale(&self) -> Scale120 {
         self.scale.get()
     }
 

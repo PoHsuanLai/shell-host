@@ -14,7 +14,7 @@ use crate::gpu::swapchain::{
     alpha_mode_of, choose_alpha, choose_present, pixel_extent, present_mode_of,
 };
 use crate::stats::{AlphaMode, PresentMode};
-use crate::{AdapterPref, Scale, Size};
+use crate::{AdapterPref, Scale120, Size};
 use anyrender::{PaintRef, PaintScene as _, RenderContext, ResourceId, Scene};
 use blitz_dom::node::ComputedStyles;
 use blitz_dom::{Document as _, DocumentConfig, Widget};
@@ -166,11 +166,11 @@ fn gpu() -> MutexGuard<'static, GpuContext> {
     .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn document(app: fn() -> Element, buffer: Size, scale: Scale) -> DioxusDocument {
+fn document(app: fn() -> Element, buffer: Size, scale: Scale120) -> DioxusDocument {
     let viewport = Viewport::new(
         buffer.width as u32,
         buffer.height as u32,
-        scale.as_f64() as f32,
+        scale.factor() as f32,
         ColorScheme::Light,
     );
     let mut doc = DioxusDocument::new(
@@ -189,7 +189,7 @@ fn document(app: fn() -> Element, buffer: Size, scale: Scale) -> DioxusDocument 
     doc
 }
 
-fn render(doc: &mut DioxusDocument, buffer: Size, scale: Scale) -> image::RgbaImage {
+fn render(doc: &mut DioxusDocument, buffer: Size, scale: Scale120) -> image::RgbaImage {
     let mut base = doc.inner.borrow_mut();
     base.resolve(0.0);
     let target = FrameTarget::whole(buffer, scale, 0.0);
@@ -229,9 +229,9 @@ fn a_document_renders_to_a_texture_at_each_scale_and_reads_back() {
     ];
     // scale, buffer, the row probed, probes (x, expected). At 1.5x the 20 logical px bar is
     // exactly 30 physical px.
-    let cases: &[(Scale, Size, u32, &[Probe])] = &[
+    let cases: &[(Scale120, Size, u32, &[Probe])] = &[
         (
-            Scale::ONE,
+            Scale120::ONE,
             Size {
                 width: 64,
                 height: 16,
@@ -240,7 +240,7 @@ fn a_document_renders_to_a_texture_at_each_scale_and_reads_back() {
             ONE_X,
         ),
         (
-            Scale(180),
+            Scale120(180),
             Size {
                 width: 96,
                 height: 24,
@@ -379,9 +379,9 @@ fn a_closed_documents_widget_textures_leave_the_shared_map() {
         width: 32,
         height: 16,
     };
-    let mut doc = document(swatch_app, buffer, Scale::ONE);
+    let mut doc = document(swatch_app, buffer, Scale120::ONE);
     let before = gpu().widgets.textures.len();
-    render(&mut doc, buffer, Scale::ONE);
+    render(&mut doc, buffer, Scale120::ONE);
     assert_eq!(
         gpu().widgets.textures.len(),
         before + 1,
@@ -404,10 +404,10 @@ fn a_widget_texture_is_registered_once_and_drawn_every_frame() {
         width: 32,
         height: 16,
     };
-    let mut doc = document(swatch_app, buffer, Scale::ONE);
+    let mut doc = document(swatch_app, buffer, Scale120::ONE);
     let before = SWATCH_REGISTRATIONS.load(Ordering::SeqCst);
     for frame in 0..3 {
-        let image = render(&mut doc, buffer, Scale::ONE);
+        let image = render(&mut doc, buffer, Scale120::ONE);
         let inside = pixel(&image, 8, 8);
         let outside = pixel(&image, 24, 8);
         assert!(
@@ -437,18 +437,18 @@ fn every_render_shares_one_device() {
         devices_created()
     };
     render(
-        &mut document(half_pink, buffer, Scale::ONE),
+        &mut document(half_pink, buffer, Scale120::ONE),
         buffer,
-        Scale::ONE,
+        Scale120::ONE,
     );
     let other = Size {
         width: 40,
         height: 12,
     };
     render(
-        &mut document(half_pink, other, Scale(180)),
+        &mut document(half_pink, other, Scale120(180)),
         other,
-        Scale(180),
+        Scale120(180),
     );
     assert_eq!(before, 1, "one device for the whole process");
     assert_eq!(devices_created(), before, "rendering never creates another");

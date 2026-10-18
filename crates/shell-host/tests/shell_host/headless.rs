@@ -12,7 +12,7 @@ use blitz_traits::shell::ColorScheme;
 use dioxus::core::Element;
 use dioxus::prelude::*;
 use image::RgbaImage;
-use shell_host::Scale;
+use shell_host::Scale120;
 use shell_host::headless::{Fonts, HeadlessConfig, PixelSize, render_png};
 
 const SIZE: (u32, u32) = (240, 160);
@@ -74,7 +74,7 @@ fn the_keyframe_box_moves_between_timestamps() {
         scene,
         HeadlessConfig {
             size: PixelSize::new(SIZE.0, SIZE.1),
-            scale: Scale::ONE,
+            scale: Scale120::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0, 0.1],
             fonts: Fonts::System,
@@ -117,7 +117,7 @@ fn the_first_frame_paints_raised_boxes_where_layout_put_them() {
         raised_tiles,
         HeadlessConfig {
             size: PixelSize::new(100, 120),
-            scale: Scale::ONE,
+            scale: Scale120::ONE,
             color_scheme: ColorScheme::Light,
             at_seconds: vec![0.0],
             fonts: Fonts::System,

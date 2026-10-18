@@ -7,7 +7,7 @@ use dioxus::signals::{ReadSignal, WritableExt};
 use super::SurfaceHandle;
 use crate::modality::InputModality;
 use crate::modifiers::Modifiers;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use crate::scroll::wheel::WheelEvent;
 use crate::tick::FrameTick;
 use crate::toplevel::ToplevelState;
@@ -33,17 +33,17 @@ pub fn use_frame_tick() -> ReadSignal<FrameTick> {
     ReadSignal::from(latest)
 }
 
-/// The scale of the surface this component renders in, in 120ths (`Scale(180)` is 1.5x), as
+/// The scale of the surface this component renders in, in 120ths (`Scale120(180)` is 1.5x), as
 /// live state: the component re-renders when the compositor changes the surface's preferred
 /// scale (`wp_fractional_scale_v1`, else `preferred_buffer_scale` or the output's integer
 /// scale). Its first value is the scale the host knew when the component first rendered: the
 /// host publishes a new scale before it polls documents, so the frame that first shows a scale
-/// was rendered by a tree that had already read it. A surface starts at `Scale::ONE` until the
+/// was rendered by a tree that had already read it. A surface starts at `Scale120::ONE` until the
 /// compositor says otherwise.
 ///
 /// For a design system's device-pixel snapping (quire's `HostScale`, or `Ds { scale }`); the
 /// layout half of snapping is `HostConfig::prepaint`.
-pub fn use_surface_scale() -> ReadSignal<Scale> {
+pub fn use_surface_scale() -> ReadSignal<Scale120> {
     let live = use_surface().scale;
     let mut latest = use_signal(|| live.get());
     use_hook(move || {

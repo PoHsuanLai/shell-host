@@ -123,7 +123,7 @@ pub use pulse::Pulse;
 pub use region::{ElementId, ElementRegion, Px, Rect, RegionSpec, RoundedRect};
 pub use root::HostRoot;
 pub use route::WaylandRoute;
-pub use scale::{Scale, Size, buffer_size};
+pub use scale::{Scale120, Size, buffer_size};
 pub use scroll::config::{
     NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs,
     ScrollPx, ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollTrackClick, ScrollbarSettings,

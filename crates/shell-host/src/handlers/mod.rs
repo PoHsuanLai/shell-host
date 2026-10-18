@@ -30,7 +30,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use crate::event::{CloseReason, HostEvent};
 use crate::frame::TimerCmd;
 use crate::id::SurfaceId;
-use crate::scale::{BufferMapping, Scale, Size, buffer_mapping};
+use crate::scale::{BufferMapping, Scale120, Size, buffer_mapping};
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -95,7 +95,7 @@ pub(crate) fn follow_buffer_scale(
     state: &HostState,
     wl_surface: &WlSurface,
     logical: Size,
-    scale: Scale,
+    scale: Scale120,
 ) {
     if !logical.has_area() {
         return;

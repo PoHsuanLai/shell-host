@@ -18,7 +18,7 @@ use wayland_protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1:
 use wayland_protocols::wp::viewporter::client::wp_viewport::{self, WpViewport};
 use wayland_protocols::wp::viewporter::client::wp_viewporter::{self, WpViewporter};
 
-use crate::scale::{Scale, Size};
+use crate::scale::{Scale120, Size};
 
 /// State for `wp_fractional_scale_manager_v1` and `wp_viewporter`: the two bound managers, and
 /// the per-surface objects and last-reported scale created against them.
@@ -26,7 +26,7 @@ use crate::scale::{Scale, Size};
 pub(crate) struct Fractional {
     scale_manager: WpFractionalScaleManagerV1,
     viewporter: WpViewporter,
-    preferred: HashMap<ObjectId, Scale>,
+    preferred: HashMap<ObjectId, Scale120>,
     scale_of: HashMap<ObjectId, WpFractionalScaleV1>,
     viewport_of: HashMap<ObjectId, WpViewport>,
 }
@@ -83,7 +83,7 @@ impl Fractional {
     }
 
     /// The last `preferred_scale` reported for `surface`, or `None` before the first event.
-    pub(crate) fn preferred_scale(&self, surface: &WlSurface) -> Option<Scale> {
+    pub(crate) fn preferred_scale(&self, surface: &WlSurface) -> Option<Scale120> {
         self.preferred.get(&surface.id()).copied()
     }
 
@@ -144,7 +144,7 @@ where
         if let Some(surface_id) = surface_id {
             fractional
                 .preferred
-                .insert(surface_id, Scale::from_wire(scale));
+                .insert(surface_id, Scale120::from_wire(scale));
         }
     }
 }

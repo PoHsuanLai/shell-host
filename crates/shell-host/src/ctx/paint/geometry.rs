@@ -5,7 +5,7 @@ use blitz_traits::shell::{ColorScheme, Viewport};
 use crate::csd::{Inset, content_px};
 use crate::frame::FrameInput;
 use crate::id::SurfaceId;
-use crate::scale::{Scale, Size, buffer_size};
+use crate::scale::{Scale120, Size, buffer_size};
 use crate::state::HostState;
 use crate::surface::Geometry;
 
@@ -51,17 +51,17 @@ pub(super) fn sync_geometry(state: &mut HostState, id: SurfaceId) {
 pub(in crate::ctx) fn viewport(
     logical: Size,
     inset: Inset,
-    scale: Scale,
+    scale: Scale120,
     scheme: ColorScheme,
 ) -> Viewport {
     let content = content_px(buffer_size(logical, scale), inset, scale);
     let px = |v: i32| u32::try_from(v).unwrap_or(0).max(1);
     // Blitz takes the scale as f32; 120ths are exact in it.
-    let factor = scale.as_f64() as f32;
+    let factor = scale.factor() as f32;
     Viewport::new(px(content.width), px(content.height), factor, scheme)
 }
 
 /// `wl_surface.set_buffer_scale` for a compositor without fractional-scale: whole numbers only.
-fn integer_scale(scale: Scale) -> i32 {
+fn integer_scale(scale: Scale120) -> i32 {
     i32::try_from((scale.0 / 120).max(1)).unwrap_or(1)
 }

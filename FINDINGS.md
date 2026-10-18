@@ -149,9 +149,9 @@ surface with `html { background }` for the same reason (F65).
 
 ### F43. The scale reaches the document as live state; a pre-paint hook runs after the frame's one resolve
 
-`use_surface_scale() -> ReadSignal<Scale>` and `SurfaceHandle::current_scale()`: 120ths, from
+`use_surface_scale() -> ReadSignal<Scale120>` and `SurfaceHandle::current_scale()`: 120ths, from
 `wp_fractional_scale_v1.preferred_scale`, else `preferred_buffer_scale` / the output's integer
-scale. A surface starts at `Scale::ONE`, a popup at its parent's. `HostConfig::prepaint`
+scale. A surface starts at `Scale120::ONE`, a popup at its parent's. `HostConfig::prepaint`
 (`Prepaint::Hook`) is per host, not per document, so a popup opened from a component gets it
 too; sill passes quire's device-pixel snapping.
 
@@ -403,7 +403,7 @@ cannot be written by accident on an axis that is not meant to stretch.
 
 ### F11. Derives: serde only where a type is data all the way down
 
-Nothing in shell-host is persisted, and the geometry types (`RegionSpec`, `PopupConfig`, `Scale`,
+Nothing in shell-host is persisted, and the geometry types (`RegionSpec`, `PopupConfig`, `Scale120`,
 `Size`, `Rect`) have no serde, so no type embedding them derives it. Serde is on `HostConfig` (a
 shell may read it from a file), the ids, and `FrameStats` with its parts (printed as JSON by
 `debug-inject`). Types holding Wayland objects, wgpu objects or a `HostRoot` derive `Debug` only (by
@@ -848,7 +848,7 @@ never allowed to wedge the single event-loop thread:
 | What | Bound | Where |
 |---|---|---|
 | Surface width or height from the compositor, logical or buffer | 8192 px (wgpu's default 2D texture limit, which the device is opened with) | `scale::MAX_SURFACE_EXTENT`, `wire_extent`, `buffer_size`, `gpu::swapchain::pixel_extent` |
-| Preferred scale | 0.25x to 10x; whole factors 1 to 10 | `Scale::from_wire`, `Scale::from_integer_factor` |
+| Preferred scale | 0.25x to 10x; whole factors 1 to 10 | `Scale120::from_wire`, `Scale120::from_integer_factor` |
 | A side left at 0 by a configure | keeps the old size; unconfigured until the surface has an area; no viewport call | `HostSurface::configure`, `follow_buffer_scale`, `Fractional::set_destination` |
 | Key repeat rate | 1000 per second | `handlers/keyboard/decide` |
 | Pipes open for other clients to read | 6 for the selection and 2 for a drag, each 10 s | `drag::pipe::{MAX_SELECTION_WRITES, MAX_DRAG_WRITES, WRITE_DEADLINE}` |

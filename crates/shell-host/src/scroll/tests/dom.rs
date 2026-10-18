@@ -299,14 +299,16 @@ fn item_11_page_down_over_the_page_scrolls_it() {
     let mut bench = Bench::new();
     let used = {
         let mut base = bench.doc.base_mut();
-        bench.scroll.key(
-            &mut base,
-            ScrollKey::Page(Dir::Pos),
-            Repeat::First,
-            Some(OVER_PAGE),
-            bench.now,
-        )
-        .0
+        bench
+            .scroll
+            .key(
+                &mut base,
+                ScrollKey::Page(Dir::Pos),
+                Repeat::First,
+                Some(OVER_PAGE),
+                bench.now,
+            )
+            .0
     };
     assert_eq!(used, Claim::Took);
     bench.settle(&[Scroller::Viewport]);

@@ -23,7 +23,7 @@ use dioxus_native_dom::DioxusDocument;
 use image::RgbaImage;
 
 use crate::dom::document::BODY_RESET;
-use crate::scale::Scale;
+use crate::scale::Scale120;
 use blitz_kit::fonts::{FontFaces, SharedFonts};
 
 /// `DioxusDocument::poll` is driven until it reports no further pending work, capped so a
@@ -61,7 +61,7 @@ pub enum Fonts {
 #[derive(Debug, Clone)]
 pub struct HeadlessConfig {
     pub size: PixelSize,
-    pub scale: Scale,
+    pub scale: Scale120,
     pub color_scheme: ColorScheme,
     /// One output image per timestamp, fed to `BaseDocument::resolve` in order.
     pub at_seconds: Vec<f64>,
@@ -90,7 +90,7 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
         fonts,
     } = config;
 
-    let viewport = Viewport::new(size.width, size.height, scale.as_f64() as f32, color_scheme);
+    let viewport = Viewport::new(size.width, size.height, scale.factor() as f32, color_scheme);
     let mut doc = DioxusDocument::new(
         VirtualDom::new(root),
         DocumentConfig {
@@ -114,7 +114,7 @@ pub fn render_png(root: fn() -> Element, config: HeadlessConfig) -> Vec<RgbaImag
         .collect()
 }
 
-fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale) -> RgbaImage {
+fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale120) -> RgbaImage {
     let mut inner = doc.inner.borrow_mut();
     // The live path's order: the root's scheme first, so a switch rebuilds every box.
     crate::dom::scheme::follow_root(&mut inner);
@@ -127,7 +127,7 @@ fn render_frame(doc: &mut DioxusDocument, t: f64, size: PixelSize, scale: Scale)
             paint_scene(
                 painter,
                 &mut inner,
-                scale.as_f64(),
+                scale.factor(),
                 size.width,
                 size.height,
                 0,

@@ -121,7 +121,7 @@ fn record_toplevel_configure(
     state: &mut HostState,
     id: SurfaceId,
     configure: &WindowConfigure,
-) -> Option<(Size, scale::Scale)> {
+) -> Option<(Size, scale::Scale120)> {
     let host_surface = state.surfaces.get_mut(&id)?;
     let frame_now = host_surface.document_size();
     let Role::Toplevel {
@@ -160,7 +160,7 @@ fn record_popup_configure(
     state: &mut HostState,
     id: SurfaceId,
     config: &PopupConfigure,
-) -> Option<(Size, scale::Scale)> {
+) -> Option<(Size, scale::Scale120)> {
     let host_surface = state.surfaces.get_mut(&id)?;
     if !matches!(host_surface.role, Role::Popup { .. }) {
         return None;

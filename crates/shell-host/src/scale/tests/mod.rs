@@ -17,7 +17,7 @@ const BUFFER_CASES: &[(Px, u32, Px)] = &[
 #[test]
 fn buffer_size_matches_the_table() {
     for &(logical, wire, expected) in BUFFER_CASES {
-        let got = logical_to_physical(logical, Scale::from_wire(wire));
+        let got = logical_to_physical(logical, Scale120::from_wire(wire));
         assert_eq!(got, expected, "logical={logical} wire={wire}");
     }
 }
@@ -28,29 +28,29 @@ fn the_buffer_is_mapped_by_viewport_once_a_fractional_scale_is_preferred() {
         width: 200,
         height: 32,
     };
-    let cases: &[(&str, Option<Scale>, Scale, BufferMapping)] = &[
+    let cases: &[(&str, Option<Scale120>, Scale120, BufferMapping)] = &[
         (
             "a preferred fractional scale uses the viewport",
-            Some(Scale(180)),
-            Scale(180),
+            Some(Scale120(180)),
+            Scale120(180),
             BufferMapping::Viewport(logical),
         ),
         (
             "no fractional scale yet rounds the scale up to whole",
             None,
-            Scale(180),
+            Scale120(180),
             BufferMapping::Integer(2),
         ),
         (
             "no fractional scale at 1x is 1",
             None,
-            Scale::ONE,
+            Scale120::ONE,
             BufferMapping::Integer(1),
         ),
         (
             "a scale under 1x never maps to 0",
             None,
-            Scale(30),
+            Scale120(30),
             BufferMapping::Integer(1),
         ),
     ];

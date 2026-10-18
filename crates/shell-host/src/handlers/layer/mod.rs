@@ -16,7 +16,7 @@ use crate::frame::FrameInput;
 use crate::handlers::{close_surface_and_popups, follow_buffer_scale, surface_id_by_wl};
 use crate::id::SurfaceId;
 use crate::role::Role;
-use crate::scale::{self, Scale, Size};
+use crate::scale::{self, Scale120, Size};
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 
@@ -58,7 +58,7 @@ pub(crate) fn follow_configure(
     id: SurfaceId,
     wl_surface: &WlSurface,
     logical: Size,
-    surface_scale: Scale,
+    surface_scale: Scale120,
 ) {
     let buffer = scale::buffer_size(logical, surface_scale);
     follow_buffer_scale(state, wl_surface, logical, surface_scale);
@@ -88,7 +88,7 @@ fn record_configure(
     state: &mut HostState,
     id: SurfaceId,
     configure: &LayerSurfaceConfigure,
-) -> Option<(Size, Scale)> {
+) -> Option<(Size, Scale120)> {
     let host_surface = state.surfaces.get_mut(&id)?;
     let Role::Layer { config, .. } = &host_surface.role else {
         return None;
