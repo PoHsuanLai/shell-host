@@ -84,7 +84,7 @@ pub(crate) fn first_present(host_adapter: &wgpu::Adapter) -> Result<()> {
     }
     surface.destroy();
     let _ = conn.flush();
-    retain(instance, conn.clone());
+    retain(instance, conn);
     result.map_err(|reason| HostError::AdapterRejected {
         adapter: label,
         reason,
@@ -105,7 +105,7 @@ fn retain(instance: wgpu::Instance, conn: Connection) {
     // a list of things to keep alive.
     let mut kept = RETAINED
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     kept.push((instance, conn));
 }
 

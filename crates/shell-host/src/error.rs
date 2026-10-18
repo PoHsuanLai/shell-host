@@ -70,12 +70,14 @@ impl HostError {
     /// The decision this error carries.
     pub fn recovery(&self) -> Recovery {
         match self {
-            HostError::Connect(_) | HostError::MissingGlobal { .. } | HostError::Protocol(_) => {
-                Recovery::Fatal
+            HostError::Connect(_)
+            | HostError::MissingGlobal { .. }
+            | HostError::Protocol(_)
+            | HostError::EventLoop(_)
+            | HostError::GaveUp(_) => Recovery::Fatal,
+            HostError::NoAdapter(_) | HostError::AdapterRejected { .. } | HostError::Surface(_) => {
+                Recovery::Fallback
             }
-            HostError::EventLoop(_) | HostError::GaveUp(_) => Recovery::Fatal,
-            HostError::NoAdapter(_) | HostError::AdapterRejected { .. } => Recovery::Fallback,
-            HostError::Surface(_) => Recovery::Fallback,
             HostError::Unsupported { .. } | HostError::NoSurface(_) | HostError::HostGone => {
                 Recovery::Degrade
             }

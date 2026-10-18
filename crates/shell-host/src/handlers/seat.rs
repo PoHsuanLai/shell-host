@@ -142,11 +142,12 @@ impl HostState {
     ) {
         match capability {
             Capability::Pointer => {
-                let change = capability_change(announcement, Held::of(&self.input.pointer));
+                let change = capability_change(announcement, Held::of(self.input.pointer.as_ref()));
                 self.change_pointer(change, qh, seat);
             }
             Capability::Keyboard => {
-                let change = capability_change(announcement, Held::of(&self.input.keyboard));
+                let change =
+                    capability_change(announcement, Held::of(self.input.keyboard.as_ref()));
                 self.change_keyboard(change, qh, seat);
             }
             _ => {}

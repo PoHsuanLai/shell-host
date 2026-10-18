@@ -60,7 +60,7 @@ impl DataDeviceHandler for HostState {
     ) {
         let offer = data_device
             .data::<DataDeviceData>()
-            .and_then(|data| data.selection_offer());
+            .and_then(DataDeviceData::selection_offer);
         self.clipboard.follow(offer);
     }
 

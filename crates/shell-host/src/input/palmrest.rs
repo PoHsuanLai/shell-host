@@ -304,10 +304,11 @@ impl Palmrest {
         match (&self.link, over) {
             (Link::Down, Over::Ours) => self.retry = Retry::Due,
             (Link::Down, Over::NotOurs) => {}
-            (Link::Up(_), _) if changed => {
-                self.send(&ToDaemon::PointerOver { over });
+            (Link::Up(_), _) => {
+                if changed {
+                    self.send(&ToDaemon::PointerOver { over });
+                }
             }
-            (Link::Up(_), _) => {}
         }
     }
 

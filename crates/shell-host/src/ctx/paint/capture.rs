@@ -20,8 +20,9 @@ pub(crate) fn capture(state: &mut HostState, id: SurfaceId) -> Result<image::Rgb
         scale: surface.scale,
         time,
     };
-    let presenter = surface.presenter.as_mut().ok_or(HostError::Render(
-        "the surface has not been presented yet".into(),
-    ))?;
+    let presenter = surface
+        .presenter
+        .as_mut()
+        .ok_or_else(|| HostError::Render("the surface has not been presented yet".into()))?;
     presenter.capture(state.gpu.as_mut(), &mut surface.document, target)
 }

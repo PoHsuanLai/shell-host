@@ -29,5 +29,5 @@ fn root_element(doc: &BaseDocument) -> Option<NodeId> {
         .children
         .iter()
         .copied()
-        .find(|&id| doc.get_node(id).is_some_and(|node| node.is_element()))
+        .find(|&id| doc.get_node(id).is_some_and(blitz_dom::Node::is_element))
 }

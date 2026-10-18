@@ -43,7 +43,12 @@ impl ActivationHandler for HostState {
         // The receiver may already be gone (the caller dropped the future awaiting it); a
         // failed send just means nobody is listening any more, which is not this handler's
         // problem to report.
-        if let Some(reply) = data.reply.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        if let Some(reply) = data
+            .reply
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+        {
             let _ = reply.send(Some(token));
         }
     }

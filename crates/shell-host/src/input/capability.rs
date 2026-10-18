@@ -28,7 +28,7 @@ pub(crate) enum Held {
 
 impl Held {
     /// `Held::Object` for `Some`.
-    pub(crate) fn of<T>(object: &Option<T>) -> Held {
+    pub(crate) fn of<T>(object: Option<&T>) -> Held {
         match object {
             Some(_) => Held::Object,
             None => Held::Nothing,
