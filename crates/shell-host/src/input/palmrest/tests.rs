@@ -105,7 +105,7 @@ fn a_fake_daemon_hears_pointer_over_and_its_events_are_read() {
         3,
         "the junk datagram is skipped: {messages:?}"
     );
-    assert!(matches!(messages[0], ToHost::Hello { version: 2, .. }));
+    assert!(matches!(messages[0], ToHost::Hello { version: 3, .. }));
     assert_eq!(
         messages[1],
         ToHost::Touches {
