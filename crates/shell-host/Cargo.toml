@@ -12,11 +12,11 @@ publish.workspace = true
 # Wayland
 smithay-client-toolkit = { workspace = true }
 wayland-client = { workspace = true }
+# Named for its `client_system` feature: `Connection::backend().display_ptr()` (gpu::raw_handle).
 wayland-backend = { workspace = true }
 wayland-protocols = { workspace = true }
 calloop = { workspace = true }
 calloop-wayland-source = { workspace = true }
-xkbcommon = { workspace = true }
 raw-window-handle = { workspace = true }
 keyboard-types = { workspace = true }
 cursor-icon = { workspace = true }
@@ -36,7 +36,6 @@ anyrender_vello_cpu = { workspace = true }
 vello_hybrid = { workspace = true }
 wgpu = { workspace = true }
 wgpu_context = { workspace = true }
-parley = { workspace = true }
 image = { workspace = true }
 # Common
 tokio = { workspace = true }
