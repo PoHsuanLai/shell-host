@@ -20,13 +20,6 @@ use blitz_kit::scroll::engine::{Engine, Motion, ScrollIn};
 use blitz_kit::scroll::geom::ScrollAxis;
 use blitz_kit::scroll::velocity::SampleTime;
 
-/// Whether a key reached the engine or belongs to the document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum KeyUse {
-    Scrolled(Moved),
-    Passed,
-}
-
 /// Who started what the engine is doing, for the double-scroll rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Driver {

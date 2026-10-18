@@ -19,9 +19,9 @@ use crate::input::key::{self, Composing, Repeat};
 use crate::input::modifiers::modifiers_from;
 use crate::modality::{Stroke, key_kind};
 use crate::modifiers::Modifiers;
-use crate::scroll::surface::KeyUse;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
+use blitz_kit::scroll::driver::Claim;
 use decide::{RepeatAfter, RepeatTiming};
 
 impl KeyboardHandler for HostState {
@@ -204,7 +204,7 @@ impl HostState {
     /// focus not in an editable, a form control or a `data-keys="capture"` element) never
     /// reaches the document; anything else is dispatched.
     pub(crate) fn key_down(&mut self, id: SurfaceId, event: BlitzKeyEvent, raw: u32) {
-        if self.scroll_key_down(id, &event, raw) == KeyUse::Passed {
+        if self.scroll_key_down(id, &event, raw) == Claim::Left {
             self.dispatch_key(id, event);
         }
     }
@@ -212,7 +212,7 @@ impl HostState {
     /// A release for surface `id`: one whose press went to the scroll engine goes there too
     /// (a held arrow's spring starts), anything else is dispatched.
     pub(crate) fn key_up(&mut self, id: SurfaceId, event: BlitzKeyEvent, raw: u32) {
-        if self.scroll_key_up(id, raw) == KeyUse::Passed {
+        if self.scroll_key_up(id, raw) == Claim::Left {
             self.dispatch_key(id, event);
         }
     }

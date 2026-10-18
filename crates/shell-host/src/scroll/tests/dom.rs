@@ -16,11 +16,12 @@ use crate::input::pointer::PointerPos;
 use crate::region::ElementId;
 use crate::root::HostRoot;
 use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
-use crate::scroll::surface::{KeyUse, PalmScroll, SurfaceScroll};
+use crate::scroll::surface::{PalmScroll, SurfaceScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
 use crate::tick::HostInstant;
 use blitz_kit::scroll::doc::{self as dom, KeyFocus, WheelRoute};
+use blitz_kit::scroll::driver::Claim;
 use blitz_kit::scroll::engine::{Engine, Motion};
 use blitz_kit::scroll::geom::{Dir, Elastic, ScrollAxis, Scroller, ViewPoint};
 use blitz_kit::scroll::keys::ScrollKey;
@@ -287,8 +288,9 @@ fn item_11_keys_in_a_text_input_do_not_scroll() {
         bench
             .scroll
             .key(&mut base, key, Repeat::First, Some(OVER_PAGE), bench.now)
+            .0
     };
-    assert_eq!(used, KeyUse::Passed);
+    assert_eq!(used, Claim::Left);
     assert_eq!(bench.offset(Scroller::Viewport), 0.0);
 }
 
@@ -304,8 +306,9 @@ fn item_11_page_down_over_the_page_scrolls_it() {
             Some(OVER_PAGE),
             bench.now,
         )
+        .0
     };
-    assert!(matches!(used, KeyUse::Scrolled(_)));
+    assert_eq!(used, Claim::Took);
     bench.settle(&[Scroller::Viewport]);
     // A 600 px view pages by max(480, 560).
     assert_eq!(bench.offset(Scroller::Viewport), 560.0);
@@ -439,9 +442,11 @@ impl Bench {
         self.doc.base_mut().set_focus_to(node);
     }
 
-    fn press(&mut self, key: ScrollKey, at: Option<PointerPos>) -> KeyUse {
+    fn press(&mut self, key: ScrollKey, at: Option<PointerPos>) -> Claim {
         let mut base = self.doc.base_mut();
-        self.scroll.key(&mut base, key, Repeat::First, at, self.now)
+        self.scroll
+            .key(&mut base, key, Repeat::First, at, self.now)
+            .0
     }
 }
 
@@ -474,7 +479,7 @@ fn a_focused_element_that_handles_its_own_keys_keeps_the_arrows() {
         for (key_axis, dir) in keys {
             assert_eq!(
                 bench.press(ScrollKey::Line(key_axis, dir), None),
-                KeyUse::Passed,
+                Claim::Left,
                 "{name}"
             );
         }
@@ -493,18 +498,18 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     let mut bench = keyed_bench();
     let plain = bench.scroller("plain");
     let over = Some(PointerPos { x: 300.0, y: 50.0 });
-    assert!(matches!(
+    assert_eq!(
         bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), over),
-        KeyUse::Scrolled(_)
-    ));
+        Claim::Took
+    );
     bench.settle(&[plain]);
     assert_eq!(bench.offset(plain), 40.0);
     // Focused, with no listener on its path: the focused scroller, wherever the pointer is.
     bench.focus("plain");
-    assert!(matches!(
+    assert_eq!(
         bench.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), None),
-        KeyUse::Scrolled(_)
-    ));
+        Claim::Took
+    );
     bench.settle(&[plain]);
     assert_eq!(bench.offset(plain), 80.0);
     // Nothing focused and nothing scrollable under the pointer: the document's key. (Between
@@ -514,7 +519,7 @@ fn a_plain_scroller_scrolls_with_focus_on_it_or_on_nothing() {
     let mut fresh = keyed_bench();
     assert_eq!(
         fresh.press(ScrollKey::Line(ScrollAxis::Y, Dir::Pos), nowhere),
-        KeyUse::Passed
+        Claim::Left
     );
 }
 

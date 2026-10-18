@@ -4,12 +4,12 @@
 use blitz_dom::BaseDocument;
 
 use super::pointer_input::view_point;
-use super::{KeyUse, Moved, SurfaceScroll};
+use super::{Moved, SurfaceScroll};
 use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
 use crate::tick::HostInstant;
 use blitz_kit::scroll::cmd::ScrollCmd;
-use blitz_kit::scroll::driver::{KeyRepeat, KeyUse as KitKeyUse};
+use blitz_kit::scroll::driver::{Claim, KeyRepeat};
 use blitz_kit::scroll::keys::ScrollKey;
 
 /// The engine's name for a key event's repeat.
@@ -21,8 +21,9 @@ fn repeat_of(repeat: Repeat) -> KeyRepeat {
 }
 
 impl SurfaceScroll {
-    /// A scroll key went down (`Repeat::First`) or repeated. `Passed` (the document's) when
-    /// something on the focus path handles keys or nothing around the focus scrolls.
+    /// A scroll key went down (`Repeat::First`) or repeated. `Claim::Left` (the document's)
+    /// when something on the focus path handles keys or nothing around the focus scrolls; the
+    /// `Moved` is what the engine's writes did.
     pub(crate) fn key(
         &mut self,
         doc: &mut BaseDocument,
@@ -30,17 +31,14 @@ impl SurfaceScroll {
         repeat: Repeat,
         pos: Option<PointerPos>,
         now: HostInstant,
-    ) -> KeyUse {
+    ) -> (Claim, Moved) {
         let tuning = self.tuning;
         let env = tuning.at(now);
         let pointer = pos.map(view_point);
-        match self
+        let moves = self
             .scroll
-            .key(doc, key, repeat_of(repeat), pointer, env.kit)
-        {
-            KitKeyUse::Scrolled(moves) => KeyUse::Scrolled(self.applied(moves, now)),
-            KitKeyUse::Passed => KeyUse::Passed,
-        }
+            .key(doc, key, repeat_of(repeat), pointer, env.kit);
+        (moves.claim(), self.applied(moves, now))
     }
 
     /// A held scroll key was released.

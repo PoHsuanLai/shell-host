@@ -23,13 +23,14 @@ use crate::input::pointer::{self, PointerPos};
 use crate::region::Px;
 use crate::scroll::source::{AxisSource, Stop};
 use crate::scroll::suppress::{AxisKind, Driven, Verdict};
-use crate::scroll::surface::{KeyUse, Moved, PalmScroll};
+use crate::scroll::surface::{Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::wheel::{WheelContext, wheel_event};
 use crate::state::HostState;
 use crate::tick::HostInstant;
 use blitz_kit::scroll::cmd::ScrollCmd;
 use blitz_kit::scroll::doc::{self as dom, WheelRoute};
+use blitz_kit::scroll::driver::Claim;
 use blitz_kit::scroll::geom::ViewPoint;
 use blitz_kit::scroll::keys::scroll_key;
 use palmrest_protocol::ToHost;
@@ -131,57 +132,57 @@ impl HostState {
         self.after_scroll(id, moved, now);
     }
 
-    /// A key press or repeat on focused surface `id`: `KeyUse::Scrolled` when the engine took
-    /// it (the document never sees it), `Passed` otherwise.
+    /// A key press or repeat on focused surface `id`: `Claim::Took` when the engine took it
+    /// (the document never sees it), `Left` otherwise.
     pub(crate) fn scroll_key_down(
         &mut self,
         id: SurfaceId,
         event: &BlitzKeyEvent,
         raw: u32,
-    ) -> KeyUse {
+    ) -> Claim {
         let Some(key) = scroll_key(&event.key, event.modifiers) else {
-            return KeyUse::Passed;
+            return Claim::Left;
         };
         let repeat = match event.is_auto_repeating {
             true => Repeat::Repeated,
             false => Repeat::First,
         };
         if repeat == Repeat::Repeated && self.scroll_key != Some(raw) {
-            return KeyUse::Passed;
+            return Claim::Left;
         }
         let now = self.now();
         let pos = self.pointer_on(id);
         let Some(surface) = self.surfaces.get_mut(&id) else {
-            return KeyUse::Passed;
+            return Claim::Left;
         };
-        let used = {
+        let (claim, moved) = {
             let mut doc = surface.document.base_mut();
             surface.scroll.key(&mut doc, key, repeat, pos, now)
         };
-        if let KeyUse::Scrolled(moved) = used {
+        if claim == Claim::Took {
             self.scroll_key = Some(raw);
             self.after_scroll(id, moved, now);
         }
-        used
+        claim
     }
 
-    /// A key release on focused surface `id`: `KeyUse::Scrolled` when it ends a key the engine
-    /// took (a held arrow's spring starts).
-    pub(crate) fn scroll_key_up(&mut self, id: SurfaceId, raw: u32) -> KeyUse {
+    /// A key release on focused surface `id`: `Claim::Took` when it ends a key the engine took
+    /// (a held arrow's spring starts).
+    pub(crate) fn scroll_key_up(&mut self, id: SurfaceId, raw: u32) -> Claim {
         if self.scroll_key != Some(raw) {
-            return KeyUse::Passed;
+            return Claim::Left;
         }
         self.scroll_key = None;
         let now = self.now();
         let Some(surface) = self.surfaces.get_mut(&id) else {
-            return KeyUse::Passed;
+            return Claim::Left;
         };
         let moved = {
             let mut doc = surface.document.base_mut();
             surface.scroll.key_up(&mut doc, now)
         };
         self.after_scroll(id, moved, now);
-        KeyUse::Scrolled(moved)
+        Claim::Took
     }
 
     /// Where the pointer is on surface `id` in document coordinates, if it is there.
