@@ -307,9 +307,10 @@ the compositor for the acceptance scripts. Handlers become table-testable by str
    `Injected` variant.
 2. `inject/deliver.rs`: deliver through the same `HostState` method real input reaches
    (`deliver`, `key_down`, ...), never around it.
-3. `inject/command.rs`: the `DebugAction` variant and its parse arm in `parse_action`; a
+3. `inject/command.rs`: the parse arm in `parse_action` (a `DebugAction::Inject` of the new
+   `Inject`, or a new `DebugAction` variant only for a verb that is not an injection); a
    malformed line is a `CommandError`, never a panic.
-4. `inject/stdin.rs`: the mapping from `DebugAction` to `Inject` and the JSON reply line.
+4. `inject/stdin.rs`: the JSON reply line, when the verb prints one.
 5. Table test of `parse_command` (one row per verb, one per malformed form) and a delivery test
    in `tests/inject.rs` through the headless harness. The feature is `debug-inject`; nothing
    here compiles without it.
