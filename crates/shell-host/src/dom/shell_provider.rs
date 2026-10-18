@@ -63,10 +63,8 @@ pub(crate) struct HostShellProvider {
     /// Set by a `request_redraw` from any other thread; only the flush takes it, never the
     /// present, so a load that lands mid-render is painted by the next frame.
     arrived: AtomicBool,
-    cursor: Mutex<Option<CursorIcon>>,
-    /// Set whenever `set_cursor` is called, so `take_cursor` can report whether the cursor
-    /// changed since the last take (mirrors `redraw`'s take/clear pattern).
-    cursor_changed: AtomicBool,
+    /// What the document last asked of the cursor, until `take_cursor` reads it.
+    cursor: Mutex<CursorRequest>,
     ime: Mutex<ImeRequest>,
     /// The selection's text as the seat last published it (`clipboard::SharedSelection`).
     selection: SharedSelection,
@@ -83,8 +81,7 @@ impl HostShellProvider {
             host_thread: std::thread::current().id(),
             redraw: AtomicBool::new(false),
             arrived: AtomicBool::new(false),
-            cursor: Mutex::new(None),
-            cursor_changed: AtomicBool::new(false),
+            cursor: Mutex::new(CursorRequest::Unchanged),
             ime: Mutex::new(ImeRequest::default()),
             selection,
             copied: Mutex::new(None),
@@ -107,12 +104,10 @@ impl HostShellProvider {
 
     /// The cursor the document last asked for, if it changed since the last call.
     pub(crate) fn take_cursor(&self) -> CursorRequest {
-        if self.cursor_changed.swap(false, Ordering::SeqCst) {
-            let icon = *self.cursor.lock().unwrap_or_else(PoisonError::into_inner);
-            CursorRequest::Changed(icon)
-        } else {
-            CursorRequest::Unchanged
-        }
+        std::mem::replace(
+            &mut *self.cursor.lock().unwrap_or_else(PoisonError::into_inner),
+            CursorRequest::Unchanged,
+        )
     }
 
     /// Text the document copied since the last call, for the host to claim the selection with.
@@ -194,8 +189,7 @@ impl ShellProvider for HostShellProvider {
     }
 
     fn set_cursor(&self, icon: Option<CursorIcon>) {
-        *self.cursor.lock().unwrap_or_else(PoisonError::into_inner) = icon;
-        self.cursor_changed.store(true, Ordering::SeqCst);
+        *self.cursor.lock().unwrap_or_else(PoisonError::into_inner) = CursorRequest::Changed(icon);
     }
 
     fn set_ime_enabled(&self, is_enabled: bool) {
