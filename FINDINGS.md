@@ -744,7 +744,7 @@ The host connects to `/run/palmrest/events.sock` (a constant: palmrest is a syst
 2026-10-17, so `XDG_RUNTIME_DIR` plays no part) when it exists (non-blocking `SOCK_SEQPACKET` through
 `rustix`), at start, on the next pointer enter while unconnected, when the session locks while
 unconnected, and on a timer after a miss (NEW-QDH-2, below). Wire form is palmrest's, taken from its
-`palmrest-protocol` crate by path: one JSON message per packet, at most 64 KiB, `PROTOCOL_VERSION` 2,
+`palmrest-protocol` crate by path: one JSON message per packet, at most 64 KiB, `PROTOCOL_VERSION` 3,
 enums adjacently tagged, `snake_case`. A `Hello` with another version disconnects until the next enter;
 a packet over the bound is skipped. `PointerOver{Ours|NotOurs}` is sent on changes and after each
 connect.

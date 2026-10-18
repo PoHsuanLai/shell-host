@@ -5,8 +5,8 @@ use crate::lock::LockId;
 use crate::lock::machine::LockState;
 use crate::output::OutputInfo;
 
-/// What palmrest asks of the shell.
-pub use palmrest_protocol::HostAction as PalmrestAction;
+/// What palmrest asks of the shell, and its workspace steps.
+pub use palmrest_protocol::{HostAction as PalmrestAction, Workspace as PalmrestWorkspace};
 
 /// An event delivered to the closure given to `Host::run`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,8 +113,8 @@ mod tests {
             (HostEvent::Started, HostEvent::Started),
             (HostEvent::QuitAsked, HostEvent::QuitAsked),
             (
-                HostEvent::Palmrest(PalmrestAction::WorkspaceNext),
-                HostEvent::Palmrest(PalmrestAction::WorkspaceNext),
+                HostEvent::Palmrest(PalmrestAction::Workspace(PalmrestWorkspace::Next)),
+                HostEvent::Palmrest(PalmrestAction::Workspace(PalmrestWorkspace::Next)),
             ),
             (
                 HostEvent::OutputRemoved(OutputId(3)),

@@ -92,7 +92,7 @@ pub use ctx::HostCtx;
 pub use drag::outcome::{DragAction, DragOutcome, DragRefused};
 pub use drag::spec::{BadMime, DragActions, DragIcon, DragPayload, DragSpec, Mime};
 pub use error::{HostError, Recovery, Result};
-pub use event::{CloseReason, HostEvent, KeyboardFocus, PalmrestAction};
+pub use event::{CloseReason, HostEvent, KeyboardFocus, PalmrestAction, PalmrestWorkspace};
 pub use geometry::{Margin, Point};
 pub use grab::GrabRefused;
 pub use handle::{
