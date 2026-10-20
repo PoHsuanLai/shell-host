@@ -235,7 +235,7 @@ dependencies = [
 [[package]]
 name = "blitz-dom"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 dependencies = [
  "accesskit",
  "anyrender",
@@ -246,7 +246,7 @@ dependencies = [
  "color",
  "cssparser",
  "cursor-icon",
- "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341)",
+ "debug_timer 0.1.3 (git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856)",
  "euclid",
  "html-escape",
  "image",
@@ -292,7 +292,7 @@ dependencies = [
 [[package]]
 name = "blitz-paint"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 dependencies = [
  "anyrender",
  "anyrender_svg",
@@ -313,7 +313,7 @@ dependencies = [
 [[package]]
 name = "blitz-traits"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 dependencies = [
  "atomic_refcell",
  "bitflags",
@@ -732,7 +732,7 @@ checksum = "da220af51a1a335e9a930beaaef53d261e41ea9eecfb3d973a3ddae1a7284b9c"
 [[package]]
 name = "debug_timer"
 version = "0.1.3"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 
 [[package]]
 name = "derive_more"
@@ -792,8 +792,7 @@ checksum = "20de015bc89c20f4ffc7b4f849943420308365fa66f991250b5c075261990a21"
 [[package]]
 name = "dioxus-core"
 version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b232228ada232c0adc151e41ebd9ef70cc04683db097fa0dc6015979fa01722"
+source = "git+https://github.com/PoHsuanLai/dioxus?rev=a615fd9f09e272c688a45e366161c576cecf0439#a615fd9f09e272c688a45e366161c576cecf0439"
 dependencies = [
  "anyhow",
  "const_format",
@@ -827,8 +826,7 @@ dependencies = [
 [[package]]
 name = "dioxus-core-types"
 version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96007ed6cbad951dfed82d83c581aabd95bc591f351f5666d454ddbe7845b324"
+source = "git+https://github.com/PoHsuanLai/dioxus?rev=a615fd9f09e272c688a45e366161c576cecf0439#a615fd9f09e272c688a45e366161c576cecf0439"
 
 [[package]]
 name = "dioxus-document"
@@ -907,7 +905,7 @@ dependencies = [
 [[package]]
 name = "dioxus-native-dom"
 version = "0.7.0"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 dependencies = [
  "blitz-dom",
  "blitz-traits",
@@ -1297,8 +1295,7 @@ dependencies = [
 [[package]]
 name = "generational-box"
 version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8b2dc9b873cd1a8adb80aa5dcef9a8205f781a8a313d5ffb867248cb3bcb764"
+source = "git+https://github.com/PoHsuanLai/dioxus?rev=a615fd9f09e272c688a45e366161c576cecf0439#a615fd9f09e272c688a45e366161c576cecf0439"
 dependencies = [
  "parking_lot",
  "tracing",
@@ -1338,13 +1335,14 @@ dependencies = [
 [[package]]
 name = "glifo"
 version = "0.2.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
+source = "git+https://github.com/PoHsuanLai/vello?rev=84b2c9f7debed7d15f48d0ec9ea8575c16a56938#84b2c9f7debed7d15f48d0ec9ea8575c16a56938"
 dependencies = [
  "bytemuck",
  "foldhash 0.2.0",
  "hashbrown 0.17.1",
  "log",
  "peniko",
+ "png",
  "skrifa",
  "smallvec",
  "vello_common",
@@ -3301,7 +3299,7 @@ dependencies = [
 [[package]]
 name = "stylo_taffy"
 version = "0.3.0-beta.2"
-source = "git+https://github.com/PoHsuanLai/blitz?rev=4b2367921b33981189e4255184dad74c96fc3341#4b2367921b33981189e4255184dad74c96fc3341"
+source = "git+https://github.com/PoHsuanLai/blitz?rev=851fa7dda55f4086f49ec221a7ac5fcfb1493856#851fa7dda55f4086f49ec221a7ac5fcfb1493856"
 dependencies = [
  "bitflags",
  "stylo",
@@ -3334,8 +3332,7 @@ dependencies = [
 [[package]]
 name = "subsecond"
 version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d350d5788fa94d560d92269266a50efc77b036bfca6675e420b64df7b3211f37"
+source = "git+https://github.com/PoHsuanLai/dioxus?rev=a615fd9f09e272c688a45e366161c576cecf0439#a615fd9f09e272c688a45e366161c576cecf0439"
 dependencies = [
  "js-sys",
  "libc",
@@ -3353,8 +3350,7 @@ dependencies = [
 [[package]]
 name = "subsecond-types"
 version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcf32d66269b5fbb8558334e8d22b657b2f7af0dd2ef56c231541099a862e464"
+source = "git+https://github.com/PoHsuanLai/dioxus?rev=a615fd9f09e272c688a45e366161c576cecf0439#a615fd9f09e272c688a45e366161c576cecf0439"
 dependencies = [
  "serde",
 ]
@@ -3745,7 +3741,7 @@ checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 [[package]]
 name = "vello_common"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
+source = "git+https://github.com/PoHsuanLai/vello?rev=84b2c9f7debed7d15f48d0ec9ea8575c16a56938#84b2c9f7debed7d15f48d0ec9ea8575c16a56938"
 dependencies = [
  "bytemuck",
  "fearless_simd",
@@ -3760,7 +3756,7 @@ dependencies = [
 [[package]]
 name = "vello_cpu"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
+source = "git+https://github.com/PoHsuanLai/vello?rev=84b2c9f7debed7d15f48d0ec9ea8575c16a56938#84b2c9f7debed7d15f48d0ec9ea8575c16a56938"
 dependencies = [
  "bytemuck",
  "crossbeam-channel",
@@ -3775,7 +3771,7 @@ dependencies = [
 [[package]]
 name = "vello_hybrid"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
+source = "git+https://github.com/PoHsuanLai/vello?rev=84b2c9f7debed7d15f48d0ec9ea8575c16a56938#84b2c9f7debed7d15f48d0ec9ea8575c16a56938"
 dependencies = [
  "bytemuck",
  "glifo",
@@ -3790,7 +3786,7 @@ dependencies = [
 [[package]]
 name = "vello_sparse_shaders"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/vello?rev=3e43d4af1f1955f2efc2cd52e50350811a1386ca#3e43d4af1f1955f2efc2cd52e50350811a1386ca"
+source = "git+https://github.com/PoHsuanLai/vello?rev=84b2c9f7debed7d15f48d0ec9ea8575c16a56938#84b2c9f7debed7d15f48d0ec9ea8575c16a56938"
 dependencies = [
  "wesl",
  "wesl-macros",
