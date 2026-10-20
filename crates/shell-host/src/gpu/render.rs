@@ -15,7 +15,7 @@ use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::context::SURFACE_FORMAT;
-use crate::gpu::image_cache;
+use crate::gpu::image_cache::{self, Eviction, Painted};
 use crate::gpu::presenter::{FrameTarget, Overlay};
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::shm::swap_red_blue;
@@ -31,14 +31,15 @@ pub(crate) fn render_into(
     overlay: &Overlay,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
-) -> Result<()> {
+) -> Result<Painted> {
     let mut base = doc.dioxus().inner.borrow_mut();
     paint_document(gpu, &mut base, scene, (target, overlay), encoder, view)
 }
 
 /// Paint an already resolved document into `scene` and render it into `view`: [`render_into`]
 /// on a bare `BaseDocument`. Widgets in the document see the shared device and register their
-/// textures into it, where they stay for later frames.
+/// textures into it, where they stay for later frames. Says whether the atlas refused an image
+/// the document draws, so the caller paints it again.
 pub(crate) fn paint_document(
     gpu: &mut GpuContext,
     doc: &mut BaseDocument,
@@ -46,7 +47,7 @@ pub(crate) fn paint_document(
     (target, overlay): (FrameTarget, &Overlay),
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
-) -> Result<()> {
+) -> Result<Painted> {
     let (width, height) = pixel_extent(target.buffer);
     let (paint_width, paint_height, x, y) = target.paint_area();
     fit_scene(scene, width, height)?;
@@ -55,10 +56,18 @@ pub(crate) fn paint_document(
         renderer,
         resources,
         images,
+        evict,
         widgets,
         ..
     } = gpu;
-    image_cache::trim(images, renderer, resources, encoder);
+    let evicted = image_cache::trim(
+        images,
+        evict,
+        renderer,
+        resources,
+        (&device.device, &device.queue),
+    );
+    let refused_before = image_cache::refused(images);
     widgets.forget_dropped(doc);
     {
         let image_manager = ImageManager::new(
@@ -88,6 +97,10 @@ pub(crate) fn paint_document(
             (f64::from(x), f64::from(y)),
         );
     }
+    let painted = image_cache::painted(evicted, refused_before, image_cache::refused(images));
+    if painted == Painted::MissingImages {
+        *evict = Eviction::All;
+    }
     renderer
         .render(
             scene,
@@ -99,7 +112,8 @@ pub(crate) fn paint_document(
             view,
             &widgets.bindings(),
         )
-        .map_err(|e| HostError::Render(format!("{e:?}")))
+        .map_err(|e| HostError::Render(format!("{e:?}")))?;
+    Ok(painted)
 }
 
 /// An empty scene of exactly the render size (vello_hybrid wants the two equal).

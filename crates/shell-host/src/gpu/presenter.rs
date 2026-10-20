@@ -6,6 +6,7 @@ use blitz_traits::shell::ColorScheme;
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
+use crate::gpu::image_cache::Painted;
 #[cfg(feature = "debug-inject")]
 use crate::gpu::render::capture_document;
 use crate::gpu::render::render_into;
@@ -93,21 +94,23 @@ impl Presenter {
     /// Paint, render and present `doc`, which the caller has just resolved (with its pre-paint
     /// hook, `SurfaceDocument::resolve`): resolving again here would re-round the layout the
     /// hook snapped. The caller has also requested the frame callback (`wl_surface.frame`), so
-    /// the present's commit carries it. Never waits on the device.
+    /// the present's commit carries it. Never waits on the device. Says whether an image was
+    /// left out for want of atlas room, so the caller paints again.
     pub(crate) fn present(
         &mut self,
         gpu: Option<&mut GpuContext>,
         doc: &mut SurfaceDocument,
         target: FrameTarget,
         overlay: &Overlay,
-    ) -> Result<()> {
+    ) -> Result<Painted> {
         match self {
             Presenter::Wgpu(swapchain) => {
                 present_wgpu(swapchain, need_gpu(gpu)?, doc, target, overlay)
             }
             Presenter::Shm(buffers) => {
                 let mut base = doc.dioxus().inner.borrow_mut();
-                buffers.present(&mut base, target, overlay)
+                buffers.present(&mut base, target, overlay)?;
+                Ok(Painted::Whole)
             }
         }
     }
@@ -171,7 +174,7 @@ fn present_wgpu(
     doc: &mut SurfaceDocument,
     target: FrameTarget,
     overlay: &Overlay,
-) -> Result<()> {
+) -> Result<Painted> {
     let frame = swapchain.acquire(gpu, target.buffer)?;
     let view = frame.texture.create_view(&Default::default());
     let mut encoder = gpu
@@ -180,7 +183,7 @@ fn present_wgpu(
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("shell-host frame"),
         });
-    render_into(
+    let painted = render_into(
         gpu,
         doc,
         &mut swapchain.scene,
@@ -191,5 +194,5 @@ fn present_wgpu(
     )?;
     gpu.device.queue.submit([encoder.finish()]);
     frame.present();
-    Ok(())
+    Ok(painted)
 }

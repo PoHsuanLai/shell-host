@@ -453,3 +453,118 @@ fn every_render_shares_one_device() {
     assert_eq!(before, 1, "one device for the whole process");
     assert_eq!(devices_created(), before, "rendering never creates another");
 }
+
+// ---- the image atlas ----------------------------------------------------------------------
+
+/// A widget that draws one solid 24x24 image, the same blob every frame (as a decoded icon is).
+struct Picture {
+    image: peniko::ImageData,
+}
+
+impl Picture {
+    fn of(rgba: [u8; 4]) -> Picture {
+        Picture {
+            image: peniko::ImageData {
+                data: peniko::Blob::from(rgba.repeat(24 * 24)),
+                format: peniko::ImageFormat::Rgba8,
+                alpha_type: peniko::ImageAlphaType::Alpha,
+                width: 24,
+                height: 24,
+            },
+        }
+    }
+}
+
+impl Widget for Picture {
+    fn handle_event(&mut self, _event: &UiEvent) {}
+
+    fn paint(
+        &mut self,
+        _render_ctx: &mut dyn RenderContext,
+        _styles: &ComputedStyles,
+        _width: u32,
+        _height: u32,
+        _scale: f64,
+    ) -> Scene {
+        let mut scene = Scene::new();
+        scene.draw_image(
+            ImageBrush {
+                image: &self.image,
+                sampler: ImageSampler::default(),
+            },
+            Affine::IDENTITY,
+        );
+        scene
+    }
+}
+
+fn picture_app(rgba: [u8; 4]) -> Element {
+    rsx! {
+        style { "html, body {{ margin: 0; height: 100%; background: transparent; }}
+                 object {{ display: block; width: 24px; height: 24px; }}" }
+        object { "data": CustomWidgetAttr::new(Picture::of(rgba)) }
+    }
+}
+
+fn red_picture() -> Element {
+    picture_app([255, 0, 0, 255])
+}
+
+fn green_picture() -> Element {
+    picture_app([0, 255, 0, 255])
+}
+
+#[test]
+fn an_image_the_full_atlas_refused_is_drawn_on_the_next_frame() {
+    use crate::gpu::image_cache::Eviction;
+    use vello_hybrid::{AtlasConfig, Resources};
+
+    // An atlas with room for one 24x24 image, so the second one is refused, as a dock icon is
+    // once the launcher's icons fill the real one.
+    let tiny = Resources::new_with_config(AtlasConfig {
+        initial_atlas_count: 1,
+        max_atlases: 1,
+        atlas_size: (32, 32),
+        auto_grow: false,
+        ..AtlasConfig::default()
+    });
+    let (resources, images) = {
+        let mut gpu = gpu();
+        let images = std::mem::take(&mut gpu.images);
+        (std::mem::replace(&mut gpu.resources, tiny), images)
+    };
+    let buffer = Size {
+        width: 32,
+        height: 32,
+    };
+    let mut red = document(red_picture, buffer, Scale120::ONE);
+    let mut green = document(green_picture, buffer, Scale120::ONE);
+    let first_red = pixel(&render(&mut red, buffer, Scale120::ONE), 8, 8);
+    let refused = pixel(&render(&mut green, buffer, Scale120::ONE), 8, 8);
+    let pending = gpu().evict;
+    let retried = pixel(&render(&mut green, buffer, Scale120::ONE), 8, 8);
+    let after = gpu().evict;
+    {
+        let mut gpu = gpu();
+        gpu.resources = resources;
+        gpu.images = images;
+    }
+    assert!(
+        close(first_red, [255, 0, 0, 255]),
+        "red drawn: {first_red:?}"
+    );
+    assert!(
+        close(refused, [0, 0, 0, 0]),
+        "the atlas is full, so green is missing: {refused:?}"
+    );
+    assert_eq!(
+        pending,
+        Eviction::All,
+        "the refusal asks for an empty cache"
+    );
+    assert!(
+        close(retried, [0, 255, 0, 255]),
+        "the next frame draws green: {retried:?}"
+    );
+    assert_eq!(after, Eviction::Keep, "drawn whole, nothing more is asked");
+}

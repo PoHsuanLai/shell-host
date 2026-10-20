@@ -6,6 +6,7 @@ use crate::dom::document::HoverShift;
 use crate::error::{Recovery, Result};
 use crate::event::HostEvent;
 use crate::frame::FrameInput;
+use crate::gpu::image_cache::Painted;
 use crate::gpu::presenter::{FrameTarget, Overlay};
 use crate::handlers::background_effect::Support;
 use crate::id::SurfaceId;
@@ -80,7 +81,7 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
     };
     let presented = presenter.present(state.gpu.as_mut(), &mut surface.document, target, &overlay);
     let input = match &presented {
-        Ok(()) => {
+        Ok(_) => {
             let now = Instant::now();
             surface.stats.presented(now - started, now);
             // Resolve may have asked for a redraw itself; continuation is decided on the
@@ -121,7 +122,12 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             eprintln!("shell-host: present {id:?}: {error}");
             Ok(())
         }
-        Ok(()) => Ok(()),
+        Ok(Painted::MissingImages) => {
+            // The atlas was full: the next frame starts from an empty cache and draws them.
+            state.frame_input(id, FrameInput::Invalidate);
+            Ok(())
+        }
+        Ok(Painted::Whole) => Ok(()),
     }
 }
 
