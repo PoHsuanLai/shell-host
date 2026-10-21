@@ -30,7 +30,7 @@ for rule in "${RULES[@]}"; do
   fi
   leaked=0
   for dep in "${forbidden[@]}"; do
-    if cargo tree -p "$crate" -i "$dep" -e normal,build 2>/dev/null | grep -q .; then
+    if [ -n "$(cargo tree -p "$crate" -i "$dep" -e normal,build 2>/dev/null)" ]; then
       echo "LEAK: $crate depends on $dep"
       cargo tree -p "$crate" -i "$dep" -e normal,build 2>/dev/null | head -20
       leaked=1
@@ -45,7 +45,8 @@ done
 # The host paints the scroll thumb itself (design/11 §11.3.12): Blitz's own overlay
 # scrollbars (the `scrollbars` feature of blitz-paint / blitz-dom) must stay off, or both would
 # paint and Blitz's thumb drag would write clamped offsets under the engine.
-if cargo tree -p shell-host -e features -i blitz-dom 2>/dev/null | grep -q 'blitz-dom feature "scrollbars"'; then
+features=$(cargo tree -p shell-host -e features -i blitz-dom 2>/dev/null)
+if grep -q 'blitz-dom feature "scrollbars"' <<<"$features"; then
   echo "LEAK: blitz-dom's scrollbars feature is enabled"
   fail=1
 else
