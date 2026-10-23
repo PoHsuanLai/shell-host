@@ -15,7 +15,7 @@ publish = false
 shell-host = { path = "crates/shell-host" }
 # The desktop's private Wayland protocols (quire_*_v1): the client bindings and the wire vocab.
 # Pinned by rev, as sill and cua pin it.
-casement-protocols = { git = "https://github.com/PoHsuanLai/casement-protocols.git", rev = "890a4632c8d10705c7003b78b312b5c024c4f3a9", features = ["client"] }
+casement-protocols = { git = "https://github.com/PoHsuanLai/casement-protocols.git", rev = "fa664f1fcb312abd7e7a0e38ccae216406e88139", features = ["client"] }
 # Sibling repo (the palmrest socket's messages); checked out next to this one.
 palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 
