@@ -125,8 +125,8 @@ pub use root::HostRoot;
 pub use route::WaylandRoute;
 pub use scale::{Scale120, Size, buffer_size};
 pub use scroll::config::{
-    NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs,
-    ScrollPx, ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollTrackClick, ScrollbarSettings,
+    NaturalScroll, ScrollConfig, ScrollFraction, ScrollMomentum, ScrollMs, ScrollPx,
+    ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollTrackClick, ScrollbarSettings,
     ScrollbarVisibility,
 };
 pub use scroll::watch::{ScrollExtent, ScrollPhase, ScrollPoint, ScrollState, use_scroll};

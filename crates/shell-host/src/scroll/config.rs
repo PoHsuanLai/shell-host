@@ -9,8 +9,8 @@
 use serde::{Deserialize, Serialize};
 
 pub use blitz_kit::scroll::config::{
-    NaturalScroll, ScrollFraction, ScrollMomentum, ScrollMomentumModel, ScrollMs, ScrollPx,
-    ScrollRubberBand, ScrollScalar, ScrollSettings, ScrollbarVisibility,
+    NaturalScroll, ScrollFraction, ScrollMomentum, ScrollMs, ScrollPx, ScrollRubberBand,
+    ScrollScalar, ScrollSettings, ScrollbarVisibility,
 };
 
 /// `scrollbar.track_click_mode`: what a press on the track (not the thumb) does.
