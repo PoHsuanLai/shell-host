@@ -21,8 +21,8 @@ use crate::input::palmrest::route::route;
 use crate::input::palmrest::{Palmrest, read_all};
 use crate::input::pointer::PointerPos;
 use crate::root::HostRoot;
-use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
-use crate::scroll::suppress::{AxisKind, Suppress, Verdict};
+use crate::scroll::source::{AxisFrame, AxisSource, AxisValue};
+use crate::scroll::suppress::Suppress;
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
@@ -119,7 +119,7 @@ struct Host {
 impl Host {
     /// The daemon sends `message` (if any), the host reads and routes everything waiting, then
     /// the compositor's copy of the stroke (`echo`: finger px and stop) arrives, if any.
-    fn step(&mut self, message: Option<ToHost>, echo: Option<(f64, Stop)>) {
+    fn step(&mut self, message: Option<ToHost>, echo: Option<(f64, bool)>) {
         if let Some(message) = message {
             let bytes = palmrest_protocol::encode(&message);
             send(&self.peer, &bytes, SendFlags::empty()).expect("send");
@@ -140,18 +140,15 @@ impl Host {
         };
         let verdict = match self.echo {
             Echo::None => return,
-            Echo::Suppressed => self.suppress.verdict(
-                AxisKind::Suppressible,
-                self.scroll.driven(),
-                GRACE,
-                self.now,
-            ),
-            Echo::Unfiltered => Verdict::Deliver,
+            Echo::Suppressed => self
+                .suppress
+                .delivers(true, self.scroll.driven(), GRACE, self.now),
+            Echo::Unfiltered => true,
         };
-        if stop == Stop::Stopped {
+        if stop {
             self.suppress = self.suppress.axis_stop();
         }
-        if verdict == Verdict::Deliver {
+        if verdict {
             let frame = AxisFrame {
                 source: AxisSource::Finger,
                 horizontal: AxisValue::NONE,
@@ -161,7 +158,7 @@ impl Host {
                     stop,
                     ..AxisValue::NONE
                 },
-                shift: Shift::Up,
+                shift: false,
             };
             self.scroll
                 .axis(&mut self.doc.base_mut(), &frame, AT, self.now);
@@ -215,7 +212,7 @@ fn run(echo: Echo, name: &str) -> Vec<f64> {
     for _ in 0..12 {
         host.advance(FRAME);
         let changed = scroll_msg(Phase::Changed, 20.0, host.now.0);
-        host.step(Some(changed), Some((20.0, Stop::Moving)));
+        host.step(Some(changed), Some((20.0, false)));
         offsets.push(host.offset());
     }
     host.step(Some(scroll_msg(Phase::Ended, 0.0, host.now.0)), None);
@@ -227,7 +224,7 @@ fn run(echo: Echo, name: &str) -> Vec<f64> {
     );
     // The virtual touchpad's lift reaches the compositor a moment later.
     host.advance(Duration::from_millis(5));
-    host.step(None, Some((0.0, Stop::Stopped)));
+    host.step(None, Some((0.0, true)));
     for _ in 0..600 {
         if host.scroll.motion(host.now) == Motion::Still {
             break;

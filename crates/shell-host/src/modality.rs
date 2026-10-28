@@ -39,19 +39,13 @@ impl InputModality {
     }
 }
 
-/// Whether a pressed key is a modifier on its own (Shift, Ctrl, Alt, Super, a level shift, a
-/// lock key): usually half of a pointer gesture (Shift+click), so it keeps the modality.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum KeyKind {
-    Modifier,
-    Other,
-}
-
 /// One input event, as far as the modality cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Stroke {
-    /// A key went down (the first press, not an auto-repeat).
-    KeyPress(KeyKind),
+    /// A key went down (the first press, not an auto-repeat). `modifier`: it is a modifier on
+    /// its own (Shift, Ctrl, Alt, Super, a level shift, a lock key), usually half of a pointer
+    /// gesture (Shift+click), so it keeps the modality.
+    KeyPress { modifier: bool },
     /// A pointer button went down (a real `wl_pointer.button`, or an injected press).
     PointerPress,
 }
@@ -59,42 +53,38 @@ pub(crate) enum Stroke {
 /// The modality after `stroke`, from `current`.
 pub(crate) fn after(current: InputModality, stroke: Stroke) -> InputModality {
     match stroke {
-        Stroke::KeyPress(KeyKind::Other) => InputModality::Keyboard,
+        Stroke::KeyPress { modifier: false } => InputModality::Keyboard,
         Stroke::PointerPress => InputModality::Pointer,
-        Stroke::KeyPress(KeyKind::Modifier) => current,
+        Stroke::KeyPress { modifier: true } => current,
     }
 }
 
 /// Whether the key `keysym` names is a lone modifier (xkb's own list: Shift, Control, Alt,
 /// Meta, Super, Hyper, the ISO level shifts and the lock keys).
-pub(crate) fn key_kind(keysym: Keysym) -> KeyKind {
-    if keysym.is_modifier_key() {
-        KeyKind::Modifier
-    } else {
-        KeyKind::Other
-    }
+pub(crate) fn is_modifier(keysym: Keysym) -> bool {
+    keysym.is_modifier_key()
 }
 
 #[cfg(feature = "debug-inject")]
-/// Whether the DOM key `key` is a lone modifier: `key_kind` for a key that has no keysym.
-pub(crate) fn key_kind_of(key: &Key) -> KeyKind {
-    match key {
+/// Whether the DOM key `key` is a lone modifier: `is_modifier` for a key that has no keysym.
+pub(crate) fn is_modifier_key(key: &Key) -> bool {
+    matches!(
+        key,
         Key::Alt
-        | Key::AltGraph
-        | Key::CapsLock
-        | Key::Control
-        | Key::Fn
-        | Key::FnLock
-        | Key::Meta
-        | Key::NumLock
-        | Key::ScrollLock
-        | Key::Shift
-        | Key::Symbol
-        | Key::SymbolLock
-        | Key::Hyper
-        | Key::Super => KeyKind::Modifier,
-        _ => KeyKind::Other,
-    }
+            | Key::AltGraph
+            | Key::CapsLock
+            | Key::Control
+            | Key::Fn
+            | Key::FnLock
+            | Key::Meta
+            | Key::NumLock
+            | Key::ScrollLock
+            | Key::Shift
+            | Key::Symbol
+            | Key::SymbolLock
+            | Key::Hyper
+            | Key::Super
+    )
 }
 
 #[cfg(test)]
@@ -109,13 +99,13 @@ mod tests {
             (
                 "Tab shows the ring",
                 Pointer,
-                Stroke::KeyPress(KeyKind::Other),
+                Stroke::KeyPress { modifier: false },
                 Keyboard,
             ),
             (
                 "another key keeps it",
                 Keyboard,
-                Stroke::KeyPress(KeyKind::Other),
+                Stroke::KeyPress { modifier: false },
                 Keyboard,
             ),
             ("a press hides it", Keyboard, Stroke::PointerPress, Pointer),
@@ -128,13 +118,13 @@ mod tests {
             (
                 "a lone Shift keeps pointer",
                 Pointer,
-                Stroke::KeyPress(KeyKind::Modifier),
+                Stroke::KeyPress { modifier: true },
                 Pointer,
             ),
             (
                 "a lone Shift keeps keyboard",
                 Keyboard,
-                Stroke::KeyPress(KeyKind::Modifier),
+                Stroke::KeyPress { modifier: true },
                 Keyboard,
             ),
         ];
@@ -145,22 +135,22 @@ mod tests {
 
     #[test]
     fn modifier_keys_are_told_apart_from_the_rest() {
-        let cases: &[(Keysym, KeyKind)] = &[
-            (Keysym::Tab, KeyKind::Other),
-            (Keysym::Right, KeyKind::Other),
-            (Keysym::Return, KeyKind::Other),
-            (Keysym::Escape, KeyKind::Other),
-            (Keysym::space, KeyKind::Other),
-            (Keysym::a, KeyKind::Other),
-            (Keysym::Shift_L, KeyKind::Modifier),
-            (Keysym::Control_R, KeyKind::Modifier),
-            (Keysym::Alt_L, KeyKind::Modifier),
-            (Keysym::Super_L, KeyKind::Modifier),
-            (Keysym::ISO_Level3_Shift, KeyKind::Modifier),
-            (Keysym::Caps_Lock, KeyKind::Modifier),
+        let cases: &[(Keysym, bool)] = &[
+            (Keysym::Tab, false),
+            (Keysym::Right, false),
+            (Keysym::Return, false),
+            (Keysym::Escape, false),
+            (Keysym::space, false),
+            (Keysym::a, false),
+            (Keysym::Shift_L, true),
+            (Keysym::Control_R, true),
+            (Keysym::Alt_L, true),
+            (Keysym::Super_L, true),
+            (Keysym::ISO_Level3_Shift, true),
+            (Keysym::Caps_Lock, true),
         ];
         for &(keysym, expected) in cases {
-            assert_eq!(key_kind(keysym), expected, "{keysym:?}");
+            assert_eq!(is_modifier(keysym), expected, "{keysym:?}");
         }
     }
 

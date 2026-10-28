@@ -19,7 +19,6 @@ use wgpu_context::DeviceHandle;
 use crate::error::{HostError, Result};
 use crate::gpu::adapter;
 use crate::gpu::context_proxy::ContextProxy;
-use crate::gpu::image_cache::Eviction;
 use crate::gpu::raw_handle::WaylandDisplay;
 
 /// Every surface renders in this format (what vello_hybrid's own window renderer uses).
@@ -48,7 +47,7 @@ pub(crate) struct GpuContext {
     pub(crate) images: ImageUploads,
     /// Whether the next frame starts from an empty image cache: a painting had an upload
     /// refused (`image_cache::trim`).
-    pub(crate) evict: Eviction,
+    pub(crate) evict: bool,
     pub(crate) widgets: ContextProxy,
     pub(crate) adapter: AdapterFacts,
     /// Whether the device still works; set by wgpu's device-lost callback, read at the start of
@@ -187,7 +186,7 @@ fn create(instance: &wgpu::Instance, adapter: wgpu::Adapter) -> Result<GpuContex
         renderer,
         resources: Resources::new(),
         images: FxHashMap::default(),
-        evict: Eviction::Keep,
+        evict: false,
         widgets: ContextProxy::default(),
         adapter: facts,
         health,

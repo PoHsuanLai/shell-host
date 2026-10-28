@@ -32,11 +32,10 @@ use crate::root::HostRoot;
 use crate::scale::{LiveScale, Scale120, Size};
 use crate::scroll::surface::SurfaceScroll;
 use crate::scroll::watch::ScrollBoard;
-use crate::scroll::wheel::WheelRun;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::state::HostState;
 use crate::stats::StatsWindow;
-use crate::surface::{AppliedRegions, Configured, HostSurface, Mapped};
+use crate::surface::{AppliedRegions, HostSurface};
 use crate::tick::FrameTicks;
 use crate::toplevel::ToplevelState;
 use blitz_kit::net::LocalNet;
@@ -122,8 +121,8 @@ pub(super) fn insert(
             name,
             frame: FrameState::NEW,
             watchdog: None,
-            configured: Configured::Pending,
-            mapped: Mapped::Pending,
+            configured: false,
+            mapped: false,
             wl,
             visibility: Visibility::Shown,
             logical,
@@ -139,7 +138,7 @@ pub(super) fn insert(
             live_toplevel,
             live_modifiers,
             wheels,
-            wheel_run: WheelRun::default(),
+            wheel_run: false,
             doc_cursor: Some(cursor_icon::CursorIcon::Default),
             scroll: SurfaceScroll::new(scrolls, state.scroll),
         },

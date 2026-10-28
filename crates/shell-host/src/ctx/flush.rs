@@ -24,7 +24,6 @@
 use std::task::Context;
 
 use crate::ctx::HostCtx;
-use crate::dom::document::Polled;
 use crate::error::{HostError, Result};
 use crate::frame::FrameInput;
 use crate::wake::surface_waker;
@@ -82,8 +81,7 @@ impl<M: 'static> Flush for HostCtx<M> {
                 continue;
             };
             let waker = surface_waker(id, state.woken.clone(), ping.clone());
-            let polled = surface.document.poll(&mut Context::from_waker(&waker));
-            if polled == Polled::Changed {
+            if surface.document.poll(&mut Context::from_waker(&waker)) {
                 state.frame_input(id, FrameInput::Invalidate);
             }
         }

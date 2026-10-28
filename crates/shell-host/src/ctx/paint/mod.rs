@@ -23,17 +23,14 @@ pub(super) use geometry::viewport;
 pub(super) use presenter::ensure_presenter;
 
 use crate::ctx::HostCtx;
-use crate::dom::shell_provider::{ImeRequest, RedrawRequest};
 use crate::error::Result;
 use crate::event::CloseReason;
-use crate::frame::{FrameInput, RenderCmd};
+use crate::frame::FrameInput;
 use crate::handlers::surrounding;
 use crate::handlers::text_input::apply_ime_request;
 use crate::id::SurfaceId;
-use crate::ime::ImeFocus;
 use crate::msg::Visibility;
 use crate::state::HostState;
-use crate::surface::Configured;
 
 use geometry::sync_geometry;
 use render::render;
@@ -55,9 +52,8 @@ fn step_one<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
     let Some(surface) = ctx.state.surfaces.get(&id) else {
         return Ok(());
     };
-    let drawable = surface.visibility == Visibility::Shown
-        && surface.configured == Configured::Done
-        && surface.logical.has_area();
+    let drawable =
+        surface.visibility == Visibility::Shown && surface.configured && surface.logical.has_area();
     if !drawable {
         return Ok(());
     }
@@ -66,16 +62,17 @@ fn step_one<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) -> Result<()> {
     sync_ime(state, id);
     sync_geometry(state, id);
     if let Some(surface) = state.surfaces.get(&id)
-        && surface.shell.take_redraw() == RedrawRequest::Requested
+        && surface.shell.take_redraw()
     {
         state.frame_input(id, FrameInput::Invalidate);
     }
     let Some(surface) = state.surfaces.get_mut(&id) else {
         return Ok(());
     };
-    match surface.step(FrameInput::Flush).render {
-        RenderCmd::Render => render(state, id),
-        RenderCmd::Skip => Ok(()),
+    if surface.step(FrameInput::Flush).render {
+        render(state, id)
+    } else {
+        Ok(())
     }
 }
 
@@ -89,11 +86,7 @@ fn sync_ime(state: &mut HostState, id: SurfaceId) {
     let Some(wanted) = state.surfaces.get(&id).map(|surface| surface.shell.ime()) else {
         return;
     };
-    let current = match state.ime.focus {
-        ImeFocus::Disabled => ImeRequest::Disabled,
-        ImeFocus::Enabled { cursor_area } => ImeRequest::Enabled { cursor_area },
-    };
-    if wanted != current {
+    if wanted != state.ime.focus {
         apply_ime_request(state, wanted);
     }
     surrounding::sync(state);

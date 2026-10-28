@@ -8,9 +8,6 @@ mod hover;
 mod rects;
 mod resolve;
 
-pub(crate) use first_mouse::FirstMouseOptIn;
-pub(crate) use hover::HoverShift;
-
 use std::rc::Rc;
 use std::sync::Arc;
 use std::task::Context;
@@ -66,13 +63,6 @@ impl std::fmt::Debug for DocumentEnv {
 /// Renders one `poll` may run before it yields to the rest of the flush.
 const MAX_POLLS: u32 = 8;
 
-/// Whether polling changed the document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Polled {
-    Changed,
-    Unchanged,
-}
-
 /// A surface's live document.
 pub(crate) struct SurfaceDocument {
     doc: DioxusDocument,
@@ -127,7 +117,7 @@ impl SurfaceDocument {
     /// after a render would lose the next wake of any task (a frame tick, a `use_watch`
     /// value) and leave the document unpolled until something else woke it. A document still
     /// busy after `MAX_POLLS` wakes itself and is polled again on the next flush.
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Polled {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> bool {
         let waker = cx.waker().clone();
         let mut doc_changed = false;
         let mut settled = false;
@@ -143,11 +133,7 @@ impl SurfaceDocument {
             waker.wake_by_ref();
         }
         let head_changed = apply_head(&mut self.doc, &self.head);
-        if doc_changed || head_changed {
-            Polled::Changed
-        } else {
-            Polled::Unchanged
-        }
+        doc_changed || head_changed
     }
 
     /// Set the physical size, scale and colour scheme.

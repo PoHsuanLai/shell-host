@@ -17,9 +17,7 @@ use serde_json::json;
 
 use super::{DebugAction, DebugCommand, Inject, Injected, parse_command};
 use crate::ctx::HostCtx;
-use crate::dom::shell_provider::ImeRequest;
 use crate::error::{HostError, Result};
-use crate::handlers::background_effect::Support;
 use crate::id::SurfaceId;
 use crate::state::HostState;
 
@@ -104,9 +102,10 @@ fn focused_line(state: &HostState, id: SurfaceId) -> serde_json::Value {
         return json!({"focused": null});
     };
     let text = surface.document.focused_text();
-    let ime = match surface.shell.ime() {
-        ImeRequest::Disabled => "disabled",
-        ImeRequest::Enabled { .. } => "enabled",
+    let ime = if surface.shell.ime().is_some() {
+        "enabled"
+    } else {
+        "disabled"
     };
     json!({
         "focused": surface.name.0,
@@ -133,8 +132,8 @@ fn host_facts(state: &HostState) -> serde_json::Value {
         .map(|effect| effect.capabilities().blur);
     let blur = match advertised {
         None => "unbound",
-        Some(Support::Supported) => "supported",
-        Some(Support::Unsupported) => "unsupported",
+        Some(true) => "supported",
+        Some(false) => "unsupported",
     };
     json!({"host": {
         "blur": blur,

@@ -68,8 +68,8 @@ impl CompositorHandler for HostState {
             return;
         };
         host_surface.stats.callback();
-        let animation = host_surface.frame_due(self.clock.instant_at(Instant::now()));
-        let action = host_surface.step(FrameInput::Callback(animation));
+        let animating = host_surface.frame_due(self.clock.instant_at(Instant::now()));
+        let action = host_surface.step(FrameInput::Callback { animating });
         self.timers.push(TimerRequest::Watchdog {
             id,
             cmd: action.timer,

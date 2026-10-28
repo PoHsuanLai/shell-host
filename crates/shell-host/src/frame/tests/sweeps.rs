@@ -10,11 +10,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::frame::{
-    Animation, FrameAction, FrameInput, FrameState, Pace, RenderCmd, TimerCmd, step,
-};
+use crate::frame::{FrameAction, FrameInput, FrameState, Pace, TimerCmd, step};
 use crate::stats::{FrameCounters, StatsWindow};
-use crate::tick::{FrameTicks, Ticked, pacing};
+use crate::tick::{FrameTicks, pacing};
 use blitz_kit::scroll::time::Elapsed;
 
 /// A surface, the machine driving it, and what happened to it.
@@ -26,7 +24,7 @@ struct Sim {
     /// The frame in flight, if any, by the time it was presented.
     in_flight: Option<u64>,
     /// The document's own animation; the machine is told `pacing(document, drive)`.
-    animation: Animation,
+    animation: bool,
     ticks: FrameTicks,
     stats: StatsWindow,
     origin: Instant,
@@ -39,7 +37,7 @@ struct Sim {
 }
 
 impl Sim {
-    fn new(animation: Animation) -> Sim {
+    fn new(animation: bool) -> Sim {
         Sim {
             state: FrameState::NEW,
             now_ms: 0,
@@ -74,7 +72,7 @@ impl Sim {
 
     /// The host's flush point: render iff the machine says so, never over a frame in flight.
     fn flush(&mut self) {
-        if self.feed(FrameInput::Flush).render == RenderCmd::Render {
+        if self.feed(FrameInput::Flush).render {
             assert!(
                 self.in_flight.is_none(),
                 "rendered over a frame in flight at {}",
@@ -84,10 +82,9 @@ impl Sim {
             self.in_flight = Some(self.now_ms);
             let now = self.origin + Duration::from_millis(self.now_ms);
             self.stats.presented(Duration::from_micros(900), now);
-            self.feed(FrameInput::Presented(pacing(
-                self.animation,
-                self.ticks.drive(),
-            )));
+            self.feed(FrameInput::Presented {
+                animating: pacing(self.animation, self.ticks.drive()),
+            });
         }
     }
 
@@ -102,11 +99,11 @@ impl Sim {
             self.callbacks += 1;
             self.stats.callback();
             let at = Elapsed(Duration::from_millis(self.now_ms));
-            let (animation, ticked) = self.ticks.frame_due(self.animation, at);
-            if ticked == Ticked::Ticked {
+            let animating = self.ticks.frame_due(self.animation, at);
+            if animating {
                 self.stats.ticked();
             }
-            self.feed(FrameInput::Callback(animation));
+            self.feed(FrameInput::Callback { animating });
             self.flush();
         }
     }
@@ -141,7 +138,7 @@ fn vsync(n: u64) -> u64 {
 /// least 0.9 x callbacks received, and no frame is ever rendered while one is in flight.
 #[test]
 fn a_hover_sweep_renders_once_per_callback() {
-    let mut sim = Sim::new(Animation::Running);
+    let mut sim = Sim::new(true);
     // Pointer motion at 120 Hz (the acceptance script's rate), callbacks at 60 Hz.
     for tick in 0..120u64 {
         sim.advance(tick * 1000 / 120);
@@ -166,7 +163,7 @@ fn a_hover_sweep_renders_once_per_callback() {
 /// timer arm and no commit (idle means zero wakeups).
 #[test]
 fn idle_after_a_change_is_silent() {
-    let mut sim = Sim::new(Animation::Stopped);
+    let mut sim = Sim::new(false);
     sim.invalidate();
     sim.advance(vsync(1));
     sim.callback();
@@ -189,7 +186,7 @@ fn idle_after_a_change_is_silent() {
 /// callback resets the backoff to 50 ms.
 #[test]
 fn a_stalled_compositor_is_paced_by_the_watchdog_and_recovers() {
-    let mut sim = Sim::new(Animation::Running);
+    let mut sim = Sim::new(true);
     sim.invalidate();
     // No callbacks for 5 s: only the watchdog moves the animation.
     for ms in 1..=5000 {
@@ -218,7 +215,7 @@ fn a_stalled_compositor_is_paced_by_the_watchdog_and_recovers() {
 /// the watchdog never fires.
 #[test]
 fn callbacks_while_occluded_never_trip_the_watchdog() {
-    let mut sim = Sim::new(Animation::Running);
+    let mut sim = Sim::new(true);
     sim.invalidate();
     for n in 1..=300 {
         // A callback 16-17 ms after every present, well inside the 50 ms watchdog.
@@ -237,7 +234,7 @@ fn callbacks_while_occluded_never_trip_the_watchdog() {
 #[test]
 fn a_held_drive_ticks_once_per_callback_and_stops_when_dropped() {
     const N: u64 = 120;
-    let mut sim = Sim::new(Animation::Stopped);
+    let mut sim = Sim::new(false);
     let drive = sim.ticks.hold();
     // `drive_frames` queues a redraw: an idle surface has no callback coming to tick on.
     sim.invalidate();
@@ -275,7 +272,7 @@ fn a_held_drive_ticks_once_per_callback_and_stops_when_dropped() {
 /// callbacks either way, and the run's `dt` is the callback spacing.
 #[test]
 fn ticks_follow_callbacks_while_the_document_animates() {
-    let mut sim = Sim::new(Animation::Running);
+    let mut sim = Sim::new(true);
     sim.invalidate();
     for n in 1..=60 {
         sim.advance(vsync(n));
@@ -284,7 +281,7 @@ fn ticks_follow_callbacks_while_the_document_animates() {
     assert_eq!(sim.ticks.count(), 60);
     assert_eq!(u64::from(sim.callbacks), sim.ticks.count());
     // A static document with no drive never ticks.
-    let mut still = Sim::new(Animation::Stopped);
+    let mut still = Sim::new(false);
     still.invalidate();
     still.advance(vsync(1));
     still.callback();
@@ -297,7 +294,7 @@ fn ticks_follow_callbacks_while_the_document_animates() {
 /// (`HostCtx::take_stats`) starts a new sample window without touching the counters.
 #[test]
 fn the_stats_window_counts_what_the_sweep_did() {
-    let mut sim = Sim::new(Animation::Stopped);
+    let mut sim = Sim::new(false);
     let drive = sim.ticks.hold();
     sim.invalidate();
     for n in 1..=30 {

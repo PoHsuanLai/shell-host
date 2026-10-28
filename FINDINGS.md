@@ -241,7 +241,7 @@ cancels. sctk's own key-repeat source (`get_keyboard_with_repeat`) cannot be use
 ### F31. The frame hook: `drive_frames`, `use_frame_tick`
 
 `SurfaceHandle::drive_frames() -> FrameDrive`: while any drive is alive the frame machine is told
-`Animation::Running`, so the surface renders once per callback even with nothing changed; taking
+an animating frame, so the surface renders once per callback even with nothing changed; taking
 one queues a redraw (an idle surface has no callback coming). Dropping it lets the frame in
 flight call back once more and the surface idle. Holding a drive with no animation is the one way
 to get non-zero idle frames.
@@ -356,7 +356,7 @@ was typing in. The activation also fires `Workspace::windowActivated`, on which 
 every open grabbing popup. KWin does not need the lift: `PopupInputFilter::focus` hands the
 keyboard to the topmost grabbing popup itself, and `xdg_popup_grab` never checks the serial.
 
-`popup_keyboard::parent_keyboard` keeps the parent as it is on KWin (`CompositorKind::Kwin`,
+`popup_keyboard::parent_keyboard` keeps the parent as it is on KWin (no lift,
 recognised by `org_kde_plasma_shell`; wlroots offers some `org_kde_kwin_*` globals but never
 that one) and lifts elsewhere (a compositor may give a grabbing popup the keyboard only when the parent takes keyboard input). The restore
 after `popup_done` commits the layer. KWin sends no `popup_done` for a press on another surface
@@ -932,7 +932,7 @@ instead of on a headless KWin; `scripts/dev/lib/compositor.sh` is the one place 
 difference (the script re-executes itself in the jail after its cargo builds, `comp_start`,
 `comp_source`, `lib/input.sh`, `lib/windows.sh`). Facts the port found:
 
-- `CompositorKind::Casement` is recognised by `quire_window_manager_v1`; it takes KWin's arm in
+- casement is recognised by `quire_window_manager_v1`; it takes KWin's arm in
   `popup_keyboard` (a grabbing popup of a `None` layer is not lifted).
 - The jail has no GPU: the demos run `Backend::Cpu` (`SHELL_HOST_BACKEND=cpu`, set by the lib;
   `examples/shared/harness.rs`). With `SHELL_HOST_BACKEND=gpu` and a casement that offers no
@@ -1002,6 +1002,11 @@ P2-Z-sh (compositor-scope/20-FREEZE-PLAN.md section 4.10, P2 row), implemented w
   send), where `placement_support()` is `Absent` and quire's menu keeps hiding Left, Right and
   Centre. Whether casement acts on the request is its own lane (H lanes).
 - **Not run.** Written without a build; the orchestrator's gate is the first compile.
+
+## Type rules (2026-10-28)
+
+- The "no `bool`" rule is replaced by plain Rust first (CONVENTIONS section 4): two-way internal
+  enums (`Published`, `Fingers`, `Verdict`, ...) became `bool`, `Option` or `ControlFlow`.
 
 ## Open items from the production audit
 

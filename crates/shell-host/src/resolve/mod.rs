@@ -15,5 +15,5 @@ mod spec;
 mod tracked;
 
 pub(crate) use anchor::resolve_popup_anchor;
-pub(crate) use spec::{Resolved, resolve};
-pub(crate) use tracked::{Change, Tracked};
+pub(crate) use spec::resolve;
+pub(crate) use tracked::Tracked;

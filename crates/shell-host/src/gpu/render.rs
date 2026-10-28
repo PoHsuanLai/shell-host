@@ -15,7 +15,7 @@ use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::context::SURFACE_FORMAT;
-use crate::gpu::image_cache::{self, Eviction, Painted};
+use crate::gpu::image_cache;
 use crate::gpu::presenter::{FrameTarget, Overlay};
 #[cfg(any(feature = "debug-inject", test))]
 use crate::gpu::shm::swap_red_blue;
@@ -31,7 +31,7 @@ pub(crate) fn render_into(
     overlay: &Overlay,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
-) -> Result<Painted> {
+) -> Result<bool> {
     let mut base = doc.dioxus().inner.borrow_mut();
     paint_document(gpu, &mut base, scene, (target, overlay), encoder, view)
 }
@@ -47,7 +47,7 @@ pub(crate) fn paint_document(
     (target, overlay): (FrameTarget, &Overlay),
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
-) -> Result<Painted> {
+) -> Result<bool> {
     let (width, height) = pixel_extent(target.buffer);
     let (paint_width, paint_height, x, y) = target.paint_area();
     fit_scene(scene, width, height)?;
@@ -97,9 +97,10 @@ pub(crate) fn paint_document(
             (f64::from(x), f64::from(y)),
         );
     }
-    let painted = image_cache::painted(evicted, refused_before, image_cache::refused(images));
-    if painted == Painted::MissingImages {
-        *evict = Eviction::All;
+    let painted =
+        image_cache::painted_missing_images(evicted, refused_before, image_cache::refused(images));
+    if painted {
+        *evict = true;
     }
     renderer
         .render(

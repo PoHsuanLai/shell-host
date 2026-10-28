@@ -516,7 +516,6 @@ fn green_picture() -> Element {
 
 #[test]
 fn an_image_the_full_atlas_refused_is_drawn_on_the_next_frame() {
-    use crate::gpu::image_cache::Eviction;
     use vello_hybrid::{AtlasConfig, Resources};
 
     // An atlas with room for one 24x24 image, so the second one is refused, as a dock icon is
@@ -557,14 +556,10 @@ fn an_image_the_full_atlas_refused_is_drawn_on_the_next_frame() {
         close(refused, [0, 0, 0, 0]),
         "the atlas is full, so green is missing: {refused:?}"
     );
-    assert_eq!(
-        pending,
-        Eviction::All,
-        "the refusal asks for an empty cache"
-    );
+    assert!(pending, "the refusal asks for an empty cache");
     assert!(
         close(retried, [0, 255, 0, 255]),
         "the next frame draws green: {retried:?}"
     );
-    assert_eq!(after, Eviction::Keep, "drawn whole, nothing more is asked");
+    assert!(!after, "drawn whole, nothing more is asked");
 }

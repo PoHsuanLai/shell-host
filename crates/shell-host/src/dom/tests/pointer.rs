@@ -4,7 +4,7 @@
 //! The documents are the host's own `SurfaceDocument`s (UA stylesheet included), fed the event
 //! sequences `input::pointer` produces, as `handlers/pointer.rs` feeds them.
 
-use crate::dom::document::{FirstMouseOptIn, Polled, SurfaceDocument};
+use crate::dom::document::SurfaceDocument;
 use crate::dom::tests::env::test_env;
 use crate::input::pointer::{self, PointerPos};
 use crate::root::HostRoot;
@@ -260,7 +260,7 @@ fn leaving_the_surface_runs_mouseleave_handlers() {
     let left = doc.pointer_left(Modifiers::empty());
     doc.poll(&mut cx);
 
-    assert_eq!(left, Polled::Changed);
+    assert!(left);
     assert_eq!(text_of(&mut doc, "#left"), "left 1");
     assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), None);
 }
@@ -419,17 +419,9 @@ fn a_move_past_the_threshold_between_press_and_release_suppresses_the_click() {
 fn the_opt_in_is_the_element_or_an_ancestor_carrying_the_attribute() {
     let mut doc = build();
     let cases = [
-        (
-            "the element with the attribute",
-            "#drag",
-            FirstMouseOptIn::OptedIn,
-        ),
-        (
-            "a descendant of one that has it",
-            "#inside",
-            FirstMouseOptIn::OptedIn,
-        ),
-        ("an ordinary element", "#icon0", FirstMouseOptIn::Default),
+        ("the element with the attribute", "#drag", true),
+        ("a descendant of one that has it", "#inside", true),
+        ("an ordinary element", "#icon0", false),
     ];
     for (name, selector, want) in cases {
         let id = node_id(&mut doc, selector);

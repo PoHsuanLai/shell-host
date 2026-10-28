@@ -63,28 +63,13 @@ fn layer_config() -> LayerConfig {
     }
 }
 
-/// Where a drag started (the press's x), while the button is held.
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Drag {
-    Idle,
-    From(f64),
-}
-
-/// Whether the card is on its way out.
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Exit {
-    Staying,
-    Leaving,
-}
-
 fn banner() -> Element {
-    let mut drag = use_signal(|| Drag::Idle);
+    // Where a drag started (the press's x), while the button is held.
+    let mut drag = use_signal(|| None::<f64>);
     let mut dx = use_signal(|| 0.0_f64);
-    let mut exit = use_signal(|| Exit::Staying);
-    let class = match exit() {
-        Exit::Staying => "",
-        Exit::Leaving => "leaving",
-    };
+    // The card is on its way out.
+    let mut exit = use_signal(|| false);
+    let class = if exit() { "leaving" } else { "" };
     rsx! {
         style { "{CSS}" }
         div { class: "swipe", style: "transform:translateX({dx}px)",
@@ -92,20 +77,20 @@ fn banner() -> Element {
                 id: "card",
                 class,
                 onmousedown: move |event: MouseEvent| {
-                    drag.set(Drag::From(event.client_coordinates().x - dx()));
+                    drag.set(Some(event.client_coordinates().x - dx()));
                 },
                 onmousemove: move |event: MouseEvent| {
-                    if let Drag::From(start) = drag() {
+                    if let Some(start) = drag() {
                         let next = (event.client_coordinates().x - start).max(0.0);
                         dx.set(next);
                         print(json!({"event": "drag", "dx": next}));
                     }
                 },
                 onmouseup: move |_| {
-                    drag.set(Drag::Idle);
+                    drag.set(None);
                     let leaving = dx() > DISMISS_PX;
                     if leaving {
-                        exit.set(Exit::Leaving);
+                        exit.set(true);
                     } else {
                         dx.set(0.0);
                     }

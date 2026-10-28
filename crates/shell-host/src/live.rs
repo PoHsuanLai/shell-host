@@ -10,13 +10,6 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
 
-/// Whether publishing a value changed it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Published {
-    Changed,
-    Unchanged,
-}
-
 #[derive(Debug)]
 struct LiveState<T> {
     current: T,
@@ -57,16 +50,17 @@ impl<T: Copy + PartialEq> Live<T> {
     }
 
     /// Record `value`, waking every waiter if it differs from the current one. Publishing the
-    /// same value again wakes nobody, so a repeated compositor event costs no render.
-    pub(crate) fn publish(&self, value: T) -> Published {
+    /// same value again wakes nobody, so a repeated compositor event costs no render. Returns
+    /// whether the value changed.
+    pub(crate) fn publish(&self, value: T) -> bool {
         let mut state = self.0.borrow_mut();
         if state.current == value {
-            return Published::Unchanged;
+            return false;
         }
         state.current = value;
         state.changes += 1;
         state.waiting.drain(..).for_each(Waker::wake);
-        Published::Changed
+        true
     }
 
     /// The first change after the `seen`th: resolves with the change count and the value.

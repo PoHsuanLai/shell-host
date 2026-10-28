@@ -146,22 +146,16 @@ enum Crossing {
 static PAD: Tally = Tally::new();
 static SLIDER: Tally = Tally::new();
 
-/// Whether the slider's timer was started.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Timer {
-    Idle,
-    Started,
-}
-
 fn slide() -> Element {
     let mut pointer = use_signal(|| (0.0, 0.0));
     let mut placed = use_signal(|| None::<(f64, f64)>);
-    let mut timer = use_signal(|| Timer::Idle);
+    // The slider's timer was started.
+    let mut timer_started = use_signal(|| false);
     let onmove = move |event: PointerEvent| {
         let at = event.client_coordinates();
         pointer.set((at.x, at.y));
-        if timer() == Timer::Idle {
-            timer.set(Timer::Started);
+        if !timer_started() {
+            timer_started.set(true);
             spawn(async move {
                 tokio::time::sleep(SLIDE_DELAY).await;
                 let (x, y) = *pointer.peek();

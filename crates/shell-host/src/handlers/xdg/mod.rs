@@ -22,9 +22,7 @@ use crate::scale::{self, Size};
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 use crate::toplevel::state_of;
-use decide::{
-    FrameGeometry, GrabbingPopups, KeyboardRestore, keyboard_restore, popup_size, toplevel_layout,
-};
+use decide::{keyboard_restore, popup_size, toplevel_layout};
 
 impl WindowHandler for HostState {
     /// `HostEvent::SurfaceClosed{reason: UserClose}`.
@@ -134,7 +132,7 @@ fn record_toplevel_configure(
     };
     let next = state_of(configure);
     let layout = toplevel_layout(frame_now, config.decorations, next, configure.new_size);
-    if let FrameGeometry::Set(geometry) = layout.geometry {
+    if let Some(geometry) = layout.geometry {
         let px = |v: Px| u32::try_from(v).unwrap_or(0);
         window.set_window_geometry(
             px(geometry.x),
@@ -173,17 +171,13 @@ fn record_popup_configure(
 /// layer was spawned with and no other grabbing popup of that parent is still open (plan: opening
 /// a grabbing popup from a `KeyboardMode::None` layer switches it to `OnDemand` until close).
 fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
-    let grabs = state
-        .surfaces
-        .values()
-        .find(|s| {
-            matches!(
-                &s.role,
-                Role::Popup { parent, config, .. }
-                    if *parent == layer_id && config.grab == PopupGrab::Grabbed
-            )
-        })
-        .map_or(GrabbingPopups::None, |_| GrabbingPopups::Open);
+    let grabs_open = state.surfaces.values().any(|s| {
+        matches!(
+            &s.role,
+            Role::Popup { parent, config, .. }
+                if *parent == layer_id && config.grab == PopupGrab::Grabbed
+        )
+    });
     let Some(host_surface) = state.surfaces.get_mut(&layer_id) else {
         return;
     };
@@ -195,7 +189,7 @@ fn restore_keyboard_mode_if_idle(state: &mut HostState, layer_id: SurfaceId) {
     else {
         return;
     };
-    if keyboard_restore(config.keyboard, *keyboard, grabs) == KeyboardRestore::Restore {
+    if keyboard_restore(config.keyboard, *keyboard, grabs_open) {
         *keyboard = KeyboardMode::None;
         surface.set_keyboard_interactivity(to_wire_keyboard(KeyboardMode::None));
         // Layer state is double-buffered: without a commit the bar stayed `OnDemand` until its

@@ -11,14 +11,6 @@ pub(crate) const MAX_REBUILDS: usize = 3;
 /// How far back rebuilds count.
 pub(crate) const REBUILD_WINDOW: Duration = Duration::from_secs(60);
 
-/// What to do about a lost device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Verdict {
-    Rebuild,
-    /// The device keeps getting lost: stop the host.
-    GiveUp,
-}
-
 /// When the host last rebuilt.
 #[derive(Debug, Default)]
 pub(crate) struct Rebuilds {
@@ -26,8 +18,9 @@ pub(crate) struct Rebuilds {
 }
 
 impl Rebuilds {
-    /// Note a rebuild wanted at `now`, and say whether to do it.
-    pub(crate) fn record(&mut self, now: Instant) -> Verdict {
+    /// Note a rebuild wanted at `now`, and say whether to do it. `false`: the device keeps
+    /// getting lost, so stop the host.
+    pub(crate) fn record(&mut self, now: Instant) -> bool {
         while self
             .at
             .front()
@@ -36,10 +29,10 @@ impl Rebuilds {
             self.at.pop_front();
         }
         if self.at.len() >= MAX_REBUILDS {
-            return Verdict::GiveUp;
+            return false;
         }
         self.at.push_back(now);
-        Verdict::Rebuild
+        true
     }
 }
 
@@ -52,11 +45,11 @@ mod tests {
         let start = Instant::now();
         let mut rebuilds = Rebuilds::default();
         let step = REBUILD_WINDOW / 10;
-        let verdicts: Vec<Verdict> = (0..MAX_REBUILDS + 1)
+        let verdicts: Vec<bool> = (0..MAX_REBUILDS + 1)
             .map(|n| rebuilds.record(start + step * u32::try_from(n).expect("small")))
             .collect();
-        let mut want = vec![Verdict::Rebuild; MAX_REBUILDS];
-        want.push(Verdict::GiveUp);
+        let mut want = vec![true; MAX_REBUILDS];
+        want.push(false);
         assert_eq!(verdicts, want);
     }
 
@@ -67,7 +60,7 @@ mod tests {
         for n in 0..(MAX_REBUILDS * 3) {
             let at = start
                 + (REBUILD_WINDOW + Duration::from_secs(1)) * u32::try_from(n).expect("small");
-            assert_eq!(rebuilds.record(at), Verdict::Rebuild, "loss {n}");
+            assert!(rebuilds.record(at), "loss {n}");
         }
     }
 }

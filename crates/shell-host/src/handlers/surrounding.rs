@@ -8,15 +8,8 @@
 
 use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_v3::ChangeCause as WireCause;
 
-use crate::ime::{self, ChangeCause, ImeFocus, SentSurrounding};
+use crate::ime::{self, SentSurrounding};
 use crate::state::HostState;
-
-/// Whether `queue` wrote requests that now wait for a `commit`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Queued {
-    Requests,
-    Nothing,
-}
 
 /// Forget what was sent: the compositor does too, on `enable`, `disable` and `leave`.
 pub(crate) fn forget(state: &mut HostState) {
@@ -24,19 +17,20 @@ pub(crate) fn forget(state: &mut HostState) {
 }
 
 /// Queue the focused field's surrounding text and the cause of the change, when it differs from
-/// what was last sent. The cause then goes back to `Other`: only a `done` makes it `InputMethod`.
-pub(crate) fn queue(state: &mut HostState) -> Queued {
-    let cause = std::mem::take(&mut state.ime.cause);
+/// what was last sent. The cause then goes back to "other": only a `done` makes it the input method.
+/// Whether it wrote requests that now wait for a `commit`.
+pub(crate) fn queue(state: &mut HostState) -> bool {
+    let by_input_method = std::mem::take(&mut state.ime.by_input_method);
     let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) else {
-        return Queued::Nothing;
+        return false;
     };
     let current = state
         .input
         .keyboard_focus
         .and_then(|id| state.surfaces.get(&id))
         .and_then(|surface| surface.document.surrounding_text());
-    let Some(outgoing) = ime::decide(&state.ime.surrounding, current, cause) else {
-        return Queued::Nothing;
+    let Some(outgoing) = ime::decide(&state.ime.surrounding, current, by_input_method) else {
+        return false;
     };
     let surrounding = outgoing.surrounding;
     // At most 4000 bytes, so the offsets fit.
@@ -46,24 +40,25 @@ pub(crate) fn queue(state: &mut HostState) -> Queued {
         offset(surrounding.cursor),
         offset(surrounding.anchor),
     );
-    input.set_text_change_cause(match outgoing.cause {
-        ChangeCause::InputMethod => WireCause::InputMethod,
-        ChangeCause::Other => WireCause::Other,
+    input.set_text_change_cause(if outgoing.by_input_method {
+        WireCause::InputMethod
+    } else {
+        WireCause::Other
     });
     state.ime.surrounding = SentSurrounding {
         text: Some(surrounding),
     };
-    Queued::Requests
+    true
 }
 
 /// Send the surrounding text now, with its own `commit`, when the IME is enabled and the text
 /// changed.
 pub(crate) fn sync(state: &mut HostState) {
-    if matches!(state.ime.focus, ImeFocus::Disabled) {
-        state.ime.cause = ChangeCause::Other;
+    if state.ime.focus.is_none() {
+        state.ime.by_input_method = false;
         return;
     }
-    if queue(state) == Queued::Nothing {
+    if !queue(state) {
         return;
     }
     if let Some(input) = state.text_input.as_ref().and_then(|m| m.input.as_ref()) {

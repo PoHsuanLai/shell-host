@@ -43,7 +43,7 @@ impl SurfaceScroll {
     ) -> Moved {
         let tuning = self.tuning;
         let env = tuning.at(now);
-        self.driver = super::Driver::Palmrest;
+        self.driven_by_palmrest = true;
         match event {
             PalmScroll::MayBegin => {
                 self.palm = PalmGesture::Idle;

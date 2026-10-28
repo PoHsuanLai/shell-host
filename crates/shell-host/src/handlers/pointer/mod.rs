@@ -8,14 +8,13 @@ use wayland_client::protocol::wl_pointer::WlPointer;
 use wayland_client::{Connection, QueueHandle};
 
 use crate::csd::Zone;
-use crate::dom::document::FirstMouseOptIn;
 use crate::grab::Press;
 use crate::id::SurfaceId;
-use crate::input::focus::{self, Departure, PointerFocus};
-use crate::input::pointer::{self, ButtonChange, FirstMouse, PointerPos};
+use crate::input::focus::{self, PointerFocus};
+use crate::input::pointer::{self, PointerPos};
 use crate::modality::Stroke;
 use crate::state::HostState;
-use decide::{Delivery, Focused, PressRoute};
+use decide::PressRoute;
 use palmrest_protocol::Over;
 
 impl PointerHandler for HostState {
@@ -99,17 +98,16 @@ impl PointerHandler for HostState {
                     self.input.position = pos;
                     let held_before = self.input.buttons;
                     self.input.zone = self.zone_while_held(id, pos);
-                    self.input.buttons =
-                        pointer::buttons_after(held_before, btn, ButtonChange::Pressed);
+                    self.input.buttons = pointer::buttons_after(held_before, btn, true);
                     self.input.grab.update(|facts| {
                         facts.press = Some(Press {
                             surface: id,
                             serial,
                         });
                     });
-                    let first = self.first_mouse(id);
-                    let opt_in = self.first_mouse_opt_in(id, first, pos);
-                    let route = decide::press_route(self.input.zone, btn, first, opt_in);
+                    // The element is asked only when the click would be swallowed.
+                    let swallow = self.first_mouse(id) && !self.first_mouse_opted_in(id, pos);
+                    let route = decide::press_route(self.input.zone, btn, swallow);
                     match route {
                         // The band is the host's: the press starts the resize, whether or not
                         // the window is active, and the document never hears of it.
@@ -136,12 +134,11 @@ impl PointerHandler for HostState {
                     };
                     self.input.position = pos;
                     let held_before = self.input.buttons;
-                    self.input.buttons =
-                        pointer::buttons_after(held_before, btn, ButtonChange::Released);
+                    self.input.buttons = pointer::buttons_after(held_before, btn, false);
                     if self.input.buttons == MouseEventButtons::None {
                         self.input.grab.update(|facts| facts.press = None);
                     }
-                    if decide::delivery(self.input.zone) == Delivery::ToDocument {
+                    if decide::reaches_document(self.input.zone) {
                         let at = self.document_pos(id, pos);
                         let event =
                             pointer::release_event(at, btn, held_before, self.input.modifiers);
@@ -154,7 +151,7 @@ impl PointerHandler for HostState {
                     time: _,
                     source,
                 } => {
-                    if decide::delivery(self.input.zone) == Delivery::Withheld {
+                    if !decide::reaches_document(self.input.zone) {
                         continue;
                     }
                     // The engine's, never Blitz's default scroll action (design/11 §11.3.1),
@@ -172,31 +169,21 @@ impl HostState {
     /// (design/13 §13.3.8): only for a toplevel, only when it is the one surface that currently
     /// has keyboard focus, and only within the first-mouse window (`HostConfig::first_mouse_window_ms`,
     /// the settings key `menus.first_mouse_window_ms`) of that focus arriving.
-    fn first_mouse(&self, id: SurfaceId) -> FirstMouse {
+    fn first_mouse(&self, id: SurfaceId) -> bool {
         let role = self.surfaces.get(&id).map(|surface| surface.role.kind());
-        let focus = match self.input.keyboard_focus {
-            Some(focused) if focused == id => Focused::Yes,
-            Some(_) | None => Focused::No,
-        };
+        let focused = self.input.keyboard_focus == Some(id);
         let since_activation = self.input.focused_at.map(|at| at.elapsed());
-        decide::first_mouse_verdict(role, focus, since_activation, self.first_mouse_window)
+        decide::first_mouse_verdict(role, focused, since_activation, self.first_mouse_window)
     }
 
     /// Whether the element under `pos` on surface `id` opted into the activating click
-    /// (`data-first-mouse`). Asked of the document only when the click would be swallowed.
-    fn first_mouse_opt_in(
-        &self,
-        id: SurfaceId,
-        first: FirstMouse,
-        pos: PointerPos,
-    ) -> FirstMouseOptIn {
-        match (first, self.surfaces.get(&id)) {
-            (FirstMouse::Swallow, Some(surface)) => {
-                let at = self.document_pos(id, pos);
-                surface.document.wants_first_mouse(at.x, at.y)
-            }
-            _ => FirstMouseOptIn::Default,
-        }
+    /// (`data-first-mouse`).
+    fn first_mouse_opted_in(&self, id: SurfaceId, pos: PointerPos) -> bool {
+        let Some(surface) = self.surfaces.get(&id) else {
+            return false;
+        };
+        let at = self.document_pos(id, pos);
+        surface.document.wants_first_mouse(at.x, at.y)
     }
 
     /// Surface `id` is being unmapped or closed by the host. If the pointer is on it, end the
@@ -206,13 +193,14 @@ impl HostState {
     /// a `mouseenter`. No invalidation: the surface is going, and a remapped one starts a new
     /// frame machine.
     pub(crate) fn withdraw_pointer(&mut self, id: SurfaceId) {
-        if self.depart(id) == Departure::Lost {
+        if self.depart(id) {
             self.pointer_off(id);
         }
     }
 
-    /// Update the focus record and the grab's copy of it for surface `id` departing.
-    fn depart(&mut self, id: SurfaceId) -> Departure {
+    /// Update the focus record and the grab's copy of it for surface `id` departing; whether the
+    /// pointer was on it (`input::focus::depart`).
+    fn depart(&mut self, id: SurfaceId) -> bool {
         let (after, departure) = focus::depart(self.input.pointer_focus, id);
         self.input.pointer_focus = after;
         self.input.grab.update(|facts| {

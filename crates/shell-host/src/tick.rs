@@ -29,7 +29,6 @@ use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use crate::frame::Animation;
 use blitz_kit::scroll::time::Elapsed;
 
 /// One frame of a surface that is animating or driven: when it was called back, and how long
@@ -40,20 +39,10 @@ pub struct FrameTick {
     pub dt: Duration,
 }
 
-/// Whether any [`FrameDrive`] of a surface is alive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Drive {
-    Held,
-    Released,
-}
-
-/// What the frame machine is told about a surface: animating when its document is, or when
-/// a drive is held. Pure.
-pub(crate) fn pacing(document: Animation, drive: Drive) -> Animation {
-    match (document, drive) {
-        (Animation::Running, _) | (_, Drive::Held) => Animation::Running,
-        (Animation::Stopped, Drive::Released) => Animation::Stopped,
-    }
+/// What the frame machine is told about a surface: animating when its document is
+/// (`document`), or when a drive is held (`drive`). Pure.
+pub(crate) fn pacing(document: bool, drive: bool) -> bool {
+    document || drive
 }
 
 /// The tick at `at`, after the previous tick of this run at `previous` (none: a new run).
@@ -61,13 +50,6 @@ pub(crate) fn pacing(document: Animation, drive: Drive) -> Animation {
 pub(crate) fn tick_after(previous: Option<Elapsed>, at: Elapsed) -> FrameTick {
     let dt = previous.map_or(Duration::ZERO, |before| at.0.saturating_sub(before.0));
     FrameTick { at, dt }
-}
-
-/// Whether a frame due now ticked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Ticked {
-    Ticked,
-    Quiet,
 }
 
 #[derive(Debug, Default)]
@@ -87,11 +69,8 @@ pub(crate) struct FrameTicks(Rc<RefCell<TickState>>);
 
 impl FrameTicks {
     /// Whether a drive is held.
-    pub(crate) fn drive(&self) -> Drive {
-        match self.0.borrow().drives {
-            0 => Drive::Released,
-            _ => Drive::Held,
-        }
+    pub(crate) fn drive(&self) -> bool {
+        self.0.borrow().drives > 0
     }
 
     /// Hold a drive until the returned value is dropped. The host must also be told to render
@@ -105,24 +84,21 @@ impl FrameTicks {
 
     /// A frame is due at `at` (its callback, or the watchdog standing in for it) on a surface
     /// whose document is in `document`: tick when [`pacing`] says running, else end the run.
-    /// Returns what the frame machine should be told, and whether a tick fired.
-    pub(crate) fn frame_due(&self, document: Animation, at: Elapsed) -> (Animation, Ticked) {
-        let animation = pacing(document, self.drive());
+    /// Returns what the frame machine should be told (animating), and whether a tick fired
+    /// (the same fact, so one value).
+    pub(crate) fn frame_due(&self, document: bool, at: Elapsed) -> bool {
+        let animating = pacing(document, self.drive());
         let mut state = self.0.borrow_mut();
-        match animation {
-            Animation::Running => {
-                let tick = tick_after(state.run, at);
-                state.run = Some(at);
-                state.count += 1;
-                state.latest = tick;
-                state.waiting.drain(..).for_each(Waker::wake);
-                (animation, Ticked::Ticked)
-            }
-            Animation::Stopped => {
-                state.run = None;
-                (animation, Ticked::Quiet)
-            }
+        if animating {
+            let tick = tick_after(state.run, at);
+            state.run = Some(at);
+            state.count += 1;
+            state.latest = tick;
+            state.waiting.drain(..).for_each(Waker::wake);
+        } else {
+            state.run = None;
         }
+        animating
     }
 
     /// Ticks published so far.
@@ -203,15 +179,14 @@ mod tests {
 
     #[test]
     fn pacing_runs_while_animating_or_driven() {
-        use Animation::{Running, Stopped};
         let cases = [
-            (Stopped, Drive::Released, Stopped),
-            (Stopped, Drive::Held, Running),
-            (Running, Drive::Released, Running),
-            (Running, Drive::Held, Running),
+            (false, false, false),
+            (false, true, true),
+            (true, false, true),
+            (true, true, true),
         ];
         for (document, drive, want) in cases {
-            assert_eq!(pacing(document, drive), want, "{document:?} {drive:?}");
+            assert_eq!(pacing(document, drive), want, "{document} {drive}");
         }
     }
 
@@ -235,21 +210,20 @@ mod tests {
     #[test]
     fn drives_count_and_a_quiet_frame_ends_the_run() {
         let ticks = FrameTicks::default();
-        assert_eq!(ticks.drive(), Drive::Released);
+        assert!(!ticks.drive());
         let a = ticks.hold();
         let b = ticks.hold();
         drop(a);
-        assert_eq!(ticks.drive(), Drive::Held);
-        let due = |at| ticks.frame_due(Animation::Stopped, at);
-        assert_eq!(due(ms(0)), (Animation::Running, Ticked::Ticked));
-        assert_eq!(due(ms(16)), (Animation::Running, Ticked::Ticked));
+        assert!(ticks.drive());
+        let due = |at| ticks.frame_due(false, at);
+        assert!(due(ms(0)));
+        assert!(due(ms(16)));
         assert_eq!(ticks.0.borrow().latest.dt, Duration::from_millis(16));
         drop(b);
-        assert_eq!(due(ms(33)), (Animation::Stopped, Ticked::Quiet));
+        assert!(!due(ms(33)));
         assert_eq!(ticks.count(), 2);
         // A new run starts with dt zero, even with the document animating instead.
-        let run = ticks.frame_due(Animation::Running, ms(900));
-        assert_eq!(run, (Animation::Running, Ticked::Ticked));
+        assert!(ticks.frame_due(true, ms(900)));
         assert_eq!(
             ticks.0.borrow().latest,
             FrameTick {
@@ -266,7 +240,7 @@ mod tests {
         let mut next = std::pin::pin!(ticks.after(ticks.count()));
         let mut cx = Context::from_waker(Waker::noop());
         assert!(next.as_mut().poll(&mut cx).is_pending());
-        ticks.frame_due(Animation::Stopped, ms(7));
+        ticks.frame_due(false, ms(7));
         let tick = FrameTick {
             at: ms(7),
             dt: Duration::ZERO,

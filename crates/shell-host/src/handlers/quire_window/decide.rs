@@ -1,5 +1,5 @@
 //! The decision behind a placement request: a menu choice and the latest input serial become
-//! the protocol request, or a reason none is sent.
+//! the protocol request, or none when the seat has made no input yet.
 
 use casement_protocols::vocab::PlaceTarget;
 
@@ -10,15 +10,6 @@ use crate::window_placement::WindowPlacement;
 pub(super) struct PlacementRequest {
     pub(super) target: PlaceTarget,
     pub(super) serial: u32,
-}
-
-/// Why no request goes out.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub(crate) enum PlacementRefused {
-    /// The seat has produced no input yet; a compositor ignores a request without a serial,
-    /// so windows never move on their own.
-    #[error("no input event to place the window for")]
-    NoInput,
 }
 
 /// The wire target of a menu choice.
@@ -39,18 +30,13 @@ pub(super) fn target_of(placement: WindowPlacement) -> PlaceTarget {
 }
 
 /// The request for `placement` after the input event with `serial` (0 while the seat has made
-/// none). Pure.
-pub(super) fn plan(
-    placement: WindowPlacement,
-    serial: u32,
-) -> Result<PlacementRequest, PlacementRefused> {
-    match serial {
-        0 => Err(PlacementRefused::NoInput),
-        serial => Ok(PlacementRequest {
-            target: target_of(placement),
-            serial,
-        }),
-    }
+/// none: `None`, since a compositor ignores a request without a serial, so windows never move
+/// on their own). Pure.
+pub(super) fn plan(placement: WindowPlacement, serial: u32) -> Option<PlacementRequest> {
+    (serial != 0).then(|| PlacementRequest {
+        target: target_of(placement),
+        serial,
+    })
 }
 
 #[cfg(test)]
@@ -104,17 +90,12 @@ mod tests {
     #[test]
     fn a_request_needs_an_input_serial() {
         let cases = [
-            (
-                "no input yet",
-                WindowPlacement::Left,
-                0,
-                Err(PlacementRefused::NoInput),
-            ),
+            ("no input yet", WindowPlacement::Left, 0, None),
             (
                 "left half after a click",
                 WindowPlacement::Left,
                 41,
-                Ok(PlacementRequest {
+                Some(PlacementRequest {
                     target: PlaceTarget::Left,
                     serial: 41,
                 }),
@@ -123,7 +104,7 @@ mod tests {
                 "centre after a key",
                 WindowPlacement::Centre,
                 7,
-                Ok(PlacementRequest {
+                Some(PlacementRequest {
                     target: PlaceTarget::Centre,
                     serial: 7,
                 }),

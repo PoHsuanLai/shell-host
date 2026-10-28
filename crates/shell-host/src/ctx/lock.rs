@@ -13,8 +13,8 @@ use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::blur::BlurSpec;
 use crate::csd::Inset;
+use crate::ctx::HostCtx;
 use crate::ctx::spawn::{Initial, insert, new_wl_surface};
-use crate::ctx::{HostCtx, Running};
 use crate::error::HostError;
 use crate::event::HostEvent;
 use crate::handlers::output::output_info;
@@ -215,7 +215,7 @@ fn create_surface<M: 'static>(ctx: &mut HostCtx<M>, output: OutputId) {
 /// Lock surface `id` was closed while its lock lasts (its presenter failed for good): make it
 /// again like one that failed to start.
 pub(super) fn surface_lost<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
-    if ctx.running == Running::Exit {
+    if ctx.running.is_break() {
         return;
     }
     let Some(active) = ctx.state.lock.as_mut() else {

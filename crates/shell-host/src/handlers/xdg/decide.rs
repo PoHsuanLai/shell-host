@@ -15,17 +15,10 @@ pub(super) struct ToplevelLayout {
     pub(super) inset: Inset,
     /// The surface around the frame.
     pub(super) surface: Size,
-    /// Where the frame sits in the surface.
-    pub(super) geometry: FrameGeometry,
-}
-
-/// Whether the host tells the compositor where the frame is inside the surface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FrameGeometry {
-    /// A client-decorated window sets its window geometry to the frame.
-    Set(Rect),
-    /// A server-decorated window's surface is its frame already.
-    Unset,
+    /// Where the frame sits in the surface, when the host tells the compositor: a
+    /// client-decorated window sets its window geometry to the frame. `None` for a
+    /// server-decorated window, whose surface is its frame already.
+    pub(super) geometry: Option<Rect>,
 }
 
 /// The layout a toplevel configure produces: the frame size (the configure's, or `frame_now` on
@@ -40,8 +33,8 @@ pub(super) fn toplevel_layout(
     let frame = toplevel_configured_size(frame_now, wire);
     let surface = surface_of(frame, inset);
     let geometry = match decorations {
-        Decorations::Client(_) => FrameGeometry::Set(window_geometry(surface, inset)),
-        Decorations::Server => FrameGeometry::Unset,
+        Decorations::Client(_) => Some(window_geometry(surface, inset)),
+        Decorations::Server => None,
     };
     ToplevelLayout {
         inset,
@@ -78,34 +71,17 @@ pub(super) fn popup_size(width: Px, height: Px) -> Size {
     }
 }
 
-/// Whether a parent layer still has a grabbing popup open.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GrabbingPopups {
-    Open,
-    None,
-}
-
-/// What to do with a layer's keyboard mode after one of its popups closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum KeyboardRestore {
-    /// Drop the layer back to `KeyboardMode::None`.
-    Restore,
-    Keep,
-}
-
-/// A layer spawned with `KeyboardMode::None` that now holds another mode (lifted to `OnDemand`
-/// for a grabbing popup) drops back once no grabbing popup of it is left open. A layer spawned
-/// with another mode, or already back at `None`, keeps what it has.
+/// Whether a layer's keyboard mode drops back to `KeyboardMode::None` after one of its popups
+/// closed. A layer spawned with `KeyboardMode::None` that now holds another mode (lifted to
+/// `OnDemand` for a grabbing popup) drops back once no grabbing popup of it is left open
+/// (`grabs_open`). A layer spawned with another mode, or already back at `None`, keeps what it
+/// has.
 pub(super) fn keyboard_restore(
     configured: KeyboardMode,
     current: KeyboardMode,
-    grabs: GrabbingPopups,
-) -> KeyboardRestore {
-    match (grabs, configured, current) {
-        (GrabbingPopups::None, KeyboardMode::None, KeyboardMode::None) => KeyboardRestore::Keep,
-        (GrabbingPopups::None, KeyboardMode::None, _) => KeyboardRestore::Restore,
-        _ => KeyboardRestore::Keep,
-    }
+    grabs_open: bool,
+) -> bool {
+    !grabs_open && configured == KeyboardMode::None && current != KeyboardMode::None
 }
 
 #[cfg(test)]
@@ -179,7 +155,7 @@ mod tests {
                         width: 814,
                         height: 614,
                     },
-                    geometry: FrameGeometry::Set(Rect {
+                    geometry: Some(Rect {
                         x: 7,
                         y: 7,
                         width: 800,
@@ -197,7 +173,7 @@ mod tests {
                         width: 824,
                         height: 624,
                     },
-                    geometry: FrameGeometry::Set(Rect {
+                    geometry: Some(Rect {
                         x: 12,
                         y: 12,
                         width: 800,
@@ -212,7 +188,7 @@ mod tests {
                 ToplevelLayout {
                     inset: Inset::NONE,
                     surface: frame,
-                    geometry: FrameGeometry::Set(Rect {
+                    geometry: Some(Rect {
                         x: 0,
                         y: 0,
                         width: 800,
@@ -227,7 +203,7 @@ mod tests {
                 ToplevelLayout {
                     inset: Inset::NONE,
                     surface: frame,
-                    geometry: FrameGeometry::Set(Rect {
+                    geometry: Some(Rect {
                         x: 0,
                         y: 0,
                         width: 800,
@@ -242,7 +218,7 @@ mod tests {
                 ToplevelLayout {
                     inset: Inset::NONE,
                     surface: frame,
-                    geometry: FrameGeometry::Unset,
+                    geometry: None,
                 },
             ),
         ];
@@ -287,61 +263,42 @@ mod tests {
 
     #[test]
     fn a_lifted_layer_drops_back_only_when_no_grabbing_popup_is_left() {
-        use GrabbingPopups::{None as NoGrabs, Open};
         use KeyboardMode::{Exclusive, None as NoKeys, OnDemand};
-        let cases: &[(
-            &str,
-            KeyboardMode,
-            KeyboardMode,
-            GrabbingPopups,
-            KeyboardRestore,
-        )] = &[
+        let cases: &[(&str, KeyboardMode, KeyboardMode, bool, bool)] = &[
             (
                 "lifted, no popup left: restore",
                 NoKeys,
                 OnDemand,
-                NoGrabs,
-                KeyboardRestore::Restore,
+                false,
+                true,
             ),
             (
                 "lifted, another grabbing popup open: keep",
                 NoKeys,
                 OnDemand,
-                Open,
-                KeyboardRestore::Keep,
+                true,
+                false,
             ),
             (
                 "set to exclusive since spawning: restore too",
                 NoKeys,
                 Exclusive,
-                NoGrabs,
-                KeyboardRestore::Restore,
+                false,
+                true,
             ),
-            (
-                "already back at none: keep",
-                NoKeys,
-                NoKeys,
-                NoGrabs,
-                KeyboardRestore::Keep,
-            ),
-            (
-                "spawned on demand: keep",
-                OnDemand,
-                OnDemand,
-                NoGrabs,
-                KeyboardRestore::Keep,
-            ),
+            ("already back at none: keep", NoKeys, NoKeys, false, false),
+            ("spawned on demand: keep", OnDemand, OnDemand, false, false),
             (
                 "spawned exclusive: keep",
                 Exclusive,
                 Exclusive,
-                NoGrabs,
-                KeyboardRestore::Keep,
+                false,
+                false,
             ),
         ];
-        for (name, configured, current, grabs, want) in cases {
+        for (name, configured, current, grabs_open, want) in cases {
             assert_eq!(
-                keyboard_restore(*configured, *current, *grabs),
+                keyboard_restore(*configured, *current, *grabs_open),
                 *want,
                 "{name}"
             );

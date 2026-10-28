@@ -2,7 +2,7 @@
 //! modifiers combined into one `BlitzKeyEvent`. The per-table rows are unit-tested in
 //! `src/input/{keysym,keycode,modifiers}.rs`; these check the combination.
 
-use crate::input::key::{Composing, Repeat, key_event};
+use crate::input::key::key_event;
 use keyboard_types::{Code, Key, Location, Modifiers};
 use smithay_client_toolkit::seat::keyboard::{KeyEvent, Keysym};
 
@@ -27,8 +27,8 @@ fn shift_a_is_a_capital_character_on_key_a() {
         &event,
         Modifiers::SHIFT,
         blitz_traits::events::KeyState::Pressed,
-        Repeat::First,
-        Composing::Idle,
+        false,
+        false,
     );
     assert_eq!(got.key, Key::Character("A".into()));
     assert_eq!(got.code, Code::KeyA);
@@ -47,8 +47,8 @@ fn ctrl_c_is_the_letter_not_the_control_character() {
         &event,
         Modifiers::CONTROL,
         blitz_traits::events::KeyState::Pressed,
-        Repeat::First,
-        Composing::Idle,
+        false,
+        false,
     );
     assert_eq!(got.key, Key::Character("c".into()));
     assert_eq!(got.code, Code::KeyC);
@@ -64,8 +64,8 @@ fn super_is_super_everywhere() {
         &super_l,
         Modifiers::empty(),
         blitz_traits::events::KeyState::Pressed,
-        Repeat::First,
-        Composing::Idle,
+        false,
+        false,
     );
     assert_eq!(got.key, Key::Super);
     assert_eq!(got.code, Code::MetaLeft);
@@ -77,8 +77,8 @@ fn super_is_super_everywhere() {
         &tab,
         Modifiers::SUPER,
         blitz_traits::events::KeyState::Pressed,
-        Repeat::First,
-        Composing::Idle,
+        false,
+        false,
     );
     assert_eq!(with_super_held.key, Key::Tab);
     assert_eq!(with_super_held.modifiers, Modifiers::SUPER);
@@ -92,8 +92,8 @@ fn repeats_and_releases() {
         &event,
         Modifiers::empty(),
         blitz_traits::events::KeyState::Pressed,
-        Repeat::Repeated,
-        Composing::Idle,
+        true,
+        false,
     );
     assert!(repeated.is_auto_repeating);
     assert_eq!(repeated.text.as_deref(), Some("a"));
@@ -103,8 +103,8 @@ fn repeats_and_releases() {
         &up,
         Modifiers::empty(),
         blitz_traits::events::KeyState::Released,
-        Repeat::First,
-        Composing::Idle,
+        false,
+        false,
     );
     assert!(!released.is_auto_repeating);
     assert_eq!(released.text, None);
@@ -254,8 +254,8 @@ fn every_case_maps_key_code_and_location() {
             &event,
             Modifiers::empty(),
             blitz_traits::events::KeyState::Pressed,
-            Repeat::First,
-            Composing::Idle,
+            false,
+            false,
         );
         assert_eq!(got.key, case.want_key, "{}: key", case.name);
         assert_eq!(got.code, case.want_code, "{}: code", case.name);

@@ -8,9 +8,7 @@ mod thumb;
 
 use blitz_dom::BaseDocument;
 
-use crate::frame::Animation;
 use crate::scroll::indicator::{Indicator, Wake};
-use crate::scroll::suppress::Driven;
 use crate::scroll::tuning::{Env, Tuning};
 use crate::scroll::watch::ScrollBoard;
 pub(crate) use blitz_kit::scroll::driver::Moved;
@@ -19,13 +17,6 @@ use blitz_kit::scroll::engine::{Engine, Motion, ScrollIn};
 use blitz_kit::scroll::geom::ScrollAxis;
 use blitz_kit::scroll::time::Elapsed;
 use blitz_kit::scroll::velocity::SampleTime;
-
-/// Who started what the engine is doing, for the double-scroll rule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Driver {
-    Palmrest,
-    Other,
-}
 
 /// A palmrest gesture whose axis is known but whose direction is not yet (palmrest drops the
 /// first delta at Began, design/12 §12.3.5).
@@ -61,7 +52,8 @@ pub(crate) struct SurfaceScroll {
     scroll: ScrollDriver,
     indicator: Indicator,
     palm: PalmGesture,
-    driver: Driver,
+    /// palmrest started what the engine is doing, for the double-scroll rule.
+    driven_by_palmrest: bool,
     board: ScrollBoard,
     tuning: Tuning,
 }
@@ -73,7 +65,7 @@ impl SurfaceScroll {
             scroll: ScrollDriver::default(),
             indicator: Indicator::default(),
             palm: PalmGesture::Idle,
-            driver: Driver::Other,
+            driven_by_palmrest: false,
             board,
             tuning,
         }
@@ -109,7 +101,7 @@ impl SurfaceScroll {
             self.indicator = self.indicator.changed(*latch, now);
         }
         if moves.claim() == Claim::Took {
-            self.driver = Driver::Other;
+            self.driven_by_palmrest = false;
         }
         moves.moved()
     }
@@ -136,11 +128,8 @@ impl SurfaceScroll {
     }
 
     /// [`SurfaceScroll::motion`] as the frame machine reads it.
-    pub(crate) fn animation(&self, now: Elapsed) -> Animation {
-        match self.motion(now) {
-            Motion::Animating => Animation::Running,
-            Motion::Still => Animation::Stopped,
-        }
+    pub(crate) fn animation(&self, now: Elapsed) -> bool {
+        self.motion(now) == Motion::Animating
     }
 
     /// When the thumb next needs a frame while nothing animates (the end of its hold).
@@ -152,11 +141,8 @@ impl SurfaceScroll {
     }
 
     /// Whether palmrest drove what the engine is doing now (for the double-scroll rule).
-    pub(crate) fn driven(&self) -> Driven {
+    pub(crate) fn driven(&self) -> bool {
         let busy = !matches!(self.scroll.engine(), Engine::Idle);
-        match (self.driver, busy) {
-            (Driver::Palmrest, true) => Driven::Running,
-            _ => Driven::Settled,
-        }
+        self.driven_by_palmrest && busy
     }
 }

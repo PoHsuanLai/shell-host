@@ -7,8 +7,8 @@ use keyboard_types::{Code, Key, Location, Modifiers};
 
 use super::{KeyAction, KeyStroke};
 use crate::id::SurfaceId;
-use crate::input::key::{Composing, unshifted};
-use crate::modality::{Stroke, key_kind_of};
+use crate::input::key::unshifted;
+use crate::modality::{Stroke, is_modifier_key};
 use crate::state::HostState;
 
 /// Do `action` with `stroke` on surface `id`. A press notes the modality as a real press
@@ -24,7 +24,9 @@ pub(super) fn deliver_key(
     let raw = stroke.code as u32;
     let composing = state.composing();
     if action != KeyAction::Release {
-        state.note_stroke(Stroke::KeyPress(key_kind_of(&stroke.key)));
+        state.note_stroke(Stroke::KeyPress {
+            modifier: is_modifier_key(&stroke.key),
+        });
         state.key_down(id, blitz_key(stroke, KeyState::Pressed, composing), raw);
     }
     if action != KeyAction::Press {
@@ -62,7 +64,7 @@ fn modifiers_after(before: Modifiers, stroke: &KeyStroke, action: KeyAction) -> 
 /// The Blitz event for `stroke`: the same fields `input::key::key_event` fills from a real key.
 /// A character types itself unless Control is held (a real Ctrl+K arrives as a control
 /// character, which is not text).
-fn blitz_key(stroke: &KeyStroke, state: KeyState, composing: Composing) -> BlitzKeyEvent {
+fn blitz_key(stroke: &KeyStroke, state: KeyState, composing: bool) -> BlitzKeyEvent {
     let text = match (&stroke.key, state) {
         (Key::Character(text), KeyState::Pressed) if !stroke.mods.contains(Modifiers::CONTROL) => {
             Some(SmolStr::from(text.as_str()))
@@ -76,7 +78,7 @@ fn blitz_key(stroke: &KeyStroke, state: KeyState, composing: Composing) -> Blitz
         modifiers: stroke.mods,
         location: location_of(stroke.code),
         is_auto_repeating: false,
-        is_composing: composing == Composing::Active,
+        is_composing: composing,
         state,
         text,
     }
@@ -93,7 +95,6 @@ fn location_of(code: Code) -> Location {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modality::KeyKind;
     use crate::modifiers::{Modifier, Modifiers as HeldModifiers};
 
     fn stroke(key: Key, code: Code, mods: Modifiers) -> KeyStroke {
@@ -130,7 +131,7 @@ mod tests {
             ),
         ];
         for (name, stroke, state, want) in cases {
-            let event = blitz_key(stroke, *state, Composing::Idle);
+            let event = blitz_key(stroke, *state, false);
             assert_eq!(event.text.as_deref(), *want, "{name}");
             assert_eq!(event.state, *state, "{name}");
             assert_eq!(event.modifiers, stroke.mods, "{name}");
@@ -223,8 +224,8 @@ mod tests {
 
     #[test]
     fn only_modifier_keys_are_modifiers() {
-        assert_eq!(key_kind_of(&Key::Shift), KeyKind::Modifier);
-        assert_eq!(key_kind_of(&Key::Tab), KeyKind::Other);
-        assert_eq!(key_kind_of(&Key::Character("a".to_owned())), KeyKind::Other);
+        assert!(is_modifier_key(&Key::Shift));
+        assert!(!is_modifier_key(&Key::Tab));
+        assert!(!is_modifier_key(&Key::Character("a".to_owned())));
     }
 }

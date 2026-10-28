@@ -10,7 +10,7 @@ use smithay_client_toolkit::seat::pointer::AxisScroll;
 use wayland_client::protocol::wl_pointer;
 
 use super::PointerPos;
-use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Relative, Shift, Stop};
+use crate::scroll::source::{AxisFrame, AxisSource, AxisValue};
 
 /// stops a scroll (`axis_stop`) or carries nothing.
 pub(crate) fn wheel_delta(horizontal: AxisScroll, vertical: AxisScroll) -> Option<BlitzWheelDelta> {
@@ -43,15 +43,7 @@ pub(crate) fn axis_frame(
         px: axis.absolute,
         v120: axis.value120,
         discrete: axis.discrete,
-        stop: if axis.stop {
-            Stop::Stopped
-        } else {
-            Stop::Moving
-        },
-        relative: match axis.relative_direction {
-            Some(wl_pointer::AxisRelativeDirection::Inverted) => Relative::Inverted,
-            _ => Relative::Identical,
-        },
+        stop: axis.stop,
     };
     AxisFrame {
         source: match source {
@@ -63,11 +55,7 @@ pub(crate) fn axis_frame(
         },
         horizontal: value(horizontal),
         vertical: value(vertical),
-        shift: if mods.contains(Modifiers::SHIFT) {
-            Shift::Held
-        } else {
-            Shift::Up
-        },
+        shift: mods.contains(Modifiers::SHIFT),
     }
 }
 
@@ -227,12 +215,9 @@ mod tests {
             Modifiers::SHIFT,
         );
         assert_eq!(frame.source, AxisSource::Finger);
-        assert_eq!(frame.vertical.stop, Stop::Stopped);
-        assert_eq!(frame.shift, Shift::Held);
+        assert!(frame.vertical.stop);
+        assert!(frame.shift);
         let frame = axis_frame(stop, stop, None, Modifiers::empty());
-        assert_eq!(
-            (frame.source, frame.shift),
-            (AxisSource::Unknown, Shift::Up)
-        );
+        assert_eq!((frame.source, frame.shift), (AxisSource::Unknown, false));
     }
 }

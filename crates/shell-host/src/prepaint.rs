@@ -35,26 +35,19 @@ pub enum Prepaint {
     Hook(Arc<PrepaintFn>),
 }
 
-/// Whether a resolve ran a hook, for the `prepaints` counter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Prepainted {
-    Ran,
-    NoHook,
-}
-
 impl Prepaint {
     /// A hook running `pass`.
     pub fn hook(pass: impl Fn(&mut BaseDocument) + Send + Sync + 'static) -> Prepaint {
         Prepaint::Hook(Arc::new(pass))
     }
 
-    /// Run the hook, if any, on a just-resolved `doc`.
-    pub(crate) fn run(&self, doc: &mut BaseDocument) -> Prepainted {
+    /// Run the hook, if any, on a just-resolved `doc`; whether one ran (the `prepaints` counter).
+    pub(crate) fn run(&self, doc: &mut BaseDocument) -> bool {
         match self {
-            Prepaint::None => Prepainted::NoHook,
+            Prepaint::None => false,
             Prepaint::Hook(pass) => {
                 pass(doc);
-                Prepainted::Ran
+                true
             }
         }
     }

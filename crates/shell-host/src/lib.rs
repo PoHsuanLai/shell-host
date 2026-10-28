@@ -22,7 +22,6 @@ mod blur;
 mod bridge;
 mod clipboard;
 mod clock;
-mod compositor_kind;
 mod config;
 mod csd;
 mod ctx;

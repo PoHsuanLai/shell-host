@@ -2,7 +2,7 @@
 //! redraw, a cursor, the IME, or the clipboard. Called from inside `resolve()` and event
 //! handling, so it only records the request and pings the loop; the host acts at flush.
 //!
-//! A redraw request is kept apart by where it came from ([`Origin`]). The host's own thread
+//! A redraw request is kept apart by where it came from (the host's thread or not). The host's own thread
 //! asks while the host is resolving the very frame it is about to present; that request is an
 //! echo of the render and is dropped after presenting, or the surface would never idle.
 //! Any other thread is a load completing (an image, a stylesheet, a font, sent
@@ -22,35 +22,6 @@ use cursor_icon::CursorIcon;
 use crate::clipboard::SharedSelection;
 use crate::region::{Px, Rect};
 
-/// The IME state a document last asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum ImeRequest {
-    #[default]
-    Disabled,
-    /// Enabled, with the caret rectangle in surface-local logical pixels.
-    Enabled { cursor_area: Rect },
-}
-
-/// Which thread asked for a redraw, relative to the host's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Origin {
-    /// The host's own thread: event handling, a poll, or the render itself.
-    HostThread,
-    /// Any other thread: a resource load that completed off the main thread.
-    Elsewhere,
-}
-
-impl Origin {
-    /// Where a request made on `current` came from, for a host running on `host`. Pure.
-    pub(crate) fn of(host: ThreadId, current: ThreadId) -> Origin {
-        if host == current {
-            Origin::HostThread
-        } else {
-            Origin::Elsewhere
-        }
-    }
-}
-
 /// A surface's shell provider.
 #[derive(Debug)]
 pub(crate) struct HostShellProvider {
@@ -65,7 +36,9 @@ pub(crate) struct HostShellProvider {
     arrived: AtomicBool,
     /// What the document last asked of the cursor, until `take_cursor` reads it.
     cursor: Mutex<CursorRequest>,
-    ime: Mutex<ImeRequest>,
+    /// The IME state the document last asked for: the caret rectangle in surface-local logical
+    /// pixels when enabled, `None` when disabled.
+    ime: Mutex<Option<Rect>>,
     /// The selection's text as the seat last published it (`clipboard::SharedSelection`).
     selection: SharedSelection,
     /// Text the document copied, waiting for the flush to claim the selection with it.
@@ -82,7 +55,7 @@ impl HostShellProvider {
             redraw: AtomicBool::new(false),
             arrived: AtomicBool::new(false),
             cursor: Mutex::new(CursorRequest::Unchanged),
-            ime: Mutex::new(ImeRequest::default()),
+            ime: Mutex::new(None),
             selection,
             copied: Mutex::new(None),
         }
@@ -90,16 +63,16 @@ impl HostShellProvider {
 
     /// Whether a redraw was requested, from any thread, since the last call; clears both
     /// flags. The flush's question.
-    pub(crate) fn take_redraw(&self) -> RedrawRequest {
+    pub(crate) fn take_redraw(&self) -> bool {
         let echoed = self.redraw.swap(false, Ordering::SeqCst);
         let arrived = self.arrived.swap(false, Ordering::SeqCst);
-        RedrawRequest::from(echoed || arrived)
+        echoed || arrived
     }
 
     /// Drop what the render just presented asked for itself (the host thread's flag), and
     /// report it. A request from another thread is left for the next flush.
-    pub(crate) fn drop_echo(&self) -> RedrawRequest {
-        RedrawRequest::from(self.redraw.swap(false, Ordering::SeqCst))
+    pub(crate) fn drop_echo(&self) -> bool {
+        self.redraw.swap(false, Ordering::SeqCst)
     }
 
     /// The cursor the document last asked for, if it changed since the last call.
@@ -118,55 +91,9 @@ impl HostShellProvider {
             .take()
     }
 
-    /// The IME state the document last asked for.
-    pub(crate) fn ime(&self) -> ImeRequest {
+    /// The IME state the document last asked for: the caret rectangle when enabled.
+    pub(crate) fn ime(&self) -> Option<Rect> {
         *self.ime.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-/// Whether a document asked to be redrawn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RedrawRequest {
-    Requested,
-    NotRequested,
-}
-
-/// The wire form: the flags a redraw request sets are atomics.
-impl From<bool> for RedrawRequest {
-    fn from(flag: bool) -> RedrawRequest {
-        match flag {
-            true => RedrawRequest::Requested,
-            false => RedrawRequest::NotRequested,
-        }
-    }
-}
-
-/// Blitz's IME switch, which arrives as a bare `bool`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ImeSwitch {
-    On,
-    Off,
-}
-
-impl From<bool> for ImeSwitch {
-    fn from(wire: bool) -> ImeSwitch {
-        match wire {
-            true => ImeSwitch::On,
-            false => ImeSwitch::Off,
-        }
-    }
-}
-
-impl ImeSwitch {
-    /// The request after this switch: turning on keeps an existing cursor area.
-    fn apply(self, current: ImeRequest) -> ImeRequest {
-        match (self, current) {
-            (ImeSwitch::On, enabled @ ImeRequest::Enabled { .. }) => enabled,
-            (ImeSwitch::On, ImeRequest::Disabled) => ImeRequest::Enabled {
-                cursor_area: Rect::ZERO,
-            },
-            (ImeSwitch::Off, _) => ImeRequest::Disabled,
-        }
     }
 }
 
@@ -180,9 +107,12 @@ pub(crate) enum CursorRequest {
 
 impl ShellProvider for HostShellProvider {
     fn request_redraw(&self) {
-        let flag = match Origin::of(self.host_thread, std::thread::current().id()) {
-            Origin::HostThread => &self.redraw,
-            Origin::Elsewhere => &self.arrived,
+        // The host's own thread: event handling, a poll, or the render itself. Any other
+        // thread: a resource load that completed off the main thread.
+        let flag = if std::thread::current().id() == self.host_thread {
+            &self.redraw
+        } else {
+            &self.arrived
         };
         flag.store(true, Ordering::SeqCst);
         self.wake.ping();
@@ -194,7 +124,12 @@ impl ShellProvider for HostShellProvider {
 
     fn set_ime_enabled(&self, is_enabled: bool) {
         let mut ime = self.ime.lock().unwrap_or_else(PoisonError::into_inner);
-        *ime = ImeSwitch::from(is_enabled).apply(*ime);
+        // Turning on keeps an existing cursor area.
+        *ime = match (is_enabled, *ime) {
+            (true, enabled @ Some(_)) => enabled,
+            (true, None) => Some(Rect::ZERO),
+            (false, _) => None,
+        };
     }
 
     fn set_ime_cursor_area(&self, x: f32, y: f32, width: f32, height: f32) {
@@ -204,8 +139,7 @@ impl ShellProvider for HostShellProvider {
             width: width.round() as Px,
             height: height.round() as Px,
         };
-        *self.ime.lock().unwrap_or_else(PoisonError::into_inner) =
-            ImeRequest::Enabled { cursor_area };
+        *self.ime.lock().unwrap_or_else(PoisonError::into_inner) = Some(cursor_area);
     }
 
     /// The own-selection cache if this process owns the selection, else a pipe read from the
@@ -236,21 +170,11 @@ mod tests {
     }
 
     #[test]
-    fn origin_is_the_host_thread_only_on_the_host_thread() {
-        let host = std::thread::current().id();
-        let other = std::thread::spawn(|| std::thread::current().id())
-            .join()
-            .expect("thread");
-        assert_eq!(Origin::of(host, host), Origin::HostThread);
-        assert_eq!(Origin::of(host, other), Origin::Elsewhere);
-    }
-
-    #[test]
     fn the_present_drops_the_renders_own_request() {
         let (provider, _source) = provider();
         provider.request_redraw();
-        assert_eq!(provider.drop_echo(), RedrawRequest::Requested);
-        assert_eq!(provider.take_redraw(), RedrawRequest::NotRequested);
+        assert!(provider.drop_echo());
+        assert!(!provider.take_redraw());
     }
 
     #[test]
@@ -261,12 +185,8 @@ mod tests {
         std::thread::spawn(move || loader.request_redraw())
             .join()
             .expect("loader thread");
-        assert_eq!(provider.drop_echo(), RedrawRequest::NotRequested);
-        assert_eq!(provider.take_redraw(), RedrawRequest::Requested);
-        assert_eq!(
-            provider.take_redraw(),
-            RedrawRequest::NotRequested,
-            "taken once"
-        );
+        assert!(!provider.drop_echo());
+        assert!(provider.take_redraw());
+        assert!(!provider.take_redraw(), "taken once");
     }
 }

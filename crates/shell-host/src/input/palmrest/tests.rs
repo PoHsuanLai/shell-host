@@ -59,11 +59,11 @@ fn received(fd: &OwnedFd) -> String {
 fn no_daemon_is_a_no_op() {
     let dir = tempdir::Dir::new();
     let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
-    assert_eq!(client.retry(), Retry::Due);
+    assert!(client.retry_due());
     assert!(client.connect().is_none());
-    assert_eq!(client.retry(), Retry::Waiting, "no retry storm");
+    assert!(!client.retry_due(), "no retry storm");
     client.pointer_over(Over::Ours);
-    assert_eq!(client.retry(), Retry::Due, "an enter tries again");
+    assert!(client.retry_due(), "an enter tries again");
     assert!(Palmrest::at(None).connect().is_none());
 }
 
@@ -169,7 +169,7 @@ fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
     let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     client.session_lock(LockState::Locked);
     assert!(client.connect().is_none(), "no daemon yet");
-    assert_eq!(client.retry(), Retry::Waiting);
+    assert!(!client.retry_due());
     assert_eq!(client.retry_in(), Some(Duration::from_millis(250)));
     client.retry_now();
     assert!(client.connect().is_none(), "still none");
@@ -191,13 +191,9 @@ fn a_daemon_that_starts_late_is_found_on_the_timer_without_a_pointer_enter() {
     .expect("socket");
     bind(&listener, &SocketAddrUnix::new(&path).expect("addr")).expect("bind");
     listen(&listener, 4).expect("listen");
-    assert_eq!(
-        client.retry(),
-        Retry::Waiting,
-        "not before the wait is over"
-    );
+    assert!(!client.retry_due(), "not before the wait is over");
     client.retry_now();
-    assert_eq!(client.retry(), Retry::Due);
+    assert!(client.retry_due());
     let _reader = client.connect().expect("found");
     let peer = accept(&listener).expect("accept");
     assert_eq!(
@@ -213,16 +209,12 @@ fn a_lock_while_the_daemon_is_away_makes_an_attempt_due_and_an_unlock_does_not()
     let dir = tempdir::Dir::new();
     let mut client = Palmrest::trusting(dir.path().join("events.sock"), None);
     assert!(client.connect().is_none());
-    assert_eq!(client.retry(), Retry::Waiting);
+    assert!(!client.retry_due());
     client.session_lock(LockState::Locked);
-    assert_eq!(
-        client.retry(),
-        Retry::Due,
-        "the pointer will not enter anything"
-    );
+    assert!(client.retry_due(), "the pointer will not enter anything");
     assert!(client.connect().is_none());
     client.session_lock(LockState::Unlocked);
-    assert_eq!(client.retry(), Retry::Waiting);
+    assert!(!client.retry_due());
     assert_eq!(
         client.retry_in(),
         Some(Duration::from_millis(500)),
@@ -239,7 +231,7 @@ fn a_daemon_that_went_away_is_looked_for_again_and_never_without_a_path() {
     client.disconnected();
     assert_eq!(client.retry_in(), Some(Duration::from_millis(250)));
     client.retry_now();
-    assert_eq!(client.retry(), Retry::Due);
+    assert!(client.retry_due());
     assert_eq!(Palmrest::at(None).retry_in(), None);
 }
 
@@ -279,33 +271,33 @@ fn a_flood_is_read_a_bounded_batch_at_a_time() {
 
 #[test]
 fn only_the_unit_of_the_daemon_may_be_the_daemon() {
-    let cases: &[(&str, &str, Trust)] = &[
+    let cases: &[(&str, &str, bool)] = &[
         (
             "palmrest's unit",
             "0::/system.slice/palmrest.service\n",
-            Trust::Trusted,
+            true,
         ),
         (
             "another system service",
             "0::/system.slice/keycap.service\n",
-            Trust::Refused,
+            false,
         ),
         (
             "a lookalike below the unit",
             "0::/system.slice/palmrest.service/x\n",
-            Trust::Refused,
+            false,
         ),
         (
             "a user unit of that name",
             "0::/user.slice/user-1000.slice/user@1000.service/app.slice/palmrest.service\n",
-            Trust::Refused,
+            false,
         ),
         (
             "the old hierarchy",
             "1:name=systemd:/system.slice/palmrest.service\n",
-            Trust::Refused,
+            false,
         ),
-        ("nothing", "", Trust::Refused),
+        ("nothing", "", false),
     ];
     for (name, cgroup, want) in cases {
         assert_eq!(trust_of_cgroup(cgroup), *want, "{name}");
@@ -399,5 +391,5 @@ fn the_peer_of_a_socket_pair_is_held_by_a_pidfd_of_its_process() {
             .any(|line| line.trim() == format!("Pid:\t{own}")),
         "the pidfd names this process: {info}"
     );
-    assert_eq!(still_running(&held.fd), Running::Yes);
+    assert!(still_running(&held.fd));
 }

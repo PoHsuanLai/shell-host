@@ -18,7 +18,7 @@ use crate::csd::Zone;
 use crate::frame::{FrameInput, TimerCmd};
 use crate::grab::GrabRecord;
 use crate::id::SurfaceId;
-use crate::input::capability::{Announcement, Held, capability_change};
+use crate::input::capability::capability_change;
 use crate::input::focus::PointerFocus;
 use crate::input::pointer::PointerPos;
 use crate::live::Live;
@@ -100,7 +100,7 @@ impl SeatHandler for HostState {
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
-        self.announce(qh, &seat, capability, Announcement::Added);
+        self.announce(qh, &seat, capability, true);
     }
 
     /// Release the capability's object (`wl_pointer.release`/`wl_keyboard.release`): dropping
@@ -116,7 +116,7 @@ impl SeatHandler for HostState {
         if self.input.seat.as_ref() != Some(&seat) {
             return;
         }
-        self.announce(qh, &seat, capability, Announcement::Removed);
+        self.announce(qh, &seat, capability, false);
     }
 
     fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
@@ -131,23 +131,22 @@ impl SeatHandler for HostState {
 }
 
 impl HostState {
-    /// Decide what `announcement` of `capability` means for the object held
+    /// Decide what an announcement (`added`, else removed) of `capability` means for the object held
     /// (`input::capability`) and act on it. Touch is not used.
     fn announce(
         &mut self,
         qh: &QueueHandle<Self>,
         seat: &wl_seat::WlSeat,
         capability: Capability,
-        announcement: Announcement,
+        added: bool,
     ) {
         match capability {
             Capability::Pointer => {
-                let change = capability_change(announcement, Held::of(self.input.pointer.as_ref()));
+                let change = capability_change(added, self.input.pointer.is_some());
                 self.change_pointer(change, qh, seat);
             }
             Capability::Keyboard => {
-                let change =
-                    capability_change(announcement, Held::of(self.input.keyboard.as_ref()));
+                let change = capability_change(added, self.input.keyboard.is_some());
                 self.change_keyboard(change, qh, seat);
             }
             _ => {}

@@ -27,14 +27,6 @@ pub(crate) const TEXT_MIME: &[&str] = &["text/plain;charset=utf-8", "UTF8_STRING
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Generation(u64);
 
-/// Whether a published read was kept.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Publish {
-    Kept,
-    /// A newer selection began while this one was being read.
-    Stale,
-}
-
 #[derive(Debug, Default)]
 struct Published {
     generation: Generation,
@@ -56,14 +48,15 @@ impl SharedSelection {
     }
 
     /// Publish the text read for `generation`; `None` when the selection holds no text (or the
-    /// read failed). Ignored when a newer selection has begun since.
-    pub(crate) fn publish(&self, generation: Generation, text: Option<String>) -> Publish {
+    /// read failed). Ignored when a newer selection has begun since; returns whether the read was
+    /// kept.
+    pub(crate) fn publish(&self, generation: Generation, text: Option<String>) -> bool {
         let mut published = self.lock();
         if published.generation != generation {
-            return Publish::Stale;
+            return false;
         }
         published.text = text;
-        Publish::Kept
+        true
     }
 
     /// The selection's text as last published.
@@ -182,7 +175,7 @@ mod tests {
         assert_eq!(provider.text(), None, "nothing before the first selection");
 
         let first = seat.begin();
-        assert_eq!(seat.publish(first, Some("one".into())), Publish::Kept);
+        assert!(seat.publish(first, Some("one".into())));
         assert_eq!(provider.text().as_deref(), Some("one"));
 
         let second = seat.begin();
@@ -191,11 +184,11 @@ mod tests {
             Some("one"),
             "the old text stays until the new read lands"
         );
-        assert_eq!(seat.publish(second, Some("two".into())), Publish::Kept);
+        assert!(seat.publish(second, Some("two".into())));
         assert_eq!(provider.text().as_deref(), Some("two"));
 
         let third = seat.begin();
-        assert_eq!(seat.publish(third, None), Publish::Kept, "an image, say");
+        assert!(seat.publish(third, None), "an image, say");
         assert_eq!(provider.text(), None);
     }
 
@@ -204,8 +197,8 @@ mod tests {
         let seat = SharedSelection::default();
         let old = seat.begin();
         let new = seat.begin();
-        assert_eq!(seat.publish(new, Some("new".into())), Publish::Kept);
-        assert_eq!(seat.publish(old, Some("old".into())), Publish::Stale);
+        assert!(seat.publish(new, Some("new".into())));
+        assert!(!seat.publish(old, Some("old".into())));
         assert_eq!(seat.text().as_deref(), Some("new"));
     }
 

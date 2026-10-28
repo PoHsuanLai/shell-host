@@ -202,7 +202,7 @@ neither side names the other's types. Tests for each module live in the kit agai
 | Frame statistics | `stats` (`HostCtx::stats` is the one source) |
 | Debug commands, synthetic input | `inject` (feature `debug-inject`) |
 | Delegate macros | `state.rs` (only file naming them) |
-| Compositor identity | `compositor_kind` |
+| Compositor quirks (the parent keyboard lift) | `popup_keyboard` |
 | The compositor's GPU (dev_t to PCI ids) and the adapter following it | `render_gpu` (pure), `handlers/render_device` (the event) |
 | `unsafe` | `gpu/raw_handle.rs` |
 | Ambient inputs (environment, clock, directories) | `HostConfig` and `HostClock` values passed in; no other module reads `std::env` |
@@ -279,7 +279,7 @@ the compositor for the acceptance scripts. Handlers become table-testable by str
 ### Add a surface role or a config option
 
 1. Config data and its wire mapping: the role's L1 module (`layer.rs`, `toplevel.rs`,
-   `popup/config.rs`); a closed choice is an enum, never a `bool`; a new default that the
+   `popup/config.rs`); a closed choice with a third state is an enum, a two-way one is a `bool` field; a new default that the
    design marks "proposed" is a settings key that the consumer passes in.
 2. `ctx/spawn/<role>.rs`: send the request when the role is built (unmapped); a change after
    mapping is a variant of the role's op enum (`LayerOp`, `WindowOp`; `CommonOp` for any surface; `msg.rs`) applied in `ctx/ops.rs`.
@@ -358,9 +358,9 @@ session. Goldens change only with a reason in the commit message.
   `Scale120::from_wire`); a count a peer can raise (pipes, reads, datagrams, files) has a cap and a
   deadline; nothing waits on a peer in the loop thread, and a peer that exceeds a limit is cut.
   A wgpu error never panics: devices come from `request_watched_device`.
-- **No `bool` in a field, parameter or message, internal ones included.** A wire `bool` from
-  sctk or xkb becomes an enum at the handler (`Modifier::of(Held)`, `LockKey::of(Locked)`,
-  `RedrawRequest`, `Tile`, `Elastic`); no helper takes `on: bool` or `opted: bool`.
+- **`bool` is fine in fields, returns and private functions.** A wire `bool` from sctk or xkb
+  stays a `bool`; an enum is for a public `f(true, false)` argument, a realistic third state, or
+  the bus (`Modifier::of`, `LockKey::of`, `Elastic`).
 - **`Serialize, Deserialize` only where the type is data all the way down** (FINDINGS F11);
   the palmrest wire types are `palmrest-protocol`'s and are not re-declared.
 - **Compositor behaviour is cited with a trace.** Before branching on protocol text, use what

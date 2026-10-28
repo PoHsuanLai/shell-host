@@ -8,55 +8,23 @@ use std::time::Duration;
 
 use blitz_kit::scroll::time::Elapsed;
 
-/// Where palmrest's fingers are.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Fingers {
-    Down,
-    Up,
-}
-
-/// Whether a host animation palmrest started is still running.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Driven {
-    Running,
-    Settled,
-}
-
-/// A compositor axis event's source, as far as suppression cares.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AxisKind {
-    /// `finger` or `wheel`: what palmrest's outputs arrive as.
-    Suppressible,
-    /// Anything else (continuous, wheel tilt).
-    Other,
-}
-
-/// Whether a compositor axis event reaches the engine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Verdict {
-    Deliver,
-    Drop,
-}
-
 /// The suppression window.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(crate) struct Suppress {
-    fingers: Option<Fingers>,
+    /// Whether palmrest's fingers are down, once it has said.
+    fingers_down: Option<bool>,
     /// When palmrest's fingers last lifted (its Ended, or `Touches{Up}`); `None` once an
     /// `axis_stop` closed the grace.
     lifted: Option<Elapsed>,
 }
 
 impl Suppress {
-    /// palmrest reported its fingers `Down` or `Up` at `now` (`Touches`, or a scroll phase:
+    /// palmrest reported its fingers `down` or up at `now` (`Touches`, or a scroll phase:
     /// MayBegin / Began / Changed are down, Ended / Cancelled are up).
-    pub(crate) fn fingers(self, fingers: Fingers, now: Elapsed) -> Suppress {
+    pub(crate) fn fingers(self, down: bool, now: Elapsed) -> Suppress {
         Suppress {
-            fingers: Some(fingers),
-            lifted: match fingers {
-                Fingers::Up => Some(now),
-                Fingers::Down => None,
-            },
+            fingers_down: Some(down),
+            lifted: (!down).then_some(now),
         }
     }
 
@@ -68,25 +36,23 @@ impl Suppress {
         }
     }
 
-    /// Whether a compositor axis event of `kind` at `now` is delivered, while a palmrest-driven
-    /// animation is `driven`.
-    pub(crate) fn verdict(
+    /// Whether a compositor axis event at `now` is delivered. `suppressible`: its source is
+    /// `finger` or `wheel`, what palmrest's outputs arrive as (anything else, continuous or
+    /// wheel tilt, is always delivered). `driven`: a palmrest-driven animation is running.
+    pub(crate) fn delivers(
         &self,
-        kind: AxisKind,
-        driven: Driven,
+        suppressible: bool,
+        driven: bool,
         grace: Duration,
         now: Elapsed,
-    ) -> Verdict {
-        if kind == AxisKind::Other {
-            return Verdict::Deliver;
+    ) -> bool {
+        if !suppressible {
+            return true;
         }
         let in_grace = self
             .lifted
             .is_some_and(|at| now.0.saturating_sub(at.0) < grace);
-        match (self.fingers, driven, in_grace) {
-            (Some(Fingers::Down), _, _) | (_, Driven::Running, _) | (_, _, true) => Verdict::Drop,
-            _ => Verdict::Deliver,
-        }
+        !(self.fingers_down == Some(true) || driven || in_grace)
     }
 }
 
@@ -102,70 +68,32 @@ mod tests {
 
     #[test]
     fn the_window_of_11_3_14() {
-        let s = AxisKind::Suppressible;
         let quiet = Suppress::default();
-        let down = quiet.fingers(Fingers::Down, at(0));
-        let up = down.fingers(Fingers::Up, at(1000));
+        let down = quiet.fingers(true, at(0));
+        let up = down.fingers(false, at(1000));
+        // name, state, suppressible source, driven, now, delivered
         let cases = [
-            (
-                "never touched",
-                quiet,
-                s,
-                Driven::Settled,
-                at(0),
-                Verdict::Deliver,
-            ),
-            (
-                "fingers down",
-                down,
-                s,
-                Driven::Settled,
-                at(500),
-                Verdict::Drop,
-            ),
-            (
-                "down, a tilt wheel",
-                down,
-                AxisKind::Other,
-                Driven::Settled,
-                at(500),
-                Verdict::Deliver,
-            ),
-            (
-                "grace after the lift",
-                up,
-                s,
-                Driven::Settled,
-                at(1149),
-                Verdict::Drop,
-            ),
-            (
-                "grace over",
-                up,
-                s,
-                Driven::Settled,
-                at(1150),
-                Verdict::Deliver,
-            ),
-            (
-                "glide still running",
-                up,
-                s,
-                Driven::Running,
-                at(3000),
-                Verdict::Drop,
-            ),
+            ("never touched", quiet, true, false, at(0), true),
+            ("fingers down", down, true, false, at(500), false),
+            ("down, a tilt wheel", down, false, false, at(500), true),
+            ("grace after the lift", up, true, false, at(1149), false),
+            ("grace over", up, true, false, at(1150), true),
+            ("glide still running", up, true, true, at(3000), false),
             (
                 "axis_stop ends the grace",
                 up.axis_stop(),
-                s,
-                Driven::Settled,
+                true,
+                false,
                 at(1010),
-                Verdict::Deliver,
+                true,
             ),
         ];
-        for (name, state, kind, driven, now, want) in cases {
-            assert_eq!(state.verdict(kind, driven, GRACE, now), want, "{name}");
+        for (name, state, suppressible, driven, now, want) in cases {
+            assert_eq!(
+                state.delivers(suppressible, driven, GRACE, now),
+                want,
+                "{name}"
+            );
         }
     }
 }

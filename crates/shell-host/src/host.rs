@@ -8,6 +8,7 @@
 //! thread for the whole run, so `tokio::time` and `watch` work inside Dioxus tasks.
 
 use std::collections::{BTreeMap, VecDeque};
+use std::ops::ControlFlow;
 
 use calloop::channel::{Channel, Event as ChannelEvent};
 use calloop::ping::make_ping;
@@ -17,7 +18,7 @@ use wayland_client::Connection;
 use wayland_client::globals::registry_queue_init;
 
 use crate::config::HostConfig;
-use crate::ctx::{HostCtx, Running};
+use crate::ctx::HostCtx;
 use crate::error::{HostError, Result};
 use crate::event::{HostEvent, widen};
 use crate::gpu::rebuild::Rebuilds;
@@ -92,7 +93,7 @@ impl<M: Send + 'static> Host<M> {
             palmrest_retry: None,
             palmrest_settings: None,
             reading: None,
-            running: Running::Continue,
+            running: ControlFlow::Continue(()),
             failed: None,
             rebuilds: Rebuilds::default(),
             backend: config.backend,
@@ -161,7 +162,7 @@ fn drive<M: 'static>(
     on_event(ctx, HostEvent::Started);
     loop {
         settle(ctx, on_event)?;
-        if ctx.running == Running::Exit {
+        if ctx.running.is_break() {
             return Ok(());
         }
         let dispatched = event_loop.dispatch(None, ctx);
@@ -180,12 +181,12 @@ fn settle<M: 'static>(
     on_event: &mut impl FnMut(&mut HostCtx<M>, HostEvent<M>),
 ) -> Result<()> {
     loop {
-        while ctx.running == Running::Continue
+        while ctx.running.is_continue()
             && let Some(event) = next_event(ctx)
         {
             on_event(ctx, event);
         }
-        if ctx.flush()? == Running::Exit {
+        if ctx.flush()?.is_break() {
             return Ok(());
         }
         if ctx.state.events.is_empty() && ctx.app.is_empty() {

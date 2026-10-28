@@ -16,7 +16,6 @@ use blitz_kit::adapter::Health;
 use crate::ctx::HostCtx;
 use crate::error::HostError;
 use crate::event::CloseReason;
-use crate::gpu::rebuild::Verdict;
 use crate::id::SurfaceId;
 use crate::role::RoleKind;
 
@@ -32,7 +31,7 @@ pub(super) fn recover_device<M: 'static>(ctx: &mut HostCtx<M>) {
     if !lost || ctx.failed.is_some() {
         return;
     }
-    if ctx.rebuilds.record(Instant::now()) == Verdict::GiveUp {
+    if !ctx.rebuilds.record(Instant::now()) {
         ctx.failed = Some(HostError::GaveUp(
             "the graphics device was lost again and again".into(),
         ));

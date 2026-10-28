@@ -8,14 +8,11 @@ use keyboard_types::Modifiers;
 use super::PointerButton;
 use super::{Inject, Injected};
 use crate::ctx::HostCtx;
-use crate::dom::document::Polled;
 use crate::error::{HostError, Result};
 use crate::frame::FrameInput;
 use crate::geometry::Point;
 use crate::id::SurfaceId;
-use crate::input::pointer::{
-    ButtonChange, PointerPos, buttons_after, move_event, press_events, release_event,
-};
+use crate::input::pointer::{PointerPos, buttons_after, move_event, press_events, release_event};
 use crate::modality::Stroke;
 use crate::region::Px;
 use crate::scale::Size;
@@ -107,7 +104,7 @@ fn pressed(
 ) -> ([UiEvent; 2], MouseEventButtons) {
     let mouse_button = dom_button(button);
     let events = press_events(pos(at), mouse_button, held, Modifiers::empty());
-    let after = buttons_after(held, mouse_button, ButtonChange::Pressed);
+    let after = buttons_after(held, mouse_button, true);
     (events, after)
 }
 
@@ -119,7 +116,7 @@ fn released(
 ) -> (UiEvent, MouseEventButtons) {
     let mouse_button = dom_button(button);
     let event = release_event(pos(at), mouse_button, held, Modifiers::empty());
-    let after = buttons_after(held, mouse_button, ButtonChange::Released);
+    let after = buttons_after(held, mouse_button, false);
     (event, after)
 }
 
@@ -143,7 +140,7 @@ fn leave(state: &mut HostState, id: SurfaceId) {
         .surfaces
         .get_mut(&id)
         .map(|surface| surface.document.pointer_left(Modifiers::empty()));
-    if left == Some(Polled::Changed) {
+    if left == Some(true) {
         state.frame_input(id, FrameInput::Invalidate);
     }
 }

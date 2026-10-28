@@ -11,11 +11,10 @@ use dioxus::prelude::*;
 
 use crate::dom::document::SurfaceDocument;
 use crate::dom::tests::env::test_env;
-use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
 use crate::region::ElementId;
 use crate::root::HostRoot;
-use crate::scroll::source::{AxisFrame, AxisSource, AxisValue, Shift, Stop};
+use crate::scroll::source::{AxisFrame, AxisSource, AxisValue};
 use crate::scroll::surface::{PalmScroll, SurfaceScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::watch::ScrollBoard;
@@ -109,7 +108,7 @@ impl Bench {
     }
 
     /// One touchpad frame at `at`: `dy` px (offset space), or `axis_stop`.
-    fn pad(&mut self, dy: f64, stop: Stop, at: PointerPos) {
+    fn pad(&mut self, dy: f64, stop: bool, at: PointerPos) {
         let frame = AxisFrame {
             source: AxisSource::Finger,
             horizontal: AxisValue::NONE,
@@ -118,7 +117,7 @@ impl Bench {
                 stop,
                 ..AxisValue::NONE
             },
-            shift: Shift::Up,
+            shift: false,
         };
         self.now = Elapsed(self.now.0 + FRAME);
         let mut base = self.doc.base_mut();
@@ -128,9 +127,9 @@ impl Bench {
     /// A 120 Hz touchpad stroke of `speed` px/s for `ms`, then the lift.
     fn stroke(&mut self, speed: f64, ms: u64, at: PointerPos) {
         for _ in 0..(ms * 120 / 1000) {
-            self.pad(speed * FRAME.as_secs_f64(), Stop::Moving, at);
+            self.pad(speed * FRAME.as_secs_f64(), false, at);
         }
-        self.pad(0.0, Stop::Stopped, at);
+        self.pad(0.0, true, at);
     }
 
     /// Frames (each with a resolve) until nothing animates; every scroller's offsets after
@@ -202,10 +201,10 @@ fn item_8_the_menu_list_never_stretches() {
     let menu = bench.scroller("menu");
     // 500 px of pull past the top, in 10 px steps.
     for _ in 0..50 {
-        bench.pad(-10.0, Stop::Moving, OVER_MENU);
+        bench.pad(-10.0, false, OVER_MENU);
         assert_eq!(bench.offset(menu), 0.0);
     }
-    bench.pad(0.0, Stop::Stopped, OVER_MENU);
+    bench.pad(0.0, true, OVER_MENU);
     for offsets in bench.settle(&[menu]) {
         assert_eq!(offsets[0], 0.0);
     }
@@ -229,7 +228,7 @@ fn item_9b_an_inner_list_midway_takes_the_whole_gesture_and_stretches() {
     bench.set(list, 400.0);
     // 450 px down in 150 ms: past the list's bottom (300 px away) while the fingers are down.
     for _ in 0..18 {
-        bench.pad(25.0, Stop::Moving, OVER_LIST);
+        bench.pad(25.0, false, OVER_LIST);
         assert_eq!(
             bench.offset(Scroller::Viewport),
             0.0,
@@ -241,7 +240,7 @@ fn item_9b_an_inner_list_midway_takes_the_whole_gesture_and_stretches() {
         "stretched: {}",
         bench.offset(list)
     );
-    bench.pad(0.0, Stop::Stopped, OVER_LIST);
+    bench.pad(0.0, true, OVER_LIST);
     let trace = bench.settle(&[list, Scroller::Viewport]);
     assert!(trace.iter().all(|o| o[1] == 0.0), "the page never moved");
     assert_eq!(bench.offset(list), 700.0, "rebounded to its edge");
@@ -250,8 +249,8 @@ fn item_9b_an_inner_list_midway_takes_the_whole_gesture_and_stretches() {
 #[test]
 fn item_10_the_thumb_shows_on_the_change_and_fades_after_740_ms() {
     let mut bench = Bench::new();
-    bench.pad(15.0, Stop::Moving, OVER_LIST);
-    bench.pad(15.0, Stop::Moving, OVER_LIST);
+    bench.pad(15.0, false, OVER_LIST);
+    bench.pad(15.0, false, OVER_LIST);
     let changed = bench.now;
     let thumbs = bench.scroll.overlay(&bench.doc.base(), changed);
     assert_eq!(thumbs.len(), 1);
@@ -287,7 +286,7 @@ fn item_11_keys_in_a_text_input_do_not_scroll() {
         let mut base = bench.doc.base_mut();
         bench
             .scroll
-            .key(&mut base, key, Repeat::First, Some(OVER_PAGE), bench.now)
+            .key(&mut base, key, false, Some(OVER_PAGE), bench.now)
             .0
     };
     assert_eq!(used, Claim::Left);
@@ -304,7 +303,7 @@ fn item_11_page_down_over_the_page_scrolls_it() {
             .key(
                 &mut base,
                 ScrollKey::Page(Dir::Pos),
-                Repeat::First,
+                false,
                 Some(OVER_PAGE),
                 bench.now,
             )
@@ -382,7 +381,7 @@ fn a_wheel_detent_over_the_list_moves_it_60_px() {
             v120: 120,
             ..AxisValue::NONE
         },
-        shift: Shift::Up,
+        shift: false,
     };
     {
         let mut base = bench.doc.base_mut();
@@ -446,9 +445,7 @@ impl Bench {
 
     fn press(&mut self, key: ScrollKey, at: Option<PointerPos>) -> Claim {
         let mut base = self.doc.base_mut();
-        self.scroll
-            .key(&mut base, key, Repeat::First, at, self.now)
-            .0
+        self.scroll.key(&mut base, key, false, at, self.now).0
     }
 }
 

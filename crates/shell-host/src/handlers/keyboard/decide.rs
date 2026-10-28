@@ -8,42 +8,30 @@ use smithay_client_toolkit::seat::keyboard::RepeatInfo;
 /// and would fire the repeat timer back to back and flood the focused document with keys.
 const MAX_REPEAT_RATE: u32 = 1000;
 
-/// What the compositor's repeat settings ask of the repeat timer.
+/// The key repeat the compositor asks of the repeat timer: after `delay`, then every
+/// `interval`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) enum RepeatTiming {
-    /// Repeat after `delay`, then every `interval`.
-    Every { delay: Duration, interval: Duration },
-    /// The compositor turned repeat off.
-    Off,
+pub(super) struct RepeatRate {
+    pub delay: Duration,
+    pub interval: Duration,
 }
 
-/// The timing `info` asks for.
-pub(super) fn repeat_timing(info: RepeatInfo) -> RepeatTiming {
+/// The rate `info` asks for; `None` when the compositor turned repeat off.
+pub(super) fn repeat_rate(info: RepeatInfo) -> Option<RepeatRate> {
     match info {
-        RepeatInfo::Repeat { rate, delay } => RepeatTiming::Every {
+        RepeatInfo::Repeat { rate, delay } => Some(RepeatRate {
             delay: Duration::from_millis(u64::from(delay)),
             interval: Duration::from_secs_f64(1.0 / f64::from(rate.get().min(MAX_REPEAT_RATE))),
-        },
-        RepeatInfo::Disable => RepeatTiming::Off,
+        }),
+        RepeatInfo::Disable => None,
     }
 }
 
-/// What a key release does to the repeat in progress.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum RepeatAfter {
-    /// The repeating key was released: stop.
-    Stop,
-    /// Another key (or none was repeating): the repeat continues as it was.
-    Keep,
-}
-
-/// The effect of releasing `released` (a raw key code) while `repeating` is the raw code of the
-/// key that repeats, if any.
-pub(super) fn repeat_after_release(repeating: Option<u32>, released: u32) -> RepeatAfter {
-    match repeating {
-        Some(held) if held == released => RepeatAfter::Stop,
-        Some(_) | None => RepeatAfter::Keep,
-    }
+/// Whether releasing `released` (a raw key code) stops the repeat in progress, where `repeating`
+/// is the raw code of the key that repeats, if any. Releasing another key (or none repeating)
+/// leaves the repeat as it was.
+pub(super) fn stops_repeat(repeating: Option<u32>, released: u32) -> bool {
+    repeating == Some(released)
 }
 
 #[cfg(test)]
@@ -55,17 +43,17 @@ mod tests {
     #[test]
     fn repeat_settings_become_a_delay_and_an_interval_or_off() {
         let rate = |hz: u32| NonZeroU32::new(hz).expect("non-zero test rate");
-        let cases: &[(&str, RepeatInfo, RepeatTiming)] = &[
+        let cases: &[(&str, RepeatInfo, Option<RepeatRate>)] = &[
             (
                 "25 per second after 600 ms",
                 RepeatInfo::Repeat {
                     rate: rate(25),
                     delay: 600,
                 },
-                RepeatTiming::Every {
+                Some(RepeatRate {
                     delay: Duration::from_millis(600),
                     interval: Duration::from_millis(40),
-                },
+                }),
             ),
             (
                 "one per second",
@@ -73,10 +61,10 @@ mod tests {
                     rate: rate(1),
                     delay: 0,
                 },
-                RepeatTiming::Every {
+                Some(RepeatRate {
                     delay: Duration::ZERO,
                     interval: Duration::from_secs(1),
-                },
+                }),
             ),
             (
                 "a rate beyond any keyboard is held to the fastest accepted",
@@ -84,27 +72,27 @@ mod tests {
                     rate: rate(u32::MAX),
                     delay: 0,
                 },
-                RepeatTiming::Every {
+                Some(RepeatRate {
                     delay: Duration::ZERO,
                     interval: Duration::from_millis(1),
-                },
+                }),
             ),
-            ("disabled", RepeatInfo::Disable, RepeatTiming::Off),
+            ("disabled", RepeatInfo::Disable, None),
         ];
         for (name, info, want) in cases {
-            assert_eq!(repeat_timing(*info), *want, "{name}");
+            assert_eq!(repeat_rate(*info), *want, "{name}");
         }
     }
 
     #[test]
     fn only_releasing_the_repeating_key_stops_the_repeat() {
-        let cases: &[(&str, Option<u32>, u32, RepeatAfter)] = &[
-            ("the repeating key", Some(30), 30, RepeatAfter::Stop),
-            ("another key", Some(30), 31, RepeatAfter::Keep),
-            ("nothing repeating", None, 30, RepeatAfter::Keep),
+        let cases: &[(&str, Option<u32>, u32, bool)] = &[
+            ("the repeating key", Some(30), 30, true),
+            ("another key", Some(30), 31, false),
+            ("nothing repeating", None, 30, false),
         ];
         for (name, repeating, released, want) in cases {
-            assert_eq!(repeat_after_release(*repeating, *released), *want, "{name}");
+            assert_eq!(stops_repeat(*repeating, *released), *want, "{name}");
         }
     }
 }

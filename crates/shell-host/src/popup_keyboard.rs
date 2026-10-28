@@ -13,31 +13,25 @@
 //!
 //! See FINDINGS F72.
 
-use crate::compositor_kind::CompositorKind;
 use crate::layer::KeyboardMode;
 use crate::popup::PopupGrab;
 
-/// What opening a popup does to its parent layer's keyboard mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ParentKeyboard {
-    /// Switch the parent to `OnDemand` until its last grabbing popup closes.
-    Lift,
-    /// Leave the parent as it is.
-    Keep,
+/// Whether the host lifts a parent layer's keyboard for a grabbing popup on this compositor:
+/// everywhere except KWin and casement. KWin is recognised by `org_kde_plasma_shell` (wlroots
+/// compositors offer some `org_kde_kwin_*` globals, never this one); casement by
+/// `quire_window_manager_v1` (advertised from its first phase, C50). `interfaces` are the
+/// globals the compositor advertises.
+pub(crate) fn lifts_parent_keyboard<'a>(interfaces: impl IntoIterator<Item = &'a str>) -> bool {
+    !interfaces
+        .into_iter()
+        .any(|name| name == "org_kde_plasma_shell" || name == "quire_window_manager_v1")
 }
 
-/// The rule: a grabbing popup of a `None` layer lifts it, except on KWin and casement. `parent`
-/// is the layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
-pub(crate) fn parent_keyboard(
-    kind: CompositorKind,
-    grab: PopupGrab,
-    parent: KeyboardMode,
-) -> ParentKeyboard {
-    match (kind, grab, parent) {
-        (CompositorKind::Kwin | CompositorKind::Casement, _, _) => ParentKeyboard::Keep,
-        (_, PopupGrab::Grabbed, KeyboardMode::None) => ParentKeyboard::Lift,
-        _ => ParentKeyboard::Keep,
-    }
+/// The rule: a grabbing popup of a `None` layer lifts the parent (to `OnDemand` until its last
+/// grabbing popup closes), except where `lifts` is false (KWin, casement). `parent` is the
+/// layer's current mode (already `OnDemand` while another grabbing popup holds it lifted).
+pub(crate) fn parent_keyboard(lifts: bool, grab: PopupGrab, parent: KeyboardMode) -> bool {
+    lifts && grab == PopupGrab::Grabbed && parent == KeyboardMode::None
 }
 
 #[cfg(test)]
@@ -46,26 +40,57 @@ mod tests {
 
     #[test]
     fn only_a_grabbing_popup_of_a_keyboardless_layer_lifts_it_and_never_on_kwin_or_casement() {
-        use CompositorKind as K;
         use KeyboardMode as M;
-        use ParentKeyboard::{Keep, Lift};
         use PopupGrab::{Grabbed, Ungrabbed};
+        const OTHER: bool = true;
+        const KWIN_OR_CASEMENT: bool = false;
         let cases = [
-            (K::Other, Grabbed, M::None, Lift),
-            (K::Kwin, Grabbed, M::None, Keep),
-            (K::Kwin, Ungrabbed, M::None, Keep),
-            (K::Other, Grabbed, M::Exclusive, Keep),
-            (K::Other, Grabbed, M::OnDemand, Keep),
-            (K::Kwin, Grabbed, M::Exclusive, Keep),
-            (K::Casement, Grabbed, M::None, Keep),
-            (K::Casement, Ungrabbed, M::None, Keep),
-            (K::Casement, Grabbed, M::OnDemand, Keep),
+            (OTHER, Grabbed, M::None, true),
+            (KWIN_OR_CASEMENT, Grabbed, M::None, false),
+            (KWIN_OR_CASEMENT, Ungrabbed, M::None, false),
+            (OTHER, Grabbed, M::Exclusive, false),
+            (OTHER, Grabbed, M::OnDemand, false),
+            (OTHER, Ungrabbed, M::None, false),
+            (KWIN_OR_CASEMENT, Grabbed, M::Exclusive, false),
+            (KWIN_OR_CASEMENT, Grabbed, M::OnDemand, false),
         ];
-        for (kind, grab, parent, want) in cases {
+        for (lifts, grab, parent, want) in cases {
             assert_eq!(
-                parent_keyboard(kind, grab, parent),
+                parent_keyboard(lifts, grab, parent),
                 want,
-                "{kind:?} {grab:?} {parent:?}"
+                "{lifts} {grab:?} {parent:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn kwin_and_casement_are_recognised_by_their_private_globals() {
+        let cases: &[(&[&str], bool)] = &[
+            (&["wl_compositor", "org_kde_kwin_blur_manager"], true),
+            (
+                &["wl_compositor", "org_kde_kwin_server_decoration_manager"],
+                true,
+            ),
+            (
+                &[
+                    "wl_compositor",
+                    "org_kde_plasma_shell",
+                    "org_kde_kwin_blur_manager",
+                ],
+                false,
+            ),
+            (
+                &["wl_compositor", "quire_window_manager_v1", "xdg_wm_base"],
+                false,
+            ),
+            (&["quire_window_v1"], true),
+            (&[], true),
+        ];
+        for (interfaces, want) in cases {
+            assert_eq!(
+                lifts_parent_keyboard(interfaces.iter().copied()),
+                *want,
+                "{interfaces:?}"
             );
         }
     }

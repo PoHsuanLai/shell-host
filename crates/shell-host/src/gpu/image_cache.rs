@@ -20,42 +20,23 @@ use vello_hybrid::{Renderer, Resources};
 /// cache: the images still on screen upload again within that frame, and the rest are gone.
 pub(crate) const MAX_CACHED_IMAGES: usize = 1024;
 
-/// What to do with the cache before a frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum Eviction {
-    #[default]
-    Keep,
-    All,
+/// Whether to drop the whole cache before a frame, for a cache of `len` images after a frame
+/// that asked for it (`pending`).
+pub(crate) fn eviction(len: usize, pending: bool) -> bool {
+    len > MAX_CACHED_IMAGES || pending
 }
 
-/// What one painting did with its images.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Painted {
-    /// Every image it drew was in the atlas, or could not be drawn even from an empty one.
-    Whole,
-    /// The atlas refused an image: the next frame starts from an empty cache, and this surface
-    /// paints again.
-    MissingImages,
-}
-
-/// The decision for a cache of `len` images, after a frame that asked for `pending`.
-pub(crate) fn eviction(len: usize, pending: Eviction) -> Eviction {
-    if len > MAX_CACHED_IMAGES {
-        Eviction::All
-    } else {
-        pending
-    }
-}
-
-/// What a painting did, from the eviction before it and the refused uploads the cache held
-/// before (`refused_before`) and after it. A refusal right after the cache was emptied is the
-/// image's own (too large or empty), not a full atlas: it stands, or the surface would repaint
-/// for ever.
-pub(crate) fn painted(evicted: Eviction, refused_before: usize, refused_after: usize) -> Painted {
-    match evicted {
-        Eviction::Keep if refused_after > refused_before => Painted::MissingImages,
-        Eviction::Keep | Eviction::All => Painted::Whole,
-    }
+/// Whether a painting left an image out, from whether the cache was emptied before it
+/// (`evicted`) and the refused uploads the cache held before (`refused_before`) and after it:
+/// the atlas refused an image, so the next frame starts from an empty cache and this surface
+/// paints again. A refusal right after the cache was emptied is the image's own (too large or
+/// empty), not a full atlas: it stands, or the surface would repaint for ever.
+pub(crate) fn painted_missing_images(
+    evicted: bool,
+    refused_before: usize,
+    refused_after: usize,
+) -> bool {
+    !evicted && refused_after > refused_before
 }
 
 /// The uploads the atlas refused, kept as `None`.
@@ -71,13 +52,13 @@ pub(crate) fn refused(images: &ImageUploads) -> usize {
 /// before a frame is painted, so the painting re-uploads what it draws. Returns what it did.
 pub(crate) fn trim(
     images: &mut ImageUploads,
-    pending: &mut Eviction,
+    pending: &mut bool,
     renderer: &mut Renderer,
     resources: &mut Resources,
     (device, queue): (&wgpu::Device, &wgpu::Queue),
-) -> Eviction {
+) -> bool {
     let decision = eviction(images.len(), std::mem::take(pending));
-    if decision == Eviction::Keep {
+    if !decision {
         return decision;
     }
     eprintln!(
@@ -103,21 +84,11 @@ mod tests {
 
     #[test]
     fn the_cache_is_dropped_once_it_outgrows_its_limit_or_a_painting_asks() {
-        let cases: &[(&str, usize, Eviction, Eviction)] = &[
-            ("empty", 0, Eviction::Keep, Eviction::Keep),
-            (
-                "at the limit",
-                MAX_CACHED_IMAGES,
-                Eviction::Keep,
-                Eviction::Keep,
-            ),
-            (
-                "one past it",
-                MAX_CACHED_IMAGES + 1,
-                Eviction::Keep,
-                Eviction::All,
-            ),
-            ("asked by a refusal", 3, Eviction::All, Eviction::All),
+        let cases: &[(&str, usize, bool, bool)] = &[
+            ("empty", 0, false, false),
+            ("at the limit", MAX_CACHED_IMAGES, false, false),
+            ("one past it", MAX_CACHED_IMAGES + 1, false, true),
+            ("asked by a refusal", 3, true, true),
         ];
         for (name, len, pending, want) in cases {
             assert_eq!(eviction(*len, *pending), *want, "{name}");
@@ -126,26 +97,18 @@ mod tests {
 
     #[test]
     fn a_refused_upload_repaints_unless_the_cache_was_just_emptied() {
-        let cases: &[(&str, Eviction, usize, usize, Painted)] = &[
-            ("nothing refused", Eviction::Keep, 0, 0, Painted::Whole),
-            ("an old refusal only", Eviction::Keep, 2, 2, Painted::Whole),
-            (
-                "a new refusal",
-                Eviction::Keep,
-                2,
-                3,
-                Painted::MissingImages,
-            ),
-            (
-                "refused from an empty atlas",
-                Eviction::All,
-                0,
-                1,
-                Painted::Whole,
-            ),
+        let cases: &[(&str, bool, usize, usize, bool)] = &[
+            ("nothing refused", false, 0, 0, false),
+            ("an old refusal only", false, 2, 2, false),
+            ("a new refusal", false, 2, 3, true),
+            ("refused from an empty atlas", true, 0, 1, false),
         ];
         for (name, evicted, before, after, want) in cases {
-            assert_eq!(painted(*evicted, *before, *after), *want, "{name}");
+            assert_eq!(
+                painted_missing_images(*evicted, *before, *after),
+                *want,
+                "{name}"
+            );
         }
     }
 }

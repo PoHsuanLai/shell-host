@@ -20,31 +20,20 @@ use wayland_protocols::ext::background_effect::v1::client::ext_background_effect
     self, ExtBackgroundEffectSurfaceV1,
 };
 
-/// Whether the compositor reported supporting an effect, from the manager's `capabilities`
-/// event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum Support {
-    #[default]
-    Unsupported,
-    Supported,
-}
-
 /// The effects the compositor supports, as of the last `capabilities` event. There is only one
-/// effect in `ext-background-effect-v1` today (`blur`); the struct, not a bare `Support`, is so
+/// effect in `ext-background-effect-v1` today (`blur`); the struct, not a bare `bool`, is so
 /// a second effect added to the protocol later is one field, not a signature change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Capabilities {
-    pub blur: Support,
+    /// The compositor reported supporting blur.
+    pub blur: bool,
 }
 
 impl Capabilities {
     fn from_wire(flags: ext_background_effect_manager_v1::Capability) -> Capabilities {
-        let blur = if flags.contains(ext_background_effect_manager_v1::Capability::Blur) {
-            Support::Supported
-        } else {
-            Support::Unsupported
-        };
-        Capabilities { blur }
+        Capabilities {
+            blur: flags.contains(ext_background_effect_manager_v1::Capability::Blur),
+        }
     }
 }
 

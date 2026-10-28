@@ -21,29 +21,6 @@ pub(crate) enum AxisSource {
     Unknown,
 }
 
-/// Whether an axis carried `axis_stop` in this frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Stop {
-    Stopped,
-    Moving,
-}
-
-/// `wl_pointer.axis_relative_direction`: whether the compositor inverted the value relative to
-/// the physical motion (its natural-scrolling setting). Informational: compositor values are
-/// used as delivered, so natural scrolling is never applied twice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Relative {
-    Identical,
-    Inverted,
-}
-
-/// Whether Shift is held (a vertical wheel then scrolls horizontally).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Shift {
-    Held,
-    Up,
-}
-
 /// One axis of a `wl_pointer.frame`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AxisValue {
@@ -51,8 +28,10 @@ pub(crate) struct AxisValue {
     pub px: f64,
     pub v120: i32,
     pub discrete: i32,
-    pub stop: Stop,
-    pub relative: Relative,
+    /// The axis carried `axis_stop` in this frame. (`wl_pointer.axis_relative_direction` is not
+    /// kept: compositor values are used as delivered, so natural scrolling is never applied
+    /// twice.)
+    pub stop: bool,
 }
 
 #[cfg(test)]
@@ -62,8 +41,7 @@ impl AxisValue {
         px: 0.0,
         v120: 0,
         discrete: 0,
-        stop: Stop::Moving,
-        relative: Relative::Identical,
+        stop: false,
     };
 }
 
@@ -73,7 +51,8 @@ pub(crate) struct AxisFrame {
     pub source: AxisSource,
     pub horizontal: AxisValue,
     pub vertical: AxisValue,
-    pub shift: Shift,
+    /// Shift is held (a vertical wheel then scrolls horizontally).
+    pub shift: bool,
 }
 
 /// The detents a wheel axis carries: `value120`, else `discrete`, else its degrees.
@@ -90,7 +69,7 @@ pub(crate) fn steps(axis: &AxisValue) -> f64 {
 /// Classify one axis frame.
 pub(crate) fn classify(frame: &AxisFrame) -> PointerScroll {
     let (h, v) = (&frame.horizontal, &frame.vertical);
-    let stopped = h.stop == Stop::Stopped || v.stop == Stop::Stopped;
+    let stopped = h.stop || v.stop;
     let moved = h.px != 0.0 || v.px != 0.0 || h.v120 != 0 || v.v120 != 0;
     // A frame without `axis_source` is a wheel's: a compositor that sends no source sends no
     // `axis_stop` either, so a pan from it could never end (and KWin's fake input, the live
@@ -108,7 +87,7 @@ pub(crate) fn classify(frame: &AxisFrame) -> PointerScroll {
     }
     if wheel_like {
         let (sx, sy) = (steps(h), steps(v));
-        let horizontal = frame.source == AxisSource::WheelTilt || frame.shift == Shift::Held;
+        let horizontal = frame.source == AxisSource::WheelTilt || frame.shift;
         return match (horizontal, sy != 0.0) {
             (true, true) => PointerScroll::Detents {
                 axis: ScrollAxis::X,
@@ -148,7 +127,7 @@ mod tests {
         }
     }
 
-    fn frame(source: AxisSource, h: AxisValue, v: AxisValue, shift: Shift) -> AxisFrame {
+    fn frame(source: AxisSource, h: AxisValue, v: AxisValue, shift: bool) -> AxisFrame {
         AxisFrame {
             source,
             horizontal: h,
@@ -162,13 +141,13 @@ mod tests {
         use AxisSource::*;
         let none = AxisValue::NONE;
         let stop = AxisValue {
-            stop: Stop::Stopped,
+            stop: true,
             ..AxisValue::NONE
         };
         let cases = [
             (
                 "one detent",
-                frame(Wheel, none, value(15.0, 120), Shift::Up),
+                frame(Wheel, none, value(15.0, 120), false),
                 PointerScroll::Detents {
                     axis: ScrollAxis::Y,
                     steps: 1.0,
@@ -176,7 +155,7 @@ mod tests {
             ),
             (
                 "hi-res half",
-                frame(Wheel, none, value(7.5, 60), Shift::Up),
+                frame(Wheel, none, value(7.5, 60), false),
                 PointerScroll::Detents {
                     axis: ScrollAxis::Y,
                     steps: 0.5,
@@ -184,7 +163,7 @@ mod tests {
             ),
             (
                 "shift turns it",
-                frame(Wheel, none, value(-15.0, -120), Shift::Held),
+                frame(Wheel, none, value(-15.0, -120), true),
                 PointerScroll::Detents {
                     axis: ScrollAxis::X,
                     steps: -1.0,
@@ -192,7 +171,7 @@ mod tests {
             ),
             (
                 "tilt",
-                frame(WheelTilt, none, value(15.0, 120), Shift::Up),
+                frame(WheelTilt, none, value(15.0, 120), false),
                 PointerScroll::Detents {
                     axis: ScrollAxis::X,
                     steps: 1.0,
@@ -200,7 +179,7 @@ mod tests {
             ),
             (
                 "no value120: degrees",
-                frame(Wheel, none, value(30.0, 0), Shift::Up),
+                frame(Wheel, none, value(30.0, 0), false),
                 PointerScroll::Detents {
                     axis: ScrollAxis::Y,
                     steps: 2.0,
@@ -208,7 +187,7 @@ mod tests {
             ),
             (
                 "no source: a wheel in degrees",
-                frame(Unknown, none, value(15.0, 0), Shift::Up),
+                frame(Unknown, none, value(15.0, 0), false),
                 PointerScroll::Detents {
                     axis: ScrollAxis::Y,
                     steps: 1.0,
@@ -216,7 +195,7 @@ mod tests {
             ),
             (
                 "touchpad",
-                frame(Finger, value(1.0, 0), value(-4.0, 0), Shift::Up),
+                frame(Finger, value(1.0, 0), value(-4.0, 0), false),
                 PointerScroll::Pan {
                     dx: 1.0,
                     dy: -4.0,
@@ -225,7 +204,7 @@ mod tests {
             ),
             (
                 "trackpoint",
-                frame(Continuous, none, value(3.0, 0), Shift::Up),
+                frame(Continuous, none, value(3.0, 0), false),
                 PointerScroll::Pan {
                     dx: 0.0,
                     dy: 3.0,
@@ -234,12 +213,12 @@ mod tests {
             ),
             (
                 "stop",
-                frame(Finger, none, stop, Shift::Up),
+                frame(Finger, none, stop, false),
                 PointerScroll::Stop,
             ),
             (
                 "nothing",
-                frame(Finger, none, none, Shift::Up),
+                frame(Finger, none, none, false),
                 PointerScroll::Nothing,
             ),
         ];

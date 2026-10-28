@@ -6,7 +6,7 @@
 
 use crate::geometry::Point;
 use crate::modifiers::Modifiers;
-use crate::scroll::source::{AxisFrame, AxisSource, Stop, steps};
+use crate::scroll::source::{AxisFrame, AxisSource, steps};
 
 /// What turned: the compositor's `wl_pointer.axis_source`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,14 +56,6 @@ pub struct WheelEvent {
     pub held: Modifiers,
 }
 
-/// Whether a run of a source with fingers is under way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum WheelRun {
-    #[default]
-    Idle,
-    Under,
-}
-
 /// What the host knows of a frame besides the frame: the pointer, the modifiers and the step a
 /// wheel detent is.
 #[derive(Debug, Clone, Copy)]
@@ -95,36 +87,31 @@ fn motion_of(frame: &AxisFrame, source: WheelSource, detent_px: f64) -> WheelMot
     }
 }
 
-/// The phase a frame with `moved` motion and `stop` gives a run that is `run`, and the run after
-/// it. `None` for a frame that says nothing: no motion, and nothing to end.
-fn phase_after(run: WheelRun, moved: bool, stop: Stop) -> (WheelRun, Option<WheelPhase>) {
-    match (run, moved, stop) {
-        (WheelRun::Under, _, Stop::Stopped) | (WheelRun::Idle, true, Stop::Stopped) => {
-            (WheelRun::Idle, Some(WheelPhase::Ended))
-        }
-        (WheelRun::Idle, true, Stop::Moving) => (WheelRun::Under, Some(WheelPhase::Began)),
-        (WheelRun::Under, true, Stop::Moving) => (WheelRun::Under, Some(WheelPhase::Changed)),
-        (run, false, Stop::Moving) => (run, None),
-        (WheelRun::Idle, false, Stop::Stopped) => (WheelRun::Idle, None),
+/// The phase a frame with `moved` motion and `stop` gives a run that is `under_way`, and whether
+/// a run is under way after it (a run of a source with fingers). `None` for a frame that says nothing: no motion, and nothing to end.
+fn phase_after(under_way: bool, moved: bool, stop: bool) -> (bool, Option<WheelPhase>) {
+    match (under_way, moved, stop) {
+        (true, _, true) | (false, true, true) => (false, Some(WheelPhase::Ended)),
+        (false, true, false) => (true, Some(WheelPhase::Began)),
+        (true, true, false) => (true, Some(WheelPhase::Changed)),
+        (under_way, false, false) => (under_way, None),
+        (false, false, true) => (false, None),
     }
 }
 
 /// The event `frame` is, if it is one, and the run after it. A wheel never has a run.
 pub(crate) fn wheel_event(
-    run: WheelRun,
+    under_way: bool,
     frame: &AxisFrame,
     context: WheelContext,
-) -> (WheelRun, Option<WheelEvent>) {
+) -> (bool, Option<WheelEvent>) {
     let source = source_of(frame.source);
     let by = motion_of(frame, source, context.detent_px);
     let moved = by != WheelMotion::default();
-    let stop = match (frame.horizontal.stop, frame.vertical.stop) {
-        (Stop::Moving, Stop::Moving) => Stop::Moving,
-        _ => Stop::Stopped,
-    };
+    let stop = frame.horizontal.stop || frame.vertical.stop;
     let (next, phase) = match source {
-        WheelSource::Wheel => (WheelRun::Idle, moved.then_some(WheelPhase::Changed)),
-        WheelSource::Finger | WheelSource::Continuous => phase_after(run, moved, stop),
+        WheelSource::Wheel => (false, moved.then_some(WheelPhase::Changed)),
+        WheelSource::Finger | WheelSource::Continuous => phase_after(under_way, moved, stop),
     };
     let event = phase.map(|phase| WheelEvent {
         source,
@@ -140,7 +127,7 @@ pub(crate) fn wheel_event(
 mod tests {
     use super::*;
     use crate::modifiers::Modifier;
-    use crate::scroll::source::{AxisValue, Relative, Shift};
+    use crate::scroll::source::AxisValue;
 
     fn context() -> WheelContext {
         WheelContext {
@@ -153,13 +140,12 @@ mod tests {
         }
     }
 
-    fn value(px: f64, v120: i32, stop: Stop) -> AxisValue {
+    fn value(px: f64, v120: i32, stop: bool) -> AxisValue {
         AxisValue {
             px,
             v120,
             discrete: 0,
             stop,
-            relative: Relative::Identical,
         }
     }
 
@@ -168,50 +154,50 @@ mod tests {
             source,
             horizontal: h,
             vertical: v,
-            shift: Shift::Up,
+            shift: false,
         }
     }
 
-    const MOVING: Stop = Stop::Moving;
+    const MOVING: bool = false;
 
     #[test]
     fn a_frame_becomes_a_source_a_phase_and_a_distance() {
         use AxisSource::*;
         let none = value(0.0, 0, MOVING);
-        let lifted = value(0.0, 0, Stop::Stopped);
+        let lifted = value(0.0, 0, true);
         // name, run before, frame, then the run after and the event's source, phase and by
         #[rustfmt::skip]
         let cases = [
             ("a wheel click is one detent and always Changed",
-                WheelRun::Idle, frame(Wheel, none, value(15.0, 120, MOVING)),
-                WheelRun::Idle, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, -60.0)))),
+                false, frame(Wheel, none, value(15.0, 120, MOVING)),
+                false, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, -60.0)))),
             ("a wheel scrolled up is content moving down",
-                WheelRun::Idle, frame(Wheel, none, value(-15.0, -120, MOVING)),
-                WheelRun::Idle, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, 60.0)))),
+                false, frame(Wheel, none, value(-15.0, -120, MOVING)),
+                false, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, 60.0)))),
             ("a compositor that names no source is a wheel",
-                WheelRun::Idle, frame(Unknown, none, value(15.0, 0, MOVING)),
-                WheelRun::Idle, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, -60.0)))),
+                false, frame(Unknown, none, value(15.0, 0, MOVING)),
+                false, Some((WheelSource::Wheel, WheelPhase::Changed, (0.0, -60.0)))),
             ("fingers' first motion begins a run",
-                WheelRun::Idle, frame(Finger, value(1.0, 0, MOVING), value(-4.0, 0, MOVING)),
-                WheelRun::Under, Some((WheelSource::Finger, WheelPhase::Began, (-1.0, 4.0)))),
+                false, frame(Finger, value(1.0, 0, MOVING), value(-4.0, 0, MOVING)),
+                true, Some((WheelSource::Finger, WheelPhase::Began, (-1.0, 4.0)))),
             ("more motion changes it",
-                WheelRun::Under, frame(Finger, none, value(-4.0, 0, MOVING)),
-                WheelRun::Under, Some((WheelSource::Finger, WheelPhase::Changed, (0.0, 4.0)))),
+                true, frame(Finger, none, value(-4.0, 0, MOVING)),
+                true, Some((WheelSource::Finger, WheelPhase::Changed, (0.0, 4.0)))),
             ("axis_stop ends it",
-                WheelRun::Under, frame(Finger, none, lifted),
-                WheelRun::Idle, Some((WheelSource::Finger, WheelPhase::Ended, (0.0, 0.0)))),
+                true, frame(Finger, none, lifted),
+                false, Some((WheelSource::Finger, WheelPhase::Ended, (0.0, 0.0)))),
             ("a last motion rides on the end",
-                WheelRun::Under, frame(Finger, none, value(-2.0, 0, Stop::Stopped)),
-                WheelRun::Idle, Some((WheelSource::Finger, WheelPhase::Ended, (0.0, 2.0)))),
+                true, frame(Finger, none, value(-2.0, 0, true)),
+                false, Some((WheelSource::Finger, WheelPhase::Ended, (0.0, 2.0)))),
             ("a stop with nothing running says nothing",
-                WheelRun::Idle, frame(Finger, none, lifted),
-                WheelRun::Idle, None),
+                false, frame(Finger, none, lifted),
+                false, None),
             ("a frame with no motion says nothing",
-                WheelRun::Under, frame(Finger, none, none),
-                WheelRun::Under, None),
+                true, frame(Finger, none, none),
+                true, None),
             ("a pointing stick is its own source",
-                WheelRun::Idle, frame(Continuous, none, value(3.0, 0, MOVING)),
-                WheelRun::Under, Some((WheelSource::Continuous, WheelPhase::Began, (0.0, -3.0)))),
+                false, frame(Continuous, none, value(3.0, 0, MOVING)),
+                true, Some((WheelSource::Continuous, WheelPhase::Began, (0.0, -3.0)))),
         ];
         for (name, run, frame, want_run, want) in cases {
             let (got_run, got) = wheel_event(run, &frame, context());
@@ -224,7 +210,7 @@ mod tests {
     fn the_event_carries_the_pointer_and_the_modifiers() {
         let none = value(0.0, 0, MOVING);
         let frame = frame(AxisSource::Wheel, none, value(15.0, 120, MOVING));
-        let (_, event) = wheel_event(WheelRun::Idle, &frame, context());
+        let (_, event) = wheel_event(false, &frame, context());
         let event = event.expect("a click is an event");
         assert_eq!((event.at, event.held), (context().at, context().held));
     }

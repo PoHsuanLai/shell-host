@@ -5,12 +5,11 @@
 
 use blitz_traits::events::BlitzImeEvent;
 
-use crate::dom::ime_focus::FieldSecrecy;
 use crate::region::Rect;
 
 mod surrounding;
 
-pub(crate) use surrounding::{ChangeCause, SentSurrounding, decide};
+pub(crate) use surrounding::{SentSurrounding, decide};
 
 /// A preedit string with its cursor, as byte offsets into the string (`None` hides the cursor).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -34,30 +33,22 @@ pub(crate) struct PendingIme {
     pub delete: Option<DeleteSurrounding>,
 }
 
-/// Whether text input is enabled for the focused surface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ImeFocus {
-    Disabled,
-    /// Enabled, with the caret rectangle last sent (`set_cursor_rectangle`).
-    Enabled {
-        cursor_area: Rect,
-    },
-}
-
 /// One seat's text-input state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Ime {
     pub pending: PendingIme,
-    pub focus: ImeFocus,
+    /// Text input is enabled for the focused surface: the caret rectangle last sent
+    /// (`set_cursor_rectangle`); `None` when disabled.
+    pub focus: Option<Rect>,
     /// The `done` serial the compositor expects our next `commit` to match.
     pub serial: u32,
     /// The surrounding text last sent to the compositor.
     pub surrounding: SentSurrounding,
-    /// Why the next change to the field's text or caret happened: `InputMethod` once a `done`
-    /// was applied, taken back to `Other` when the surrounding text is next considered.
-    pub cause: ChangeCause,
-    /// The kind of field last declared with `set_content_type`.
-    pub declared: FieldSecrecy,
+    /// The next change to the field's text or caret was the input method's doing: set once a
+    /// `done` was applied, taken back to `false` when the surrounding text is next considered.
+    pub by_input_method: bool,
+    /// The last `set_content_type` declared a secret (password) field.
+    pub declared_secret: bool,
 }
 
 /// Apply `done`: the Blitz events for everything pending, in protocol order, and an empty

@@ -8,29 +8,17 @@ use smithay_client_toolkit::seat::keyboard::KeyEvent;
 
 use crate::input::{keycode, keysym};
 
-/// Whether a key event is the first press or a compositor/sctk key repeat.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Repeat {
-    First,
-    Repeated,
-}
-
-/// Whether an IME composition is in progress on the focused surface (`BlitzKeyEvent::is_composing`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Composing {
-    Idle,
-    Active,
-}
-
 /// The Blitz event for `event`: `key` from `keysym::logical_key`, `code` from
 /// `keycode::code_from_evdev(event.raw_code)`, `location` from `keysym::location`, `text` from
-/// the printable part of `event.utf8` (presses only).
+/// the printable part of `event.utf8` (presses only). `repeat`: a compositor/sctk key repeat
+/// rather than the first press. `composing`: an IME composition is in progress on the focused
+/// surface (`BlitzKeyEvent::is_composing`).
 pub(crate) fn key_event(
     event: &KeyEvent,
     mods: Modifiers,
     state: KeyState,
-    repeat: Repeat,
-    composing: Composing,
+    repeat: bool,
+    composing: bool,
 ) -> BlitzKeyEvent {
     let text = match state {
         KeyState::Pressed => printable(event.utf8.as_deref()).map(SmolStr::from),
@@ -43,8 +31,8 @@ pub(crate) fn key_event(
         code: keycode::code_from_evdev(event.raw_code),
         modifiers: mods,
         location: keysym::location(event.keysym),
-        is_auto_repeating: repeat == Repeat::Repeated,
-        is_composing: composing == Composing::Active,
+        is_auto_repeating: repeat,
+        is_composing: composing,
         state,
         text,
     }

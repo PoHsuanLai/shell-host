@@ -13,16 +13,13 @@ use smithay_client_toolkit::seat::pointer::AxisScroll;
 use wayland_client::protocol::wl_pointer;
 
 use crate::event::HostEvent;
-use crate::frame::Animation;
 use crate::geometry::Point;
 use crate::id::SurfaceId;
 use crate::input::focus::PointerFocus;
-use crate::input::key::Repeat;
 use crate::input::palmrest::route::{Route, route};
 use crate::input::pointer::{self, PointerPos};
 use crate::region::Px;
-use crate::scroll::source::{AxisSource, Stop};
-use crate::scroll::suppress::{AxisKind, Driven, Verdict};
+use crate::scroll::source::AxisSource;
 use crate::scroll::surface::{Moved, PalmScroll};
 use crate::scroll::tuning::Tuning;
 use crate::scroll::wheel::{WheelContext, wheel_event};
@@ -46,22 +43,15 @@ impl HostState {
         let animating = self
             .surfaces
             .get(&id)
-            .is_some_and(|s| s.scroll.animation(now) == Animation::Running);
+            .is_some_and(|s| s.scroll.animation(now));
         if moved == Moved::Moved || animating {
             self.invalidate(id);
         }
     }
 
     /// Whether any palmrest-driven animation still runs (the double-scroll rule).
-    fn palmrest_driven(&self) -> Driven {
-        match self
-            .surfaces
-            .values()
-            .any(|s| s.scroll.driven() == Driven::Running)
-        {
-            true => Driven::Running,
-            false => Driven::Settled,
-        }
+    fn palmrest_driven(&self) -> bool {
+        self.surfaces.values().any(|s| s.scroll.driven())
     }
 
     /// A `wl_pointer` axis frame on surface `id` at document point `at`.
@@ -74,18 +64,18 @@ impl HostState {
     ) {
         let now = self.now();
         let frame = pointer::axis_frame(horizontal, vertical, source, self.input.modifiers);
-        let kind = match frame.source {
-            AxisSource::Wheel | AxisSource::Finger | AxisSource::Unknown => AxisKind::Suppressible,
-            AxisSource::Continuous | AxisSource::WheelTilt => AxisKind::Other,
+        let suppressible = match frame.source {
+            AxisSource::Wheel | AxisSource::Finger | AxisSource::Unknown => true,
+            AxisSource::Continuous | AxisSource::WheelTilt => false,
         };
         let grace = self.scroll.settings().double_scroll_grace_ms.duration();
-        let verdict = self
+        let delivered = self
             .suppress
-            .verdict(kind, self.palmrest_driven(), grace, now);
-        if frame.horizontal.stop == Stop::Stopped || frame.vertical.stop == Stop::Stopped {
+            .delivers(suppressible, self.palmrest_driven(), grace, now);
+        if frame.horizontal.stop || frame.vertical.stop {
             self.suppress = self.suppress.axis_stop();
         }
-        if verdict == Verdict::Drop {
+        if !delivered {
             return;
         }
         let held = self.input.held_modifiers;
@@ -143,11 +133,8 @@ impl HostState {
         let Some(key) = scroll_key(&event.key, event.modifiers) else {
             return Claim::Left;
         };
-        let repeat = match event.is_auto_repeating {
-            true => Repeat::Repeated,
-            false => Repeat::First,
-        };
-        if repeat == Repeat::Repeated && self.scroll_key != Some(raw) {
+        let repeat = event.is_auto_repeating;
+        if repeat && self.scroll_key != Some(raw) {
             return Claim::Left;
         }
         let now = self.now();

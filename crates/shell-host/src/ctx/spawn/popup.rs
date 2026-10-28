@@ -16,7 +16,7 @@ use crate::popup::{
     PopupConfig, PopupGrab, PositionerParams, positioner_params, to_wire_anchor as edge,
     to_wire_constraint_adjustment, to_wire_gravity,
 };
-use crate::popup_keyboard::{ParentKeyboard, parent_keyboard};
+use crate::popup_keyboard::parent_keyboard;
 use crate::region::RegionSpec;
 use crate::resolve::resolve_popup_anchor;
 use crate::role::Role;
@@ -137,14 +137,14 @@ pub(crate) fn positioner(state: &HostState, params: &PositionerParams) -> Result
 /// Switch a `KeyboardMode::None` layer to `OnDemand`, so the grabbing popup opened from it can
 /// take keyboard focus (plan "Opening a grabbing popup ..."), where `parent_keyboard` says so.
 fn lift_keyboard(state: &mut HostState, parent: SurfaceId, grab: PopupGrab) {
-    let kind = state.compositor_kind;
+    let lifts = state.lifts_parent_keyboard;
     if let Some(HostSurface {
         role: Role::Layer {
             surface, keyboard, ..
         },
         ..
     }) = state.surfaces.get_mut(&parent)
-        && parent_keyboard(kind, grab, *keyboard) == ParentKeyboard::Lift
+        && parent_keyboard(lifts, grab, *keyboard)
     {
         *keyboard = KeyboardMode::OnDemand;
         surface.set_keyboard_interactivity(to_wire_keyboard(KeyboardMode::OnDemand));

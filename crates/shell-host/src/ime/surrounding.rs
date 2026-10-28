@@ -8,16 +8,6 @@
 
 use blitz_dom::node::SurroundingText;
 
-/// Why the surrounding text changed, as `set_text_change_cause` names it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum ChangeCause {
-    /// The input method's own `done` (a commit, a deletion or a pre-edit) was applied.
-    InputMethod,
-    /// Typing, the pointer, a script, or a field that just took the focus.
-    #[default]
-    Other,
-}
-
 /// The surrounding text last sent with the current enable, if any. The compositor forgets it on
 /// `enable`, `disable` and `leave`, so those clear it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -29,7 +19,10 @@ pub(crate) struct SentSurrounding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Outgoing {
     pub surrounding: SurroundingText,
-    pub cause: ChangeCause,
+    /// Why the text changed, as `set_text_change_cause` names it: the input method's own `done`
+    /// (a commit, a deletion or a pre-edit) was applied. `false`: typing, the pointer, a
+    /// script, or a field that just took the focus.
+    pub by_input_method: bool,
 }
 
 /// The pair to send for `current` (the focused field's surrounding text, `None` when no text
@@ -38,11 +31,14 @@ pub(crate) struct Outgoing {
 pub(crate) fn decide(
     sent: &SentSurrounding,
     current: Option<SurroundingText>,
-    cause: ChangeCause,
+    by_input_method: bool,
 ) -> Option<Outgoing> {
     let surrounding = current?;
     if sent.text.as_ref() == Some(&surrounding) {
         return None;
     }
-    Some(Outgoing { surrounding, cause })
+    Some(Outgoing {
+        surrounding,
+        by_input_method,
+    })
 }

@@ -2,13 +2,6 @@
 
 use blitz_traits::events::{MouseEventButton, MouseEventButtons};
 
-/// Whether a button went down or up.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ButtonChange {
-    Pressed,
-    Released,
-}
-
 /// The DOM button for evdev code `code`; `None` for the buttons Blitz has no name for.
 pub(crate) fn button_from_evdev(code: u32) -> Option<MouseEventButton> {
     match code {
@@ -21,15 +14,16 @@ pub(crate) fn button_from_evdev(code: u32) -> Option<MouseEventButton> {
     }
 }
 
-/// The held-buttons set after `button` changed.
+/// The held-buttons set after `button` was `pressed` (or released).
 pub(crate) fn buttons_after(
     held: MouseEventButtons,
     button: MouseEventButton,
-    change: ButtonChange,
+    pressed: bool,
 ) -> MouseEventButtons {
-    match change {
-        ButtonChange::Pressed => held | MouseEventButtons::from(button),
-        ButtonChange::Released => held - MouseEventButtons::from(button),
+    if pressed {
+        held | MouseEventButtons::from(button)
+    } else {
+        held - MouseEventButtons::from(button)
     }
 }
 
@@ -62,28 +56,28 @@ mod tests {
                 "press main",
                 none,
                 MouseEventButton::Main,
-                ButtonChange::Pressed,
+                true,
                 MouseEventButtons::Primary,
             ),
             (
                 "press secondary while main held",
                 MouseEventButtons::Primary,
                 MouseEventButton::Secondary,
-                ButtonChange::Pressed,
+                true,
                 MouseEventButtons::Primary | MouseEventButtons::Secondary,
             ),
             (
                 "release main keeps secondary",
                 MouseEventButtons::Primary | MouseEventButtons::Secondary,
                 MouseEventButton::Main,
-                ButtonChange::Released,
+                false,
                 MouseEventButtons::Secondary,
             ),
             (
                 "release of an unheld button",
                 none,
                 MouseEventButton::Fifth,
-                ButtonChange::Released,
+                false,
                 none,
             ),
         ];

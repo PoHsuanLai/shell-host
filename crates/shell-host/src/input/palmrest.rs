@@ -42,13 +42,6 @@ use backoff::Misses;
 /// loop comes back for the rest after its other sources have had their turn.
 const MAX_DATAGRAMS_PER_READ: usize = 256;
 
-/// Whether the host trusts the process at the other end of the socket.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Trust {
-    Trusted,
-    Refused,
-}
-
 /// The daemon's socket. The daemon is a system service, so this is a fixed path and not one under
 /// the person's runtime folder.
 pub(crate) const SOCKET: &str = "/run/palmrest/events.sock";
@@ -59,23 +52,10 @@ pub(crate) const SOCKET: &str = "/run/palmrest/events.sock";
 const DAEMON_CGROUP: &str = "/system.slice/palmrest.service";
 
 /// Whether a process whose `/proc/<pid>/cgroup` reads `text` is the daemon: the unified
-/// hierarchy's line `0::<path>` names the unit's group, exactly.
-pub(crate) fn trust_of_cgroup(text: &str) -> Trust {
-    if text
-        .lines()
+/// hierarchy's line `0::<path>` names the unit's group, exactly. `true`: the host trusts it.
+pub(crate) fn trust_of_cgroup(text: &str) -> bool {
+    text.lines()
         .any(|line| line.strip_prefix("0::") == Some(DAEMON_CGROUP))
-    {
-        Trust::Trusted
-    } else {
-        Trust::Refused
-    }
-}
-
-/// Whether the host should try to connect at the next flush.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Retry {
-    Due,
-    Waiting,
 }
 
 /// Whether the host goes on reading after a read.
@@ -92,8 +72,8 @@ pub(crate) enum Stream {
 
 #[derive(Debug)]
 enum Link {
-    /// Not connected; whether an attempt is due.
-    Down(Retry),
+    /// Not connected; `retry_due`: the host should try to connect at the next flush.
+    Down { retry_due: bool },
     /// Connected; this descriptor sends (the event loop owns a duplicate for reading).
     Up(OwnedFd),
 }
@@ -104,7 +84,7 @@ pub(crate) struct Palmrest {
     path: Option<PathBuf>,
     /// How a peer is judged: [`peer_trust`] (the control group) in production; a test's daemon is
     /// a thread of the test, in no unit.
-    peer: fn(&OwnedFd) -> Trust,
+    peer: fn(&OwnedFd) -> bool,
     /// The person's settings file, when there is a place for one, and how it looked when its text
     /// was last sent.
     settings: Option<Settings>,
@@ -152,7 +132,7 @@ impl Palmrest {
             path,
             peer: peer_trust,
             settings: None,
-            link: Link::Down(Retry::Due),
+            link: Link::Down { retry_due: true },
             over: Over::NotOurs,
             lock: LockState::Unlocked,
             misses: Misses::default(),
@@ -164,7 +144,7 @@ impl Palmrest {
     #[cfg(test)]
     pub(crate) fn trusting(path: PathBuf, settings: Option<PathBuf>) -> Palmrest {
         Palmrest {
-            peer: |_| Trust::Trusted,
+            peer: |_| true,
             settings: settings.map(|path| Settings { path, told: None }),
             ..Palmrest::at(Some(path))
         }
@@ -172,17 +152,15 @@ impl Palmrest {
 
     /// Whether a connection attempt is due: at start, after a pointer enter while down, when the
     /// session locks while down, and when the wait of [`Palmrest::retry_in`] has run out.
-    pub(crate) fn retry(&self) -> Retry {
-        match self.link {
-            Link::Up(_) => Retry::Waiting,
-            Link::Down(retry) => retry,
-        }
+    pub(crate) fn retry_due(&self) -> bool {
+        matches!(self.link, Link::Down { retry_due: true })
     }
 
-    /// Make an attempt `retry` while unconnected; a connected client has none to make.
-    fn set_retry(&mut self, retry: Retry) {
-        if let Link::Down(due) = &mut self.link {
-            *due = retry;
+    /// Make an attempt due (`true`) or not while unconnected; a connected client has none to
+    /// make.
+    fn set_retry(&mut self, due: bool) {
+        if let Link::Down { retry_due } = &mut self.link {
+            *retry_due = due;
         }
     }
 
@@ -192,14 +170,14 @@ impl Palmrest {
     /// socket path to look at, or the daemon is connected.
     pub(crate) fn retry_in(&self) -> Option<Duration> {
         match (&self.link, &self.path) {
-            (Link::Down(_), Some(_)) => Some(self.misses.wait(self.lock)),
-            (Link::Up(_), _) | (Link::Down(_), None) => None,
+            (Link::Down { .. }, Some(_)) => Some(self.misses.wait(self.lock)),
+            (Link::Up(_), _) | (Link::Down { .. }, None) => None,
         }
     }
 
     /// The wait of [`Palmrest::retry_in`] ran out: an attempt is due, if still unconnected.
     pub(crate) fn retry_now(&mut self) {
-        self.set_retry(Retry::Due);
+        self.set_retry(true);
     }
 
     /// The daemon spoke: it is there and means to stay, so the next loss is waited for from the
@@ -214,7 +192,7 @@ impl Palmrest {
     /// before [`Palmrest::retry_in`] has passed, or the next pointer enter) when there is no
     /// usable daemon.
     pub(crate) fn connect(&mut self) -> Option<OwnedFd> {
-        self.set_retry(Retry::Waiting);
+        self.set_retry(false);
         let reader = self.attempt();
         if reader.is_none() {
             self.misses = self.misses.more();
@@ -228,7 +206,7 @@ impl Palmrest {
             return None;
         }
         let fd = open(path).ok()?;
-        if self.judge(&fd) == Trust::Refused {
+        if !self.judge(&fd) {
             eprintln!(
                 "shell-host: the palmrest socket is not served by palmrest's unit; ignoring it"
             );
@@ -242,7 +220,7 @@ impl Palmrest {
         Some(reader)
     }
 
-    fn judge(&self, fd: &OwnedFd) -> Trust {
+    fn judge(&self, fd: &OwnedFd) -> bool {
         (self.peer)(fd)
     }
 
@@ -276,8 +254,8 @@ impl Palmrest {
         // The stamp is taken before the read, so a change in between is seen at the next look.
         let stamp = user_config::stamp(path);
         let toml = user_config::read(path);
-        let delivery = self.send(&ToDaemon::UserConfig { toml });
-        if let (Delivery::Sent, Some(settings)) = (delivery, &mut self.settings) {
+        let sent = self.send(&ToDaemon::UserConfig { toml });
+        if sent && let Some(settings) = &mut self.settings {
             settings.told = Some(stamp);
         }
     }
@@ -285,7 +263,7 @@ impl Palmrest {
     /// The daemon went away (the read side saw the end, or it spoke another protocol): a miss,
     /// and the next attempt waits for [`Palmrest::retry_in`].
     pub(crate) fn disconnected(&mut self) {
-        self.link = Link::Down(Retry::Waiting);
+        self.link = Link::Down { retry_due: false };
         self.misses = self.misses.more();
     }
 
@@ -295,8 +273,8 @@ impl Palmrest {
         let changed = self.over != over;
         self.over = over;
         match (&self.link, over) {
-            (Link::Down(_), Over::Ours) => self.set_retry(Retry::Due),
-            (Link::Down(_), Over::NotOurs) => {}
+            (Link::Down { .. }, Over::Ours) => self.set_retry(true),
+            (Link::Down { .. }, Over::NotOurs) => {}
             (Link::Up(_), _) => {
                 if changed {
                     self.send(&ToDaemon::PointerOver { over });
@@ -314,56 +292,47 @@ impl Palmrest {
         }
         self.lock = lock;
         match (&self.link, lock) {
-            (Link::Down(_), LockState::Locked) => self.set_retry(Retry::Due),
-            (Link::Down(_), LockState::Unlocked) => {}
+            (Link::Down { .. }, LockState::Locked) => self.set_retry(true),
+            (Link::Down { .. }, LockState::Unlocked) => {}
             (Link::Up(_), _) => {
                 self.send(&ToDaemon::SessionLock { state: lock });
             }
         }
     }
 
-    fn send(&mut self, message: &ToDaemon) -> Delivery {
+    /// Whether the message went into the socket.
+    fn send(&mut self, message: &ToDaemon) -> bool {
         let Link::Up(fd) = &self.link else {
-            return Delivery::Dropped;
+            return false;
         };
         match send(
             fd,
             &encode(message),
             SendFlags::NOSIGNAL | SendFlags::DONTWAIT,
         ) {
-            Ok(_) => Delivery::Sent,
+            Ok(_) => true,
             // A full socket drops one message; the next change resends the state.
-            Err(e) if e == rustix::io::Errno::AGAIN => Delivery::Dropped,
+            Err(e) if e == rustix::io::Errno::AGAIN => false,
             Err(_) => {
-                self.link = Link::Down(Retry::Waiting);
-                Delivery::Dropped
+                self.link = Link::Down { retry_due: false };
+                false
             }
         }
     }
-}
-
-/// Whether a message went into the socket.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Delivery {
-    Sent,
-    Dropped,
 }
 
 /// Whether the process that listens on `fd` is palmrest's unit. The process is held by a pidfd,
 /// its control group is read from `/proc`, and it must still be running afterwards, so the pid
 /// cannot have been another process's when the group was read. Fails closed: anything that cannot
 /// be read is refused.
-fn peer_trust(fd: &OwnedFd) -> Trust {
+fn peer_trust(fd: &OwnedFd) -> bool {
     let Some(held) = held_peer(fd) else {
-        return Trust::Refused;
+        return false;
     };
     let Ok(text) = std::fs::read_to_string(format!("/proc/{}/cgroup", held.pid)) else {
-        return Trust::Refused;
+        return false;
     };
-    match still_running(&held.fd) {
-        Running::Yes => trust_of_cgroup(&text),
-        Running::No => Trust::Refused,
-    }
+    still_running(&held.fd) && trust_of_cgroup(&text)
 }
 
 /// A process held by a pidfd, with the pid the socket names for it.
@@ -372,20 +341,10 @@ struct Held {
     fd: OwnedFd,
 }
 
-/// Whether a held process has not exited.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Running {
-    Yes,
-    No,
-}
-
-/// A pidfd polls readable once its process has exited.
-fn still_running(held: &OwnedFd) -> Running {
+/// Whether a held process has not exited: a pidfd polls readable once its process has.
+fn still_running(held: &OwnedFd) -> bool {
     let mut watch = [PollFd::new(held, PollFlags::IN)];
-    match poll(&mut watch, Some(&Timespec::default())) {
-        Ok(0) => Running::Yes,
-        _ => Running::No,
-    }
+    matches!(poll(&mut watch, Some(&Timespec::default())), Ok(0))
 }
 
 /// The process on the other end of `socket`, held. The kernel's own pidfd of the peer, made when

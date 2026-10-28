@@ -4,28 +4,19 @@ use crate::geometry::inflate;
 use crate::region::{ElementId, ElementRegion, Rect, RegionSpec, RoundedRect, rounded_strips};
 use crate::scale::Size;
 
-/// A region ready to send.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Resolved {
-    /// The union of these rectangles; empty means "nothing".
-    Strips(Vec<Rect>),
-    /// The element the region follows is not laid out yet (or not in the document); keep
-    /// whatever region the surface has now.
-    Pending,
-}
-
 /// Resolve `spec` for a surface of logical `size`, finding element rectangles with `lookup`.
+/// `Some` is a region ready to send: the union of its rectangles, empty meaning "nothing".
+/// `None` is pending: the element the region follows is not laid out yet (or not in the
+/// document), so keep whatever region the surface has now.
 pub(crate) fn resolve(
     spec: &RegionSpec,
     size: Size,
     lookup: impl Fn(ElementId) -> Option<Rect>,
-) -> Resolved {
+) -> Option<Vec<Rect>> {
     match spec {
-        RegionSpec::Empty => Resolved::Strips(Vec::new()),
-        RegionSpec::Whole => Resolved::Strips(whole(size)),
-        RegionSpec::Rects(rects) => {
-            Resolved::Strips(rects.iter().flat_map(|&rr| rounded_strips(rr)).collect())
-        }
+        RegionSpec::Empty => Some(Vec::new()),
+        RegionSpec::Whole => Some(whole(size)),
+        RegionSpec::Rects(rects) => Some(rects.iter().flat_map(|&rr| rounded_strips(rr)).collect()),
         RegionSpec::Element {
             id,
             radius,
@@ -36,12 +27,9 @@ pub(crate) fn resolve(
                 radius: *radius,
                 inflate: *by,
             };
-            match rounded_rect(&element, &lookup) {
-                Some(rr) => Resolved::Strips(rounded_strips(rr)),
-                None => Resolved::Pending,
-            }
+            rounded_rect(&element, &lookup).map(rounded_strips)
         }
-        RegionSpec::Elements(elements) => Resolved::Strips(
+        RegionSpec::Elements(elements) => Some(
             elements
                 .iter()
                 .filter_map(|element| rounded_rect(element, &lookup))
@@ -112,12 +100,12 @@ mod tests {
             },
             radius: 0,
         };
-        let cases: Vec<(&str, RegionSpec, Resolved)> = vec![
-            ("empty", RegionSpec::Empty, Resolved::Strips(vec![])),
+        let cases: Vec<(&str, RegionSpec, Option<Vec<Rect>>)> = vec![
+            ("empty", RegionSpec::Empty, Some(vec![])),
             (
                 "whole",
                 RegionSpec::Whole,
-                Resolved::Strips(vec![Rect {
+                Some(vec![Rect {
                     x: 0,
                     y: 0,
                     width: 200,
@@ -127,7 +115,7 @@ mod tests {
             (
                 "square rects pass through",
                 RegionSpec::Rects(vec![square, square]),
-                Resolved::Strips(vec![square.rect, square.rect]),
+                Some(vec![square.rect, square.rect]),
             ),
             (
                 "element, square, inflated",
@@ -136,7 +124,7 @@ mod tests {
                     radius: 0,
                     inflate: 2,
                 },
-                Resolved::Strips(vec![Rect {
+                Some(vec![Rect {
                     x: 18,
                     y: 6,
                     width: 104,
@@ -150,7 +138,7 @@ mod tests {
                     radius: 8,
                     inflate: 0,
                 },
-                Resolved::Pending,
+                None,
             ),
         ];
         for (name, spec, want) in cases {
@@ -169,7 +157,7 @@ mod tests {
             rect: PILL_RECT,
             radius: 6,
         });
-        assert_eq!(resolve(&spec, SIZE, lookup), Resolved::Strips(want));
+        assert_eq!(resolve(&spec, SIZE, lookup), Some(want));
     }
 
     /// A second element for the `Elements` cases: overlaps `PILL_RECT` on purpose (concatenated
@@ -255,11 +243,7 @@ mod tests {
         ];
         for (name, elements, want) in cases {
             let spec = RegionSpec::Elements(elements);
-            assert_eq!(
-                resolve(&spec, SIZE, lookup_two),
-                Resolved::Strips(want),
-                "{name}"
-            );
+            assert_eq!(resolve(&spec, SIZE, lookup_two), Some(want), "{name}");
         }
     }
 
@@ -269,9 +253,6 @@ mod tests {
             width: 0,
             height: 0,
         };
-        assert_eq!(
-            resolve(&RegionSpec::Whole, zero, lookup),
-            Resolved::Strips(vec![])
-        );
+        assert_eq!(resolve(&RegionSpec::Whole, zero, lookup), Some(vec![]));
     }
 }

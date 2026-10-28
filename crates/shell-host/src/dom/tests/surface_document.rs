@@ -11,7 +11,7 @@ use dioxus::prelude::*;
 use tokio::sync::watch;
 
 use crate::clipboard::SharedSelection;
-use crate::dom::document::{Polled, SurfaceDocument};
+use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
 use crate::dom::tests::env::test_env;
 use crate::id::SurfaceId;
@@ -153,7 +153,7 @@ async fn poll_reports_a_change_and_the_waker_pings_when_a_watched_value_changes(
     assert!(fired, "sending on the watched channel should ping the loop");
 
     let polled = doc.poll(&mut cx);
-    assert_eq!(polled, Polled::Changed);
+    assert!(polled);
     assert!(all_text(&mut doc).contains('7'));
 }
 

@@ -9,8 +9,8 @@ use tokio::sync::oneshot;
 use wayland_client::protocol::wl_data_device_manager::DndAction;
 
 use crate::drag::offer::{Offered, bytes_for};
-use crate::drag::outcome::{DragAction, DragEnd, DragOutcome, outcome};
-use crate::handlers::pipe_writes::{PipeUse, Queued};
+use crate::drag::outcome::{DragAction, DragOutcome, outcome};
+use crate::handlers::pipe_writes::PipeUse;
 use crate::id::SurfaceId;
 use crate::state::HostState;
 
@@ -44,7 +44,7 @@ impl HostState {
             .and_then(|drag| bytes_for(&drag.offered, mime));
         match bytes {
             Some(bytes) => {
-                if self.pipe_writes.push(PipeUse::Drag, pipe, bytes) == Queued::Refused {
+                if !self.pipe_writes.push(PipeUse::Drag, pipe, bytes) {
                     eprintln!("shell-host: too many drag pipes open; one closed unanswered");
                 }
             }
@@ -59,13 +59,14 @@ impl HostState {
         }
     }
 
-    /// The drag is over: answer the caller, destroy the source and close the icon.
-    pub(crate) fn drag_end(&mut self, end: DragEnd) {
+    /// The drag is over (`finished`: `dnd_finished`, else `cancelled`): answer the caller,
+    /// destroy the source and close the icon.
+    pub(crate) fn drag_end(&mut self, finished: bool) {
         let Some(drag) = self.drag.active.take() else {
             return;
         };
         // The caller may have stopped waiting; nobody is left to tell then.
-        let _ = drag.reply.send(outcome(end, drag.chosen));
+        let _ = drag.reply.send(outcome(finished, drag.chosen));
         if let Some(icon) = drag.icon {
             self.remove_surface(icon);
         }

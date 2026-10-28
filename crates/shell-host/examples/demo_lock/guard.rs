@@ -28,39 +28,21 @@ pub struct LockEnv {
     pub display: Option<String>,
     /// `WAYLAND_DISPLAY` resolved, when it names an existing file.
     pub display_resolved: Option<PathBuf>,
-    pub display_is_socket: Kind,
+    /// The resolved display path is a socket.
+    pub display_is_socket: bool,
     /// `SHELL_HOST_LOCK_RUNTIME` resolved.
     pub runtime: Option<PathBuf>,
-    pub marker: Kind,
+    /// The runtime dir holds the virtual compositor's marker file.
+    pub marker: bool,
     /// `XDG_RUNTIME_DIR` resolved.
     pub session_runtime: Option<PathBuf>,
     /// `/run/user/<uid>` resolved.
     pub login_runtime: Option<PathBuf>,
 }
 
-/// Whether a path is what the rule wants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Present,
-    Absent,
-}
-
-/// May the demo lock this compositor.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Permit {
-    Granted,
-    Refused(String),
-}
-
-/// The rules, in order; the first that fails is the reason. Pure.
-pub fn permit(env: &LockEnv) -> Permit {
-    match check(env) {
-        Ok(()) => Permit::Granted,
-        Err(reason) => Permit::Refused(reason),
-    }
-}
-
-fn check(env: &LockEnv) -> Result<(), String> {
+/// May the demo lock this compositor: the rules, in order; the first that fails is the reason.
+/// Pure.
+pub fn permit(env: &LockEnv) -> Result<(), String> {
     if env.allow.as_deref() != Some("virtual") {
         return Err("SHELL_HOST_ALLOW_LOCK is not \"virtual\"".to_owned());
     }
@@ -76,13 +58,13 @@ fn check(env: &LockEnv) -> Result<(), String> {
     let socket = env
         .display_resolved
         .as_deref()
-        .filter(|_| env.display_is_socket == Kind::Present)
+        .filter(|_| env.display_is_socket)
         .ok_or_else(|| format!("WAYLAND_DISPLAY {display:?} is not a socket"))?;
     let runtime = env
         .runtime
         .as_deref()
         .ok_or("SHELL_HOST_LOCK_RUNTIME is unset or missing")?;
-    if env.marker == Kind::Absent {
+    if !env.marker {
         return Err(format!("{} has no {MARKER}", runtime.display()));
     }
     if env.session_runtime.as_deref() == Some(runtime) {
@@ -110,14 +92,11 @@ pub fn from_process() -> LockEnv {
     let resolve = |path: Option<String>| path.and_then(|p| std::fs::canonicalize(p).ok());
     let display = var("WAYLAND_DISPLAY");
     let display_resolved = resolve(display.clone());
-    let display_is_socket = display_resolved
-        .as_deref()
-        .map_or(Kind::Absent, socket_kind);
+    let display_is_socket = display_resolved.as_deref().is_some_and(is_socket);
     let runtime = resolve(var("SHELL_HOST_LOCK_RUNTIME"));
-    let marker = match runtime.as_deref().map(|dir| dir.join(MARKER).is_file()) {
-        Some(true) => Kind::Present,
-        Some(false) | None => Kind::Absent,
-    };
+    let marker = runtime
+        .as_deref()
+        .is_some_and(|dir| dir.join(MARKER).is_file());
     LockEnv {
         allow: var("SHELL_HOST_ALLOW_LOCK"),
         socket_fd: var("WAYLAND_SOCKET"),
@@ -138,12 +117,9 @@ fn login_runtime() -> Option<PathBuf> {
     std::fs::canonicalize(format!("/run/user/{uid}")).ok()
 }
 
-fn socket_kind(path: &Path) -> Kind {
+fn is_socket(path: &Path) -> bool {
     use std::os::unix::fs::FileTypeExt;
-    match std::fs::metadata(path).map(|meta| meta.file_type().is_socket()) {
-        Ok(true) => Kind::Present,
-        Ok(false) | Err(_) => Kind::Absent,
-    }
+    std::fs::metadata(path).is_ok_and(|meta| meta.file_type().is_socket())
 }
 
 #[cfg(test)]
@@ -156,9 +132,9 @@ mod tests {
             socket_fd: None,
             display: Some("/run/user/1000/shell-host-lock-7/wayland-1".to_owned()),
             display_resolved: Some(PathBuf::from("/run/user/1000/shell-host-lock-7/wayland-1")),
-            display_is_socket: Kind::Present,
+            display_is_socket: true,
             runtime: Some(PathBuf::from("/run/user/1000/shell-host-lock-7")),
-            marker: Kind::Present,
+            marker: true,
             session_runtime: Some(PathBuf::from("/home/u/.cache/runtime")),
             login_runtime: Some(PathBuf::from("/run/user/1000")),
         }
@@ -192,7 +168,7 @@ mod tests {
             ("no display", |env| env.display = None, "unset"),
             (
                 "not a socket",
-                |env| env.display_is_socket = Kind::Absent,
+                |env| env.display_is_socket = false,
                 "not a socket",
             ),
             (
@@ -200,7 +176,7 @@ mod tests {
                 |env| env.runtime = None,
                 "SHELL_HOST_LOCK_RUNTIME",
             ),
-            ("no marker", |env| env.marker = Kind::Absent, "has no"),
+            ("no marker", |env| env.marker = false, "has no"),
             (
                 "the runtime dir is the login session's",
                 |env| {
@@ -232,8 +208,8 @@ mod tests {
             let mut env = good();
             change(&mut env);
             match (permit(&env), reason.is_empty()) {
-                (Permit::Granted, true) => {}
-                (Permit::Refused(got), false) => {
+                (Ok(()), true) => {}
+                (Err(got), false) => {
                     assert!(got.contains(reason), "{name}: {got:?} lacks {reason:?}");
                 }
                 (got, _) => panic!("{name}: {got:?}"),

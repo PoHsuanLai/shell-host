@@ -1,6 +1,5 @@
 //! The thumb's geometry from a scroller's rect and scroll metrics, and the zone and drag maths.
 
-use super::fade::Hover;
 use crate::scroll::config::{ScrollbarSettings, ScrollbarVisibility};
 use blitz_kit::scroll::geom::{Area, ScrollAxis};
 
@@ -120,18 +119,17 @@ pub(crate) fn geometry(
 }
 
 /// Whether surface-local point `(x, y)` is within the expand zone of a thumb on `metrics`.
-pub(crate) fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> Hover {
+pub(crate) fn in_zone(metrics: &Metrics, x: f64, y: f64, s: &ScrollbarSettings) -> bool {
     let r = metrics.rect;
     let zone = s.expand_zone_px.get();
-    let inside = match metrics.axis {
+    match metrics.axis {
         ScrollAxis::Y => {
             x >= r.x + r.width - zone && x <= r.x + r.width && y >= r.y && y <= r.y + r.height
         }
         ScrollAxis::X => {
             y >= r.y + r.height - zone && y <= r.y + r.height && x >= r.x && x <= r.x + r.width
         }
-    };
-    if inside { Hover::Hovered } else { Hover::Away }
+    }
 }
 
 #[cfg(test)]
@@ -191,8 +189,8 @@ pub(super) mod tests {
     fn the_zone_is_the_16_px_along_the_edge() {
         let s = ScrollbarSettings::default();
         let m = metrics(0.0);
-        assert_eq!(in_zone(&m, 390.0, 500.0, &s), Hover::Hovered);
-        assert_eq!(in_zone(&m, 380.0, 500.0, &s), Hover::Away);
-        assert_eq!(in_zone(&m, 390.0, 1200.0, &s), Hover::Away);
+        assert!(in_zone(&m, 390.0, 500.0, &s));
+        assert!(!in_zone(&m, 380.0, 500.0, &s));
+        assert!(!in_zone(&m, 390.0, 1200.0, &s));
     }
 }

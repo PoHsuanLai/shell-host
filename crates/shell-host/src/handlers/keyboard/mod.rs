@@ -13,16 +13,15 @@ use wayland_client::{Connection, QueueHandle};
 
 use crate::event::{HostEvent, KeyboardFocus};
 use crate::id::SurfaceId;
-use crate::ime::ImeFocus;
-use crate::input::focus::{self, Departure};
-use crate::input::key::{self, Composing, Repeat};
+use crate::input::focus;
+use crate::input::key;
 use crate::input::modifiers::modifiers_from;
-use crate::modality::{Stroke, key_kind};
+use crate::modality::{Stroke, is_modifier};
 use crate::modifiers::Modifiers;
 use crate::state::HostState;
 use crate::timers::TimerRequest;
 use blitz_kit::scroll::driver::Claim;
-use decide::{RepeatAfter, RepeatTiming};
+use decide::{RepeatRate, repeat_rate, stops_repeat};
 
 impl KeyboardHandler for HostState {
     /// `HostEvent::KeyboardFocus{Gained}`, remember the time for first-mouse.
@@ -71,7 +70,7 @@ impl KeyboardHandler for HostState {
             eprintln!("shell-host: wl_keyboard.leave for a surface no longer known (ignored)");
             return;
         };
-        if self.depart_keyboard(id) == Departure::Lost {
+        if self.depart_keyboard(id) {
             self.reset_keyboard_focus(id);
         }
     }
@@ -88,18 +87,20 @@ impl KeyboardHandler for HostState {
         let Some(id) = self.input.keyboard_focus else {
             return;
         };
-        self.note_stroke(Stroke::KeyPress(key_kind(event.keysym)));
+        self.note_stroke(Stroke::KeyPress {
+            modifier: is_modifier(event.keysym),
+        });
         let blitz_event = key::key_event(
             &event,
             self.input.modifiers,
             KeyState::Pressed,
-            Repeat::First,
+            false,
             self.composing(),
         );
         self.key_down(id, blitz_event, event.raw_code);
 
         // Start (or restart, replacing any key already repeating) the repeat timer; the
-        // context re-synthesizes `Repeat::Repeated` presses from `self.input.repeating` on
+        // context re-synthesizes repeated presses from `self.input.repeating` on
         // every firing (sctk's own repeat source is not used, since it must name the
         // calloop data type and `delegate_keyboard!` names the non-generic `HostState`).
         self.input.repeating = Some(event);
@@ -129,7 +130,7 @@ impl KeyboardHandler for HostState {
         event: KeyEvent,
     ) {
         let repeating = self.input.repeating.as_ref().map(|held| held.raw_code);
-        if decide::repeat_after_release(repeating, event.raw_code) == RepeatAfter::Stop {
+        if stops_repeat(repeating, event.raw_code) {
             self.input.repeating = None;
             self.timers.push(TimerRequest::RepeatStop);
         }
@@ -140,7 +141,7 @@ impl KeyboardHandler for HostState {
             &event,
             self.input.modifiers,
             KeyState::Released,
-            Repeat::First,
+            false,
             self.composing(),
         );
         self.key_up(id, blitz_event, event.raw_code);
@@ -177,12 +178,12 @@ impl KeyboardHandler for HostState {
         _keyboard: &wl_keyboard::WlKeyboard,
         info: RepeatInfo,
     ) {
-        match decide::repeat_timing(info) {
-            RepeatTiming::Every { delay, interval } => {
+        match repeat_rate(info) {
+            Some(RepeatRate { delay, interval }) => {
                 self.input.repeat_delay = delay;
                 self.input.repeat_interval = interval;
             }
-            RepeatTiming::Off => {
+            None => {
                 self.input.repeating = None;
                 self.timers.push(TimerRequest::RepeatStop);
             }
@@ -191,13 +192,10 @@ impl KeyboardHandler for HostState {
 }
 
 impl HostState {
-    /// Whether the focused surface's IME is enabled right now (`input::key::Composing`'s best
+    /// Whether the focused surface's IME is enabled right now (`key_event`'s `composing`, the best
     /// available signal: `Ime` tracks enablement, not whether a preedit is currently showing).
-    pub(crate) fn composing(&self) -> Composing {
-        match self.ime.focus {
-            ImeFocus::Enabled { .. } => Composing::Active,
-            ImeFocus::Disabled => Composing::Idle,
-        }
+    pub(crate) fn composing(&self) -> bool {
+        self.ime.focus.is_some()
     }
 
     /// A press or repeat for surface `id`: a scroll key the engine takes (design/11 §11.3.10:
@@ -248,15 +246,15 @@ impl HostState {
     /// resets its own record here instead of waiting for it. A later `enter` on a remapped
     /// surface proceeds normally and publishes the seat's current modifiers.
     pub(crate) fn withdraw_keyboard(&mut self, id: SurfaceId) {
-        if self.depart_keyboard(id) == Departure::Lost {
+        if self.depart_keyboard(id) {
             self.reset_keyboard_focus(id);
         }
     }
 
     /// Update the keyboard-focus record for surface `id` departing (a `leave`, an unmap or a
     /// close): shared by `leave` and `withdraw_keyboard` so both take the record through the
-    /// same pure transition.
-    fn depart_keyboard(&mut self, id: SurfaceId) -> Departure {
+    /// same pure transition. Returns whether it held the keyboard (`input::focus::depart_keyboard`).
+    fn depart_keyboard(&mut self, id: SurfaceId) -> bool {
         let (after, departure) = focus::depart_keyboard(self.input.keyboard_focus, id);
         self.input.keyboard_focus = after;
         departure

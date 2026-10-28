@@ -110,8 +110,10 @@ impl HostState {
             return;
         };
         match decide::plan(placement, serial) {
-            Ok(request) => windows.send(&self.qh, id, window.xdg_toplevel(), request),
-            Err(refused) => eprintln!("shell-host: placement {placement:?} on {id:?}: {refused}"),
+            Some(request) => windows.send(&self.qh, id, window.xdg_toplevel(), request),
+            None => eprintln!(
+                "shell-host: placement {placement:?} on {id:?}: no input event to place the window for"
+            ),
         }
     }
 

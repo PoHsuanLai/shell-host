@@ -18,8 +18,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{Connection, QueueHandle};
 
 use crate::clipboard::TEXT_MIME;
-use crate::drag::outcome::DragEnd;
-use crate::handlers::pipe_writes::{PipeUse, Queued};
+use crate::handlers::pipe_writes::PipeUse;
 use crate::state::HostState;
 use decide::{SourceOwner, source_owner};
 
@@ -124,7 +123,7 @@ impl DataSourceHandler for HostState {
                     let queued = self
                         .pipe_writes
                         .push(PipeUse::Selection, fd, Arc::clone(text));
-                    if queued == Queued::Refused {
+                    if !queued {
                         eprintln!("shell-host: too many paste pipes open; one closed unanswered");
                     }
                 }
@@ -138,7 +137,7 @@ impl DataSourceHandler for HostState {
     /// to keep alive) be destroyed.
     fn cancelled(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
         match self.source_owner(source) {
-            SourceOwner::Drag => self.drag_end(DragEnd::Cancelled),
+            SourceOwner::Drag => self.drag_end(false),
             SourceOwner::Selection => {
                 self.clipboard.own = None;
                 self.clipboard.source = None;
@@ -156,7 +155,7 @@ impl DataSourceHandler for HostState {
     /// The target is done with our drag's payload (`DragOutcome::Dropped`).
     fn dnd_finished(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, source: &WlDataSource) {
         if self.source_owner(source) == SourceOwner::Drag {
-            self.drag_end(DragEnd::Finished);
+            self.drag_end(true);
         }
     }
 

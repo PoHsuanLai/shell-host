@@ -16,7 +16,7 @@ use crate::placement::PopupPlacement;
 use crate::popup::{PopupGrab, positioner_params};
 use crate::role::Role;
 use crate::state::HostState;
-use crate::surface::{AppliedRegions, Configured, Mapped, VisibilityChange, visibility_change};
+use crate::surface::{AppliedRegions, VisibilityChange, visibility_change};
 
 /// The `xdg_popup.reposition` token. The host never matches `repositioned` events to requests,
 /// so one value serves.
@@ -214,9 +214,9 @@ fn unmap<M: 'static>(ctx: &mut HostCtx<M>, id: SurfaceId) {
         Ok(role) => {
             surface.wl.set(role.wl_surface().clone());
             surface.role = role;
-            surface.mapped = Mapped::Pending;
+            surface.mapped = false;
             surface.visibility = Visibility::Hidden;
-            surface.configured = Configured::Pending;
+            surface.configured = false;
             surface.frame = FrameState::NEW;
             surface.geometry = None;
             surface.regions = AppliedRegions::default();

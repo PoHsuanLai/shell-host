@@ -46,10 +46,8 @@ use wayland_client::globals::GlobalList;
 
 use crate::clipboard::Clipboard;
 use crate::clock::HostClock;
-use crate::compositor_kind::{CompositorKind, compositor_kind};
 use crate::csd::Zone;
 use crate::cursor::Cursor;
-use crate::dom::ime_focus::FieldSecrecy;
 use crate::error::{HostError, Result};
 use crate::event::ShellEvent;
 use crate::frame::{FrameInput, TimerCmd};
@@ -57,7 +55,7 @@ use crate::gpu::context::GpuContext;
 use crate::grab::GrabRecord;
 use crate::handle::RequestQueue;
 use crate::handlers::activation::ActivationRequest;
-use crate::handlers::background_effect::{BackgroundEffect, Support};
+use crate::handlers::background_effect::BackgroundEffect;
 use crate::handlers::drag_source::Dragging;
 use crate::handlers::fractional::Fractional;
 use crate::handlers::pipe_writes::PipeWrites;
@@ -66,12 +64,13 @@ use crate::handlers::render_device::RenderDevice;
 use crate::handlers::seat::SeatInput;
 use crate::handlers::text_input::TextInputManager;
 use crate::id::{SurfaceId, SurfaceIds};
-use crate::ime::{ChangeCause, Ime, ImeFocus, PendingIme, SentSurrounding};
+use crate::ime::{Ime, PendingIme, SentSurrounding};
 use crate::input::focus::PointerFocus;
-use crate::input::key::{Repeat, key_event};
+use crate::input::key::key_event;
 use crate::input::palmrest::Palmrest;
 use crate::input::pointer::PointerPos;
 use crate::lock::active::{ActiveLock, LockIds};
+use crate::popup_keyboard::lifts_parent_keyboard;
 use crate::prepaint::Prepaint;
 use crate::scroll::suppress::Suppress;
 use crate::scroll::tuning::Tuning;
@@ -108,8 +107,9 @@ pub(crate) struct HostState {
     pub(crate) quire_window: Option<QuireWindows>,
     /// The compositor's main render device, for the adapter that follows it.
     pub(crate) render_device: Option<RenderDevice>,
-    /// Which compositor this is, from the globals at bind time.
-    pub(crate) compositor_kind: CompositorKind,
+    /// This compositor gets a parent layer's keyboard lifted for a grabbing popup (not KWin or
+    /// casement), from the globals at bind time.
+    pub(crate) lifts_parent_keyboard: bool,
     pub(crate) text_input: Option<TextInputManager>,
     pub(crate) cursor: Cursor,
     pub(crate) ime: Ime,
@@ -207,8 +207,8 @@ impl HostState {
             background_effect: BackgroundEffect::bind(globals, &qh).ok(),
             quire_window: QuireWindows::bind(globals, &qh).ok(),
             render_device: RenderDevice::bind(globals, &qh).ok(),
-            compositor_kind: globals.contents().with_list(|list| {
-                compositor_kind(list.iter().map(|global| global.interface.as_str()))
+            lifts_parent_keyboard: globals.contents().with_list(|list| {
+                lifts_parent_keyboard(list.iter().map(|global| global.interface.as_str()))
             }),
             text_input: TextInputManager::bind(globals, &qh).ok(),
             cursor: Cursor {
@@ -218,11 +218,11 @@ impl HostState {
             },
             ime: Ime {
                 pending: PendingIme::default(),
-                focus: ImeFocus::Disabled,
+                focus: None,
                 serial: 0,
                 surrounding: SentSurrounding::default(),
-                cause: ChangeCause::default(),
-                declared: FieldSecrecy::default(),
+                by_input_method: false,
+                declared_secret: false,
             },
             clipboard: Clipboard::default(),
             drag: Dragging::default(),
@@ -266,14 +266,14 @@ impl HostState {
     }
 
     /// Whether the compositor can blur behind a surface at all: it advertises blur.
-    pub(crate) fn blur_supported(&self) -> Support {
+    pub(crate) fn blur_supported(&self) -> bool {
         self.background_effect
             .as_ref()
-            .map_or(Support::Unsupported, |effect| effect.capabilities().blur)
+            .is_some_and(|effect| effect.capabilities().blur)
     }
 
     /// One tick of the key-repeat timer the context arms for `TimerRequest::RepeatStart`:
-    /// the held key again, as a `Repeat::Repeated` press, to the focused surface.
+    /// the held key again, as a repeated press, to the focused surface.
     pub(crate) fn key_repeat(&mut self) {
         let (Some(id), Some(held)) = (self.input.keyboard_focus, self.input.repeating.as_ref())
         else {
@@ -284,7 +284,7 @@ impl HostState {
             held,
             self.input.modifiers,
             KeyState::Pressed,
-            Repeat::Repeated,
+            true,
             self.composing(),
         );
         self.key_down(id, event, raw);

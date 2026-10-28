@@ -11,7 +11,7 @@ use crate::blur::BlurSpec;
 use crate::csd::{Inset, content_px, frame_of};
 use crate::dom::document::SurfaceDocument;
 use crate::dom::shell_provider::HostShellProvider;
-use crate::frame::{Animation, FrameAction, FrameInput, FrameState};
+use crate::frame::{FrameAction, FrameInput, FrameState};
 use crate::gpu::presenter::Presenter;
 use crate::handle::WlCell;
 use crate::id::SurfaceId;
@@ -24,26 +24,11 @@ use crate::resolve::Tracked;
 use crate::role::Role;
 use crate::scale::{LiveScale, Scale120, Size, buffer_size};
 use crate::scroll::surface::SurfaceScroll;
-use crate::scroll::wheel::WheelRun;
 use crate::scroll::wheel_feed::WheelFeed;
 use crate::stats::{AlphaMode, Dimensions, FrameStats, PresentMode, StatsWindow};
-use crate::tick::{FrameTicks, Ticked, pacing};
+use crate::tick::{FrameTicks, pacing};
 use crate::toplevel::ToplevelState;
 use blitz_kit::scroll::time::Elapsed;
-
-/// Whether the compositor has configured the surface yet. Nothing renders before it has.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Configured {
-    Pending,
-    Done,
-}
-
-/// Whether the shell has been told the surface is on screen (`HostEvent::SurfaceMapped`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Mapped {
-    Pending,
-    Announced,
-}
 
 /// The size and scale the viewport, the document and the presenter were last set up for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,9 +72,11 @@ pub(crate) struct HostSurface {
     pub(crate) name: SurfaceName,
     pub(crate) frame: FrameState,
     pub(crate) watchdog: Option<RegistrationToken>,
-    pub(crate) configured: Configured,
-    /// Set at the first present after a map; reset when the role is rebuilt.
-    pub(crate) mapped: Mapped,
+    /// The compositor has configured the surface. Nothing renders before it has.
+    pub(crate) configured: bool,
+    /// The shell has been told the surface is on screen (`HostEvent::SurfaceMapped`). Set at
+    /// the first present after a map; reset when the role is rebuilt.
+    pub(crate) mapped: bool,
     /// The current `wl_surface`, shared with this surface's `SurfaceHandle`.
     pub(crate) wl: WlCell,
     pub(crate) visibility: Visibility,
@@ -118,7 +105,7 @@ pub(crate) struct HostSurface {
     /// The wheel events this surface's components listen to (`use_wheel`).
     pub(crate) wheels: WheelFeed,
     /// Whether a touchpad run is under way, for the phase of the next frame.
-    pub(crate) wheel_run: WheelRun,
+    pub(crate) wheel_run: bool,
     /// The cursor the document last asked for (Blitz's hover), shown while the pointer is on
     /// the document rather than in the resize band.
     pub(crate) doc_cursor: Option<CursorIcon>,
@@ -152,22 +139,19 @@ impl HostSurface {
     /// What the frame machine is told about this surface's motion: its document's animation,
     /// running while a `FrameDrive` is held (`tick::pacing`), or while the scroll engine or its
     /// thumb animates. Scrolling does not tick `use_frame_tick`: its frames are the host's.
-    pub(crate) fn pacing(&self, now: Elapsed) -> Animation {
-        with_scroll(
-            pacing(self.document.animation(), self.ticks.drive()),
-            self.scroll.animation(now),
-        )
+    pub(crate) fn pacing(&self, now: Elapsed) -> bool {
+        pacing(self.document.animation(), self.ticks.drive()) || self.scroll.animation(now)
     }
 
     /// A frame is due at `at` (a callback, or the watchdog standing in for one): publish a
     /// tick if the surface is animating or driven, and return what the machine is told (the
     /// scroll engine's motion included).
-    pub(crate) fn frame_due(&mut self, at: Elapsed) -> Animation {
-        let (animation, ticked) = self.ticks.frame_due(self.document.animation(), at);
-        if ticked == Ticked::Ticked {
+    pub(crate) fn frame_due(&mut self, at: Elapsed) -> bool {
+        let ticked = self.ticks.frame_due(self.document.animation(), at);
+        if ticked {
             self.stats.ticked();
         }
-        with_scroll(animation, self.scroll.animation(at))
+        ticked || self.scroll.animation(at)
     }
 
     /// Record a configure: the new logical size (0 on an axis keeps the size the surface had).
@@ -176,11 +160,7 @@ impl HostSurface {
     /// does, since no viewport or buffer can be sized to it.
     pub(crate) fn configure(&mut self, logical: Size) {
         self.logical = configured_size(self.logical, logical);
-        self.configured = if self.logical.has_area() {
-            Configured::Done
-        } else {
-            Configured::Pending
-        };
+        self.configured = self.logical.has_area();
     }
 
     /// Record a new preferred scale and publish it to the document, whose components reading
@@ -306,14 +286,6 @@ pub(crate) fn visibility_change(from: Visibility, to: Visibility) -> VisibilityC
         (Visibility::Shown, Visibility::Shown) | (Visibility::Hidden, Visibility::Hidden) => {
             VisibilityChange::Unchanged
         }
-    }
-}
-
-/// The frame machine's view of a surface: running if its document or its scrolling is.
-fn with_scroll(document: Animation, scroll: Animation) -> Animation {
-    match (document, scroll) {
-        (Animation::Running, _) | (_, Animation::Running) => Animation::Running,
-        (Animation::Stopped, Animation::Stopped) => Animation::Stopped,
     }
 }
 

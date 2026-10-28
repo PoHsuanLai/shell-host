@@ -11,11 +11,11 @@ use calloop::timer::{TimeoutAction, Timer};
 use calloop::{Interest, Mode};
 
 use crate::ctx::HostCtx;
-use crate::input::palmrest::{Palmrest, Retry, Stream, read_all};
+use crate::input::palmrest::{Palmrest, Stream, read_all};
 
 /// Connect to palmrest if an attempt is due and the socket exists.
 pub(super) fn connect_if_due<M: 'static>(ctx: &mut HostCtx<M>) {
-    if ctx.state.palmrest.retry() != Retry::Due {
+    if !ctx.state.palmrest.retry_due() {
         return;
     }
     let Some(reader) = ctx.state.palmrest.connect() else {

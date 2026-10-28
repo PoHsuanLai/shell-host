@@ -21,6 +21,7 @@ pub(crate) use paint::capture;
 pub(crate) use window::begin_resize;
 
 use std::collections::{BTreeMap, VecDeque};
+use std::ops::ControlFlow;
 
 use blitz_traits::shell::ColorScheme;
 use calloop::{LoopHandle, RegistrationToken};
@@ -44,13 +45,6 @@ use crate::stats::FrameStats;
 use crate::toplevel::ToplevelConfig;
 use blitz_kit::adapter::AdapterPref;
 
-/// Whether `Host::run` should return after this iteration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Running {
-    Continue,
-    Exit,
-}
-
 /// The host, as the shell's event closure sees it.
 pub struct HostCtx<M> {
     pub(crate) state: HostState,
@@ -69,7 +63,8 @@ pub struct HostCtx<M> {
     pub(crate) palmrest_settings: Option<RegistrationToken>,
     /// The selection read in flight (`ctx::paste`), if any.
     pub(crate) reading: Option<paste::Reading>,
-    pub(crate) running: Running,
+    /// `Break` once `Host::run` should return after this iteration.
+    pub(crate) running: ControlFlow<()>,
     /// Why the host must stop, found in a phase that has no way to return an error; the flush
     /// returns it from its last phase.
     pub(crate) failed: Option<HostError>,
@@ -215,14 +210,14 @@ impl<M: 'static> HostCtx<M> {
     /// Close every surface and return from `Host::run` after this event.
     pub fn exit(&mut self) {
         ops::close_all(self);
-        self.running = Running::Exit;
+        self.running = ControlFlow::Break(());
     }
 
     /// After every dispatch: poll woken documents, drain head queues, apply queued requests,
     /// step every surface's frame machine (render the dirty ones), arm or cancel the timers the
     /// handlers asked for, then flush the connection. Stops with `HostError::Protocol` once
     /// the connection has a protocol error.
-    pub(crate) fn flush(&mut self) -> Result<Running> {
+    pub(crate) fn flush(&mut self) -> Result<ControlFlow<()>> {
         flush::run(self)?;
         Ok(self.running)
     }

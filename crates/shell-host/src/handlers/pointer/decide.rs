@@ -6,8 +6,7 @@ use std::time::Duration;
 use blitz_traits::events::MouseEventButton;
 
 use crate::csd::Zone;
-use crate::dom::document::FirstMouseOptIn;
-use crate::input::pointer::{FirstMouse, first_mouse};
+use crate::input::pointer::first_mouse;
 use crate::role::RoleKind;
 use crate::toplevel::ResizeEdge;
 
@@ -25,59 +24,35 @@ pub(super) enum PressRoute {
     Deliver,
 }
 
-/// The route of `button` pressed in `zone`, where `first` is the verdict for the window's
-/// activation and `opt_in` says whether the element pressed asked to receive that click anyway.
-pub(super) fn press_route(
-    zone: Zone,
-    button: MouseEventButton,
-    first: FirstMouse,
-    opt_in: FirstMouseOptIn,
-) -> PressRoute {
-    match (zone, button, first, opt_in) {
-        (Zone::Edge(edge), MouseEventButton::Main, _, _) => PressRoute::Resize(edge),
-        (Zone::Edge(_), _, _, _) => PressRoute::Absorbed,
-        (Zone::Document, _, FirstMouse::Swallow, FirstMouseOptIn::Default) => PressRoute::Swallowed,
-        (Zone::Document, _, FirstMouse::Swallow, FirstMouseOptIn::OptedIn)
-        | (Zone::Document, _, FirstMouse::Deliver, _) => PressRoute::Deliver,
+/// The route of `button` pressed in `zone`, where `swallow` says the press is the click that
+/// activated the window (`first_mouse_verdict`) and the element pressed did not ask to receive
+/// that click anyway.
+pub(super) fn press_route(zone: Zone, button: MouseEventButton, swallow: bool) -> PressRoute {
+    match (zone, button, swallow) {
+        (Zone::Edge(edge), MouseEventButton::Main, _) => PressRoute::Resize(edge),
+        (Zone::Edge(_), _, _) => PressRoute::Absorbed,
+        (Zone::Document, _, true) => PressRoute::Swallowed,
+        (Zone::Document, _, false) => PressRoute::Deliver,
     }
 }
 
-/// Whether a release or a scroll in a zone reaches the document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Delivery {
-    ToDocument,
-    Withheld,
-}
-
-/// Only the document's zone hears releases and scrolls: a drag that began in the band ends there.
-pub(super) fn delivery(zone: Zone) -> Delivery {
-    match zone {
-        Zone::Document => Delivery::ToDocument,
-        Zone::Edge(_) => Delivery::Withheld,
-    }
-}
-
-/// Whether the surface pressed has the keyboard focus.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Focused {
-    Yes,
-    No,
+/// Whether a release or a scroll in a zone reaches the document. Only the document's zone hears
+/// releases and scrolls: a drag that began in the band ends there.
+pub(super) fn reaches_document(zone: Zone) -> bool {
+    matches!(zone, Zone::Document)
 }
 
 /// Whether a press on a surface of `role` (`None` when the surface is gone) is the click that
 /// activates it (design/13 §13.3.8): only for a toplevel, only when it is the one surface that
-/// has keyboard focus, and only within `window` of that focus arriving (`since_activation`,
-/// `None` when it was already focused).
+/// has keyboard focus (`focused`), and only within `window` of that focus arriving
+/// (`since_activation`, `None` when it was already focused). `true` swallows it.
 pub(super) fn first_mouse_verdict(
     role: Option<RoleKind>,
-    focus: Focused,
+    focused: bool,
     since_activation: Option<Duration>,
     window: Duration,
-) -> FirstMouse {
-    match (role, focus) {
-        (Some(RoleKind::Toplevel), Focused::Yes) => first_mouse(since_activation, window),
-        _ => FirstMouse::Deliver,
-    }
+) -> bool {
+    matches!(role, Some(RoleKind::Toplevel)) && focused && first_mouse(since_activation, window)
 }
 
 #[cfg(test)]
@@ -88,170 +63,122 @@ mod tests {
 
     #[test]
     fn a_press_goes_where_its_zone_and_the_first_mouse_rule_send_it() {
-        use FirstMouse::{Deliver, Swallow};
-        use FirstMouseOptIn::{Default, OptedIn};
         use MouseEventButton::{Main, Secondary};
-        type Row = (
-            &'static str,
-            Zone,
-            MouseEventButton,
-            FirstMouse,
-            FirstMouseOptIn,
-            PressRoute,
-        );
+        type Row = (&'static str, Zone, MouseEventButton, bool, PressRoute);
         let resize = PressRoute::Resize(ResizeEdge::BottomRight);
         let cases: &[Row] = &[
             (
                 "primary in the band resizes, active window or not",
                 EDGE,
                 Main,
-                Swallow,
-                Default,
+                true,
                 resize,
             ),
             (
                 "secondary in the band is absorbed",
                 EDGE,
                 Secondary,
-                Deliver,
-                Default,
+                false,
                 PressRoute::Absorbed,
             ),
             (
                 "the activating click on a plain element is swallowed",
                 Zone::Document,
                 Main,
-                Swallow,
-                Default,
+                true,
                 PressRoute::Swallowed,
-            ),
-            (
-                "the activating click on an opted-in element is delivered",
-                Zone::Document,
-                Main,
-                Swallow,
-                OptedIn,
-                PressRoute::Deliver,
             ),
             (
                 "the activating secondary click on a plain element is swallowed",
                 Zone::Document,
                 Secondary,
-                Swallow,
-                Default,
+                true,
                 PressRoute::Swallowed,
             ),
             (
-                "a press on an active window's plain element is delivered",
+                "the activating click on an opted-in element, or a press on an active window, is delivered",
                 Zone::Document,
                 Main,
-                Deliver,
-                Default,
-                PressRoute::Deliver,
-            ),
-            (
-                "a press on an active window's opted-in element is delivered",
-                Zone::Document,
-                Main,
-                Deliver,
-                OptedIn,
+                false,
                 PressRoute::Deliver,
             ),
             (
                 "a secondary press on an active window is delivered",
                 Zone::Document,
                 Secondary,
-                Deliver,
-                Default,
+                false,
                 PressRoute::Deliver,
             ),
         ];
-        for (name, zone, button, first, opt_in, want) in cases {
-            assert_eq!(
-                press_route(*zone, *button, *first, *opt_in),
-                *want,
-                "{name}"
-            );
+        for (name, zone, button, swallow, want) in cases {
+            assert_eq!(press_route(*zone, *button, *swallow), *want, "{name}");
         }
     }
 
     #[test]
     fn releases_and_scrolls_reach_only_the_document() {
-        let cases: &[(&str, Zone, Delivery)] = &[
-            ("document", Zone::Document, Delivery::ToDocument),
-            ("band", EDGE, Delivery::Withheld),
-        ];
+        let cases: &[(&str, Zone, bool)] =
+            &[("document", Zone::Document, true), ("band", EDGE, false)];
         for (name, zone, want) in cases {
-            assert_eq!(delivery(*zone), *want, "{name}");
+            assert_eq!(reaches_document(*zone), *want, "{name}");
         }
     }
 
-    type Case = (
-        &'static str,
-        Option<RoleKind>,
-        Focused,
-        Option<Duration>,
-        FirstMouse,
-    );
+    type Case = (&'static str, Option<RoleKind>, bool, Option<Duration>, bool);
 
     #[test]
     fn only_a_focused_toplevel_can_swallow_its_activating_click() {
         let window = Duration::from_millis(100);
         let recent = Some(Duration::from_millis(3));
+        let toplevel = Some(RoleKind::Toplevel);
         let cases: &[Case] = &[
             (
                 "focused toplevel just activated",
-                Some(RoleKind::Toplevel),
-                Focused::Yes,
+                toplevel,
+                true,
                 recent,
-                FirstMouse::Swallow,
+                true,
             ),
             (
                 "focused toplevel long after activation",
-                Some(RoleKind::Toplevel),
-                Focused::Yes,
+                toplevel,
+                true,
                 Some(Duration::from_millis(101)),
-                FirstMouse::Deliver,
+                false,
             ),
             (
                 "focused toplevel that was already active",
-                Some(RoleKind::Toplevel),
-                Focused::Yes,
+                toplevel,
+                true,
                 None,
-                FirstMouse::Deliver,
+                false,
             ),
             (
                 "toplevel without keyboard focus",
-                Some(RoleKind::Toplevel),
-                Focused::No,
+                toplevel,
+                false,
                 recent,
-                FirstMouse::Deliver,
+                false,
             ),
             (
                 "a layer surface never swallows",
                 Some(RoleKind::Layer),
-                Focused::Yes,
+                true,
                 recent,
-                FirstMouse::Deliver,
+                false,
             ),
             (
                 "a popup never swallows",
                 Some(RoleKind::Popup),
-                Focused::Yes,
+                true,
                 recent,
-                FirstMouse::Deliver,
+                false,
             ),
-            (
-                "a gone surface delivers",
-                None,
-                Focused::Yes,
-                recent,
-                FirstMouse::Deliver,
-            ),
+            ("a gone surface delivers", None, true, recent, false),
         ];
-        for (name, role, focus, since, want) in cases {
+        for (name, role, focused, since, want) in cases {
             assert_eq!(
-                first_mouse_verdict(*role, *focus, *since, window),
+                first_mouse_verdict(*role, *focused, *since, window),
                 *want,
                 "{name}"
             );

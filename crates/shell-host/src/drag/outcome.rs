@@ -64,24 +64,17 @@ pub enum DragRefused {
     NoSurface,
 }
 
-/// The source's last event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DragEnd {
-    /// `dnd_finished`: the target read what it wanted and is done.
-    Finished,
-    /// `cancelled`: no target took it, or the target gave up after the drop.
-    Cancelled,
-}
-
-/// The outcome of a drag that ended with `end`, the last action the compositor chose being
-/// `chosen`. A finish with no action chosen is a copy: the source must not delete anything
-/// it was not told to move.
-pub(crate) fn outcome(end: DragEnd, chosen: Option<DragAction>) -> DragOutcome {
-    match end {
-        DragEnd::Finished => DragOutcome::Dropped {
+/// The outcome of a drag whose source's last event was `dnd_finished` (`finished`: the target
+/// read what it wanted and is done) or `cancelled` (no target took it, or the target gave up
+/// after the drop), the last action the compositor chose being `chosen`. A finish with no
+/// action chosen is a copy: the source must not delete anything it was not told to move.
+pub(crate) fn outcome(finished: bool, chosen: Option<DragAction>) -> DragOutcome {
+    if finished {
+        DragOutcome::Dropped {
             action: chosen.unwrap_or(DragAction::Copy),
-        },
-        DragEnd::Cancelled => DragOutcome::Cancelled,
+        }
+    } else {
+        DragOutcome::Cancelled
     }
 }
 
@@ -93,26 +86,14 @@ mod tests {
     fn the_end_and_the_chosen_action_make_the_outcome() {
         let dropped = |action| DragOutcome::Dropped { action };
         let cases = [
-            (
-                DragEnd::Finished,
-                Some(DragAction::Copy),
-                dropped(DragAction::Copy),
-            ),
-            (
-                DragEnd::Finished,
-                Some(DragAction::Move),
-                dropped(DragAction::Move),
-            ),
-            (DragEnd::Finished, None, dropped(DragAction::Copy)),
-            (
-                DragEnd::Cancelled,
-                Some(DragAction::Move),
-                DragOutcome::Cancelled,
-            ),
-            (DragEnd::Cancelled, None, DragOutcome::Cancelled),
+            (true, Some(DragAction::Copy), dropped(DragAction::Copy)),
+            (true, Some(DragAction::Move), dropped(DragAction::Move)),
+            (true, None, dropped(DragAction::Copy)),
+            (false, Some(DragAction::Move), DragOutcome::Cancelled),
+            (false, None, DragOutcome::Cancelled),
         ];
         for (end, chosen, want) in cases {
-            assert_eq!(outcome(end, chosen), want, "{end:?} {chosen:?}");
+            assert_eq!(outcome(end, chosen), want, "finished: {end}, {chosen:?}");
         }
     }
 

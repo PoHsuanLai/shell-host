@@ -28,7 +28,6 @@ use shell_host::{
     SurfaceId,
 };
 
-use guard::Permit;
 use screen::{Screen, TYPED, lock_screen};
 
 /// Flushed at once: the acceptance reads these lines while the demo runs.
@@ -65,18 +64,13 @@ enum Held {
     Locked(LockId),
 }
 
-/// Whether `quit` is waiting for the unlock to land.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Leaving {
-    No,
-    AfterUnlock,
-}
-
 #[derive(Debug)]
 struct Demo {
-    permit: Permit,
+    /// May the demo lock this compositor; the reason when not.
+    permit: Result<(), String>,
     held: Held,
-    leaving: Leaving,
+    /// `quit` is waiting for the unlock to land.
+    leaving: bool,
     focus: Option<SurfaceId>,
 }
 
@@ -92,8 +86,8 @@ fn run() -> Result<(), String> {
     say(&format!("pid {}", std::process::id()));
     let permit = guard::permit(&guard::from_process());
     match &permit {
-        Permit::Granted => say("guard granted"),
-        Permit::Refused(why) => say(&format!("guard refused: {why}")),
+        Ok(()) => say("guard granted"),
+        Err(why) => say(&format!("guard refused: {why}")),
     }
     let host = Host::<Command>::connect(harness::host_config()).map_err(|e| e.to_string())?;
     let handle = host.handle();
@@ -111,7 +105,7 @@ fn run() -> Result<(), String> {
     let mut demo = Demo {
         permit,
         held: Held::None,
-        leaving: Leaving::No,
+        leaving: false,
         focus: None,
     };
     host.run(move |ctx, event| on_event(ctx, &mut demo, event))
@@ -134,7 +128,7 @@ fn on_event(ctx: &mut HostCtx<Command>, demo: &mut Demo, event: HostEvent<Comman
         HostEvent::App(Command::Quit) | HostEvent::QuitAsked => match demo.held {
             Held::None => ctx.exit(),
             Held::Asked(id) | Held::Locked(id) => {
-                demo.leaving = Leaving::AfterUnlock;
+                demo.leaving = true;
                 ctx.unlock_session(id);
             }
         },
@@ -148,7 +142,7 @@ fn on_event(ctx: &mut HostCtx<Command>, demo: &mut Demo, event: HostEvent<Comman
                 LockState::Locked => Held::Locked(id),
                 LockState::Unlocked | LockState::Finished => Held::None,
             };
-            if demo.held == Held::None && demo.leaving == Leaving::AfterUnlock {
+            if demo.held == Held::None && demo.leaving {
                 ctx.exit();
             }
         }
@@ -164,7 +158,7 @@ fn on_event(ctx: &mut HostCtx<Command>, demo: &mut Demo, event: HostEvent<Comman
 }
 
 fn lock(ctx: &mut HostCtx<Command>, demo: &mut Demo) {
-    if let Permit::Refused(why) = &demo.permit {
+    if let Err(why) = &demo.permit {
         say(&format!("refused {why}"));
         return;
     }

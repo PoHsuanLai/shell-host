@@ -6,19 +6,19 @@ use blitz_kit::hover::Shift;
 use blitz_traits::shell::ShellProvider as _;
 
 use super::SurfaceDocument;
-use super::hover::HoverShift;
+use crate::dom::ime_focus;
 #[cfg(feature = "debug-inject")]
 use crate::dom::ime_focus::FieldText;
-use crate::dom::ime_focus::{self, FieldSecrecy, Repair};
 use crate::dom::{scheme, stacking};
-use crate::frame::Animation;
-use crate::prepaint::Prepainted;
 
 /// What one `SurfaceDocument::resolve` did besides laying out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Resolved {
-    pub prepainted: Prepainted,
-    pub hover: HoverShift,
+    /// A pre-paint hook ran.
+    pub prepainted: bool,
+    /// The resolve moved the hover: the restyle it needs lands on a later frame, and the
+    /// resolve's own redraw request is dropped as the render's echo (`ctx::paint`).
+    pub hover_moved: bool,
 }
 
 impl SurfaceDocument {
@@ -41,23 +41,21 @@ impl SurfaceDocument {
         let after = self.hovered();
         self.sync_hover(Shift { before, after });
         let prepainted = self.prepaint.run(&mut self.doc.inner_mut());
-        if prepainted == Prepainted::Ran {
+        if prepainted {
             // The hook may have moved boxes (snapping); hoist from where it left them.
             stacking::rehoist(&mut self.doc.inner_mut());
         }
-        let hover = if before == after {
-            HoverShift::Kept
-        } else {
-            HoverShift::Moved
-        };
-        Resolved { prepainted, hover }
+        Resolved {
+            prepainted,
+            hover_moved: before != after,
+        }
     }
 
     /// Ask for the IME a text field focused before its first layout could not ask for itself
     /// (`dom::ime_focus`).
     fn repair_ime(&self) {
         let focused = ime_focus::focused_field(&self.doc.inner());
-        if let Repair::Enable { cursor_area } = ime_focus::repair(self.shell.ime(), focused) {
+        if let Some(cursor_area) = ime_focus::repair(self.shell.ime(), focused) {
             self.shell.set_ime_cursor_area(
                 cursor_area.x as f32,
                 cursor_area.y as f32,
@@ -73,19 +71,20 @@ impl SurfaceDocument {
     pub(crate) fn surrounding_text(&self) -> Option<SurroundingText> {
         let doc = self.doc.inner();
         let text = doc.focused_surrounding_text()?;
-        Some(match ime_focus::focused_secrecy(&doc) {
-            FieldSecrecy::Plain => text,
-            FieldSecrecy::Secret => SurroundingText {
+        Some(if ime_focus::focused_secret(&doc) {
+            SurroundingText {
                 text: String::new(),
                 cursor: 0,
                 anchor: 0,
-            },
+            }
+        } else {
+            text
         })
     }
 
     /// Whether the focused field is a password field (`handlers::text_input`).
-    pub(crate) fn field_secrecy(&self) -> FieldSecrecy {
-        ime_focus::focused_secrecy(&self.doc.inner())
+    pub(crate) fn field_secret(&self) -> bool {
+        ime_focus::focused_secret(&self.doc.inner())
     }
 
     #[cfg(feature = "debug-inject")]
@@ -95,11 +94,7 @@ impl SurfaceDocument {
     }
 
     /// Whether a transition or animation is still running.
-    pub(crate) fn animation(&self) -> Animation {
-        if self.doc.inner().is_animating() {
-            Animation::Running
-        } else {
-            Animation::Stopped
-        }
+    pub(crate) fn animation(&self) -> bool {
+        self.doc.inner().is_animating()
     }
 }

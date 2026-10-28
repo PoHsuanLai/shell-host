@@ -6,13 +6,6 @@ use blitz_kit::scroll::geom::Latch;
 use blitz_kit::scroll::smooth;
 use blitz_kit::scroll::time::Elapsed;
 
-/// Whether the pointer is over the thumb's track zone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Hover {
-    Hovered,
-    Away,
-}
-
 /// What the indicator needs next.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Wake {
@@ -29,7 +22,8 @@ pub(crate) enum Wake {
 pub(crate) struct Indicator {
     pub latch: Option<Latch>,
     last_change: Option<Elapsed>,
-    hover: Option<Hover>,
+    /// The pointer is over the thumb's track zone.
+    hovered: bool,
     /// The expansion when the hover last changed, and when.
     expand_from: f64,
     expand_since: Option<Elapsed>,
@@ -46,31 +40,27 @@ impl Indicator {
         Indicator {
             latch: Some(latch),
             last_change: Some(now),
-            hover: if same { self.hover } else { None },
+            hovered: if same { self.hovered } else { false },
             expand_from: if same { self.expand_from } else { 0.0 },
             expand_since: if same { self.expand_since } else { None },
         }
     }
 
     /// The pointer moved onto or off the track zone at `now`.
-    pub(crate) fn hover(self, hover: Hover, s: &ScrollbarSettings, now: Elapsed) -> Indicator {
-        let current = self.hover.unwrap_or(Hover::Away);
-        if current == hover || self.latch.is_none() {
+    pub(crate) fn hover(self, hovered: bool, s: &ScrollbarSettings, now: Elapsed) -> Indicator {
+        if self.hovered == hovered || self.latch.is_none() {
             return self;
         }
         let visible = self.opacity(s, ScrollbarVisibility::WhenScrolling, now) > 0.0;
-        if hover == Hover::Hovered && !visible {
+        if hovered && !visible {
             return self;
         }
         Indicator {
             expand_from: self.expansion(s, now),
             expand_since: Some(now),
-            hover: Some(hover),
+            hovered,
             // Leaving the track restarts the hold, as a scroll would.
-            last_change: match hover {
-                Hover::Away => Some(now),
-                Hover::Hovered => self.last_change,
-            },
+            last_change: if hovered { self.last_change } else { Some(now) },
             ..self
         }
     }
@@ -85,7 +75,7 @@ impl Indicator {
         let Some(changed) = self.last_change else {
             return 0.0;
         };
-        if vis == ScrollbarVisibility::Always || self.hover == Some(Hover::Hovered) {
+        if vis == ScrollbarVisibility::Always || self.hovered {
             return 1.0;
         }
         let t = secs(changed, now);
@@ -102,10 +92,7 @@ impl Indicator {
 
     /// The expansion at `now`, 0 at rest and 1 hovered, eased over the expand duration.
     pub(crate) fn expansion(&self, s: &ScrollbarSettings, now: Elapsed) -> f64 {
-        let target = match self.hover {
-            Some(Hover::Hovered) => 1.0,
-            Some(Hover::Away) | None => 0.0,
-        };
+        let target = if self.hovered { 1.0 } else { 0.0 };
         let Some(since) = self.expand_since else {
             return target;
         };
@@ -134,7 +121,7 @@ impl Indicator {
         if expanding {
             return Wake::Frames;
         }
-        if vis == ScrollbarVisibility::Always || self.hover == Some(Hover::Hovered) {
+        if vis == ScrollbarVisibility::Always || self.hovered {
             return Wake::Never;
         }
         let t = secs(changed, now);
@@ -215,13 +202,13 @@ mod tests {
         let vis = ScrollbarVisibility::WhenScrolling;
         let ind = Indicator::default()
             .changed(LATCH, at(0))
-            .hover(Hover::Hovered, &s, at(100));
+            .hover(true, &s, at(100));
         assert_eq!(ind.wake(&s, vis, at(200)), Wake::Frames);
         assert!((ind.expansion(&s, at(340)) - 1.0).abs() < 1e-6);
         assert_eq!(ind.opacity(&s, vis, at(5000)), 1.0, "held while hovered");
         let (_, thumb) = geometry(&metrics(0.0), 1.0, &s, vis);
         assert_eq!(thumb.width, 12.0);
-        let away = ind.hover(Hover::Away, &s, at(6000));
+        let away = ind.hover(false, &s, at(6000));
         assert_eq!(away.opacity(&s, vis, at(6499)), 1.0);
         assert_eq!(away.opacity(&s, vis, at(6740)), 0.0);
     }

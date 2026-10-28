@@ -27,15 +27,6 @@ pub(crate) enum PipeUse {
     Drag,
 }
 
-/// Whether a pipe was accepted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Queued {
-    Yes,
-    /// Too many pipes are open: this one was closed at once, which its reader sees as an empty
-    /// answer.
-    Refused,
-}
-
 /// The pipes waiting for the loop, and the room left for more of each use.
 #[derive(Debug)]
 pub(crate) struct PipeWrites {
@@ -56,20 +47,22 @@ impl Default for PipeWrites {
 
 impl PipeWrites {
     /// Queue `bytes` for `pipe`, filled for `purpose`. Nothing is written here.
-    pub(crate) fn push(&mut self, purpose: PipeUse, pipe: WritePipe, bytes: Arc<[u8]>) -> Queued {
+    /// Returns whether the pipe was accepted: with too many pipes open it is closed at once,
+    /// which its reader sees as an empty answer.
+    pub(crate) fn push(&mut self, purpose: PipeUse, pipe: WritePipe, bytes: Arc<[u8]>) -> bool {
         let room = match purpose {
             PipeUse::Selection => &self.selection,
             PipeUse::Drag => &self.drag,
         };
         let Some(slot) = room.take() else {
-            return Queued::Refused;
+            return false;
         };
         self.queue.push(PendingWrite {
             pipe,
             outgoing: Outgoing::new(bytes),
             slot,
         });
-        Queued::Yes
+        true
     }
 
     /// The pipes queued since the last call, for the loop to register.
@@ -96,10 +89,7 @@ mod tests {
         let (mut reader, writer) = pipe();
         // Far over one pipe buffer: a blocking write of it would never return here.
         let payload: Arc<[u8]> = Arc::from(vec![9u8; 4 * 1024 * 1024]);
-        assert_eq!(
-            writes.push(PipeUse::Selection, writer, payload),
-            Queued::Yes
-        );
+        assert!(writes.push(PipeUse::Selection, writer, payload));
         let queued = writes.take();
         assert_eq!(queued.len(), 1);
         assert!(writes.take().is_empty(), "taken once");
@@ -118,37 +108,28 @@ mod tests {
         for n in 0..MAX_SELECTION_WRITES {
             let (reader, writer) = pipe();
             readers.push(reader);
-            assert_eq!(
+            assert!(
                 writes.push(PipeUse::Selection, writer, payload.clone()),
-                Queued::Yes,
                 "pipe {n}"
             );
         }
         let (_extra, writer) = pipe();
-        assert_eq!(
-            writes.push(PipeUse::Selection, writer, payload.clone()),
-            Queued::Refused
-        );
+        assert!(!writes.push(PipeUse::Selection, writer, payload.clone()));
         // A client that holds every selection place leaves the drag its own.
         for n in 0..MAX_DRAG_WRITES {
             let (reader, writer) = pipe();
             readers.push(reader);
-            assert_eq!(
+            assert!(
                 writes.push(PipeUse::Drag, writer, payload.clone()),
-                Queued::Yes,
                 "drag pipe {n}"
             );
         }
         let (_over, writer) = pipe();
-        assert_eq!(
-            writes.push(PipeUse::Drag, writer, payload.clone()),
-            Queued::Refused
-        );
+        assert!(!writes.push(PipeUse::Drag, writer, payload.clone()));
         drop(writes.take());
         let (_again, writer) = pipe();
-        assert_eq!(
+        assert!(
             writes.push(PipeUse::Selection, writer, payload),
-            Queued::Yes,
             "the closed pipes gave their places back"
         );
     }

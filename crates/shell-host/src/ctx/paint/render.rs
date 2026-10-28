@@ -2,22 +2,18 @@
 
 use std::time::Instant;
 
-use crate::dom::document::HoverShift;
 use crate::error::{Recovery, Result};
 use crate::event::HostEvent;
 use crate::frame::FrameInput;
-use crate::gpu::image_cache::Painted;
 use crate::gpu::presenter::{FrameTarget, Overlay};
-use crate::handlers::background_effect::Support;
 use crate::id::SurfaceId;
 use crate::placement::PopupPlacement;
 use crate::popup::refit;
-use crate::prepaint::Prepainted;
 use crate::role::Role;
 use crate::scroll::indicator::Wake;
 use crate::state::HostState;
 use crate::stats::AlphaMode;
-use crate::surface::{HostSurface, Mapped};
+use crate::surface::HostSurface;
 use crate::timers::TimerRequest;
 
 use super::regions::send_regions;
@@ -45,10 +41,10 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         // what it left, so regions, popup fits and pixels all read the same (snapped) layout.
         let resolved = surface.document.resolve(time);
         surface.scroll.publish(&surface.document.base());
-        if resolved.prepainted == Prepainted::Ran {
+        if resolved.prepainted {
             surface.stats.prepainted();
         }
-        (pending_refit(surface), resolved.hover)
+        (pending_refit(surface), resolved.hover_moved)
     };
     if let Some(placement) = refit {
         crate::ctx::ops::refit_popup(state, id, placement);
@@ -89,7 +85,9 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             // completed on another thread meanwhile is not dropped: the next flush takes it
             // and dirties the frame in flight.
             surface.shell.drop_echo();
-            FrameInput::Presented(surface.pacing(now_host))
+            FrameInput::Presented {
+                animating: surface.pacing(now_host),
+            }
         }
         Err(_) => {
             surface.stats.skipped();
@@ -110,7 +108,7 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
         let after = at.0.saturating_sub(now_host.0);
         state.timers.push(TimerRequest::ScrollWake { id, after });
     }
-    if hover == HoverShift::Moved {
+    if hover {
         // The resolve moved the hover (Blitz's `refresh_hover`, and the repair after it):
         // the `:hover` restyle it asked for is the next frame's, and its redraw
         // request was just dropped as this render's echo.
@@ -122,12 +120,12 @@ pub(super) fn render(state: &mut HostState, id: SurfaceId) -> Result<()> {
             eprintln!("shell-host: present {id:?}: {error}");
             Ok(())
         }
-        Ok(Painted::MissingImages) => {
+        Ok(true) => {
             // The atlas was full: the next frame starts from an empty cache and draws them.
             state.frame_input(id, FrameInput::Invalidate);
             Ok(())
         }
-        Ok(Painted::Whole) => Ok(()),
+        Ok(false) => Ok(()),
     }
 }
 
@@ -136,8 +134,8 @@ fn announce_mapped(state: &mut HostState, id: SurfaceId) {
     let Some(surface) = state.surfaces.get_mut(&id) else {
         return;
     };
-    if surface.mapped == Mapped::Pending {
-        surface.mapped = Mapped::Announced;
+    if !surface.mapped {
+        surface.mapped = true;
         state.events.push_back(HostEvent::SurfaceMapped { id });
     }
 }
@@ -157,14 +155,11 @@ fn pending_refit(surface: &HostSurface) -> Option<PopupPlacement> {
 
 /// Whether blur may be sent for surface `id`: the compositor blurs, and the surface has real
 /// alpha (an opaque swapchain turns blur off, plan "GPU").
-fn blur_allowed(state: &HostState, id: SurfaceId) -> Support {
+fn blur_allowed(state: &HostState, id: SurfaceId) -> bool {
     let opaque = state
         .surfaces
         .get(&id)
         .and_then(|surface| surface.presenter.as_ref())
         .is_some_and(|presenter| presenter.alpha_mode() == AlphaMode::Opaque);
-    match state.blur_supported() {
-        Support::Supported if !opaque => Support::Supported,
-        Support::Supported | Support::Unsupported => Support::Unsupported,
-    }
+    state.blur_supported() && !opaque
 }

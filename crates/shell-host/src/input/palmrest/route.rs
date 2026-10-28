@@ -3,7 +3,6 @@
 
 use std::time::Duration;
 
-use crate::scroll::suppress::Fingers;
 use crate::scroll::surface::PalmScroll;
 use blitz_kit::scroll::geom::ScrollAxis;
 use blitz_kit::scroll::velocity::SampleTime;
@@ -12,8 +11,8 @@ use palmrest_protocol::{ActiveTouch, Axis as WireAxis, Phase, ToHost};
 /// A message's effects.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Route {
-    /// The fingers' state it reports, if any.
-    pub fingers: Option<Fingers>,
+    /// Whether the fingers are down, as it reports, if it does.
+    pub fingers: Option<bool>,
     /// The engine event it is, if any (for the surface under the pointer).
     pub scroll: Option<PalmScroll>,
 }
@@ -24,10 +23,7 @@ pub(crate) struct Route {
 pub(crate) fn route(message: &ToHost) -> Route {
     match *message {
         ToHost::Touches { active } => Route {
-            fingers: Some(match active {
-                ActiveTouch::Down => Fingers::Down,
-                ActiveTouch::Up => Fingers::Up,
-            }),
+            fingers: Some(active == ActiveTouch::Down),
             scroll: (active == ActiveTouch::Down).then_some(PalmScroll::MayBegin),
         },
         ToHost::Scroll {
@@ -62,19 +58,19 @@ fn scroll(
     dx: f64,
     dy: f64,
     at: SampleTime,
-) -> (Fingers, PalmScroll) {
+) -> (bool, PalmScroll) {
     match phase {
-        Phase::MayBegin => (Fingers::Down, PalmScroll::MayBegin),
+        Phase::MayBegin => (true, PalmScroll::MayBegin),
         Phase::Began => {
             let axis = match axis {
                 Some(WireAxis::X) => ScrollAxis::X,
                 Some(WireAxis::Y) | None => ScrollAxis::Y,
             };
-            (Fingers::Down, PalmScroll::Began { axis })
+            (true, PalmScroll::Began { axis })
         }
-        Phase::Changed => (Fingers::Down, PalmScroll::Changed { dx, dy, at }),
-        Phase::Ended => (Fingers::Up, PalmScroll::Ended { at }),
-        Phase::Cancelled => (Fingers::Up, PalmScroll::Cancelled),
+        Phase::Changed => (true, PalmScroll::Changed { dx, dy, at }),
+        Phase::Ended => (false, PalmScroll::Ended { at }),
+        Phase::Cancelled => (false, PalmScroll::Cancelled),
     }
 }
 
@@ -104,7 +100,7 @@ mod tests {
                 ToHost::Touches {
                     active: ActiveTouch::Down,
                 },
-                Some(Fingers::Down),
+                Some(true),
                 Some(PalmScroll::MayBegin),
             ),
             (
@@ -112,13 +108,13 @@ mod tests {
                 ToHost::Touches {
                     active: ActiveTouch::Up,
                 },
-                Some(Fingers::Up),
+                Some(false),
                 None,
             ),
             (
                 "began",
                 scroll_msg(Phase::Began, 0.0),
-                Some(Fingers::Down),
+                Some(true),
                 Some(PalmScroll::Began {
                     axis: ScrollAxis::Y,
                 }),
@@ -126,7 +122,7 @@ mod tests {
             (
                 "changed",
                 scroll_msg(Phase::Changed, 3.0),
-                Some(Fingers::Down),
+                Some(true),
                 Some(PalmScroll::Changed {
                     dx: 0.0,
                     dy: 3.0,
@@ -136,13 +132,13 @@ mod tests {
             (
                 "ended",
                 scroll_msg(Phase::Ended, 0.0),
-                Some(Fingers::Up),
+                Some(false),
                 Some(PalmScroll::Ended { at }),
             ),
             (
                 "cancelled",
                 scroll_msg(Phase::Cancelled, 0.0),
-                Some(Fingers::Up),
+                Some(false),
                 Some(PalmScroll::Cancelled),
             ),
             (

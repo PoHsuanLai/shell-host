@@ -49,26 +49,12 @@ pub(crate) enum Pace {
     InFlightDirty,
 }
 
-/// Whether the document still has a CSS transition or animation running
-/// (`BaseDocument::is_animating`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Animation {
-    Running,
-    Stopped,
-}
-
-/// Whether the watchdog timer is currently armed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Timer {
-    Disarmed,
-    Armed,
-}
-
 /// Everything the machine remembers about one surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FrameState {
     pub pace: Pace,
-    pub timer: Timer,
+    /// The watchdog timer is currently armed.
+    pub timer_armed: bool,
     /// The wait the watchdog uses the next time it is armed.
     pub backoff: Duration,
 }
@@ -78,7 +64,7 @@ impl FrameState {
     /// arrives as an [`FrameInput::Invalidate`].
     pub(crate) const NEW: FrameState = FrameState {
         pace: Pace::Idle,
-        timer: Timer::Disarmed,
+        timer_armed: false,
         backoff: WATCHDOG_MIN,
     };
 }
@@ -91,21 +77,16 @@ pub(crate) enum FrameInput {
     Invalidate,
     /// The host reached its flush point with this surface configured and visible.
     Flush,
-    /// The host rendered and presented the frame `Flush` asked for.
-    Presented(Animation),
+    /// The host rendered and presented the frame `Flush` asked for. `animating`: the surface
+    /// still has a CSS transition or animation running, or is driven (`tick::pacing`).
+    Presented { animating: bool },
     /// The host could not present the frame `Flush` asked for.
     PresentFailed,
-    /// The compositor's frame callback for the frame in flight arrived.
-    Callback(Animation),
+    /// The compositor's frame callback for the frame in flight arrived; `animating` as for
+    /// `Presented`.
+    Callback { animating: bool },
     /// The watchdog timer expired.
     WatchdogFired,
-}
-
-/// Whether the host should render and present now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RenderCmd {
-    Skip,
-    Render,
 }
 
 /// What the host should do with the surface's watchdog timer.
@@ -122,19 +103,20 @@ pub(crate) enum TimerCmd {
 /// What the host must do after a step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FrameAction {
-    pub render: RenderCmd,
+    /// The host should render and present now.
+    pub render: bool,
     pub timer: TimerCmd,
 }
 
 impl FrameAction {
     /// Do nothing.
     pub(crate) const NONE: FrameAction = FrameAction {
-        render: RenderCmd::Skip,
+        render: false,
         timer: TimerCmd::Keep,
     };
 
     const RENDER: FrameAction = FrameAction {
-        render: RenderCmd::Render,
+        render: true,
         timer: TimerCmd::Keep,
     };
 }
@@ -144,9 +126,9 @@ pub(crate) fn step(state: FrameState, input: FrameInput) -> (FrameState, FrameAc
     match input {
         FrameInput::Invalidate => invalidate(state),
         FrameInput::Flush => flush(state),
-        FrameInput::Presented(animation) => presented(state, animation),
+        FrameInput::Presented { animating } => presented(state, animating),
         FrameInput::PresentFailed => present_failed(state),
-        FrameInput::Callback(animation) => callback(state, animation),
+        FrameInput::Callback { animating } => callback(state, animating),
         FrameInput::WatchdogFired => watchdog_fired(state),
     }
 }
@@ -166,9 +148,9 @@ fn flush(state: FrameState) -> (FrameState, FrameAction) {
     }
 }
 
-fn presented(state: FrameState, animation: Animation) -> (FrameState, FrameAction) {
-    match (state.pace, animation) {
-        (Pace::InFlight, Animation::Running) => arm(state),
+fn presented(state: FrameState, animating: bool) -> (FrameState, FrameAction) {
+    match (state.pace, animating) {
+        (Pace::InFlight, true) => arm(state),
         _ => (state, FrameAction::NONE),
     }
 }
@@ -180,26 +162,27 @@ fn present_failed(state: FrameState) -> (FrameState, FrameAction) {
     }
 }
 
-fn callback(state: FrameState, animation: Animation) -> (FrameState, FrameAction) {
-    let next = match (state.pace, animation) {
-        (Pace::InFlight, Animation::Stopped) => Pace::Idle,
-        (Pace::InFlight, Animation::Running) | (Pace::InFlightDirty, _) => Pace::Dirty,
+fn callback(state: FrameState, animating: bool) -> (FrameState, FrameAction) {
+    let next = match (state.pace, animating) {
+        (Pace::InFlight, false) => Pace::Idle,
+        (Pace::InFlight, true) | (Pace::InFlightDirty, _) => Pace::Dirty,
         // A callback for a frame we no longer track: nothing to settle.
         (Pace::Idle | Pace::Dirty, _) => return (state, FrameAction::NONE),
     };
-    let timer = match state.timer {
-        Timer::Armed => TimerCmd::Cancel,
-        Timer::Disarmed => TimerCmd::Keep,
+    let timer = if state.timer_armed {
+        TimerCmd::Cancel
+    } else {
+        TimerCmd::Keep
     };
     let settled = FrameState {
         pace: next,
-        timer: Timer::Disarmed,
+        timer_armed: false,
         backoff: WATCHDOG_MIN,
     };
     (
         settled,
         FrameAction {
-            render: RenderCmd::Skip,
+            render: false,
             timer,
         },
     )
@@ -212,7 +195,7 @@ fn watchdog_fired(state: FrameState) -> (FrameState, FrameAction) {
     };
     let fired = FrameState {
         pace,
-        timer: Timer::Disarmed,
+        timer_armed: false,
         backoff: doubled(state.backoff),
     };
     (fired, FrameAction::NONE)
@@ -220,19 +203,19 @@ fn watchdog_fired(state: FrameState) -> (FrameState, FrameAction) {
 
 /// Arm the watchdog unless it already is.
 fn arm(state: FrameState) -> (FrameState, FrameAction) {
-    match state.timer {
-        Timer::Armed => (state, FrameAction::NONE),
-        Timer::Disarmed => (
-            FrameState {
-                timer: Timer::Armed,
-                ..state
-            },
-            FrameAction {
-                render: RenderCmd::Skip,
-                timer: TimerCmd::Arm(state.backoff),
-            },
-        ),
+    if state.timer_armed {
+        return (state, FrameAction::NONE);
     }
+    (
+        FrameState {
+            timer_armed: true,
+            ..state
+        },
+        FrameAction {
+            render: false,
+            timer: TimerCmd::Arm(state.backoff),
+        },
+    )
 }
 
 fn with_pace(state: FrameState, pace: Pace) -> FrameState {

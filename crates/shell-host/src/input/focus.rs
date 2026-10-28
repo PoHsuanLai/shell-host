@@ -37,29 +37,20 @@ impl PointerFocus {
     }
 }
 
-/// What a surface's departure (its leave, unmap or close) meant for the record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Departure {
-    /// The pointer was on it; the record is now `Nowhere`, and the pointer's per-surface state
-    /// (zone, held buttons, the document's hover) goes with it.
-    Lost,
-    /// The pointer was on another surface or none; the record is unchanged.
-    Unaffected,
-}
-
 /// The record after an `enter` on `surface` with `serial`, whatever it was before: an enter
 /// always names where the pointer is now.
 pub(crate) fn enter(surface: SurfaceId, serial: u32) -> PointerFocus {
     PointerFocus::On(Entered { surface, serial })
 }
 
-/// The record after `surface` departs, and whether that took the pointer's focus.
-pub(crate) fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, Departure) {
+/// The record after `surface` departs (its leave, unmap or close), and whether that took the
+/// pointer's focus (lost): the record is now `Nowhere`, and the pointer's per-surface state
+/// (zone, held buttons, the document's hover) goes with it. Otherwise the pointer was on another
+/// surface or none, and the record is unchanged.
+pub(crate) fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, bool) {
     match focus {
-        PointerFocus::On(entered) if entered.surface == surface => {
-            (PointerFocus::Nowhere, Departure::Lost)
-        }
-        PointerFocus::On(_) | PointerFocus::Nowhere => (focus, Departure::Unaffected),
+        PointerFocus::On(entered) if entered.surface == surface => (PointerFocus::Nowhere, true),
+        PointerFocus::On(_) | PointerFocus::Nowhere => (focus, false),
     }
 }
 
@@ -70,11 +61,11 @@ pub(crate) fn depart(focus: PointerFocus, surface: SurfaceId) -> (PointerFocus, 
 pub(crate) fn depart_keyboard(
     focus: Option<SurfaceId>,
     surface: SurfaceId,
-) -> (Option<SurfaceId>, Departure) {
+) -> (Option<SurfaceId>, bool) {
     if focus == Some(surface) {
-        (None, Departure::Lost)
+        (None, true)
     } else {
-        (focus, Departure::Unaffected)
+        (focus, false)
     }
 }
 
@@ -89,14 +80,9 @@ mod tests {
     fn departures() {
         let on_a = enter(A, 7);
         let cases = [
-            (on_a, A, PointerFocus::Nowhere, Departure::Lost),
-            (on_a, B, on_a, Departure::Unaffected),
-            (
-                PointerFocus::Nowhere,
-                A,
-                PointerFocus::Nowhere,
-                Departure::Unaffected,
-            ),
+            (on_a, A, PointerFocus::Nowhere, true),
+            (on_a, B, on_a, false),
+            (PointerFocus::Nowhere, A, PointerFocus::Nowhere, false),
         ];
         for (focus, surface, after, departure) in cases {
             assert_eq!(
@@ -112,9 +98,9 @@ mod tests {
     #[test]
     fn keyboard_departures() {
         let cases = [
-            (Some(A), A, None, Departure::Lost),
-            (Some(A), B, Some(A), Departure::Unaffected),
-            (None, A, None, Departure::Unaffected),
+            (Some(A), A, None, true),
+            (Some(A), B, Some(A), false),
+            (None, A, None, false),
         ];
         for (focus, surface, after, departure) in cases {
             assert_eq!(

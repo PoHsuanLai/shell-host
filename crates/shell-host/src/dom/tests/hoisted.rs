@@ -14,7 +14,7 @@ use blitz_paint::paint_scene;
 use dioxus::prelude::*;
 use tokio::sync::watch;
 
-use crate::dom::document::{Polled, SurfaceDocument};
+use crate::dom::document::SurfaceDocument;
 use crate::dom::tests::env::test_env;
 use crate::root::HostRoot;
 use crate::use_watch;
@@ -54,7 +54,7 @@ fn grown() -> SurfaceDocument {
     doc.poll(&mut cx);
     doc.resolve(0.0);
     tx.send(3).expect("receiver alive");
-    assert_eq!(doc.poll(&mut cx), Polled::Changed);
+    assert!(doc.poll(&mut cx));
     doc
 }
 

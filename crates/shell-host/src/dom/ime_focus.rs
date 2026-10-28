@@ -9,63 +9,31 @@
 
 use blitz_dom::{BaseDocument, LocalName};
 
-use crate::dom::shell_provider::ImeRequest;
 use crate::region::{Px, Rect};
 
-/// What has the document's focus, as far as the IME is concerned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FocusedField {
-    /// A text field (`<input>` of a text type, `<textarea>`), with its content box in
-    /// surface-local logical pixels.
-    Text { area: Rect },
-    /// Anything else, or nothing.
-    Other,
-}
-
-/// Whether the focused field's text may leave the app: a password field's never goes to the
-/// input method, and the field is declared as one (`handlers::text_input`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum FieldSecrecy {
-    #[default]
-    Plain,
-    Secret,
-}
-
-/// The focused node's secrecy: an `<input type=password>` (any case) is `Secret`.
-pub(crate) fn focused_secrecy(doc: &BaseDocument) -> FieldSecrecy {
-    let secret = doc
-        .get_focussed_node_id()
+/// Whether the focused field is secret: a password field's text never goes to the input
+/// method, and the field is declared as one (`handlers::text_input`). An
+/// `<input type=password>` (any case) is secret.
+pub(crate) fn focused_secret(doc: &BaseDocument) -> bool {
+    doc.get_focussed_node_id()
         .and_then(|id| doc.get_node(id))
         .filter(|node| {
             node.data
                 .is_element_with_tag_name(&LocalName::from("input"))
         })
         .and_then(|node| node.attr(LocalName::from("type")))
-        .is_some_and(|kind| kind.eq_ignore_ascii_case("password"));
-    if secret {
-        FieldSecrecy::Secret
-    } else {
-        FieldSecrecy::Plain
-    }
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("password"))
 }
 
-/// What the shell's IME request needs after a resolve.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Repair {
-    Keep,
-    /// Enable the IME at `cursor_area`, as `Node::focus` would have.
-    Enable {
-        cursor_area: Rect,
-    },
-}
-
-/// The repair for `request` with `focused` holding the focus. Only a focused text field with the
-/// IME off is repaired; an enabled request keeps its own caret, and anything else is the
-/// document's own business (an edit surface switches the IME itself). Pure.
-pub(crate) fn repair(request: ImeRequest, focused: FocusedField) -> Repair {
-    match (request, focused) {
-        (ImeRequest::Disabled, FocusedField::Text { area }) => Repair::Enable { cursor_area: area },
-        (ImeRequest::Enabled { .. }, _) | (_, FocusedField::Other) => Repair::Keep,
+/// The caret rectangle to enable the IME at, as `Node::focus` would have, or `None` for no
+/// repair. `request` is the shell's IME request (`None`: off) and `focused` the focused text
+/// field's content box. Only a focused text field with the IME off is repaired; an enabled
+/// request keeps its own caret, and anything else is the document's own business (an edit
+/// surface switches the IME itself). Pure.
+pub(crate) fn repair(request: Option<Rect>, focused: Option<Rect>) -> Option<Rect> {
+    match request {
+        None => focused,
+        Some(_) => None,
     }
 }
 
@@ -88,28 +56,20 @@ pub(crate) fn focused_text(doc: &BaseDocument) -> Option<FieldText> {
     })
 }
 
-/// The document's focused node, if it is a text field, with its content box.
-pub(crate) fn focused_field(doc: &BaseDocument) -> FocusedField {
-    let Some(node) = doc.get_focussed_node_id().and_then(|id| doc.get_node(id)) else {
-        return FocusedField::Other;
-    };
-    if node
-        .element_data()
-        .and_then(|element| element.text_input_data())
-        .is_none()
-    {
-        return FocusedField::Other;
-    }
+/// The document's focused node, if it is a text field (`<input>` of a text type,
+/// `<textarea>`): its content box in surface-local logical pixels.
+pub(crate) fn focused_field(doc: &BaseDocument) -> Option<Rect> {
+    let node = doc.get_focussed_node_id().and_then(|id| doc.get_node(id))?;
+    node.element_data()
+        .and_then(|element| element.text_input_data())?;
     let origin = node.absolute_position(0.0, 0.0);
     let layout = node.final_layout();
-    FocusedField::Text {
-        area: Rect {
-            x: (origin.x + layout.content_box_x()).round() as Px,
-            y: (origin.y + layout.content_box_y()).round() as Px,
-            width: layout.content_box_width().round() as Px,
-            height: layout.content_box_height().round() as Px,
-        },
-    }
+    Some(Rect {
+        x: (origin.x + layout.content_box_x()).round() as Px,
+        y: (origin.y + layout.content_box_y()).round() as Px,
+        width: layout.content_box_width().round() as Px,
+        height: layout.content_box_height().round() as Px,
+    })
 }
 
 #[cfg(test)]
@@ -132,22 +92,10 @@ mod tests {
     #[test]
     fn only_a_focused_text_field_with_the_ime_off_is_enabled() {
         let cases = [
-            (
-                ImeRequest::Disabled,
-                FocusedField::Text { area: AREA },
-                Repair::Enable { cursor_area: AREA },
-            ),
-            (
-                ImeRequest::Enabled { cursor_area: CARET },
-                FocusedField::Text { area: AREA },
-                Repair::Keep,
-            ),
-            (ImeRequest::Disabled, FocusedField::Other, Repair::Keep),
-            (
-                ImeRequest::Enabled { cursor_area: CARET },
-                FocusedField::Other,
-                Repair::Keep,
-            ),
+            (None, Some(AREA), Some(AREA)),
+            (Some(CARET), Some(AREA), None),
+            (None, None, None),
+            (Some(CARET), None, None),
         ];
         for (request, focused, expected) in cases {
             assert_eq!(

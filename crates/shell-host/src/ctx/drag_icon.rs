@@ -17,7 +17,6 @@ use crate::role::Role;
 use crate::root::HostRoot;
 use crate::scale::Size;
 use crate::state::HostState;
-use crate::surface::Configured;
 
 /// The icon surface for a drag from `origin`, or `None` for `DragIcon::None` or when it could
 /// not be made (the drag then goes ahead without one).
@@ -70,7 +69,7 @@ fn spawn(
     let regions = (BlurSpec::None, RegionSpec::Whole);
     insert(state, id, role, name, at, regions, root);
     if let Some(surface) = state.surfaces.get_mut(&id) {
-        surface.configured = Configured::Done;
+        surface.configured = true;
     }
     Ok(())
 }

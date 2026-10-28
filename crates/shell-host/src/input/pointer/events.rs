@@ -17,7 +17,7 @@ use blitz_traits::events::{
 use keyboard_types::Modifiers;
 
 use super::PointerPos;
-use super::button::{ButtonChange, buttons_after};
+use super::button::buttons_after;
 
 /// A mouse pointer event at `pos`.
 pub(crate) fn pointer_event(
@@ -61,7 +61,7 @@ pub(crate) fn press_events(
     held: MouseEventButtons,
     mods: Modifiers,
 ) -> [UiEvent; 2] {
-    let after = buttons_after(held, button, ButtonChange::Pressed);
+    let after = buttons_after(held, button, true);
     [
         move_event(pos, held, mods),
         UiEvent::PointerDown(pointer_event(pos, button, after, mods)),
@@ -75,7 +75,7 @@ pub(crate) fn release_event(
     held: MouseEventButtons,
     mods: Modifiers,
 ) -> UiEvent {
-    let after = buttons_after(held, button, ButtonChange::Released);
+    let after = buttons_after(held, button, false);
     UiEvent::PointerUp(pointer_event(pos, button, after, mods))
 }
 

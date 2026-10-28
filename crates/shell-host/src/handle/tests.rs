@@ -9,7 +9,6 @@ use crate::root::HostRoot;
 
 use super::*;
 use crate::clipboard::SharedSelection;
-use crate::dom::document::Polled;
 use crate::dom::document::{DocumentEnv, SurfaceDocument};
 use crate::dom::shell_provider::HostShellProvider;
 use crate::grab::{GrabRecord, GrabRefused, PointerFacts, Press};
@@ -19,7 +18,7 @@ use crate::handle::{
 use crate::id::SurfaceIds;
 use crate::live::Live;
 use crate::msg::{CommonOp, Request, SurfaceOp, WindowOp};
-use crate::prepaint::{Prepaint, Prepainted};
+use crate::prepaint::Prepaint;
 use crate::role::RoleKind;
 use crate::tick::FrameTick;
 use crate::toplevel::{Maximize, ResizeEdge, ToplevelState};
@@ -135,13 +134,13 @@ fn use_frame_tick_renders_each_published_tick() {
     ];
     for (at, want) in frames {
         wakes.take();
-        ticks.frame_due(crate::frame::Animation::Stopped, ms(at));
+        ticks.frame_due(false, ms(at));
         assert!(wakes.take() > 0, "the tick at {at} ms woke the document");
-        assert_eq!(document.poll(&mut cx), Polled::Changed, "{want}");
+        assert!(document.poll(&mut cx), "{want}");
         assert_eq!(text(&mut document), want);
     }
     drop(drive);
-    ticks.frame_due(crate::frame::Animation::Stopped, ms(166));
+    ticks.frame_due(false, ms(166));
     assert_eq!(wakes.take(), 0, "no tick without a drive");
     assert_eq!(text(&mut document), "at 150 dt 17");
 }
@@ -225,14 +224,10 @@ fn use_surface_scale_starts_at_the_published_scale_and_follows_each_change() {
     for wire in [180, 210, 120] {
         live.publish(Scale120(wire));
         assert!(wakes.take() > 0, "publishing {wire} woke the document");
-        assert_eq!(document.poll(&mut cx), Polled::Changed);
+        assert!(document.poll(&mut cx));
         assert_eq!(text(&mut document), format!("scale {wire}"));
     }
-    assert_eq!(
-        document.poll(&mut cx),
-        Polled::Unchanged,
-        "then it is quiet"
-    );
+    assert!(!document.poll(&mut cx), "then it is quiet");
 }
 
 /// The hook runs exactly once per `resolve`, after layout, at the viewport's scale (what
@@ -267,12 +262,12 @@ fn resolve_runs_the_prepaint_hook_once_after_layout() {
     let calls = || seen.lock().expect("unpoisoned").clone();
     assert!(calls().is_empty(), "building and polling never run it");
 
-    assert_eq!(document.resolve(0.0).prepainted, Prepainted::Ran);
+    assert!(document.resolve(0.0).prepainted);
     let first = calls();
     assert_eq!(first.len(), 1);
     assert_eq!(first[0].0, 1.5, "the hook sees the viewport's scale");
     assert!(first[0].1 > 0.0, "and a laid-out document: {first:?}");
-    assert_eq!(document.resolve(0.1).prepainted, Prepainted::Ran);
+    assert!(document.resolve(0.1).prepainted);
     assert_eq!(calls().len(), 2, "once per resolve");
 }
 
@@ -291,7 +286,7 @@ fn without_a_hook_resolve_reports_none_ran() {
     );
     let env = test_env(ping, Prepaint::None);
     let mut document = SurfaceDocument::build(HostRoot::new(app).context(handle), env);
-    assert_eq!(document.resolve(0.0).prepainted, Prepainted::NoHook);
+    assert!(!document.resolve(0.0).prepainted);
 }
 
 fn zoom_state() -> Element {
@@ -335,7 +330,7 @@ fn use_toplevel_state_follows_each_configure() {
     };
     live.publish(zoomed);
     assert!(wakes.take() > 0);
-    assert_eq!(document.poll(&mut cx), Polled::Changed);
+    assert!(document.poll(&mut cx));
     assert_eq!(text(&mut document), "Set");
     assert_eq!(handle.current_toplevel_state(), zoomed);
 }
@@ -384,7 +379,7 @@ fn use_wheel_hears_every_event_in_order() {
     feed.publish(event(WheelPhase::Began, 3.0));
     feed.publish(event(WheelPhase::Ended, 0.0));
     assert!(wakes.take() > 0, "an event wakes the document");
-    assert_eq!(document.poll(&mut cx), Polled::Changed);
+    assert!(document.poll(&mut cx));
     assert_eq!(
         text(&mut document),
         "[(Began, 3.0), (Ended, 0.0)]",
@@ -401,7 +396,7 @@ fn modality_text() -> Element {
 /// a repeated value wakes neither, and a pointer press turns both back.
 #[test]
 fn use_input_modality_is_the_seats_across_surfaces() {
-    use crate::modality::{self, InputModality, KeyKind, Stroke};
+    use crate::modality::{self, InputModality, Stroke};
     let (ping, _source) = calloop::ping::make_ping().expect("eventfd ping");
     let seat = Live::new(InputModality::default());
     let mut documents: Vec<SurfaceDocument> = [SurfaceId(21), SurfaceId(22)]
@@ -436,17 +431,17 @@ fn use_input_modality_is_the_seats_across_surfaces() {
     };
     note(Stroke::PointerPress);
     assert_eq!(wakes.take(), 0, "a press while on pointer changes nothing");
-    note(Stroke::KeyPress(KeyKind::Other));
+    note(Stroke::KeyPress { modifier: false });
     assert!(wakes.take() > 0, "the surfaces wake");
     for document in &mut documents {
-        assert_eq!(document.poll(&mut cx), Polled::Changed);
+        assert!(document.poll(&mut cx));
         assert_eq!(text(document), "keyboard");
     }
-    note(Stroke::KeyPress(KeyKind::Other));
+    note(Stroke::KeyPress { modifier: false });
     assert_eq!(wakes.take(), 0, "a second key wakes nobody");
     note(Stroke::PointerPress);
     for document in &mut documents {
-        assert_eq!(document.poll(&mut cx), Polled::Changed);
+        assert!(document.poll(&mut cx));
         assert_eq!(text(document), "pointer");
     }
 }

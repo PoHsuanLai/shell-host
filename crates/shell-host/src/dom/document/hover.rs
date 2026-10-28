@@ -4,41 +4,25 @@ use blitz_dom::{Document as _, NodeId};
 use blitz_kit::hit::element_of;
 use blitz_kit::hover::{LastMove, Shift, repair};
 
-use super::{Polled, SurfaceDocument};
-
-/// Whether a resolve moved the hover: the restyle it needs lands on a later frame, and the
-/// resolve's own redraw request is dropped as the render's echo (`ctx::paint`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HoverShift {
-    Moved,
-    Kept,
-}
+use super::SurfaceDocument;
 
 impl SurfaceDocument {
     /// The pointer left the surface: the leave move (`input::pointer::leave_event`) first, so
     /// Blitz's own hover change dispatches `mouseout`/`mouseleave` to the hovered chain and a
     /// component can see the hover end; then `clear_hover()` as a backstop for anything the
-    /// move left hovered. `Polled::Changed` if something was hovered before.
-    pub(crate) fn pointer_left(&mut self, mods: keyboard_types::Modifiers) -> Polled {
+    /// move left hovered. `true` if something was hovered before.
+    pub(crate) fn pointer_left(&mut self, mods: keyboard_types::Modifiers) -> bool {
         let hovered = self.doc.inner().get_hover_node_id().is_some();
         self.doc
             .handle_ui_event(crate::input::pointer::leave_event(mods));
         self.clear_hover();
-        if hovered {
-            Polled::Changed
-        } else {
-            Polled::Unchanged
-        }
+        hovered
     }
 
-    /// `clear_hover()`, and forget the pointer; `Polled::Changed` if something was hovered.
-    pub(crate) fn clear_hover(&mut self) -> Polled {
+    /// `clear_hover()`, and forget the pointer; `true` if something was hovered.
+    pub(crate) fn clear_hover(&mut self) -> bool {
         self.last_move = LastMove::Unknown;
-        if self.doc.inner_mut().clear_hover() {
-            Polled::Changed
-        } else {
-            Polled::Unchanged
-        }
+        self.doc.inner_mut().clear_hover()
     }
 
     /// The hovered element (a hovered text node counts as its element).

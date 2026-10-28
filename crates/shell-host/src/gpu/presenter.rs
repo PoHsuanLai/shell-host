@@ -6,7 +6,6 @@ use blitz_traits::shell::ColorScheme;
 use crate::dom::document::SurfaceDocument;
 use crate::error::{HostError, Result};
 use crate::gpu::context::GpuContext;
-use crate::gpu::image_cache::Painted;
 #[cfg(feature = "debug-inject")]
 use crate::gpu::render::capture_document;
 use crate::gpu::render::render_into;
@@ -102,7 +101,7 @@ impl Presenter {
         doc: &mut SurfaceDocument,
         target: FrameTarget,
         overlay: &Overlay,
-    ) -> Result<Painted> {
+    ) -> Result<bool> {
         match self {
             Presenter::Wgpu(swapchain) => {
                 present_wgpu(swapchain, need_gpu(gpu)?, doc, target, overlay)
@@ -110,7 +109,7 @@ impl Presenter {
             Presenter::Shm(buffers) => {
                 let mut base = doc.dioxus().inner.borrow_mut();
                 buffers.present(&mut base, target, overlay)?;
-                Ok(Painted::Whole)
+                Ok(false)
             }
         }
     }
@@ -174,7 +173,7 @@ fn present_wgpu(
     doc: &mut SurfaceDocument,
     target: FrameTarget,
     overlay: &Overlay,
-) -> Result<Painted> {
+) -> Result<bool> {
     let frame = swapchain.acquire(gpu, target.buffer)?;
     let view = frame.texture.create_view(&Default::default());
     let mut encoder = gpu

@@ -9,33 +9,6 @@
 //! object per capability: it creates one only when it holds none, and releases the one it holds
 //! when the capability goes.
 
-/// What the seat said about a capability.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Announcement {
-    /// `wl_seat.capabilities` now includes it (sctk's `new_capability`).
-    Added,
-    /// `wl_seat.capabilities` no longer includes it (sctk's `remove_capability`).
-    Removed,
-}
-
-/// Whether the host already holds the capability's device object (`wl_pointer`,
-/// `wl_keyboard`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Held {
-    Object,
-    Nothing,
-}
-
-impl Held {
-    /// `Held::Object` for `Some`.
-    pub(crate) fn of<T>(object: Option<&T>) -> Held {
-        match object {
-            Some(_) => Held::Object,
-            None => Held::Nothing,
-        }
-    }
-}
-
 /// What the host does with the capability's device object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CapabilityChange {
@@ -50,13 +23,15 @@ pub(crate) enum CapabilityChange {
     Absent,
 }
 
-/// The decision table.
-pub(crate) fn capability_change(announcement: Announcement, held: Held) -> CapabilityChange {
-    match (announcement, held) {
-        (Announcement::Added, Held::Nothing) => CapabilityChange::New,
-        (Announcement::Added, Held::Object) => CapabilityChange::Repeat,
-        (Announcement::Removed, Held::Object) => CapabilityChange::Removed,
-        (Announcement::Removed, Held::Nothing) => CapabilityChange::Absent,
+/// The decision table. `added`: the seat announced the capability (sctk's `new_capability`),
+/// else it dropped it (`remove_capability`). `held`: the host already holds the capability's
+/// device object (`wl_pointer`, `wl_keyboard`).
+pub(crate) fn capability_change(added: bool, held: bool) -> CapabilityChange {
+    match (added, held) {
+        (true, false) => CapabilityChange::New,
+        (true, true) => CapabilityChange::Repeat,
+        (false, true) => CapabilityChange::Removed,
+        (false, false) => CapabilityChange::Absent,
     }
 }
 
@@ -69,21 +44,16 @@ mod tests {
     #[test]
     fn a_reannounce_cycle_never_holds_two_objects() {
         let sequence = [
-            (Announcement::Added, CapabilityChange::New),
-            (Announcement::Removed, CapabilityChange::Removed),
-            (Announcement::Added, CapabilityChange::New),
-            (Announcement::Added, CapabilityChange::Repeat),
-            (Announcement::Removed, CapabilityChange::Removed),
-            (Announcement::Removed, CapabilityChange::Absent),
+            (true, CapabilityChange::New),
+            (false, CapabilityChange::Removed),
+            (true, CapabilityChange::New),
+            (true, CapabilityChange::Repeat),
+            (false, CapabilityChange::Removed),
+            (false, CapabilityChange::Absent),
         ];
         let mut objects = 0_u32;
         for (step, (announcement, want)) in sequence.into_iter().enumerate() {
-            let held = if objects == 0 {
-                Held::Nothing
-            } else {
-                Held::Object
-            };
-            let change = capability_change(announcement, held);
+            let change = capability_change(announcement, objects > 0);
             assert_eq!(change, want, "step {step}");
             objects = match change {
                 CapabilityChange::New => objects + 1,

@@ -5,7 +5,6 @@ use blitz_dom::BaseDocument;
 
 use super::pointer_input::view_point;
 use super::{Moved, SurfaceScroll};
-use crate::input::key::Repeat;
 use crate::input::pointer::PointerPos;
 use blitz_kit::scroll::cmd::ScrollCmd;
 use blitz_kit::scroll::driver::{Claim, KeyRepeat};
@@ -13,22 +12,23 @@ use blitz_kit::scroll::keys::ScrollKey;
 use blitz_kit::scroll::time::Elapsed;
 
 /// The engine's name for a key event's repeat.
-fn repeat_of(repeat: Repeat) -> KeyRepeat {
-    match repeat {
-        Repeat::First => KeyRepeat::First,
-        Repeat::Repeated => KeyRepeat::Repeated,
+fn repeat_of(repeated: bool) -> KeyRepeat {
+    if repeated {
+        KeyRepeat::Repeated
+    } else {
+        KeyRepeat::First
     }
 }
 
 impl SurfaceScroll {
-    /// A scroll key went down (`Repeat::First`) or repeated. `Claim::Left` (the document's)
+    /// A scroll key went down (`repeat` false) or repeated. `Claim::Left` (the document's)
     /// when something on the focus path handles keys or nothing around the focus scrolls; the
     /// `Moved` is what the engine's writes did.
     pub(crate) fn key(
         &mut self,
         doc: &mut BaseDocument,
         key: ScrollKey,
-        repeat: Repeat,
+        repeat: bool,
         pos: Option<PointerPos>,
         now: Elapsed,
     ) -> (Claim, Moved) {
