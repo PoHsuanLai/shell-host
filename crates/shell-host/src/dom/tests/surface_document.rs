@@ -176,3 +176,61 @@ fn the_shell_provider_pastes_what_the_seat_published_and_queues_what_it_copies()
     assert_eq!(provider.take_copied().as_deref(), Some("typed here"));
     assert_eq!(provider.take_copied(), None, "taken once");
 }
+
+/// A card that reads its own laid-out width after every resolve, through the `AfterResolve`
+/// the document provides, and shows it.
+fn width_reader_app() -> Element {
+    let after = use_context::<blitz_kit::after_resolve::AfterResolve>();
+    let width = use_signal(|| None::<f32>);
+    let mut registration = use_signal(|| None);
+    rsx! {
+        style { "html,body{{margin:0}}#card{{width:160px;height:40px}}" }
+        div {
+            id: "card",
+            onmounted: move |event| {
+                let Some(handle) = event.data().downcast::<dioxus_native_dom::NodeHandle>().cloned()
+                else {
+                    return;
+                };
+                let mut last = None;
+                registration.set(Some(after.watch(
+                    handle.node_id(),
+                    Box::new(move |doc, node| {
+                        let now = doc.get_node(node).map(|node| node.final_layout().size.width);
+                        if now == last {
+                            return None;
+                        }
+                        last = now;
+                        let mut width = width;
+                        Some(Box::new(move || width.try_write().map(|mut w| *w = now).is_ok()))
+                    }),
+                )));
+            },
+            match width() {
+                Some(width) => format!("width {width}"),
+                None => "unread".to_owned(),
+            }
+        }
+    }
+}
+
+#[test]
+fn a_reading_after_resolve_reaches_its_component_on_the_next_poll() {
+    let mut doc = SurfaceDocument::build(HostRoot::new(width_reader_app), test_env(200, 100));
+    let mut cx = Context::from_waker(std::task::Waker::noop());
+    doc.poll(&mut cx);
+    assert!(all_text(&mut doc).contains("unread"));
+
+    assert_eq!(doc.resolve(0.0).published, 1, "the first resolve publishes");
+    doc.poll(&mut cx);
+    assert!(
+        all_text(&mut doc).contains("width 160"),
+        "{}",
+        all_text(&mut doc)
+    );
+    assert_eq!(
+        doc.resolve(0.0).published,
+        0,
+        "an unchanged reading is quiet"
+    );
+}

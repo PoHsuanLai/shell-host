@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::task::Context;
 
 use blitz_dom::{Document as _, DocumentConfig, FontContext, StyleThreading};
+use blitz_kit::after_resolve::AfterResolve;
 use blitz_kit::hover::{LastMove, remember};
 use blitz_kit::net::LocalNet;
 use blitz_traits::events::UiEvent;
@@ -72,17 +73,24 @@ pub(crate) struct SurfaceDocument {
     last_move: LastMove,
     /// The document's shell provider, for `resolve`'s IME repair.
     shell: Arc<HostShellProvider>,
+    /// The readings components take after every resolve (quire's `use_resolved`), provided as
+    /// a root context and run by `resolve`.
+    after: AfterResolve,
 }
 
 impl SurfaceDocument {
     /// Build and initially render `root`: `StyleThreading::Sequential` (every document resolves
     /// on the main thread, blitz #430), the UA stylesheet and the body reset, the head shim as the Dioxus
-    /// `Document` context, the `SurfaceHandle` as a root context.
+    /// `Document` context, the `SurfaceHandle` and an `AfterResolve` as root contexts.
     pub(crate) fn build(root: HostRoot, env: DocumentEnv) -> SurfaceDocument {
         let head = HeadQueue::default();
         let head_document: Rc<dyn dioxus_document::Document> =
             Rc::new(HeadDocument::new(head.clone()));
-        let vdom = root.context(head_document).into_vdom();
+        let after = AfterResolve::default();
+        let vdom = root
+            .context(head_document)
+            .context(after.clone())
+            .into_vdom();
 
         let config = DocumentConfig {
             viewport: Some(env.viewport),
@@ -105,6 +113,7 @@ impl SurfaceDocument {
             prepaint: env.prepaint,
             last_move: LastMove::Unknown,
             shell: env.shell,
+            after,
         }
     }
 

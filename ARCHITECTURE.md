@@ -142,6 +142,7 @@ no design-system type, and takes and returns CSS px `f64` in Blitz's own units.
 | `hit` | `element_at(&BaseDocument, PagePoint) -> Option<NodeId>`, `element_of(&BaseDocument, NodeId) -> Option<NodeId>`, `is_content_element` (transform-aware: the point is carried back through each transformed ancestor) | `dom/document.rs` |
 | `paint_rect` | `Affine2`, `Placed`, `painted_bounds(Bounds, &[Placed]) -> Bounds`, `painted_rect(&BaseDocument, NodeId) -> Option<Bounds>` (layout box carried through its own and its ancestors' transforms) | `dom/painted.rs`, `dom/document.rs` |
 | `snap` | `snap_layout(&mut BaseDocument, Scale120)`: whole device pixels for every box after a resolve | consumers' prepaint hooks |
+| `after_resolve` | `AfterResolve::{watch, read}`, `Registration`, `publish`: components' readings of their node (quire's `use_resolved`), provided as a root context and run after every resolve, publishing only what changed | `SurfaceDocument::build`, `SurfaceDocument::resolve` |
 
 `Bounds`, `PagePoint`, `Scale120` (integer 120ths, the same type shell-host exports) are defined in
 `blitz-kit::units`. shell-host converts at its own boundary (`PointerPos`, `Rect`);

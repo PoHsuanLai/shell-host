@@ -27,7 +27,7 @@ palmrest-protocol = { path = "../palmrest/crates/palmrest-protocol" }
 
 # The portable Blitz repairs (own repo, public). Local checkouts redirect it to a sibling path through
 # each workspace root's [patch] (quire/CONSUMING.md section 1); git consumers get this rev.
-blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "47b6ceac2b7ab843e44e8991186bf5575dff6013" }
+blitz-kit = { git = "https://github.com/PoHsuanLai/blitz-kit", rev = "bb56e04c3ce7d3fa00c14c3ea4a5fc3d107997db" }
 
 # Blitz: git main, pinned by rev (crates.io dioxus-native 0.8 alpha does not build with
 # blitz 0.3.0-beta.2). The in-tree dioxus-native-dom targets dioxus 0.7.x.

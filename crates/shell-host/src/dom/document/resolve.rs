@@ -2,6 +2,7 @@
 
 use blitz_dom::Document as _;
 use blitz_dom::node::SurroundingText;
+use blitz_kit::after_resolve;
 use blitz_kit::hover::Shift;
 use blitz_traits::shell::ShellProvider as _;
 
@@ -19,6 +20,8 @@ pub(crate) struct Resolved {
     /// The resolve moved the hover: the restyle it needs lands on a later frame, and the
     /// resolve's own redraw request is dropped as the render's echo (`ctx::paint`).
     pub hover_moved: bool,
+    /// Readings that changed and were published to a live component.
+    pub published: usize,
 }
 
 impl SurfaceDocument {
@@ -30,7 +33,9 @@ impl SurfaceDocument {
     /// it must follow each one, or the paint shows the unsnapped layout. So a frame resolves
     /// exactly once, here, and paints what this left. The hover repair touches hover state and runs
     /// handlers, never layout, so the hook and the paint see the same layout; the restyle it causes
-    /// is the next frame's (`Resolved::hover`). Before any of that the viewport follows the root's
+    /// is the next frame's (`Resolved::hover`). Last, the components' after-resolve readings run on
+    /// the result, and a reading that changed sets its signal, so the component renders with it on
+    /// the next poll (`Resolved::published`). Before any of that the viewport follows the root's
     /// colour scheme (`dom::scheme`), so a switch is laid out with every box rebuilt.
     pub(crate) fn resolve(&mut self, t: f64) -> Resolved {
         let before = self.hovered();
@@ -45,9 +50,15 @@ impl SurfaceDocument {
             // The hook may have moved boxes (snapping); hoist from where it left them.
             stacking::rehoist(&mut self.doc.inner_mut());
         }
+        let publishes = self.after.read(&self.doc.inner());
+        let published = self
+            .doc
+            .vdom
+            .in_runtime(|| after_resolve::publish(publishes));
         Resolved {
             prepainted,
             hover_moved: before != after,
+            published,
         }
     }
 
