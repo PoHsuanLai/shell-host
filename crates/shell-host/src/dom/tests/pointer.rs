@@ -429,3 +429,36 @@ fn the_opt_in_is_the_element_or_an_ancestor_carrying_the_attribute() {
         assert_eq!(doc.wants_first_mouse(at.x, at.y), want, "{name}");
     }
 }
+
+/// A move inside one element leaves the hover where it was: nothing for a repaint to show.
+#[test]
+fn a_move_inside_one_element_does_not_move_the_hover() {
+    let mut doc = build();
+    let icon0 = node_id(&mut doc, "#icon0");
+    let pos = center(&mut doc, icon0);
+    let nudged = PointerPos {
+        x: pos.x + 3.0,
+        y: pos.y + 2.0,
+    };
+    let at = |pos| pointer::move_event(pos, MouseEventButtons::None, Modifiers::empty());
+
+    assert!(doc.handle_move(at(pos)), "the first move hovers the icon");
+    assert!(!doc.handle_move(at(nudged)), "a nudge inside it moves nothing");
+    assert!(!doc.handle_move(at(pos)), "and neither does coming back");
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), Some(icon0));
+}
+
+/// A move onto another element moves the hover, which `:hover` styles and `mouseenter` handlers
+/// may show.
+#[test]
+fn a_move_onto_another_element_moves_the_hover() {
+    let mut doc = build();
+    let icon0 = node_id(&mut doc, "#icon0");
+    let icon1 = node_id(&mut doc, "#icon1");
+    let (first, second) = (center(&mut doc, icon0), center(&mut doc, icon1));
+    let at = |pos| pointer::move_event(pos, MouseEventButtons::None, Modifiers::empty());
+
+    assert!(doc.handle_move(at(first)));
+    assert!(doc.handle_move(at(second)), "icon0 to icon1 is a new hover");
+    assert_eq!(doc.dioxus().inner.borrow().get_hover_node_id(), Some(icon1));
+}
