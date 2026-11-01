@@ -52,7 +52,7 @@ impl HostState {
             MotionRoute::Document => {
                 let at = self.document_pos(id, pos);
                 let event = pointer::move_event(at, self.input.buttons, self.input.modifiers);
-                self.deliver(id, [event]);
+                self.deliver_move(id, event);
             }
             MotionRoute::LeftDocument => {
                 if let Some(surface) = self.surfaces.get_mut(&id) {
@@ -78,6 +78,26 @@ impl HostState {
             surface.doc_cursor = Some(icon.unwrap_or(CursorIcon::Default));
         }
         self.invalidate(id);
+    }
+
+    /// A plain move on surface `id`'s document: invalidate only when the hover moved to another
+    /// node, the document asked for another cursor, or a button is held (a drag's own state is
+    /// not told to anyone else). A move inside one element repainted the whole surface per event
+    /// before: a full-screen wallpaper re-rastered at 4K each frame while the pointer crossed it.
+    pub(crate) fn deliver_move(&mut self, id: SurfaceId, event: UiEvent) {
+        let held = self.input.buttons != MouseEventButtons::None;
+        let Some(surface) = self.surfaces.get_mut(&id) else {
+            return;
+        };
+        let hover_moved = surface.document.handle_move(event);
+        let mut cursor_changed = false;
+        if let CursorRequest::Changed(icon) = surface.shell.take_cursor() {
+            surface.doc_cursor = Some(icon.unwrap_or(CursorIcon::Default));
+            cursor_changed = true;
+        }
+        if hover_moved || cursor_changed || held {
+            self.invalidate(id);
+        }
     }
 
     /// Show the cursor for the pointer's zone on surface `id`: the band's resize cursor, or
